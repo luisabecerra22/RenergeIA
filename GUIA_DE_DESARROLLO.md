@@ -1199,6 +1199,3 @@ dotnet run --project RenergeIA.Web
 
 *Guía actualizada el 24 de junio de 2026 — RenergeIA v1.0 en desarrollo activo.*
 
-Prueba de que voy a subir el archivo
-
-PRUEBA DE QUE EL ARCHIVO SI SE SUBIO
