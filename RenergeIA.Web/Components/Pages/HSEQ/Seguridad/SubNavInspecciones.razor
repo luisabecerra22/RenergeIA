@@ -1,0 +1,38 @@
+@* Sub-navegación interna del grupo Inspecciones — mismo estilo que Histogramas *@
+<div class="border border-top-0 rounded-bottom px-3 pt-3 pb-1 mb-4 bg-white">
+    <ul class="nav nav-pills mb-2">
+        <li class="nav-item">
+            <a class="nav-link @(TabActiva == "inspecciones" ? "active" : "")"
+               style="@(TabActiva == "inspecciones" ? "background:#183963" : "")"
+               href="/proyectos/@ProyectoId/hseq/seguridad/inspecciones">
+                <i class="bi-clipboard2-check me-1"></i>Inspecciones de Seguridad
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(TabActiva == "ots" ? "active" : "")"
+               style="@(TabActiva == "ots" ? "background:#183963" : "")"
+               href="/proyectos/@ProyectoId/hseq/seguridad/ots">
+                <i class="bi-eye me-1"></i>OTS
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(TabActiva == "stc" ? "active" : "")"
+               style="@(TabActiva == "stc" ? "background:#183963" : "")"
+               href="/proyectos/@ProyectoId/hseq/seguridad/stc">
+                <i class="bi-house-check me-1"></i>STC
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(TabActiva == "pausas" ? "active" : "")"
+               style="@(TabActiva == "pausas" ? "background:#183963" : "")"
+               href="/proyectos/@ProyectoId/hseq/seguridad/pausas-activas">
+                <i class="bi-stopwatch me-1"></i>Pausas Activas
+            </a>
+        </li>
+    </ul>
+</div>
+
+@code {
+    [Parameter] public int    ProyectoId { get; set; }
+    [Parameter] public string TabActiva  { get; set; } = "inspecciones";
+}

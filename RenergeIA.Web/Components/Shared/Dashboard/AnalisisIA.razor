@@ -1,0 +1,18 @@
+<div class="rn-ia-card">
+    <div class="rn-ia-header">
+        <i class="bi bi-cpu rn-ia-icon"></i>
+        <div>
+            <div class="rn-ia-title">@Titulo</div>
+            <div class="rn-ia-sub">@Subtitulo</div>
+        </div>
+    </div>
+    <div class="rn-ia-body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public string           Titulo       { get; set; } = "Análisis Inteligente";
+    [Parameter] public string           Subtitulo    { get; set; } = "Generado por RenergeIA";
+    [Parameter] public RenderFragment?  ChildContent { get; set; }
+}

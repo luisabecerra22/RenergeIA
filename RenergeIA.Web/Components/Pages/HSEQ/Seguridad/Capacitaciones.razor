@@ -2,61 +2,221 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
+@inject IJSRuntime JS
 @inject NavigationManager Navigation
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
+@using System.Globalization
 
 <PageTitle>Capacitaciones — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+    <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h4 mb-0"><i class="bi-mortarboard-fill me-2" style="color:#183963"></i>Capacitaciones SST</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("MMMM yyyy", _ci)</small>
         </div>
-        <button class="btn btn-success btn-sm me-1" @onclick="() => MostrarFormularioPlan()"><i class="bi-calendar-plus me-1"></i>Planificar</button>
-        <button class="btn btn-primary btn-sm" @onclick="() => MostrarFormularioEjec()"><i class="bi-plus-lg me-1"></i>Registrar Ejecutada</button>
+        @if (_totalPlan > 0)
+        {
+            var (bCss, bTxt) = _cumPct >= 90 ? ("bg-success", "Saludable") : _cumPct >= 70 ? ("bg-warning text-dark", "En Riesgo") : ("bg-danger", "Crítico");
+            <span class="badge @bCss fs-6 px-3 py-2">@bTxt — @_cumPct%</span>
+        }
+        <button class="btn btn-success btn-sm me-1" @onclick="MostrarFormPlanClick">
+            <i class="bi-calendar-plus me-1"></i>Planificar
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormEjecClick">
+            <i class="bi-plus-lg me-1"></i>Registrar Ejecutada
+        </button>
+    </div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="capacitaciones" />
+
+    <!-- ── Nivel 1: Filtros ───────────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm mb-1 fw-bold text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Área</label>
+                    <select class="form-select form-select-sm" @bind="_filtroArea">
+                        <option value="">Todas las áreas</option>
+                        @foreach (var a in _areasDisponibles) { <option value="@a">@a</option> }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label form-label-sm mb-1 fw-bold text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Tema</label>
+                    <select class="form-select form-select-sm" @bind="_filtroTema">
+                        <option value="">Todos los temas</option>
+                        @foreach (var t in _temasDisponibles) { <option value="@t">@t</option> }
+                    </select>
+                </div>
+                <div class="col-4 col-md-2">
+                    <label class="form-label form-label-sm mb-1 fw-bold text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Mes</label>
+                    <select class="form-select form-select-sm" @bind="_filtroMes">
+                        <option value="0">Todos</option>
+                        @for (int m = 1; m <= 12; m++) { var mes = m; <option value="@mes">@(new DateTime(2025,mes,1).ToString("MMMM",_ci))</option> }
+                    </select>
+                </div>
+                <div class="col-4 col-md-1">
+                    <label class="form-label form-label-sm mb-1 fw-bold text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Año</label>
+                    <select class="form-select form-select-sm" @bind="_filtroAnio">
+                        <option value="0">Todos</option>
+                        @foreach (var a in _aniosDisponibles) { <option value="@a">@a</option> }
+                    </select>
+                </div>
+                <div class="col-4 col-md-2">
+                    <label class="form-label form-label-sm mb-1 fw-bold text-muted" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Estado</label>
+                    <select class="form-select form-select-sm" @bind="_filtroEstado">
+                        <option value="">Todos</option>
+                        <option value="Vencida">Vencidas</option>
+                        <option value="Planificada">Pendientes</option>
+                        <option value="Ejecutada">Ejecutadas</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-3 d-flex gap-2 justify-content-end">
+                    <button class="btn btn-primary btn-sm px-3" @onclick="AplicarFiltrosAsync">
+                        <i class="bi-funnel-fill me-1"></i>Aplicar
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm px-3" @onclick="LimpiarFiltrosAsync">
+                        <i class="bi-x-circle me-1"></i>Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- KPIs -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_planificadas.Count</div>
-                <div class="text-muted small">Planificadas</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_ejecutadas.Count</div>
-                <div class="text-muted small">Ejecutadas</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            @{ var cumPct = _planificadas.Count > 0 ? (int)Math.Round(_ejecutadas.Count * 100.0 / _planificadas.Count) : 100; }
-            <div class="card shadow-sm p-3 text-center border-start border-4 @(cumPct>=80?"border-success":cumPct>=60?"border-warning":"border-danger")">
-                <div class="fw-bold" style="font-size:1.8rem;color:@(cumPct>=80?"#6ABF4B":cumPct>=60?"#ffc107":"#dc3545")">@cumPct%</div>
-                <div class="text-muted small">% Cumplimiento</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            @{ var hh = _ejecutadas.Sum(c => c.DuracionHoras * c.NumeroAsistentes); }
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@hh.ToString("N0")h</div>
-                <div class="text-muted small">Horas-Hombre</div>
-            </div>
-        </div>
-    </div>
+    <!-- ── Nivel 2: Resumen ejecutivo ────────────────────────────────────── -->
+    <SeccionDash Titulo="Resumen Ejecutivo" Icono="bi-speedometer2">
+        <div class="row g-3 mb-2 align-items-stretch">
 
-    <!-- Formulario planificada -->
+            <!-- Tarjeta Personas Capacitadas -->
+            <div class="col-12 col-md-4 col-xl-3">
+                <div style="background:linear-gradient(145deg,#183963 0%,#1e4f8a 100%);border-radius:.75rem;padding:1.5rem;color:#fff;height:100%;box-shadow:0 4px 16px rgba(24,57,99,.22);display:flex;flex-direction:column;justify-content:space-between">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <i class="bi-people-fill" style="font-size:1.6rem;opacity:.85"></i>
+                            <div>
+                                <div style="font-size:.65rem;opacity:.7;text-transform:uppercase;letter-spacing:.07em">Alcance del programa</div>
+                                <div style="font-size:.92rem;font-weight:700">Personas Capacitadas</div>
+                            </div>
+                        </div>
+                        <div style="font-size:3.2rem;font-weight:700;line-height:1;margin-bottom:.2rem">
+                            @_totalAsistentes.ToString("N0")
+                        </div>
+                        <div style="font-size:.78rem;opacity:.75;margin-bottom:1.25rem">personas en capacitaciones</div>
+                    </div>
+                    <div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <div style="background:rgba(255,255,255,.1);border-radius:.5rem;padding:.6rem .4rem;text-align:center">
+                                    <div style="font-size:1.15rem;font-weight:700">@_ejecEsteMes</div>
+                                    <div style="font-size:.58rem;opacity:.72;line-height:1.2">cap. este mes</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div style="background:rgba(255,255,255,.1);border-radius:.5rem;padding:.6rem .4rem;text-align:center">
+                                    <div style="font-size:1.15rem;font-weight:700">@(_totalEjec > 0 ? (_totalAsistentes / _totalEjec).ToString("N0") : "—")</div>
+                                    <div style="font-size:.58rem;opacity:.72;line-height:1.2">prom./sesión</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div style="background:rgba(255,255,255,.1);border-radius:.5rem;padding:.6rem .4rem;text-align:center">
+                                    <div style="font-size:1.15rem;font-weight:700">@_areasCubiertas</div>
+                                    <div style="font-size:.58rem;opacity:.72;line-height:1.2">áreas cubiertas</div>
+                                </div>
+                            </div>
+                        </div>
+                        @if (_totalHH > 0)
+                        {
+                            <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:.875rem">
+                                <div style="font-size:.65rem;opacity:.7;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.04em">Horas hombre acumuladas</div>
+                                <div style="font-size:1.5rem;font-weight:700">@_totalHH.ToString("N0") <span style="font-size:.85rem;font-weight:400;opacity:.75">h</span></div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8 Gauges -->
+            <div class="col-12 col-md-8 col-xl-9">
+                <div class="row row-cols-2 row-cols-sm-4 g-3">
+                    @foreach (var g in _gauges)
+                    {
+                        <div class="col">
+                            <GaugeCircular Titulo="@g.Titulo" ValorCentral="@g.ValorCentral"
+                                           SubTexto="@g.SubTexto" Porcentaje="@g.Porcentaje"
+                                           Estado="@g.Estado" Color="@g.Color" />
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </SeccionDash>
+
+    <!-- ── Nivel 3: Gráficos ─────────────────────────────────────────────── -->
+    <SeccionDash Titulo="Análisis Gráfico" Icono="bi-bar-chart-line">
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-lg-8">
+                <ChartCard Titulo="Programadas vs Ejecutadas — Evolución Mensual" CanvasId="chartCapMes" Altura="230" />
+            </div>
+            <div class="col-12 col-lg-4">
+                <ChartCard Titulo="Horas Hombre por Mes" CanvasId="chartCapHH" Altura="230" />
+            </div>
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <ChartCard Titulo="Cumplimiento por Área" CanvasId="chartCapArea" Altura="220" />
+            </div>
+            <div class="col-12 col-md-6">
+                <ChartCard Titulo="Capacitaciones por Tema" CanvasId="chartCapTemas" Altura="220" />
+            </div>
+        </div>
+
+        @if (_vencidas.Any())
+        {
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header d-flex align-items-center gap-2 py-2" style="background:#fff3cd;border-left:4px solid #ffc107">
+                    <i class="bi-clock-history" style="color:#664d03"></i>
+                    <strong style="color:#664d03;font-size:.83rem">Capacitaciones Vencidas o Pendientes (@_vencidas.Count)</strong>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" style="font-size:.8rem">
+                        <thead style="background:#fffdf0">
+                            <tr>
+                                <th style="color:#183963;font-weight:700;padding:.6rem 1rem">Capacitación</th>
+                                <th style="color:#183963;font-weight:700">Área</th>
+                                <th style="color:#183963;font-weight:700">Responsable</th>
+                                <th style="color:#183963;font-weight:700">F. Planificada</th>
+                                <th style="color:#183963;font-weight:700;text-align:center">Atraso</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in _vencidas.OrderBy(x => x.FechaPlanificada).Take(8))
+                            {
+                                var dias = (int)(DateTime.Today - v.FechaPlanificada).TotalDays;
+                                <tr>
+                                    <td class="fw-semibold" style="padding:.6rem 1rem">@v.Nombre</td>
+                                    <td class="text-muted">@(v.Area ?? "—")</td>
+                                    <td class="text-muted">@(v.Responsable ?? "—")</td>
+                                    <td class="text-danger fw-semibold">@v.FechaPlanificada.ToString("dd/MM/yyyy")</td>
+                                    <td style="text-align:center"><span class="badge bg-danger">@dias d</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </SeccionDash>
+
+    <!-- ── Formularios ────────────────────────────────────────────────────── -->
     @if (_mostrarFormPlan)
     {
         <div class="card shadow-sm mb-4 border-success">
-            <div class="card-header bg-success text-white d-flex justify-content-between">
-                <strong>Planificar Capacitación</strong>
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center py-2">
+                <strong><i class="bi-calendar-plus me-2"></i>Planificar Capacitación</strong>
                 <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarFormPlan = false"></button>
             </div>
             <div class="card-body">
@@ -107,12 +267,11 @@ else
         </div>
     }
 
-    <!-- Formulario ejecutada -->
     @if (_mostrarFormEjec)
     {
         <div class="card shadow-sm mb-4 border-primary">
-            <div class="card-header bg-primary text-white d-flex justify-content-between">
-                <strong>Registrar Capacitación Ejecutada</strong>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+                <strong><i class="bi-check2-circle me-2"></i>Registrar Capacitación Ejecutada</strong>
                 <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarFormEjec = false"></button>
             </div>
             <div class="card-body">
@@ -171,122 +330,278 @@ else
         </div>
     }
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
-        <li class="nav-item">
-            <button class="nav-link @(_tabActivo == "plan" ? "active" : "")" @onclick='() => _tabActivo = "plan"'>
-                <i class="bi-calendar3 me-1"></i>Planificadas (@_planificadas.Count)
-            </button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(_tabActivo == "ejec" ? "active" : "")" @onclick='() => _tabActivo = "ejec"'>
-                <i class="bi-check2-circle me-1"></i>Ejecutadas (@_ejecutadas.Count)
-            </button>
-        </li>
-    </ul>
-
-    @if (_tabActivo == "plan")
-    {
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 small">
-                    <thead class="table-light">
-                        <tr><th>Nombre</th><th>Tema</th><th>Área</th><th>Responsable</th><th>F. Planificada</th><th class="text-center">Duración</th><th class="text-center">Estado</th><th class="text-center">Acc.</th></tr>
-                    </thead>
-                    <tbody>
-                        @if (!_planificadas.Any())
-                        {
-                            <tr><td colspan="8" class="text-center text-muted py-4">No hay capacitaciones planificadas.</td></tr>
-                        }
-                        @foreach (var p in _planificadas.OrderBy(x => x.FechaPlanificada))
-                        {
-                            <tr>
-                                <td class="fw-semibold">@p.Nombre</td>
-                                <td class="text-muted">@p.Tema</td>
-                                <td>@(p.Area ?? "—")</td>
-                                <td>@(p.Responsable ?? "—")</td>
-                                <td @class="@(p.FechaPlanificada < DateTime.Today && p.Estado == EstadoPlanTrabajo.Planificada ? "text-danger fw-bold" : "")">
-                                    @p.FechaPlanificada.ToString("dd/MM/yyyy")
-                                </td>
-                                <td class="text-center text-muted">@p.DuracionEstimadaHoras.ToString("N0")h</td>
-                                <td class="text-center"><span class="badge @BadgePlan(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span></td>
-                                <td class="text-center">
-                                    @if (_confirmandoEliminarPlan == p.Id)
-                                    {
-                                        <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarPlanAsync(p.Id)">Sí</button>
-                                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminarPlan = null">No</button>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminarPlan = p.Id"><i class="bi-trash"></i></button>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+    <!-- ── Nivel 4: Tabla inteligente ────────────────────────────────────── -->
+    <SeccionDash Titulo="Registro de Capacitaciones" Icono="bi-table">
+        <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <div class="flex-grow-1" style="min-width:220px;max-width:380px">
+                <input type="search" class="form-control form-control-sm"
+                       placeholder="Buscar por nombre, tema, área, instructor..."
+                       @bind="_busqueda" @bind:event="oninput" />
             </div>
         </div>
-    }
+        <ul class="nav nav-pills mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(_tabActivo == "plan" ? "active" : "")" @onclick='() => _tabActivo = "plan"'>
+                    <i class="bi-calendar3 me-1"></i>Planificadas (@_planFiltradas.Count)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(_tabActivo == "ejec" ? "active" : "")" @onclick='() => _tabActivo = "ejec"'>
+                    <i class="bi-check2-circle me-1"></i>Ejecutadas (@_ejecFiltradas.Count)
+                </button>
+            </li>
+        </ul>
 
-    @if (_tabActivo == "ejec")
-    {
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 small">
-                    <thead class="table-light">
-                        <tr><th>Título</th><th>Instructor</th><th>Área</th><th>Fecha</th><th class="text-center">Duración</th><th class="text-center">Asistentes</th><th class="text-center">HH</th><th>Lugar</th><th class="text-center">Acc.</th></tr>
-                    </thead>
-                    <tbody>
-                        @if (!_ejecutadas.Any())
-                        {
-                            <tr><td colspan="9" class="text-center text-muted py-4">No hay capacitaciones ejecutadas.</td></tr>
-                        }
-                        @foreach (var c in _ejecutadas.OrderByDescending(x => x.Fecha))
-                        {
+        @if (_tabActivo == "plan")
+        {
+            var planMostradas = _planFiltradas.Where(p =>
+                string.IsNullOrEmpty(_busqueda) ||
+                p.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                (p.Tema?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Area?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (p.Responsable?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).OrderBy(x => x.FechaPlanificada).ToList();
+
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table rn-table table-hover align-middle mb-0">
+                        <thead>
                             <tr>
-                                <td>
-                                    <div class="fw-semibold">@c.Titulo</div>
-                                    <div class="text-muted" style="font-size:.78rem">@c.Tema</div>
-                                </td>
-                                <td class="text-muted">@c.Instructor</td>
-                                <td>@(c.Area ?? "—")</td>
-                                <td>@c.Fecha.ToString("dd/MM/yyyy")</td>
-                                <td class="text-center text-muted">@c.DuracionHoras.ToString("N0")h</td>
-                                <td class="text-center fw-semibold">@c.NumeroAsistentes</td>
-                                <td class="text-center text-muted">@((c.DuracionHoras * c.NumeroAsistentes).ToString("N0"))h</td>
-                                <td class="text-muted">@(c.Lugar ?? "—")</td>
-                                <td class="text-center">
-                                    @if (_confirmandoEliminarEjec == c.Id)
-                                    {
-                                        <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarEjecAsync(c.Id)">Sí</button>
-                                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminarEjec = null">No</button>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminarEjec = c.Id"><i class="bi-trash"></i></button>
-                                    }
-                                </td>
+                                <th>Nombre</th><th>Tema</th><th>Área</th><th>Responsable</th>
+                                <th>F. Planificada</th><th class="text-center">Duración</th>
+                                <th class="text-center">Estado</th><th class="text-center">Acc.</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @if (!planMostradas.Any())
+                            {
+                                <tr><td colspan="8" class="text-center text-muted py-4">No hay capacitaciones que coincidan.</td></tr>
+                            }
+                            @foreach (var p in planMostradas)
+                            {
+                                var esVencida = p.FechaPlanificada < DateTime.Today && p.Estado == EstadoPlanTrabajo.Planificada;
+                                <tr>
+                                    <td class="fw-semibold">@p.Nombre</td>
+                                    <td class="text-muted small">@(p.Tema ?? "—")</td>
+                                    <td>@(p.Area ?? "—")</td>
+                                    <td class="text-muted">@(p.Responsable ?? "—")</td>
+                                    <td class="@(esVencida ? "text-danger fw-bold" : "")">
+                                        @p.FechaPlanificada.ToString("dd/MM/yyyy")
+                                        @if (esVencida) { <i class="bi-exclamation-circle-fill ms-1" style="font-size:.72rem;color:#dc3545"></i> }
+                                    </td>
+                                    <td class="text-center text-muted">@p.DuracionEstimadaHoras.ToString("N0")h</td>
+                                    <td class="text-center"><span class="badge @BadgePlan(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span></td>
+                                    <td class="text-center">
+                                        @if (_confirmandoEliminarPlan == p.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarPlanAsync(p.Id)">Sí</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminarPlan = null">No</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminarPlan = p.Id"><i class="bi-trash"></i></button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    }
+        }
+
+        @if (_tabActivo == "ejec")
+        {
+            var ejecMostradas = _ejecFiltradas.Where(c =>
+                string.IsNullOrEmpty(_busqueda) ||
+                c.Titulo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                (c.Tema?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                c.Instructor.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                (c.Area?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false)
+            ).OrderByDescending(x => x.Fecha).ToList();
+
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table rn-table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Título</th><th>Instructor</th><th>Área</th><th>Fecha</th>
+                                <th class="text-center">Duración</th><th class="text-center">Asistentes</th>
+                                <th class="text-center">HH</th><th>Lugar</th><th class="text-center">Acc.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!ejecMostradas.Any())
+                            {
+                                <tr><td colspan="9" class="text-center text-muted py-4">No hay capacitaciones que coincidan.</td></tr>
+                            }
+                            @foreach (var c in ejecMostradas)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@c.Titulo</div>
+                                        @if (!string.IsNullOrEmpty(c.Tema))
+                                        {
+                                            <div class="text-muted" style="font-size:.75rem">@c.Tema</div>
+                                        }
+                                    </td>
+                                    <td class="text-muted">@c.Instructor</td>
+                                    <td>@(c.Area ?? "—")</td>
+                                    <td>@c.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td class="text-center text-muted">@c.DuracionHoras.ToString("N0")h</td>
+                                    <td class="text-center fw-semibold" style="color:#183963">@c.NumeroAsistentes</td>
+                                    <td class="text-center text-muted">@((c.DuracionHoras * c.NumeroAsistentes).ToString("N0"))h</td>
+                                    <td class="text-muted small">@(c.Lugar ?? "—")</td>
+                                    <td class="text-center">
+                                        @if (_confirmandoEliminarEjec == c.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarEjecAsync(c.Id)">Sí</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminarEjec = null">No</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminarEjec = c.Id"><i class="bi-trash"></i></button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </SeccionDash>
+
+    <!-- ── Nivel 5: Análisis IA ───────────────────────────────────────────── -->
+    <div class="mt-1 mb-4">
+        <AnalisisIA Titulo="Análisis Inteligente de Capacitaciones" Subtitulo="Diagnóstico automático generado por RenergeIA">
+            <div class="rn-ia-item">
+                <i class="bi-bar-chart-fill text-warning"></i>
+                <span>
+                    Cumplimiento del cronograma: <strong>@(_totalPlan > 0 ? $"{_cumPct}%" : "sin datos")</strong>.
+                    @if (_totalPlan > 0) {
+                        <span>Se @(_totalEjec == 1 ? "ejecutó" : "ejecutaron") <strong>@_totalEjec de @_totalPlan</strong> capacitaciones planificadas.</span>
+                    } else {
+                        <span>Registre capacitaciones planificadas para habilitar el análisis de cumplimiento.</span>
+                    }
+                </span>
+            </div>
+            @if (_totalHH > 0)
+            {
+                <div class="rn-ia-item">
+                    <i class="bi-clock-fill" style="color:#6ABF4B"></i>
+                    <span>Se acumulan <strong>@_totalHH.ToString("N0") horas hombre</strong> capacitadas con un promedio de <strong>@(_totalEjec > 0 ? (_totalAsistentes / _totalEjec).ToString("N0") : 0) asistentes</strong> por sesión.</span>
+                </div>
+            }
+            @if (_areasLabels.Length > 0)
+            {
+                var idxMenor = Array.IndexOf(_cumAreaVals, _cumAreaVals.Min());
+                var idxMayor = Array.IndexOf(_cumAreaVals, _cumAreaVals.Max());
+                <div class="rn-ia-item">
+                    <i class="bi-buildings" style="color:rgba(255,255,255,.8)"></i>
+                    <span>
+                        Área con mayor cumplimiento: <strong>@_areasLabels[idxMayor]</strong> (@_cumAreaVals[idxMayor].ToString("N0")%).
+                        Área con menor cobertura: <strong>@_areasLabels[idxMenor]</strong> (@_cumAreaVals[idxMenor].ToString("N0")%).
+                    </span>
+                </div>
+            }
+            @if (_totalVencidas > 0)
+            {
+                <div class="rn-ia-item">
+                    <i class="bi-exclamation-triangle-fill text-warning"></i>
+                    <span>Existen <strong>@_totalVencidas capacitaci@(_totalVencidas == 1 ? "ón" : "ones") vencida@(_totalVencidas == 1 ? "" : "s")</strong>. Se recomienda reprogramar con prioridad antes del cierre del período.</span>
+                </div>
+            }
+            @if (_temasLabels.Length > 0)
+            {
+                <div class="rn-ia-item">
+                    <i class="bi-lightbulb-fill" style="color:#6ABF4B"></i>
+                    <span>
+                        @if (_temasLabels.Length > 1) {
+                            <span>Los temas más frecuentes son <strong>@_temasLabels[0]</strong> y <strong>@_temasLabels[1]</strong>.</span>
+                        } else {
+                            <span>El tema más frecuente es <strong>@_temasLabels[0]</strong>.</span>
+                        }
+                        Verificar que los temas críticos de SST estén cubiertos en el cronograma.
+                    </span>
+                </div>
+            }
+            @if (_totalPlan > 0 && _cumPct < 70)
+            {
+                <div class="rn-ia-item">
+                    <i class="bi-exclamation-circle-fill text-danger"></i>
+                    <span>Cumplimiento <strong>Crítico (@_cumPct%)</strong>. Revisar disponibilidad de instructores y reagendar capacitaciones vencidas. Priorizar temas de SST obligatorios.</span>
+                </div>
+            }
+            else if (_totalPlan > 0 && _cumPct >= 90)
+            {
+                <div class="rn-ia-item">
+                    <i class="bi-check-circle-fill" style="color:#6ABF4B"></i>
+                    <span>Desempeño <strong>Saludable (@_cumPct%)</strong>. El cronograma de capacitaciones está en buen ritmo. Mantener la constancia para cerrar el período con cumplimiento óptimo.</span>
+                </div>
+            }
+        </AnalisisIA>
+    </div>
 }
 
 @code {
     [Parameter] public int ProyectoId { get; set; }
 
-    private Proyecto? _proyecto;
-    private List<CapacitacionPlanificada> _planificadas = [];
-    private List<Capacitacion> _ejecutadas = [];
-    private string _tabActivo = "ejec";
-    private bool _mostrarFormPlan;
-    private bool _mostrarFormEjec;
-    private int? _confirmandoEliminarPlan;
-    private int? _confirmandoEliminarEjec;
+    private Proyecto?        _proyecto;
+    private readonly CultureInfo _ci = new("es-CO");
+
+    // Raw data
+    private List<CapacitacionPlanificada> _todasPlan = [];
+    private List<Capacitacion>            _todasEjec = [];
+
+    // Filtered data
+    private List<CapacitacionPlanificada> _planFiltradas = [];
+    private List<Capacitacion>            _ejecFiltradas = [];
+    private List<CapacitacionPlanificada> _vencidas      = [];
+
+    // Aggregate metrics
+    private int     _totalPlan, _totalEjec, _cumPct;
+    private int     _totalVencidas, _totalPendientes, _totalAsistentes;
+    private int     _ejecEsteMes, _planEsteMes, _areasCubiertas;
+    private decimal _totalHH;
+
+    // Gauges
+    private record Gauge(string Titulo, string ValorCentral, string SubTexto, int Porcentaje, string Estado, string? Color = null);
+    private List<Gauge> _gauges = [];
+
+    // Chart data
+    private string[] _mesesLabels = [];
+    private int[]    _planXMes   = [];
+    private int[]    _ejecXMes   = [];
+    private double[] _pctXMes    = [];
+    private double[] _hhXMes     = [];
+    private string[] _areasLabels = [];
+    private double[] _cumAreaVals = [];
+    private string[] _temasLabels = [];
+    private int[]    _temasVals   = [];
+
+    // Filter options
+    private List<string> _areasDisponibles = [];
+    private List<string> _temasDisponibles = [];
+    private List<int>    _aniosDisponibles = [];
+
+    // Active filters
+    private string _filtroArea   = "";
+    private string _filtroTema   = "";
+    private int    _filtroMes    = 0;
+    private int    _filtroAnio   = 0;
+    private string _filtroEstado = "";
+
+    // UI state
+    private string _tabActivo  = "ejec";
+    private string _busqueda   = "";
+    private bool   _mostrarFormPlan;
+    private bool   _mostrarFormEjec;
+    private int?   _confirmandoEliminarPlan;
+    private int?   _confirmandoEliminarEjec;
+    private bool   _chartsReady;
+
+    // Forms
     private FormPlanModel _formPlan = new();
     private FormEjecModel _formEjec = new();
 
@@ -297,28 +612,196 @@ else
         await CargarAsync();
     }
 
-    private async Task CargarAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _planificadas = await Db.CapacitacionesPlanificadas.Where(c => c.ProyectoId == ProyectoId).OrderBy(c => c.FechaPlanificada).ToListAsync();
-        _ejecutadas   = await Db.Capacitaciones.Where(c => c.ProyectoId == ProyectoId).OrderByDescending(c => c.Fecha).ToListAsync();
+        if (_chartsReady && _proyecto is not null)
+        {
+            _chartsReady = false;
+            if (_mesesLabels.Length > 0)
+                await JS.InvokeVoidAsync("renderCapMes", "chartCapMes", _mesesLabels, _planXMes, _ejecXMes, _pctXMes);
+            if (_hhXMes.Any(h => h > 0))
+                await JS.InvokeVoidAsync("renderCapHH", "chartCapHH", _mesesLabels, _hhXMes);
+            if (_areasLabels.Length > 0)
+                await JS.InvokeVoidAsync("renderCapArea", "chartCapArea", _areasLabels, _cumAreaVals);
+            if (_temasLabels.Length > 0)
+                await JS.InvokeVoidAsync("renderCapTemas", "chartCapTemas", _temasLabels, _temasVals);
+        }
     }
 
-    private void MostrarFormularioPlan() { _formPlan = new FormPlanModel { FechaPlanificada = DateTime.Today }; _mostrarFormPlan = true; _tabActivo = "plan"; }
-    private void MostrarFormularioEjec() { _formEjec = new FormEjecModel { Fecha = DateTime.Today }; _mostrarFormEjec = true; _tabActivo = "ejec"; }
+    private async Task CargarAsync()
+    {
+        _todasPlan = await Db.CapacitacionesPlanificadas.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
+        _todasEjec = await Db.Capacitaciones.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
+
+        _areasDisponibles = _todasEjec.Where(c => !string.IsNullOrEmpty(c.Area)).Select(c => c.Area!)
+            .Concat(_todasPlan.Where(p => !string.IsNullOrEmpty(p.Area)).Select(p => p.Area!))
+            .Distinct().OrderBy(x => x).ToList();
+
+        _temasDisponibles = _todasEjec.Where(c => !string.IsNullOrEmpty(c.Tema)).Select(c => c.Tema!)
+            .Concat(_todasPlan.Where(p => !string.IsNullOrEmpty(p.Tema)).Select(p => p.Tema!))
+            .Distinct().OrderBy(x => x).ToList();
+
+        _aniosDisponibles = _todasEjec.Select(c => c.Fecha.Year)
+            .Concat(_todasPlan.Select(p => p.FechaPlanificada.Year))
+            .Distinct().OrderByDescending(x => x).ToList();
+
+        ComputeMetrics();
+    }
+
+    private void ComputeMetrics()
+    {
+        var hoy        = DateTime.Today;
+        var mesActual  = hoy.Month;
+        var anioActual = hoy.Year;
+
+        _planFiltradas = _todasPlan.Where(p =>
+            (string.IsNullOrEmpty(_filtroArea)   || p.Area == _filtroArea) &&
+            (string.IsNullOrEmpty(_filtroTema)   || p.Tema == _filtroTema) &&
+            (_filtroMes  == 0 || p.FechaPlanificada.Month == _filtroMes) &&
+            (_filtroAnio == 0 || p.FechaPlanificada.Year  == _filtroAnio) &&
+            MatchEstadoPlan(p, hoy)
+        ).ToList();
+
+        _ejecFiltradas = _todasEjec.Where(c =>
+            (string.IsNullOrEmpty(_filtroArea) || c.Area == _filtroArea) &&
+            (string.IsNullOrEmpty(_filtroTema) || c.Tema == _filtroTema) &&
+            (_filtroMes  == 0 || c.Fecha.Month == _filtroMes) &&
+            (_filtroAnio == 0 || c.Fecha.Year  == _filtroAnio)
+        ).ToList();
+
+        _totalPlan       = _planFiltradas.Count;
+        _totalEjec       = _ejecFiltradas.Count;
+        _cumPct          = _totalPlan > 0 ? (int)Math.Round(_totalEjec * 100.0 / _totalPlan) : (_totalEjec > 0 ? 100 : 0);
+        _totalHH         = _ejecFiltradas.Sum(c => c.DuracionHoras * c.NumeroAsistentes);
+        _totalAsistentes = _ejecFiltradas.Sum(c => c.NumeroAsistentes);
+        _vencidas        = _planFiltradas.Where(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada).ToList();
+        _totalVencidas   = _vencidas.Count;
+        _totalPendientes = _planFiltradas.Count(p => p.Estado == EstadoPlanTrabajo.Planificada && p.FechaPlanificada >= hoy);
+        _ejecEsteMes     = _ejecFiltradas.Count(c => c.Fecha.Month == mesActual && c.Fecha.Year == anioActual);
+        _planEsteMes     = _planFiltradas.Count(p => p.FechaPlanificada.Month == mesActual && p.FechaPlanificada.Year == anioActual);
+        _areasCubiertas  = _ejecFiltradas.Where(c => !string.IsNullOrEmpty(c.Area)).Select(c => c.Area!).Distinct().Count();
+
+        // Gauges
+        int mesPct = _planEsteMes > 0 ? (int)Math.Round(_ejecEsteMes * 100.0 / _planEsteMes) : (_ejecEsteMes > 0 ? 100 : 0);
+        int hhPct  = _totalPlan  > 0 ? Math.Min(100, (int)((double)_totalHH / Math.Max(1, _totalPlan * 3) * 100)) : Math.Min(100, (int)_totalHH);
+
+        _gauges =
+        [
+            new("Cumplimiento",
+                _totalPlan > 0 ? $"{_cumPct}%" : "—",
+                $"{_totalEjec} de {_totalPlan}",
+                _cumPct,
+                _totalPlan > 0 ? Epct(_cumPct) : "Informativo"),
+            new("Planificadas",
+                _totalPlan.ToString(),
+                _totalPlan == 1 ? "capacitación" : "capacitaciones",
+                Math.Min(100, _totalPlan > 0 ? 100 : 0),
+                "Informativo", "#183963"),
+            new("Ejecutadas",
+                _totalEjec.ToString(), "realizadas",
+                _totalPlan > 0 ? _cumPct : Math.Min(100, _totalEjec > 0 ? 100 : 0),
+                _totalPlan > 0 ? Epct(_cumPct) : (_totalEjec > 0 ? "Saludable" : "Informativo")),
+            new("HH Capacitadas",
+                _totalHH > 0 ? $"{_totalHH:N0}h" : "—",
+                "horas hombre", hhPct,
+                _totalHH > 0 ? "Informativo" : "Informativo", "#183963"),
+            new("Vencidas",
+                _totalVencidas.ToString(),
+                _totalVencidas == 0 ? "al día" : "vencidas",
+                _totalVencidas == 0 ? 100 : Math.Max(5, 100 - _totalVencidas * 15),
+                _totalVencidas == 0 ? "Saludable" : "Crítico"),
+            new("Pendientes",
+                _totalPendientes.ToString(), "por ejecutar",
+                _totalPlan > 0 ? Math.Max(0, 100 - (int)(_totalPendientes * 100.0 / Math.Max(1, _totalPlan))) : 100,
+                _totalPendientes == 0 ? "Saludable" : "Informativo"),
+            new("Asistentes",
+                _totalAsistentes.ToString("N0"),
+                "personas alcanzadas",
+                Math.Min(100, _totalAsistentes > 0 ? Math.Min(100, _totalAsistentes * 2) : 0),
+                _totalAsistentes > 0 ? "Informativo" : "Informativo", "#183963"),
+            new("Este Mes",
+                _ejecEsteMes.ToString(),
+                _planEsteMes > 0 ? $"de {_planEsteMes} plan." : "ejecutadas",
+                mesPct,
+                _planEsteMes > 0 ? Epct(mesPct) : (_ejecEsteMes > 0 ? "Saludable" : "Informativo")),
+        ];
+
+        // Chart — por mes (últimos 12 meses o fechas disponibles)
+        var fechasDatos = _ejecFiltradas.Select(c => new DateTime(c.Fecha.Year, c.Fecha.Month, 1))
+            .Concat(_planFiltradas.Select(p => new DateTime(p.FechaPlanificada.Year, p.FechaPlanificada.Month, 1)))
+            .Distinct().OrderBy(d => d).ToList();
+
+        if (!fechasDatos.Any())
+        {
+            var ini = new DateTime(anioActual, mesActual, 1).AddMonths(-5);
+            fechasDatos = Enumerable.Range(0, 6).Select(i => ini.AddMonths(i)).ToList();
+        }
+
+        _mesesLabels = fechasDatos.Select(d => d.ToString("MMM yy", _ci)).ToArray();
+        _planXMes    = fechasDatos.Select(d => _planFiltradas.Count(p => p.FechaPlanificada.Year == d.Year && p.FechaPlanificada.Month == d.Month)).ToArray();
+        _ejecXMes    = fechasDatos.Select(d => _ejecFiltradas.Count(c => c.Fecha.Year == d.Year && c.Fecha.Month == d.Month)).ToArray();
+        _pctXMes     = Enumerable.Range(0, fechasDatos.Count).Select(i => _planXMes[i] > 0 ? Math.Round(_ejecXMes[i] * 100.0 / _planXMes[i], 1) : 0).ToArray();
+        _hhXMes      = fechasDatos.Select(d => (double)_ejecFiltradas.Where(c => c.Fecha.Year == d.Year && c.Fecha.Month == d.Month).Sum(c => c.DuracionHoras * c.NumeroAsistentes)).ToArray();
+
+        // Chart — por área
+        var areaGrps = _ejecFiltradas
+            .Where(c => !string.IsNullOrEmpty(c.Area))
+            .GroupBy(c => c.Area!)
+            .Select(g => new { Area = g.Key, Ejec = g.Count(), Plan = _planFiltradas.Count(p => p.Area == g.Key) })
+            .OrderByDescending(x => x.Ejec).Take(8).ToList();
+        _areasLabels = areaGrps.Select(x => x.Area).ToArray();
+        _cumAreaVals = areaGrps.Select(x => x.Plan > 0 ? Math.Round(x.Ejec * 100.0 / x.Plan, 1) : 100).ToArray();
+
+        // Chart — por tema
+        var temaGrps = _ejecFiltradas
+            .Where(c => !string.IsNullOrEmpty(c.Tema))
+            .GroupBy(c => c.Tema)
+            .Select(g => new { Tema = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count).Take(8).ToList();
+        _temasLabels = temaGrps.Select(x => x.Tema).ToArray();
+        _temasVals   = temaGrps.Select(x => x.Count).ToArray();
+
+        _chartsReady = true;
+    }
+
+    private bool MatchEstadoPlan(CapacitacionPlanificada p, DateTime hoy) => _filtroEstado switch
+    {
+        "Vencida"     => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada,
+        "Planificada" => p.Estado == EstadoPlanTrabajo.Planificada && p.FechaPlanificada >= hoy,
+        "Ejecutada"   => p.Estado == EstadoPlanTrabajo.Ejecutada,
+        _             => true
+    };
+
+    private async Task AplicarFiltrosAsync()
+    {
+        ComputeMetrics();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        _filtroArea = _filtroTema = _filtroEstado = "";
+        _filtroMes  = _filtroAnio = 0;
+        ComputeMetrics();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void MostrarFormPlanClick() { _formPlan = new() { FechaPlanificada = DateTime.Today }; _mostrarFormPlan = true; _tabActivo = "plan"; }
+    private void MostrarFormEjecClick() { _formEjec = new() { Fecha = DateTime.Today }; _mostrarFormEjec = true; _tabActivo = "ejec"; }
 
     private async Task GuardarPlanAsync()
     {
         Db.CapacitacionesPlanificadas.Add(new CapacitacionPlanificada
         {
-            ProyectoId           = ProyectoId,
-            Nombre               = _formPlan.Nombre,
-            Tema                 = _formPlan.Tema,
-            Area                 = _formPlan.Area,
-            PublicoObjetivo      = _formPlan.PublicoObjetivo,
-            Responsable          = _formPlan.Responsable,
-            FechaPlanificada     = _formPlan.FechaPlanificada,
+            ProyectoId            = ProyectoId,
+            Nombre                = _formPlan.Nombre,
+            Tema                  = _formPlan.Tema,
+            Area                  = _formPlan.Area,
+            PublicoObjetivo       = _formPlan.PublicoObjetivo,
+            Responsable           = _formPlan.Responsable,
+            FechaPlanificada      = _formPlan.FechaPlanificada,
             DuracionEstimadaHoras = _formPlan.DuracionEstimadaHoras,
-            Observaciones        = _formPlan.Observaciones
+            Observaciones         = _formPlan.Observaciones
         });
         await Db.SaveChangesAsync();
         _mostrarFormPlan = false;
@@ -363,39 +846,41 @@ else
         await CargarAsync();
     }
 
+    private static string Epct(int pct) => pct >= 90 ? "Saludable" : pct >= 70 ? "En Riesgo" : "Crítico";
+
     private static string BadgePlan(EstadoPlanTrabajo e) => e switch
     {
-        EstadoPlanTrabajo.Ejecutada    => "bg-success",
-        EstadoPlanTrabajo.Planificada  => "bg-primary",
-        EstadoPlanTrabajo.Pendiente    => "bg-warning text-dark",
-        EstadoPlanTrabajo.Vencida      => "bg-danger",
-        EstadoPlanTrabajo.Cancelada    => "bg-secondary",
-        _                              => "bg-secondary"
+        EstadoPlanTrabajo.Ejecutada   => "bg-success",
+        EstadoPlanTrabajo.Planificada => "bg-primary",
+        EstadoPlanTrabajo.Pendiente   => "bg-warning text-dark",
+        EstadoPlanTrabajo.Vencida     => "bg-danger",
+        EstadoPlanTrabajo.Cancelada   => "bg-secondary",
+        _                             => "bg-secondary"
     };
 
     private sealed class FormPlanModel
     {
-        [System.ComponentModel.DataAnnotations.Required] public string Nombre { get; set; } = "";
-        [System.ComponentModel.DataAnnotations.Required] public string Tema { get; set; } = "";
-        public string? Area { get; set; }
-        public string? PublicoObjetivo { get; set; }
-        public string? Responsable { get; set; }
-        public DateTime FechaPlanificada { get; set; } = DateTime.Today;
-        public decimal DuracionEstimadaHoras { get; set; } = 2;
-        public string? Observaciones { get; set; }
+        [Required] public string   Nombre                { get; set; } = "";
+        [Required] public string   Tema                  { get; set; } = "";
+        public     string?         Area                  { get; set; }
+        public     string?         PublicoObjetivo       { get; set; }
+        public     string?         Responsable           { get; set; }
+        public     DateTime        FechaPlanificada      { get; set; } = DateTime.Today;
+        public     decimal         DuracionEstimadaHoras { get; set; } = 2;
+        public     string?         Observaciones         { get; set; }
     }
 
     private sealed class FormEjecModel
     {
-        [System.ComponentModel.DataAnnotations.Required] public string Titulo { get; set; } = "";
-        public string Tema { get; set; } = "";
-        [System.ComponentModel.DataAnnotations.Required] public string Instructor { get; set; } = "";
-        public string? Area { get; set; }
-        public string? Responsable { get; set; }
-        public DateTime Fecha { get; set; } = DateTime.Today;
-        public decimal DuracionHoras { get; set; } = 2;
-        public int NumeroAsistentes { get; set; }
-        public string? Lugar { get; set; }
-        public string? Observaciones { get; set; }
+        [Required] public string   Titulo           { get; set; } = "";
+        public     string          Tema             { get; set; } = "";
+        [Required] public string   Instructor       { get; set; } = "";
+        public     string?         Area             { get; set; }
+        public     string?         Responsable      { get; set; }
+        public     DateTime        Fecha            { get; set; } = DateTime.Today;
+        public     decimal         DuracionHoras    { get; set; } = 2;
+        public     int             NumeroAsistentes { get; set; }
+        public     string?         Lugar            { get; set; }
+        public     string?         Observaciones    { get; set; }
     }
 }

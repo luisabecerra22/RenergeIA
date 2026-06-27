@@ -351,6 +351,319 @@ function destroyChart(canvasId) {
     }
 }
 
+// ── Inspecciones Dashboard ─────────────────────────────────────────────────────
+
+window.renderHallazgosPorArea = function (canvasId, labels, valores) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const maxV = Math.max(...valores, 1);
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Hallazgos',
+                data: valores,
+                backgroundColor: valores.map(v => {
+                    const p = v / maxV;
+                    return p > 0.66 ? 'rgba(220,53,69,0.85)' : p > 0.33 ? 'rgba(255,193,7,0.85)' : 'rgba(106,191,75,0.85)';
+                }),
+                borderRadius: 4, borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.parsed.x + ' hallazgos' } } },
+            scales: { x: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' }, grid: { color: 'rgba(0,0,0,0.05)' } }, y: { ticks: { font: { size: 11 }, color: '#495057' }, grid: { display: false } } }
+        }
+    });
+};
+
+window.renderActosVsCondiciones = function (canvasId, labels, actos, condiciones) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Actos Inseguros', data: actos, backgroundColor: 'rgba(220,53,69,0.8)', borderColor: '#dc3545', borderWidth: 1, borderRadius: 4, stack: 'stk' },
+                { label: 'Condiciones Inseguras', data: condiciones, backgroundColor: 'rgba(255,193,7,0.8)', borderColor: '#ffc107', borderWidth: 1, stack: 'stk' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { mode: 'index' } },
+            scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+};
+
+window.renderEstadoHallazgos = function (canvasId, abiertos, revision, implementacion, cerrados, vencidos) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const total = abiertos + revision + implementacion + cerrados;
+    const centerPlugin = {
+        id: 'center_' + canvasId,
+        afterDraw(chart) {
+            const { ctx: c, chartArea: { left, top, width, height } } = chart;
+            c.save();
+            const cx = left + width / 2, cy = top + height / 2;
+            c.font = 'bold 22px Montserrat, sans-serif';
+            c.fillStyle = '#183963'; c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.fillText(total, cx, cy - 9);
+            c.font = '10px Montserrat, sans-serif';
+            c.fillStyle = '#6c757d';
+            c.fillText('Hallazgos', cx, cy + 10);
+            c.restore();
+        }
+    };
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Abiertos', 'En Revisión', 'En Implementación', 'Cerrados', 'Vencidos'],
+            datasets: [{ data: [abiertos, revision, implementacion, cerrados, vencidos], backgroundColor: ['#dc3545','#ffc107','#0dcaf0','#6ABF4B','#6c757d'], borderColor: '#fff', borderWidth: 2 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '67%',
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 11, padding: 9, font: { size: 11 } } },
+                tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + c.parsed } }
+            }
+        },
+        plugins: [centerPlugin]
+    });
+};
+
+window.renderTendenciaInsp = function (canvasId, meses, inspecciones, hallazgos) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: meses,
+            datasets: [
+                { label: 'Inspecciones', data: inspecciones, borderColor: '#183963', backgroundColor: 'rgba(24,57,99,0.08)', tension: 0.4, fill: true, pointBackgroundColor: '#183963', pointRadius: 5, pointHoverRadius: 7 },
+                { label: 'Hallazgos', data: hallazgos, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.04)', tension: 0.4, fill: false, pointBackgroundColor: '#dc3545', pointRadius: 5, pointHoverRadius: 7, borderDash: [5, 3] }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' } }, x: { ticks: { color: '#6c757d' }, grid: { display: false } } }
+        }
+    });
+};
+
+window.renderInspPorMes = function (canvasId, meses, valores) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: meses,
+            datasets: [{
+                label: 'Inspecciones',
+                data: valores,
+                backgroundColor: valores.map((_, i) => i === valores.length - 1 ? 'rgba(106,191,75,0.85)' : 'rgba(24,57,99,0.75)'),
+                borderColor:     valores.map((_, i) => i === valores.length - 1 ? '#6ABF4B' : '#183963'),
+                borderWidth: 1, borderRadius: 6, borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.parsed.y + ' inspecciones' } } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' } }, x: { ticks: { color: '#495057', font: { weight: '600' } }, grid: { display: false } } }
+        }
+    });
+};
+
+window.renderParetoHallazgos = function (canvasId, labels, valores, acumulados) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { type: 'bar',  label: 'Hallazgos',   data: valores,    backgroundColor: 'rgba(24,57,99,0.8)', borderColor: '#183963', borderWidth: 1, borderRadius: 4, yAxisID: 'y' },
+                { type: 'line', label: '% Acumulado', data: acumulados, borderColor: '#dc3545', backgroundColor: 'transparent', pointBackgroundColor: '#dc3545', pointRadius: 4, tension: 0.1, yAxisID: 'y2' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: {
+                y:  { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' }, position: 'left' },
+                y2: { min: 0, max: 100, ticks: { callback: v => v + '%', color: '#dc3545' }, position: 'right', grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+};
+
+window.renderRankingInsp = function (canvasId, labels, valores, titulo) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const maxV = Math.max(...valores, 1);
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: titulo, data: valores,
+                backgroundColor: valores.map(v => { const p = v / maxV; return p > 0.66 ? 'rgba(220,53,69,0.8)' : p > 0.33 ? 'rgba(255,193,7,0.8)' : 'rgba(24,57,99,0.75)'; }),
+                borderRadius: 4, borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.parsed.x + ' hallazgos' } } },
+            scales: { x: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' } }, y: { ticks: { font: { size: 11 }, color: '#495057' }, grid: { display: false } } }
+        }
+    });
+};
+
+// --- Capacitaciones Charts ---
+
+window.renderCapMes = function (canvasId, meses, planificadas, ejecutadas, porcentajes) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: meses,
+            datasets: [
+                {
+                    label: 'Planificadas', data: planificadas, type: 'bar',
+                    backgroundColor: 'rgba(24,57,99,0.18)', borderColor: '#183963',
+                    borderWidth: 1.5, borderRadius: 4, order: 2
+                },
+                {
+                    label: 'Ejecutadas', data: ejecutadas, type: 'bar',
+                    backgroundColor: 'rgba(106,191,75,0.75)', borderColor: '#6ABF4B',
+                    borderWidth: 0, borderRadius: 4, order: 2
+                },
+                {
+                    label: '% Cumplimiento', data: porcentajes, type: 'line',
+                    borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.08)',
+                    borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#ffc107',
+                    tension: 0.35, fill: true, yAxisID: 'y2', order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { font: { family: 'Montserrat', size: 11 }, boxWidth: 10, padding: 12 } },
+                tooltip: { callbacks: { label: c => c.datasetIndex === 2 ? ` ${c.parsed.y}%` : ` ${c.parsed.y} cap.` } }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#6c757d' } },
+                y: { beginAtZero: true, position: 'left', ticks: { stepSize: 1, color: '#6c757d', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+                y2: { beginAtZero: true, max: 100, position: 'right', ticks: { callback: v => v + '%', color: '#ffc107', font: { size: 10 } }, grid: { display: false } }
+            }
+        }
+    });
+};
+
+window.renderCapHH = function (canvasId, meses, horas) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const maxIdx = horas.indexOf(Math.max(...horas));
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: meses,
+            datasets: [{
+                label: 'Horas Hombre',
+                data: horas,
+                backgroundColor: horas.map((_, i) => i === maxIdx ? 'rgba(106,191,75,0.8)' : 'rgba(24,57,99,0.65)'),
+                borderRadius: 4, borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => ` ${c.parsed.y.toFixed(0)} HH` } }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#6c757d' } },
+                y: { beginAtZero: true, ticks: { color: '#6c757d', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } }
+            }
+        }
+    });
+};
+
+window.renderCapArea = function (canvasId, areas, valores) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: areas,
+            datasets: [{
+                label: '% Cumplimiento',
+                data: valores,
+                backgroundColor: valores.map(v => v >= 90 ? 'rgba(106,191,75,0.75)' : v >= 70 ? 'rgba(255,193,7,0.75)' : 'rgba(220,53,69,0.75)'),
+                borderRadius: 4, borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => ` ${c.parsed.x.toFixed(0)}%` } }
+            },
+            scales: {
+                x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', color: '#6c757d', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+                y: { ticks: { font: { size: 11 }, color: '#495057' }, grid: { display: false } }
+            }
+        }
+    });
+};
+
+window.renderCapTemas = function (canvasId, temas, valores) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const maxV = Math.max(...valores, 1);
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: temas,
+            datasets: [{
+                label: 'Capacitaciones',
+                data: valores,
+                backgroundColor: valores.map(v => v / maxV >= 0.8 ? 'rgba(24,57,99,0.8)' : v / maxV >= 0.5 ? 'rgba(24,57,99,0.55)' : 'rgba(24,57,99,0.35)'),
+                borderRadius: 4, borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => ` ${c.parsed.x} cap.` } }
+            },
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+                y: { ticks: { font: { size: 11 }, color: '#495057' }, grid: { display: false } }
+            }
+        }
+    });
+};
+
 // --- Leaflet Map Interop ---
 window.leafletMap = {
     _map: null,

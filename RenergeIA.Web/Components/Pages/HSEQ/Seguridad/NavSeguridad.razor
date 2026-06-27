@@ -1,0 +1,53 @@
+@* Barra de navegación compartida del módulo Seguridad *@
+<ul class="nav nav-tabs mb-4 flex-wrap">
+    @Tab("dashboard",      "bi-speedometer2",       "Dashboard",       $"/proyectos/{ProyectoId}/hseq/seguridad")
+    @Tab("plan",           "bi-calendar3",          "Plan de Trabajo", $"/proyectos/{ProyectoId}/hseq/seguridad/plan-trabajo")
+    @TabGrupo("inspecciones", "bi-clipboard2-check", "Inspecciones",   $"/proyectos/{ProyectoId}/hseq/seguridad/inspecciones")
+    @Tab("indicadores",    "bi-graph-up",           "Indicadores",     $"/proyectos/{ProyectoId}/hseq/seguridad/indicadores")
+    @Tab("epp",            "bi-shield-fill-check",  "EPP / Dotación",  $"/proyectos/{ProyectoId}/hseq/seguridad/epp")
+    @Tab("iso",            "bi-patch-check",        "ISO 45001",       $"/proyectos/{ProyectoId}/hseq/seguridad/checklist")
+    @Tab("incidentes",     "bi-bandaid",            "Incidentes",      $"/proyectos/{ProyectoId}/hseq/seguridad/incidentes")
+    @Tab("capacitaciones", "bi-mortarboard",        "Capacitaciones",  $"/proyectos/{ProyectoId}/hseq/seguridad/capacitaciones")
+    @Tab("acciones",       "bi-list-check",         "Acciones",        $"/proyectos/{ProyectoId}/hseq/seguridad/acciones")
+</ul>
+
+@code {
+    [Parameter] public int    ProyectoId { get; set; }
+    [Parameter] public string TabActiva  { get; set; } = "dashboard";
+
+    // Grupo Inspecciones: activo cuando estás en cualquiera de sus sub-tabs
+    private static readonly HashSet<string> _grupoInspecciones = ["inspecciones", "ots", "stc", "pausas"];
+
+    private RenderFragment Tab(string id, string icono, string label, string href) => __builder =>
+    {
+        bool activa = TabActiva == id;
+        string linkCss   = activa ? "nav-link active fw-semibold" : "nav-link text-muted";
+        string linkStyle = activa ? "color:#183963!important;border-top:2px solid #183963;" : "";
+
+        __builder.OpenElement(0, "li");
+        __builder.AddAttribute(1, "class", "nav-item");
+        __builder.AddMarkupContent(2, $"""
+            <a class="{linkCss}" href="{href}" style="{linkStyle}">
+                <i class="{icono} me-1"></i>{label}
+            </a>
+            """);
+        __builder.CloseElement();
+    };
+
+    // Tab que agrupa sub-módulos — se activa con cualquier ID del grupo
+    private RenderFragment TabGrupo(string id, string icono, string label, string href) => __builder =>
+    {
+        bool activa = _grupoInspecciones.Contains(TabActiva);
+        string linkCss   = activa ? "nav-link active fw-semibold" : "nav-link text-muted";
+        string linkStyle = activa ? "color:#183963!important;border-top:2px solid #183963;" : "";
+
+        __builder.OpenElement(0, "li");
+        __builder.AddAttribute(1, "class", "nav-item");
+        __builder.AddMarkupContent(2, $"""
+            <a class="{linkCss}" href="{href}" style="{linkStyle}">
+                <i class="{icono} me-1"></i>{label}
+            </a>
+            """);
+        __builder.CloseElement();
+    };
+}

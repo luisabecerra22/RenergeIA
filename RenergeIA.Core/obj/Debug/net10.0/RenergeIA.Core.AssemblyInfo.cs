@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RenergeIA.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+35179d5f7b58dc3602308069f0163a235e2b243b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+24a540d8944f3e43ee1fdf8f1b69495d22c79758")]
 [assembly: System.Reflection.AssemblyProductAttribute("RenergeIA.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RenergeIA.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json.schemastore.org/dotnet-watch.json",
+  "hotReloadProfile": "aspnetcore",
+  "restart": "always"
+}

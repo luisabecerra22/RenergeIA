@@ -10,14 +10,16 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h4 mb-0"><i class="bi-stopwatch me-2" style="color:#183963"></i>Pausas Activas</h1>
             <small class="text-muted">@_proyecto.Nombre &bull; Meta: 60 pausas / trabajador / mes</small>
         </div>
         <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Registrar</button>
     </div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="pausas" />
+    <SubNavInspecciones ProyectoId="@ProyectoId" TabActiva="pausas" />
 
     <!-- Filtro mes / año -->
     <div class="d-flex gap-2 mb-4 flex-wrap align-items-center">

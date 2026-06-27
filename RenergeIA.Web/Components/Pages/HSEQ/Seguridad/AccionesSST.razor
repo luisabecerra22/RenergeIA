@@ -11,13 +11,14 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h4 mb-0"><i class="bi-wrench-adjustable-circle me-2" style="color:#183963"></i>Acciones Correctivas SST</h1>
             <small class="text-muted">@_proyecto.Nombre</small>
         </div>
     </div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="acciones" />
 
     <div class="alert alert-info border-0 shadow-sm mb-4">
         <i class="bi-info-circle me-2"></i>

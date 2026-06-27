@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **24 de junio de 2026**
+> Última actualización: **27 de junio de 2026 — Sistema de diseño + Dashboards HSEQ**
 
 ---
 
@@ -30,8 +30,11 @@
 20. [Módulos adicionales del modelo](#módulos-adicionales-del-modelo)
 21. [Migraciones de base de datos](#migraciones-de-base-de-datos)
 22. [Cómo correr el proyecto](#cómo-correr-el-proyecto)
-23. [Fases de desarrollo](#fases-de-desarrollo)
-24. [Glosario](#glosario)
+23. [Control de versiones con GitHub](#control-de-versiones-con-github)
+24. [Fases de desarrollo](#fases-de-desarrollo)
+25. [Sistema de Diseño RenergeIA](#25-sistema-de-diseño-renergeia)
+26. [Módulo HSEQ — Dashboards analíticos](#26-módulo-hseq--dashboards-analíticos)
+27. [Glosario](#glosario)
 
 ---
 
@@ -133,7 +136,8 @@ A diferencia de una SPA, en Blazor Server **todo el código C# corre en el servi
 | Almacenamiento archivos | Sistema local → Azure Blob (Fase 2) | — |
 | Clima | Open-Meteo API | Gratis, sin clave |
 | IA | Azure OpenAI / OpenAI API | Fase 2 |
-| Control de versiones | Git | — |
+| Control de versiones | Git + GitHub | — |
+| Exportación Excel | ClosedXML | 0.104.2 |
 
 ### Paquetes NuGet instalados
 
@@ -146,8 +150,9 @@ Microsoft.EntityFrameworkCore.Tools                10.0.x
 
 **RenergeIA.Web**
 ```
-Microsoft.AspNetCore.Identity.UI    10.0.x
+Microsoft.AspNetCore.Identity.UI      10.0.x
 Microsoft.EntityFrameworkCore.Design  10.0.x
+ClosedXML                             0.104.2   ← Exportación de archivos Excel (.xlsx)
 ```
 
 ---
@@ -238,6 +243,13 @@ Proyecto Agente/
     │   ├── Routes.razor
     │   ├── _Imports.razor
     │   ├── RedirectToLogin.razor
+    │   ├── Shared/
+    │   │   └── Dashboard/                ← Sistema de Diseño — componentes reutilizables
+    │   │       ├── GaugeCircular.razor   ← Indicador circular SVG animado
+    │   │       ├── TarjetaKPI.razor      ← KPI ejecutivo con icono y valor grande
+    │   │       ├── SeccionDash.razor     ← Encabezado de sección con línea azul
+    │   │       ├── ChartCard.razor       ← Tarjeta contenedora de gráficos Chart.js
+    │   │       └── AnalisisIA.razor      ← Panel de análisis con gradiente azul corporativo
     │   ├── Layout/
     │   │   ├── MainLayout.razor
     │   │   ├── LoginLayout.razor
@@ -289,9 +301,9 @@ Proyecto Agente/
     ├── Program.cs
     ├── appsettings.json                  ← incluye AccuWeather:ApiKey
     └── wwwroot/
-        ├── app.css
+        ├── app.css                       ← Tema corporativo + Sistema de Diseño RenergeIA
         └── js/
-            └── app.js                    ← Chart.js helpers + wbsResize + leafletMap
+            └── app.js                    ← Chart.js helpers + wbsResize + leafletMap + cap charts
 ```
 
 ---
@@ -306,13 +318,24 @@ Proyecto Agente/
 | SQL Server Express/Developer | Base de datos local |
 | SQL Server Management Studio (SSMS) | Visualizar la base de datos |
 | Visual Studio Code o Visual Studio 2022+ | Editor de código |
-| Git | Control de versiones |
+| Git | Control de versiones local |
+| Cuenta GitHub | Repositorio remoto del proyecto |
 
 ### Verificar instalación
 
 ```powershell
 dotnet --version   # Debe mostrar 10.x.x
 git --version      # Debe mostrar 2.x.x
+```
+
+### Clonar el repositorio (nuevos colaboradores)
+
+```powershell
+git clone https://github.com/[organización]/renergeia.git "Proyecto Agente"
+cd "Proyecto Agente"
+dotnet restore
+dotnet ef database update --project RenergeIA.Infrastructure --startup-project RenergeIA.Web
+dotnet watch run --urls http://localhost:5169 --project RenergeIA.Web
 ```
 
 ---
@@ -1046,6 +1069,7 @@ Estados: Abierta → En Gestión → Resuelta / Aceptada.
 | `AgregarAnioInicialHistograma` | 2026-06-23 | Campo `AnioInicial` en histogramas |
 | `AgregarCronogramaVersion` | 2026-06-23 | Tabla `CronogramasVersion`; campo `CronogramaVersionId` en `ActividadesWBS` |
 | `AgregarUbicacionClimatica` | 2026-06-23 | Campos `Departamento`, `Municipio`, `Latitud`, `Longitud`, `AccuWeatherLocationKey` en `Proyectos` |
+| `AddSeguridadV2` | 2026-06-26 | Tablas nuevas: `PlanesTrabajoHSE`, `PausasActivas`, `CapacitacionesPlanificadas`. Columnas nuevas en `InspeccionesSST` (Area, Responsable, ActosInseguros, CondicionesInseguras, AccionesGeneradas, ResponsableCierre, FechaCompromiso), `Capacitaciones` (Responsable, Area, Estado), `EntregasEPP` (Documento, Area, TipoEntrega, Talla) |
 
 ### Comandos de migración
 
@@ -1112,6 +1136,107 @@ dotnet run --project RenergeIA.Web
 
 ---
 
+## Control de versiones con GitHub
+
+El proyecto usa **Git + GitHub** como sistema de control de versiones. El repositorio remoto centraliza el código y permite colaboración, respaldo y trazabilidad de cambios.
+
+### Configuración inicial del repositorio (ya realizada)
+
+```powershell
+# Desde la carpeta raíz del proyecto
+git init
+git add .
+git commit -m "Initial commit — RenergeIA v1.0"
+git branch -M main
+git remote add origin https://github.com/[organización]/renergeia.git
+git push -u origin main
+```
+
+### Flujo de trabajo diario
+
+```powershell
+# 1. Antes de empezar — traer los últimos cambios
+git pull origin main
+
+# 2. Hacer cambios en el código...
+
+# 3. Ver qué cambió
+git status
+git diff
+
+# 4. Registrar los cambios
+git add RenergeIA.Web/Components/Pages/HSEQ/Seguridad/EntregaEPP.razor
+git add RenergeIA.Web/wwwroot/js/app.js
+# (o agregar todos los cambios del día)
+git add .
+
+# 5. Crear el commit con mensaje descriptivo
+git commit -m "feat: exportación Excel en EPP/Dotación con ClosedXML"
+
+# 6. Subir al repositorio remoto
+git push origin main
+```
+
+### Convención de mensajes de commit
+
+Usar prefijos para facilitar la lectura del historial:
+
+| Prefijo | Cuándo usarlo |
+|---------|--------------|
+| `feat:` | Nueva funcionalidad |
+| `fix:` | Corrección de un error |
+| `ui:` | Cambio visual / de estilos |
+| `db:` | Nueva migración de base de datos |
+| `refactor:` | Reorganización de código sin cambiar funcionalidad |
+| `docs:` | Actualización de documentación |
+
+**Ejemplos:**
+```
+feat: módulo HSEQ Seguridad — Plan de Trabajo, OTS, STC, Pausas Activas
+fix: botón imprimir EPP ahora llama window.imprimirPagina
+db: migración AddSeguridadV2 — tablas y columnas nuevas en HSEQ
+ui: gráfico de barras Plan de Trabajo en Dashboard Seguridad
+docs: guía de desarrollo actualizada con GitHub y módulo HSEQ
+```
+
+### Archivos que NO se suben a GitHub (.gitignore)
+
+El archivo `.gitignore` en la raíz debe excluir:
+
+```
+# Build outputs
+**/bin/
+**/obj/
+
+# Secretos y configuración local
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# Base de datos local (si usas SQLite en desarrollo)
+*.db
+*.sqlite
+
+# VS Code y Visual Studio
+.vs/
+.vscode/
+*.user
+
+# Archivos temporales de ngrok
+ngrok.exe
+```
+
+> **Importante:** `appsettings.json` con la cadena de conexión real **no debe subirse** al repositorio. Cada desarrollador configura su propia conexión local. En producción (Fase 2), se usan variables de entorno de Azure.
+
+### Ver el historial de cambios
+
+```powershell
+git log --oneline --graph    # Historial resumido con árbol
+git log --since="1 week ago" # Solo la última semana
+git diff HEAD~1              # Qué cambió en el último commit
+```
+
+---
+
 ## Fases de desarrollo
 
 ### Fase 1 — Operativa ← EN PROGRESO
@@ -1139,6 +1264,29 @@ dotnet run --project RenergeIA.Web
 - [x] Módulo de No Conformidades (estructura)
 - [x] Módulo de Restricciones (estructura)
 - [x] Módulo de Clima con mapa Leaflet y API AccuWeather (ubicación + historial climático)
+- [x] Módulo HSEQ — sub-módulo **Seguridad** completo:
+  - [x] Dashboard Seguridad con KPIs por sección y gráfico de barras (Chart.js) para Plan de Trabajo
+  - [x] Plan de Trabajo HSE (CRUD con filtros por estado y mes)
+  - [x] Inspecciones de Seguridad (filtradas por tipo = "Seguridad")
+  - [x] OTS — Observaciones de Trabajo Seguro
+  - [x] STC — Seguridad en Trabajo en Casa
+  - [x] Indicadores de Seguridad (IF, IG, II desde incidentes reales)
+  - [x] EPP / Dotación con exportación Excel (ClosedXML) e impresión
+  - [x] Pausas Activas con meta 60/mes y % cumplimiento por persona
+  - [x] Capacitaciones — **dashboard ejecutivo 5 niveles**: filtros, tarjeta personas, 8 gauges, 4 gráficos Chart.js (programadas vs ejecutadas por mes, HH, cumplimiento por área, por tema), timeline de vencidas, tabla inteligente con búsqueda, AnalisisIA con insights automáticos
+  - [x] Incidentes y Accidentes
+  - [x] ISO 45001 (Checklist de auditoría)
+  - [x] Acciones Correctivas HSEQ
+- [x] **Sistema de Diseño RenergeIA** — identidad visual corporativa completa:
+  - [x] CSS corporativo en `app.css`: variables, animación gauge (`rn-gauge-in`), badges semánticos, sección, chart card, panel IA, tabla
+  - [x] `GaugeCircular.razor` — gauge SVG parametrizado con animación de entrada
+  - [x] `TarjetaKPI.razor` — KPI ejecutivo con icono y valor grande
+  - [x] `SeccionDash.razor` — encabezado de sección con decoración corporativa
+  - [x] `ChartCard.razor` — tarjeta contenedora de gráficos con slot de filtros
+  - [x] `AnalisisIA.razor` — panel de análisis con gradiente azul y slots de insights
+  - [x] `_Imports.razor` actualizado con `@using RenergeIA.Web.Components.Shared.Dashboard`
+  - [x] `SeguridadDashboard.razor` migrado a los nuevos componentes (eliminado RenderFragment local)
+- [x] Control de versiones con GitHub (repositorio remoto configurado)
 
 **Pendiente Fase 1:**
 - [ ] Gestión de usuarios desde la UI (CRUD de cuentas)
@@ -1163,6 +1311,226 @@ dotnet run --project RenergeIA.Web
 - [ ] App móvil (MAUI Blazor Hybrid) para registro en campo sin internet
 - [ ] API pública para integración con sistemas de clientes
 - [ ] Tablero ejecutivo multi-proyecto
+
+---
+
+## 25. Sistema de Diseño RenergeIA
+
+Implementado en esta sesión. Establece una identidad visual corporativa consistente y reutilizable en todos los módulos.
+
+### Identidad visual
+
+| Elemento | Valor |
+|---------|-------|
+| Fuente | Montserrat (pesos 400 y 700, Google Fonts) |
+| Azul corporativo | `#183963` |
+| Verde éxito | `#6ABF4B` |
+| Gris neutro | `#D9D9D6` |
+| Fondo | Blanco |
+| Semaforización | Verde=Saludable, Azul=Informativo, Amarillo=En Riesgo, Naranja=Riesgo, Rojo=Crítico |
+
+**Regla de color:** los colores comunican un estado operativo, nunca se usan de forma decorativa.
+
+### Clases CSS en `app.css`
+
+| Clase | Propósito |
+|-------|-----------|
+| `.rn-gauge-card` | Contenedor del gauge circular con hover elevado |
+| `.rn-gauge-arc` | Arco SVG con animación de entrada `rn-gauge-in` (1.2 s) |
+| `.rn-gauge-center` | Overlay absoluto con valor y subtexto |
+| `.rn-kpi-card` | Tarjeta KPI ejecutiva (número grande + icono) |
+| `.rn-badge-saludable/en-riesgo/riesgo/critico/informativo` | Badges semánticos pill |
+| `.rn-section-header` | Encabezado de sección con borde azul inferior |
+| `.rn-chart-card` | Tarjeta de gráfico con sombra suave |
+| `.rn-ia-card` | Panel IA con gradiente azul `#183963 → #1a4e8f` |
+| `.rn-ia-item` | Ítem de insight dentro del panel IA |
+| `.rn-table` | Tabla con header azul corporativo y hover suave |
+
+### Componentes Blazor (`Components/Shared/Dashboard/`)
+
+#### `GaugeCircular.razor`
+
+```razor
+<GaugeCircular
+    Titulo="Cumplimiento"
+    ValorCentral="83%"
+    SubTexto="18 de 22"
+    Porcentaje="83"
+    Estado="Saludable"
+    Color="#6ABF4B"   <!-- opcional: sobrescribe color derivado de Estado -->
+    SizePx="118"      <!-- opcional: tamaño del SVG en px -->
+/>
+```
+
+El color se deriva automáticamente de `Estado` (Saludable=verde, En Riesgo=amarillo, Riesgo=naranja, Crítico=rojo, Informativo=azul). El parámetro `Color` lo sobrescribe cuando el color no sigue la semaforización estándar (p. ej., indicadores de conteo que son "Informativos" pero deben aparecer en gris cuando no hay datos).
+
+La animación SVG funciona con `@keyframes rn-gauge-in { from { stroke-dasharray: 0 100; } }`. El punto "to" es el valor inline del elemento, por lo que CSS interpola automáticamente de 0 al valor real.
+
+#### `TarjetaKPI.razor`
+
+```razor
+<TarjetaKPI Titulo="Horas Hombre" Valor="256h" Icono="bi-clock-fill"
+            SubTexto="este mes" Estado="Informativo" />
+```
+
+#### `SeccionDash.razor`
+
+```razor
+<SeccionDash Titulo="Resumen Ejecutivo" Icono="bi-speedometer2">
+    <!-- contenido del panel -->
+</SeccionDash>
+```
+
+Renderiza un encabezado uppercase en gris con borde inferior azul de 2 px, seguido del `ChildContent`.
+
+#### `ChartCard.razor`
+
+```razor
+<ChartCard Titulo="Programadas vs Ejecutadas" CanvasId="chartCapMes" Altura="230">
+    <Filtros>
+        <!-- botones de filtro opcionales sobre el gráfico -->
+    </Filtros>
+</ChartCard>
+```
+
+Crea el `<canvas id="...">` dentro de un `<div style="position:relative;height:Npx">`. Esta estructura es obligatoria para que `Chart.js` respete el alto con `maintainAspectRatio: false`.
+
+#### `AnalisisIA.razor`
+
+```razor
+<AnalisisIA Titulo="Análisis Inteligente" Subtitulo="Generado por RenergeIA">
+    <div class="rn-ia-item">
+        <i class="bi-check-circle-fill" style="color:#6ABF4B"></i>
+        <span>Texto del insight.</span>
+    </div>
+</AnalisisIA>
+```
+
+### Cómo agregar el namespace a una nueva página
+
+El namespace `RenergeIA.Web.Components.Shared.Dashboard` ya está en `_Imports.razor`. Todos los componentes son accesibles en cualquier página Razor sin `@using` adicional.
+
+### Patrón de datos para dashboards (4 niveles)
+
+Todos los dashboards HSEQ siguen este patrón:
+
+```
+Nivel 1 — Filtros         : selects in-memory, sin nuevas consultas DB al filtrar
+Nivel 2 — Gauges          : 8-12 GaugeCircular en grid responsive
+Nivel 3 — Gráficos        : ChartCard con canvas → JS via IJSRuntime
+Nivel 4 — Tabla           : búsqueda @bind:event="oninput" + tabs Planificadas/Ejecutadas
+Nivel 5 — Análisis IA     : AnalisisIA con insights derivados de los datos cargados
+```
+
+**Control de renders de gráficos:**
+```csharp
+private bool _chartsReady;
+
+// En ComputeMetrics() o CargarAsync():
+_chartsReady = true;
+
+// En OnAfterRenderAsync:
+if (_chartsReady && _proyecto is not null)
+{
+    _chartsReady = false;
+    await JS.InvokeVoidAsync("renderFuncion", "canvasId", ...datos...);
+}
+```
+
+El flag `_chartsReady` evita que los gráficos se intenten renderizar antes de que el DOM esté listo y evita re-renders innecesarios.
+
+---
+
+## 26. Módulo HSEQ — Dashboards analíticos
+
+### SeguridadDashboard.razor — actualizado
+
+Ahora usa los componentes del Sistema de Diseño:
+
+- `<SeccionDash>` reemplaza el encabezado `<h6>` manual
+- `<GaugeCircular>` reemplaza el `RenderFragment GaugeCard(Gauge g)` local (50 líneas eliminadas)
+- La lógica `Gauge` record y `Cpct`/`Epct` helpers se mantienen para calcular los datos; solo desapareció el HTML embebido en C#
+
+**10 gauges:** Plan de Trabajo, Insp. Seguridad, OTS, STC, Hallazgos Abiertos, Acciones Vencidas, EPP/Dotación, Pausas Activas, Capacitaciones, ISO 45001.
+
+### InspeccionesSST.razor — dashboard 4 niveles
+
+Dashboard ejecutivo completo con:
+
+**Nivel 2:** 12 GaugeCircular con datos cross-module (plan, inspecciones, acciones, EPP, pausas, capacitaciones, ISO)
+
+**Nivel 3:** 8 gráficos Chart.js:
+- `renderHallazgosPorArea` — barras horizontales coloreadas por altura relativa
+- `renderActosVsCondiciones` — barras apiladas (Actos Inseguros vs Condiciones Inseguras)
+- `renderEstadoHallazgos` — donut con plugin inline `afterDraw` para texto central
+- `renderTendenciaInsp` — líneas (total inspecciones + hallazgos mes a mes)
+- `renderInspPorMes` — barras verticales, último mes destacado en verde
+- `renderParetoHallazgos` — mixto barra + línea, doble eje Y (conteo + % acumulado)
+- `renderRankingInsp` — barras horizontales con filtro dinámico (Área / Tipo / Inspector)
+- Heatmap CSS — tabla Área × {Seguridad, OTS, STC} con colores por cuartil
+
+**Nivel 3 — Filtro de Ranking:**
+```csharp
+private async Task CambiarRankingAsync(string filtro)
+{
+    _rankingFiltro = filtro;
+    ActualizarRanking(); // recomputa _labelsRanking y _valoresRanking
+    await JS.InvokeVoidAsync("renderRankingInsp", "chartRanking", _labelsRanking, _valoresRanking, RankingTitulo);
+}
+```
+
+**Nivel 4:** Tabla con 5 filtros + búsqueda + ordenamiento + exportación Excel (ClosedXML)
+
+**Nivel 5:** AnalisisIA con insights sobre inspecciones, hallazgos, vencidas, temas críticos
+
+### Capacitaciones.razor — dashboard 5 niveles (nuevo)
+
+Transformación completa del módulo. Antes: 4 tarjetones simples + 2 tablas.
+Ahora: dashboard ejecutivo completo.
+
+**Datos:** `CapacitacionesPlanificadas` + `Capacitaciones`. Todos los cálculos son en memoria después de la carga inicial.
+
+**Nivel 1 — Filtros:**
+```
+Área | Tema | Mes | Año | Estado
+```
+Los filtros aplican `ComputeMetrics()` sin relanzar consultas a BD. El método `MatchEstadoPlan(p, hoy)` encapsula la lógica para el estado "Vencida" (fecha < hoy AND no ejecutada/cancelada).
+
+**Nivel 2 — Tarjeta Personas + 8 Gauges:**
+
+Tarjeta "Personas Capacitadas" (gradiente azul, diseño especial):
+- Total asistentes acumulados (`Sum(NumeroAsistentes)`)
+- Capacitaciones este mes, promedio asistentes/sesión, áreas cubiertas
+- HH acumuladas
+
+8 GaugeCircular: Cumplimiento %, Planificadas, Ejecutadas, HH Capacitadas, Vencidas, Pendientes, Asistentes, Este Mes
+
+**Nivel 3 — 4 gráficos Chart.js + timeline de vencidas:**
+
+| Función JS | Tipo | Descripción |
+|-----------|------|-------------|
+| `renderCapMes` | Barras + línea, doble eje Y | Planificadas (navy) vs Ejecutadas (verde) + % cumplimiento (amarillo) |
+| `renderCapHH` | Barras verticales | HH por mes, mes pico destacado en verde |
+| `renderCapArea` | Barras horizontales | Cumplimiento % por área, color semafórico |
+| `renderCapTemas` | Barras horizontales | Conteo por tema, opacidad proporcional al volumen |
+
+Timeline de vencidas: visible solo si `_vencidas.Any()`. Tabla compacta con días de atraso.
+
+**Fórmulas de negocio:**
+```
+Cumplimiento %   = Ejecutadas / Planificadas × 100
+Horas Hombre     = Σ (DuracionHoras × NumeroAsistentes) por capacitación
+Vencidas         = Planificadas con FechaPlanificada < hoy AND estado ≠ Ejecutada/Cancelada
+Este Mes %       = Ejecutadas en mes/año actual / Planificadas en mes/año actual × 100
+```
+
+**Nivel 4 — Tabla inteligente:**
+- Búsqueda en tiempo real (`@bind:event="oninput"`) sobre nombre, tema, área, instructor
+- Tabs: Planificadas (con indicador de vencidas `bi-exclamation-circle-fill`) / Ejecutadas
+- Clase `rn-table` para estilos corporativos
+
+**Nivel 5 — AnalisisIA:**
+Insights automáticos desde datos reales: cumplimiento global, HH, área mejor/peor, capacitaciones vencidas, temas frecuentes, alerta crítica si `_cumPct < 70`.
 
 ---
 
@@ -1197,7 +1565,4 @@ dotnet run --project RenergeIA.Web
 
 ---
 
-*Guía actualizada el 24 de junio de 2026 — RenergeIA v1.0 en desarrollo activo.*
-
-
-dotnet run --project RenergeIA.Webvdotnet run --project RenergeIA.Websdsdsd
+*Guía actualizada el 27 de junio de 2026 — RenergeIA v1.0 en desarrollo activo. Sistema de Diseño implementado. Dashboards HSEQ Seguridad e Inspecciones rediseñados. Dashboard Capacitaciones completo 5 niveles.*

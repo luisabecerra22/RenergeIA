@@ -212,3 +212,193 @@ h1:focus {
     transform: translateY(-3px);
     box-shadow: 0 6px 18px rgba(24, 57, 99, 0.15) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SISTEMA DE DISEÑO RENERGEIA — Componentes reutilizables
+   Gauges · KPI · Secciones · Gráficos · IA
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Animación de entrada del gauge ── */
+@keyframes rn-gauge-in {
+    from { stroke-dasharray: 0 100; }
+}
+
+/* ── Gauge Circular ── */
+.rn-gauge-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: .75rem .5rem;
+    background: #fff;
+    border-radius: .5rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+.rn-gauge-card:hover {
+    box-shadow: 0 6px 18px rgba(24, 57, 99, .14);
+    transform: translateY(-2px);
+}
+.rn-gauge-ring {
+    position: relative;
+    width: var(--rn-size, 118px);
+    height: var(--rn-size, 118px);
+    margin: 0 auto .5rem;
+}
+.rn-gauge-track {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 3;
+}
+.rn-gauge-arc {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    animation: rn-gauge-in 1.2s cubic-bezier(.4, 0, .2, 1) forwards;
+}
+.rn-gauge-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+}
+.rn-gauge-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.rn-gauge-sub {
+    font-size: .57rem;
+    color: #6c757d;
+    line-height: 1.25;
+    max-width: 76px;
+    text-align: center;
+}
+.rn-gauge-title {
+    font-size: .76rem;
+    font-weight: 600;
+    color: #183963;
+    margin-bottom: 5px;
+    line-height: 1.2;
+}
+
+/* ── Tarjeta KPI ejecutiva ── */
+.rn-kpi-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.1rem .75rem;
+    background: #fff;
+    border-radius: .5rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    gap: .25rem;
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+.rn-kpi-card:hover {
+    box-shadow: 0 6px 18px rgba(24, 57, 99, .14);
+    transform: translateY(-2px);
+}
+.rn-kpi-icon  { font-size: 1.6rem; margin-bottom: .25rem; }
+.rn-kpi-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+.rn-kpi-title { font-size: .78rem; font-weight: 600; color: #183963; }
+.rn-kpi-sub   { font-size: .68rem; color: #6c757d; }
+
+/* ── Badges semánticos ── */
+.rn-badge {
+    font-size: .6rem;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+}
+.rn-badge-saludable   { background: #d1e7dd; color: #0a3622; }
+.rn-badge-en-riesgo   { background: #fff3cd; color: #664d03; }
+.rn-badge-riesgo      { background: #ffe0b2; color: #7b3f00; }
+.rn-badge-critico     { background: #f8d7da; color: #58151c; }
+.rn-badge-informativo { background: #cfe2ff; color: #084298; }
+
+/* ── Encabezado de sección ── */
+.rn-section { margin-bottom: 1.5rem; }
+.rn-section-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    text-transform: uppercase;
+    font-size: .78rem;
+    font-weight: 700;
+    color: #6c757d;
+    letter-spacing: .06em;
+    margin-bottom: .875rem;
+    padding-bottom: .5rem;
+    border-bottom: 2px solid #183963;
+}
+.rn-section-icon { color: #183963; font-size: 1rem; }
+
+/* ── Chart Card ── */
+.rn-chart-card {
+    background: #fff;
+    border-radius: .5rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    height: 100%;
+}
+.rn-chart-card-title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: #183963;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.rn-chart-filters { display: flex; gap: .375rem; flex-wrap: wrap; }
+
+/* ── Tarjeta Análisis IA ── */
+.rn-ia-card {
+    background: linear-gradient(135deg, #183963 0%, #1a4e8f 100%);
+    border-radius: .75rem;
+    padding: 1.5rem;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(24, 57, 99, .25);
+}
+.rn-ia-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.rn-ia-icon  { font-size: 2rem; opacity: .9; }
+.rn-ia-title { font-size: 1rem; font-weight: 700; }
+.rn-ia-sub   { font-size: .75rem; opacity: .75; margin-top: 2px; }
+.rn-ia-body  { display: flex; flex-direction: column; gap: .75rem; }
+.rn-ia-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .625rem;
+    background: rgba(255, 255, 255, .08);
+    border-radius: .375rem;
+    padding: .625rem .875rem;
+    font-size: .82rem;
+    line-height: 1.45;
+}
+.rn-ia-item i { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+/* ── Tabla de datos ── */
+.rn-table { font-size: .82rem; }
+.rn-table thead th {
+    background-color: #183963 !important;
+    color: #fff !important;
+    font-weight: 700;
+    border-color: rgba(255, 255, 255, .15) !important;
+    white-space: nowrap;
+}
+.rn-table tbody tr:hover { background-color: rgba(24, 57, 99, .04); }
+.rn-table .sortable { cursor: pointer; user-select: none; }
+.rn-table .sortable:hover { background-color: #122d4e !important; }

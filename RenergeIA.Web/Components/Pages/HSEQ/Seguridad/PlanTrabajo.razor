@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
 
@@ -11,54 +12,36 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h4 mb-0"><i class="bi-calendar3 me-2" style="color:#183963"></i>Plan de Trabajo HSE</h1>
             <small class="text-muted">@_proyecto.Nombre</small>
         </div>
         <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Nueva Actividad</button>
     </div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="plan" />
 
-    <!-- Resumen KPIs -->
+    <!-- Gráfico de barras + cumplimiento -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-2">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.6rem;color:#183963">@_plan.Count</div>
-                <div class="text-muted small">Total</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.6rem;color:#6ABF4B">@_plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada)</div>
-                <div class="text-muted small">Ejecutadas</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.6rem;color:#ffc107">@_plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente || p.Estado == EstadoPlanTrabajo.Planificada)</div>
-                <div class="text-muted small">Pendientes</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_plan.Count(p => p.FechaPlanificada < DateTime.Today && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada)</div>
-                <div class="text-muted small">Vencidas</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card shadow-sm p-3 text-center border-start border-4 @(_cumplimiento>=80?"border-success":_cumplimiento>=60?"border-warning":"border-danger")">
-                <div class="fw-bold" style="font-size:1.6rem;color:@(_cumplimiento>=80?"#6ABF4B":_cumplimiento>=60?"#ffc107":"#dc3545")">@_cumplimiento%</div>
-                <div class="text-muted small">Cumplimiento</div>
-            </div>
-        </div>
-        <div class="col-md-2">
+        <div class="col-md-9">
             <div class="card shadow-sm p-3 h-100">
-                <div class="text-muted small mb-1">Avance</div>
-                <div class="progress mt-1" style="height:14px;border-radius:6px">
-                    <div class="progress-bar @(_cumplimiento>=80?"bg-success":_cumplimiento>=60?"bg-warning":"bg-danger")"
-                         style="width:@_cumplimiento%;font-size:.7rem">@_cumplimiento%</div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.85rem">Estado de las actividades</span>
+                    <small class="text-muted">Total planificadas: <strong style="color:#183963">@_plan.Count</strong></small>
                 </div>
+                <canvas id="chartPlanTrabajo" height="100"></canvas>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center d-flex flex-column justify-content-center">
+                <div class="text-muted small mb-1 fw-semibold text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Cumplimiento</div>
+                <div class="fw-bold mb-2" style="font-size:2.8rem;color:@(_cumplimiento>=80?"#6ABF4B":_cumplimiento>=60?"#ffc107":"#dc3545");line-height:1">@_cumplimiento%</div>
+                <div class="progress mb-2" style="height:10px;border-radius:5px">
+                    <div class="progress-bar @(_cumplimiento>=80?"bg-success":_cumplimiento>=60?"bg-warning":"bg-danger")"
+                         style="width:@_cumplimiento%"></div>
+                </div>
+                <small class="text-muted">@_ejec de @_plan.Count actividades ejecutadas</small>
             </div>
         </div>
     </div>
@@ -226,6 +209,8 @@ else
     private int _filtroMes;
     private FormModel _form = new();
     private int _cumplimiento;
+    private int _ejec, _pend, _venc;
+    private bool _graficoListo;
 
     private IEnumerable<PlanTrabajoHSE> PlanFiltrado => _plan
         .Where(p =>
@@ -244,7 +229,22 @@ else
     private async Task CargarAsync()
     {
         _plan = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.FechaPlanificada).ToListAsync();
-        _cumplimiento = _plan.Count > 0 ? (int)Math.Round(_plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada) * 100.0 / _plan.Count) : 0;
+        var hoy = DateTime.Today;
+        _ejec  = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
+        _pend  = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente || p.Estado == EstadoPlanTrabajo.Planificada);
+        _venc  = _plan.Count(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada);
+        _cumplimiento = _plan.Count > 0 ? (int)Math.Round(_ejec * 100.0 / _plan.Count) : 0;
+        _graficoListo = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_graficoListo && _proyecto is not null)
+        {
+            _graficoListo = false;
+            await JS.InvokeVoidAsync("renderPlanTrabajoChart", "chartPlanTrabajo",
+                _plan.Count, _ejec, _pend, _venc);
+        }
     }
 
     private void MostrarFormulario()

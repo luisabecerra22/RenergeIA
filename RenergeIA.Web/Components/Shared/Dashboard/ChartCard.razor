@@ -1,0 +1,19 @@
+<div class="rn-chart-card">
+    <div class="rn-chart-card-title">@Titulo</div>
+    @if (Filtros is not null)
+    {
+        <div class="rn-chart-filters">@Filtros</div>
+    }
+    <div style="position:relative;height:@(Altura)px">
+        <canvas id="@CanvasId"></canvas>
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string           Titulo       { get; set; } = "";
+    [Parameter] public string           CanvasId     { get; set; } = "";
+    [Parameter] public int              Altura       { get; set; } = 220;
+    [Parameter] public RenderFragment?  Filtros      { get; set; }
+    [Parameter] public RenderFragment?  ChildContent { get; set; }
+}

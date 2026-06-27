@@ -278,7 +278,6 @@ C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Pr
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\yfc7ypekbg-{0}-mlv21k5csn-mlv21k5csn.gz
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\dyx4ux52yw-{0}-o38bquc1km-o38bquc1km.gz
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\9zh2ow0y97-{0}-o38bquc1km-o38bquc1km.gz
-C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\0j14n8pgay-{0}-dzqzv656ls-dzqzv656ls.gz
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\ClosedXML.dll
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\ClosedXML.Parser.dll
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\DocumentFormat.OpenXml.dll
@@ -287,5 +286,7 @@ C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Pr
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\RBush.dll
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\SixLabors.Fonts.dll
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\System.IO.Packaging.dll
-C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\s489p7xpgv-{0}-ed9b5dqxhb-ed9b5dqxhb.gz
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\RenergeIA.Web.sourcelink.json
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\bin\Debug\net10.0\Properties\WatchSettings.json
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\0j14n8pgay-{0}-gwnam68cy5-gwnam68cy5.gz
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Web\obj\Debug\net10.0\compressed\s489p7xpgv-{0}-9h55kvl3ad-9h55kvl3ad.gz

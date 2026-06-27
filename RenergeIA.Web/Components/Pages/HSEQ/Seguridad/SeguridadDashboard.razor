@@ -3,7 +3,6 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
 
@@ -12,90 +11,44 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h3 mb-0"><i class="bi-shield-exclamation me-2 text-danger"></i>Dashboard Seguridad — ISO 45001</h1>
             <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("MMMM yyyy")</small>
         </div>
-        @{ var (badgeCss, badgeTxt) = _cumplimientoGeneral >= 80 ? ("bg-success", "Cumple") : _cumplimientoGeneral >= 60 ? ("bg-warning text-dark", "En Riesgo") : ("bg-danger", "Crítico"); }
-        <span class="badge @badgeCss fs-6">@badgeTxt — @_cumplimientoGeneral%</span>
+        @{ var (badgeCss, badgeTxt) = _cumplimientoGeneral >= 80 ? ("bg-success","Cumple") : _cumplimientoGeneral >= 60 ? ("bg-warning text-dark","En Riesgo") : ("bg-danger","Crítico"); }
+        <span class="badge @badgeCss fs-6 px-3 py-2">@badgeTxt — @_cumplimientoGeneral%</span>
     </div>
 
-    <!-- Nav sub-módulos -->
-    <div class="d-flex gap-2 flex-wrap mb-4">
-        <span class="btn btn-danger btn-sm"><i class="bi-speedometer2 me-1"></i>Dashboard</span>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/plan-trabajo"   class="btn btn-outline-secondary btn-sm">Plan de Trabajo</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/inspecciones"   class="btn btn-outline-secondary btn-sm">Inspecciones</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/ots"            class="btn btn-outline-secondary btn-sm">OTS</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/stc"            class="btn btn-outline-secondary btn-sm">STC</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/indicadores"    class="btn btn-outline-secondary btn-sm">Indicadores</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/epp"            class="btn btn-outline-secondary btn-sm">EPP / Dotación</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/pausas-activas" class="btn btn-outline-secondary btn-sm">Pausas Activas</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/checklist"      class="btn btn-outline-secondary btn-sm">ISO 45001</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/incidentes"     class="btn btn-outline-secondary btn-sm">Incidentes</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/capacitaciones" class="btn btn-outline-secondary btn-sm">Capacitaciones</a>
-        <a href="/proyectos/@ProyectoId/hseq/seguridad/acciones"       class="btn btn-outline-secondary btn-sm">Acciones</a>
-    </div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="dashboard" />
 
-    <!-- ── Plan de Trabajo ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">Plan de Trabajo HSE</h6>
-    <div class="row g-3 mb-4">
-        <div class="col-md-9">
-            <div class="card shadow-sm p-3 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-semibold" style="color:#183963;font-size:.85rem">Estado de las actividades</span>
-                    <small class="text-muted">Total planificadas: <strong style="color:#183963">@_planTotal</strong></small>
+    <!-- ── Resumen General — Gauges circulares ─────────────────────────────── -->
+    <SeccionDash Titulo="Resumen General de Seguridad" Icono="bi-speedometer2">
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3 mb-2">
+            @foreach (var g in _gauges)
+            {
+                <div class="col">
+                    <GaugeCircular Titulo="@g.Titulo"
+                                   ValorCentral="@g.ValorCentral"
+                                   SubTexto="@g.SubTexto"
+                                   Porcentaje="@g.Porcentaje"
+                                   Estado="@g.Estado"
+                                   Color="@g.Color" />
                 </div>
-                <canvas id="chartPlanTrabajo" height="110"></canvas>
-            </div>
+            }
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4" style="border-color:@_cumPlanColor!important">
-                <div class="text-muted small fw-semibold mb-1">% Cumplimiento</div>
-                <div class="d-flex align-items-center justify-content-center gap-2 my-2">
-                    <i class="bi-bar-chart-fill" style="font-size:1.6rem;color:@_cumPlanColor"></i>
-                    <div class="fw-bold" style="font-size:2rem;color:@_cumPlanColor">@_cumPlan%</div>
-                </div>
-                <div class="progress" style="height:10px;border-radius:5px">
-                    <div class="progress-bar" style="width:@_cumPlan%;background-color:@_cumPlanColor;border-radius:5px"></div>
-                </div>
-                <small class="text-muted mt-2">@_planEjec de @_planTotal ejecutadas</small>
-            </div>
-        </div>
+    </SeccionDash>
+
+    <!-- Acceso rápido al Plan de Trabajo -->
+    <div class="mb-4">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad/plan-trabajo"
+           class="btn btn-outline-primary btn-sm">
+            <i class="bi-calendar3 me-1"></i>Ver detalle del Plan de Trabajo
+        </a>
     </div>
 
-    <!-- ── Inspecciones ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">Inspecciones</h6>
-    <div class="row g-3 mb-4">
-        @foreach (var k in _kpisInsp) { @KpiCard(k) }
-    </div>
-
-    <!-- ── EPP / Dotación ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">EPP / Dotación</h6>
-    <div class="row g-3 mb-4">
-        @foreach (var k in _kpisEpp) { @KpiCard(k) }
-    </div>
-
-    <!-- ── Pausas Activas ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">Pausas Activas — @DateTime.Now.ToString("MMMM")</h6>
-    <div class="row g-3 mb-4">
-        @foreach (var k in _kpisPausas) { @KpiCard(k) }
-    </div>
-
-    <!-- ── Capacitaciones ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">Capacitaciones</h6>
-    <div class="row g-3 mb-4">
-        @foreach (var k in _kpisCap) { @KpiCard(k) }
-    </div>
-
-    <!-- ── Incidentes / ISO 45001 ── -->
-    <h6 class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.78rem;letter-spacing:.06em">Incidentes &amp; ISO 45001</h6>
-    <div class="row g-3 mb-4">
-        @foreach (var k in _kpisIncidentes) { @KpiCard(k) }
-    </div>
-
-    <!-- Actividades vencidas -->
+    <!-- ── Actividades vencidas ─────────────────────────────────────────────── -->
     @if (_actividadesVencidas.Any())
     {
         <div class="card shadow-sm mb-4">
@@ -130,20 +83,20 @@ else
     [Parameter] public int ProyectoId { get; set; }
     private Proyecto? _proyecto;
 
-    private record Kpi(string Titulo, string Valor, string Color, string Icono, int Cols = 3);
+    private record Gauge(
+        string Titulo,
+        string ValorCentral,
+        string SubTexto,
+        int    Porcentaje,
+        string Color,
+        string Estado
+    );
 
-    // Plan de Trabajo — datos individuales para el gráfico
-    private int    _planTotal, _planEjec, _planPend, _planVenc, _cumPlan;
-    private string _cumPlanColor = "#dc3545";
-    private bool   _graficoListo;
-
-    private List<Kpi> _kpisInsp      = [];
-    private List<Kpi> _kpisEpp       = [];
-    private List<Kpi> _kpisPausas    = [];
-    private List<Kpi> _kpisCap       = [];
-    private List<Kpi> _kpisIncidentes = [];
-    private List<PlanTrabajoHSE> _actividadesVencidas = [];
-    private int _cumplimientoGeneral;
+    private List<Gauge>          _gauges               = [];
+    private List<PlanTrabajoHSE> _actividadesVencidas  = [];
+    private int  _cumplimientoGeneral;
+    // Datos del Plan (para el gauge del dashboard)
+    private int _planTotal, _planEjec, _cumPlan;
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,112 +107,164 @@ else
 
     private async Task CargarDatosAsync()
     {
-        var hoy = DateTime.Today;
-        var mes = hoy.Month;
+        var hoy  = DateTime.Today;
+        var mes  = hoy.Month;
         var anio = hoy.Year;
 
-        // Plan de trabajo
-        var plan    = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
-        _planTotal  = plan.Count;
-        _planEjec   = plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
-        _planPend   = plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente || p.Estado == EstadoPlanTrabajo.Planificada);
-        _planVenc   = plan.Count(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada);
-        _cumPlan    = _planTotal > 0 ? (int)Math.Round(_planEjec * 100.0 / _planTotal) : 0;
-        _cumPlanColor = _cumPlan >= 80 ? "#6ABF4B" : _cumPlan >= 60 ? "#ffc107" : "#dc3545";
-        _actividadesVencidas = plan.Where(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada).OrderBy(p => p.FechaPlanificada).ToList();
-        _graficoListo = true;
+        // ── Plan de Trabajo ──────────────────────────────────────────────────
+        var plan  = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+        _planTotal = plan.Count;
+        _planEjec  = plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
+        _cumPlan   = _planTotal > 0 ? (int)Math.Round(_planEjec * 100.0 / _planTotal) : 0;
+        _actividadesVencidas = plan
+            .Where(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada)
+            .OrderBy(p => p.FechaPlanificada).ToList();
 
-        // Inspecciones
-        var insp = await Db.InspeccionesSST.Where(i => i.ProyectoId == ProyectoId).ToListAsync();
+        // ── Inspecciones ─────────────────────────────────────────────────────
+        var insp     = await Db.InspeccionesSST.Where(i => i.ProyectoId == ProyectoId).ToListAsync();
         var acciones = await Db.AccionesHSEQ.Include(a => a.HallazgoHSEQ)
-            .Where(a => a.HallazgoHSEQ != null && a.HallazgoHSEQ.ProyectoId == ProyectoId && a.HallazgoHSEQ.Division == DivisionHSEQ.Seguridad)
+            .Where(a => a.HallazgoHSEQ != null
+                     && a.HallazgoHSEQ.ProyectoId == ProyectoId
+                     && a.HallazgoHSEQ.Division   == DivisionHSEQ.Seguridad)
             .ToListAsync();
-        _kpisInsp =
-        [
-            new("Insp. Seguridad",    insp.Count(i => i.Tipo == "Seguridad").ToString(), "#183963", "bi-clipboard2-check"),
-            new("OTS",                insp.Count(i => i.Tipo == "OTS").ToString(),        "#183963", "bi-eye"),
-            new("STC",                insp.Count(i => i.Tipo == "STC").ToString(),        "#183963", "bi-house-check"),
-            new("Hallazgos Abiertos", insp.Sum(i => i.HallazgosEncontrados - i.HallazgosCerrados).ToString(), "#dc3545", "bi-bug"),
-            new("Actos Inseguros",    insp.Sum(i => i.ActosInseguros).ToString(),         "#ffc107", "bi-person-exclamation"),
-            new("Cond. Inseguras",    insp.Sum(i => i.CondicionesInseguras).ToString(),   "#ffc107", "bi-cone-striped"),
-            new("Acciones Vencidas",  acciones.Count(a => a.Estado != EstadoNoConformidad.Cerrada && a.FechaCompromiso < hoy).ToString(), "#dc3545", "bi-clock-history"),
-        ];
+        int inspSST      = insp.Count(i => i.Tipo == "Seguridad");
+        int inspOTS      = insp.Count(i => i.Tipo == "OTS");
+        int inspSTC      = insp.Count(i => i.Tipo == "STC");
+        int hallazgos    = Math.Max(0, insp.Sum(i => i.HallazgosEncontrados - i.HallazgosCerrados));
+        int accionesVenc = acciones.Count(a => a.Estado != EstadoNoConformidad.Cerrada && a.FechaCompromiso < hoy);
 
-        // EPP
-        var epp = await Db.EntregasEPP.Where(e => e.ProyectoId == ProyectoId).ToListAsync();
-        _kpisEpp =
-        [
-            new("Total Entregas",    epp.Count.ToString(),                                                                                                              "#183963", "bi-bag-check"),
-            new("Al Día",            epp.Count(e => !e.FechaVencimiento.HasValue || e.FechaVencimiento >= hoy.AddDays(30)).ToString(),                                 "#6ABF4B", "bi-shield-check"),
-            new("Próx. a Vencer",   epp.Count(e => e.FechaVencimiento.HasValue && e.FechaVencimiento >= hoy && e.FechaVencimiento <= hoy.AddDays(30)).ToString(),     "#ffc107", "bi-clock"),
-            new("Vencidas",          epp.Count(e => e.FechaVencimiento.HasValue && e.FechaVencimiento < hoy).ToString(),                                               "#dc3545", "bi-shield-x"),
-        ];
+        // ── EPP / Dotación ───────────────────────────────────────────────────
+        var epp      = await Db.EntregasEPP.Where(e => e.ProyectoId == ProyectoId).ToListAsync();
+        int eppTotal = epp.Count;
+        int eppAlDia = epp.Count(e => !e.FechaVencimiento.HasValue || e.FechaVencimiento >= hoy.AddDays(30));
+        int cumEPP   = eppTotal > 0 ? (int)Math.Round(eppAlDia * 100.0 / eppTotal) : 0;
 
-        // Pausas activas
-        var pausas = await Db.PausasActivas.Where(p => p.ProyectoId == ProyectoId && p.Mes == mes && p.Anio == anio).ToListAsync();
-        var cumPausas     = pausas.Any() ? Math.Min(100, (int)Math.Round(pausas.Average(p => p.CantidadPausas) * 100.0 / 60)) : 0;
-        var cumPausasColor = cumPausas >= 100 ? "#6ABF4B" : cumPausas >= 70 ? "#ffc107" : "#dc3545";
-        _kpisPausas =
-        [
-            new("Trabajadores",      pausas.Select(p => p.Documento).Distinct().Count().ToString(), "#183963", "bi-people"),
-            new("Pausas Mes",        pausas.Sum(p => p.CantidadPausas).ToString(),                  "#6ABF4B", "bi-stopwatch"),
-            new("% Cumplimiento",    cumPausas + "%",                                                cumPausasColor, "bi-activity"),
-        ];
+        // ── Pausas Activas ───────────────────────────────────────────────────
+        var pausas    = await Db.PausasActivas
+            .Where(p => p.ProyectoId == ProyectoId && p.Mes == mes && p.Anio == anio).ToListAsync();
+        int promPausas = pausas.Any() ? (int)Math.Round(pausas.Average(p => p.CantidadPausas)) : 0;
+        int cumPausas  = pausas.Any() ? Math.Min(100, (int)Math.Round(pausas.Average(p => p.CantidadPausas) * 100.0 / 60)) : 0;
 
-        // Capacitaciones
+        // ── Capacitaciones ───────────────────────────────────────────────────
         var capPlan = await Db.CapacitacionesPlanificadas.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
         var capReal = await Db.Capacitaciones.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
-        var cumCap      = capPlan.Count > 0 ? (int)Math.Round(capReal.Count(c => c.Estado == EstadoPlanTrabajo.Ejecutada) * 100.0 / capPlan.Count) : 100;
-        var cumCapColor = cumCap >= 80 ? "#6ABF4B" : cumCap >= 60 ? "#ffc107" : "#dc3545";
-        var horasHombre = capReal.Sum(c => c.DuracionHoras * c.NumeroAsistentes);
-        _kpisCap =
-        [
-            new("Planificadas",      capPlan.Count.ToString(),                                       "#183963", "bi-calendar-check"),
-            new("Ejecutadas",        capReal.Count(c => c.Estado == EstadoPlanTrabajo.Ejecutada).ToString(), "#6ABF4B", "bi-mortarboard"),
-            new("% Cumplimiento",    cumCap + "%",                                                   cumCapColor, "bi-award"),
-            new("Horas-Hombre",      horasHombre.ToString("N0") + " h",                             "#183963", "bi-clock-history"),
-        ];
+        int capEjec = capReal.Count(c => c.Estado == EstadoPlanTrabajo.Ejecutada);
+        int cumCap  = capPlan.Count > 0 ? (int)Math.Round(capEjec * 100.0 / capPlan.Count) : 0;
 
-        // Incidentes / ISO
-        var eventos = await Db.IncidentesAccidentes.Where(i => i.ProyectoId == ProyectoId).ToListAsync();
-        var checkISO = await Db.ChecklistsAuditoria.Where(c => c.ProyectoId == ProyectoId && c.NormaISO == "ISO 45001:2018").ToListAsync();
-        var cumISO      = checkISO.Any() ? (int)Math.Round((double)checkISO.Average(c => c.PorcentajeCumplimiento)) : 0;
-        var cumISOColor = cumISO >= 80 ? "#6ABF4B" : cumISO >= 60 ? "#ffc107" : "#dc3545";
-        _kpisIncidentes =
-        [
-            new("Incidentes",        eventos.Count(e => e.Tipo == TipoIncidente.Incidente || e.Tipo == TipoIncidente.CasiAccidente).ToString(), "#ffc107", "bi-lightning-charge"),
-            new("Accidentes",        eventos.Count(e => e.Tipo == TipoIncidente.AccidenteLeve || e.Tipo == TipoIncidente.AccidenteGrave || e.Tipo == TipoIncidente.AccidenteFatal).ToString(), "#dc3545", "bi-bandaid"),
-            new("ISO 45001",         cumISO + "%",                                                   cumISOColor, "bi-patch-check"),
-            new("Acciones Abiertas", acciones.Count(a => a.Estado != EstadoNoConformidad.Cerrada).ToString(), "#ffc107", "bi-list-check"),
-        ];
+        // ── ISO 45001 / Incidentes ───────────────────────────────────────────
+        var eventos  = await Db.IncidentesAccidentes.Where(i => i.ProyectoId == ProyectoId).ToListAsync();
+        var checkISO = await Db.ChecklistsAuditoria
+            .Where(c => c.ProyectoId == ProyectoId && c.NormaISO == "ISO 45001:2018").ToListAsync();
+        int incidentes = eventos.Count(e => e.Tipo == TipoIncidente.Incidente || e.Tipo == TipoIncidente.CasiAccidente);
+        int accidentes = eventos.Count(e => e.Tipo == TipoIncidente.AccidenteLeve || e.Tipo == TipoIncidente.AccidenteGrave || e.Tipo == TipoIncidente.AccidenteFatal);
+        int cumISO     = checkISO.Any() ? (int)Math.Round((double)checkISO.Average(c => c.PorcentajeCumplimiento)) : 0;
 
-        _cumplimientoGeneral = new[] { _cumPlan, cumCap, cumISO, cumPausas }.Where(v => v > 0).DefaultIfEmpty(0).Sum() /
-                               Math.Max(1, new[] { _cumPlan, cumCap, cumISO, cumPausas }.Count(v => v > 0));
+        // ── Cumplimiento general ─────────────────────────────────────────────
+        _cumplimientoGeneral = new[] { _cumPlan, cumCap, cumISO, cumPausas }
+            .Where(v => v > 0).DefaultIfEmpty(0).Sum()
+            / Math.Max(1, new[] { _cumPlan, cumCap, cumISO, cumPausas }.Count(v => v > 0));
+
+        // ── Construir gauges ─────────────────────────────────────────────────
+        _gauges =
+        [
+            // 1 · Plan de Trabajo
+            new(
+                "Plan de Trabajo",
+                _planTotal > 0 ? $"{_cumPlan}%"  : "—",
+                _planTotal > 0 ? $"{_planEjec} de {_planTotal} act." : "sin actividades",
+                _cumPlan,
+                _planTotal  > 0 ? Cpct(_cumPlan) : "#adb5bd",
+                _planTotal  > 0 ? Epct(_cumPlan) : "Informativo"
+            ),
+            // 2 · Inspecciones SST
+            new(
+                "Insp. Seguridad",
+                inspSST.ToString(),
+                inspSST == 1 ? "inspección" : "inspecciones",
+                Math.Min(100, inspSST),
+                "#183963",
+                "Informativo"
+            ),
+            // 3 · OTS
+            new(
+                "OTS",
+                inspOTS.ToString(),
+                inspOTS == 1 ? "observación" : "observaciones",
+                Math.Min(100, inspOTS),
+                "#183963",
+                "Informativo"
+            ),
+            // 4 · STC
+            new(
+                "STC",
+                inspSTC.ToString(),
+                inspSTC == 1 ? "observación" : "observaciones",
+                Math.Min(100, inspSTC),
+                "#183963",
+                "Informativo"
+            ),
+            // 5 · Hallazgos Abiertos  (0 = bueno → verde lleno)
+            new(
+                "Hallazgos Abiertos",
+                hallazgos.ToString(),
+                hallazgos == 0 ? "sin hallazgos" : "por cerrar",
+                hallazgos == 0 ? 100 : Math.Max(5, 100 - hallazgos * 4),
+                hallazgos == 0 ? "#6ABF4B" : "#dc3545",
+                hallazgos == 0 ? "Saludable" : "Crítico"
+            ),
+            // 6 · Acciones Vencidas  (0 = bueno → verde lleno)
+            new(
+                "Acciones Vencidas",
+                accionesVenc.ToString(),
+                accionesVenc == 0 ? "al día" : "vencidas",
+                accionesVenc == 0 ? 100 : Math.Max(5, 100 - accionesVenc * 8),
+                accionesVenc == 0 ? "#6ABF4B" : "#dc3545",
+                accionesVenc == 0 ? "Saludable" : "Crítico"
+            ),
+            // 7 · EPP / Dotación
+            new(
+                "EPP / Dotación",
+                eppTotal > 0 ? $"{cumEPP}%"  : "—",
+                $"{eppAlDia} de {eppTotal} entregas",
+                cumEPP,
+                eppTotal > 0 ? Cpct(cumEPP) : "#adb5bd",
+                eppTotal > 0 ? Epct(cumEPP) : "Informativo"
+            ),
+            // 8 · Pausas Activas
+            new(
+                "Pausas Activas",
+                pausas.Any() ? $"{cumPausas}%" : "—",
+                pausas.Any() ? $"prom. {promPausas} / 60 pausas" : "sin registros",
+                cumPausas,
+                !pausas.Any() ? "#adb5bd" : cumPausas >= 100 ? "#6ABF4B" : cumPausas >= 70 ? "#ffc107" : "#dc3545",
+                !pausas.Any() ? "Informativo" : cumPausas >= 100 ? "Saludable" : cumPausas >= 70 ? "En Riesgo" : "Crítico"
+            ),
+            // 9 · Capacitaciones
+            new(
+                "Capacitaciones",
+                capPlan.Count > 0 ? $"{cumCap}%"  : "—",
+                $"{capEjec} de {capPlan.Count} ejec.",
+                cumCap,
+                capPlan.Count > 0 ? Cpct(cumCap) : "#adb5bd",
+                capPlan.Count > 0 ? Epct(cumCap)  : "Informativo"
+            ),
+            // 10 · ISO 45001
+            new(
+                "ISO 45001",
+                checkISO.Any() ? $"{cumISO}%" : "—",
+                checkISO.Any() ? "cumplimiento" : "sin auditorías",
+                cumISO,
+                checkISO.Any() ? Cpct(cumISO) : "#adb5bd",
+                checkISO.Any() ? Epct(cumISO)  : "Informativo"
+            ),
+        ];
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_graficoListo && _proyecto is not null)
-        {
-            _graficoListo = false;
-            await JS.InvokeVoidAsync("renderPlanTrabajoChart", "chartPlanTrabajo",
-                _planTotal, _planEjec, _planPend, _planVenc);
-        }
-    }
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private RenderFragment KpiCard(Kpi k) => __builder =>
-    {
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", $"col-md-{k.Cols}");
-        __builder.AddMarkupContent(2, $"""
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4" style="border-color:{k.Color}!important">
-                <div class="text-muted small fw-semibold mb-1">{k.Titulo}</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="{k.Icono}" style="font-size:1.6rem;color:{k.Color}"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:{k.Color}">{k.Valor}</div>
-                </div>
-            </div>
-            """);
-        __builder.CloseElement();
-    };
+    private static string Cpct(int pct) =>
+        pct >= 80 ? "#6ABF4B" : pct >= 60 ? "#ffc107" : "#dc3545";
+
+    private static string Epct(int pct) =>
+        pct >= 80 ? "Saludable" : pct >= 60 ? "En Riesgo" : "Crítico";
 }

@@ -1,0 +1,16 @@
+<div class="rn-section">
+    <div class="rn-section-header">
+        @if (!string.IsNullOrEmpty(Icono))
+        {
+            <i class="bi @Icono rn-section-icon"></i>
+        }
+        <span>@Titulo</span>
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string           Titulo       { get; set; } = "";
+    [Parameter] public string           Icono        { get; set; } = "";
+    [Parameter] public RenderFragment?  ChildContent { get; set; }
+}

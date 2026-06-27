@@ -191,6 +191,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIU0VRXFNlZ3VyaWRhZFxJbnNwZWNjaW9uZXNTU1QucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Pages/HSEQ/Seguridad/NavSeguridad.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIU0VRXFNlZ3VyaWRhZFxOYXZTZWd1cmlkYWQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Pages/HSEQ/Seguridad/OTS.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIU0VRXFNlZ3VyaWRhZFxPVFMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
@@ -213,6 +217,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Pages/HSEQ/Seguridad/STC.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIU0VRXFNlZ3VyaWRhZFxTVEMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Pages/HSEQ/Seguridad/SubNavInspecciones.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIU0VRXFNlZ3VyaWRhZFxTdWJOYXZJbnNwZWNjaW9uZXMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Pages/HSEQ/Social/ActasEvidencias.razor]
@@ -313,6 +321,26 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Routes.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Shared/Dashboard/AnalisisIA.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGFzaGJvYXJkXEFuYWxpc2lzSUEucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Shared/Dashboard/ChartCard.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGFzaGJvYXJkXENoYXJ0Q2FyZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Shared/Dashboard/GaugeCircular.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGFzaGJvYXJkXEdhdWdlQ2lyY3VsYXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Shared/Dashboard/SeccionDash.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGFzaGJvYXJkXFNlY2Npb25EYXNoLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/Shared/Dashboard/TarjetaKPI.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcRGFzaGJvYXJkXFRhcmpldGFLUEkucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/Luisa_Becerra/OneDrive - Renergeia LLC/Escritorio/RenergeIA - Agente/Proyecto Agente/RenergeIA.Web/Components/_Imports.razor]

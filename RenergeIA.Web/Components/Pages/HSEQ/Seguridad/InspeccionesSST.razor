@@ -3,56 +3,263 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
+@using System.Globalization
 
-<PageTitle>Inspecciones de Seguridad — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+<PageTitle>Inspecciones SST — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
-@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+<style>
+    .dash-chart-card { border: none; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+    .section-label { font-size: .72rem; font-weight: 700; letter-spacing: .07em; color: #6c757d; text-transform: uppercase; margin-bottom: .75rem; }
+    .ranking-btn { font-size: .72rem; padding: 3px 10px; border-radius: 20px; }
+    .heat-cell { display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: .78rem; font-weight: 600; min-height: 36px; transition: opacity .2s; }
+    .ai-insight { display: flex; align-items: flex-start; gap: 10px; margin-bottom: .9rem; font-size: .87rem; line-height: 1.45; }
+</style>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted py-4 text-center"><i class="bi-hourglass-split me-2"></i>Cargando dashboard...</p>
+}
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-clipboard2-check me-2" style="color:#183963"></i>Inspecciones de Seguridad</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
+            <h1 class="h4 mb-0"><i class="bi-clipboard2-pulse me-2" style="color:#183963"></i>Dashboard Inspecciones de Seguridad</h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; Actualizado @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
         </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Nueva Inspección</button>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nueva Inspección
+        </button>
     </div>
 
-    <!-- KPIs -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_inspecciones.Count</div>
-                <div class="text-muted small">Total Inspecciones</div>
+    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="inspecciones" />
+    <SubNavInspecciones ProyectoId="@ProyectoId" TabActiva="inspecciones" />
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         NIVEL 1 — INDICADORES GAUGE
+         ════════════════════════════════════════════════════════════════════════ -->
+    <p class="section-label"><i class="bi-speedometer2 me-1"></i>Indicadores Ejecutivos</p>
+    <div class="row row-cols-2 row-cols-md-4 row-cols-xl-6 g-2 mb-4">
+        @foreach (var g in _gauges) { <div class="col">@GaugeCard(g)</div> }
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         NIVEL 2 — GRÁFICOS ANALÍTICOS
+         ════════════════════════════════════════════════════════════════════════ -->
+    <p class="section-label"><i class="bi-bar-chart-line me-1"></i>Análisis Detallado</p>
+
+    <!-- Fila 1 -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-geo-alt me-1"></i>Hallazgos por Área</span>
+                    <small class="text-muted">Top @_labelsHallPorArea.Length áreas</small>
+                </div>
+                <div style="height:220px"><canvas id="chartHallPorArea"></canvas></div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_inspecciones.Sum(i => i.HallazgosEncontrados - i.HallazgosCerrados)</div>
-                <div class="text-muted small">Hallazgos Abiertos</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_inspecciones.Sum(i => i.ActosInseguros)</div>
-                <div class="text-muted small">Actos Inseguros</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_inspecciones.Sum(i => i.CondicionesInseguras)</div>
-                <div class="text-muted small">Condiciones Inseguras</div>
+        <div class="col-lg-6">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-layers me-1"></i>Actos Inseguros vs Condiciones Inseguras</span>
+                </div>
+                <div style="height:220px"><canvas id="chartActosCond"></canvas></div>
             </div>
         </div>
     </div>
+
+    <!-- Fila 2 -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-4">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-pie-chart me-1"></i>Estado de Hallazgos</span>
+                </div>
+                <div style="height:200px"><canvas id="chartEstadoHall"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-graph-up me-1"></i>Tendencia — Inspecciones y Hallazgos (últimos 6 meses)</span>
+                </div>
+                <div style="height:200px"><canvas id="chartTendencia"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila 3 -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-5">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-bar-chart me-1"></i>Inspecciones por Mes</span>
+                </div>
+                <div style="height:200px"><canvas id="chartInspMes"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-sort-down me-1"></i>Pareto de Hallazgos — 80/20</span>
+                    <small class="text-muted">Principales causas</small>
+                </div>
+                <div style="height:200px"><canvas id="chartPareto"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fila 4 -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-trophy me-1"></i>Ranking de Hallazgos</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn ranking-btn @(_rankingFiltro=="area"?"btn-primary":"btn-outline-secondary")"
+                                @onclick='() => CambiarRankingAsync("area")'>Área</button>
+                        <button class="btn ranking-btn @(_rankingFiltro=="frente"?"btn-primary":"btn-outline-secondary")"
+                                @onclick='() => CambiarRankingAsync("frente")'>Frente</button>
+                        <button class="btn ranking-btn @(_rankingFiltro=="inspector"?"btn-primary":"btn-outline-secondary")"
+                                @onclick='() => CambiarRankingAsync("inspector")'>Inspector</button>
+                        <button class="btn ranking-btn @(_rankingFiltro=="responsable"?"btn-primary":"btn-outline-secondary")"
+                                @onclick='() => CambiarRankingAsync("responsable")'>Responsable</button>
+                    </div>
+                </div>
+                <div style="height:210px"><canvas id="chartRanking"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card dash-chart-card p-3 h-100">
+                <div class="mb-2">
+                    <span class="fw-semibold" style="color:#183963;font-size:.82rem"><i class="bi-grid-3x3 me-1"></i>Mapa de Calor — Área × Tipo de Inspección</span>
+                </div>
+                @if (_heatRows.Any())
+                {
+                    <div class="table-responsive" style="max-height:230px;overflow-y:auto">
+                        <table class="table table-borderless mb-0" style="font-size:.78rem">
+                            <thead style="position:sticky;top:0;background:#fff;z-index:1">
+                                <tr>
+                                    <th style="color:#183963;font-weight:600;font-size:.7rem">Área</th>
+                                    <th class="text-center" style="color:#183963;font-weight:600;font-size:.7rem">Seguridad</th>
+                                    <th class="text-center" style="color:#183963;font-weight:600;font-size:.7rem">OTS</th>
+                                    <th class="text-center" style="color:#183963;font-weight:600;font-size:.7rem">STC</th>
+                                    <th class="text-center" style="color:#183963;font-weight:600;font-size:.7rem">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ int heatMax = _heatRows.Any() ? Math.Max(1, _heatRows.Max(r => r.Counts.Sum())) : 1; }
+                                @foreach (var row in _heatRows)
+                                {
+                                    var total = row.Counts.Sum();
+                                    <tr>
+                                        <td class="fw-semibold text-truncate" style="max-width:110px;color:#495057">@row.Area</td>
+                                        @for (int ci = 0; ci < 3; ci++)
+                                        {
+                                            var v = row.Counts[ci];
+                                            <td class="text-center p-1">
+                                                <div class="heat-cell" style="background:@HeatColor(v, heatMax);color:@HeatText(v, heatMax)">
+                                                    @(v > 0 ? v.ToString() : "—")
+                                                </div>
+                                            </td>
+                                        }
+                                        <td class="text-center fw-bold" style="color:#183963">@total</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-muted py-4" style="font-size:.85rem">
+                        <i class="bi-grid fs-3 d-block mb-2"></i>Sin datos suficientes para el mapa de calor
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         NIVEL 4 — ANÁLISIS INTELIGENTE
+         ════════════════════════════════════════════════════════════════════════ -->
+    <div class="card border-0 mb-4 text-white" style="background:linear-gradient(135deg,#183963 0%,#1a4e8f 100%);border-radius:12px">
+        <div class="card-header border-0 d-flex align-items-center gap-2 py-3" style="background:rgba(0,0,0,.15);border-radius:12px 12px 0 0">
+            <i class="bi-robot fs-5"></i>
+            <strong style="font-size:.95rem">Análisis Inteligente — RenergeIA AI</strong>
+            <span class="badge ms-auto" style="background:rgba(255,193,7,.9);color:#333">Beta · Conectando IA</span>
+        </div>
+        <div class="card-body py-3">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="ai-insight">
+                        <i class="bi-graph-up-arrow text-success flex-shrink-0 mt-1"></i>
+                        <span>En <strong>@DateTime.Now.ToString("MMMM", _ci)</strong> se realizaron
+                            <strong>@(_inspXMes.Length > 0 ? _inspXMes[^1] : 0)</strong> inspecciones
+                            (@(_inspXMes.Length > 1 && _inspXMes[^1] >= _inspXMes[^2] ? "▲ aumento" : "▼ reducción") vs. mes anterior).</span>
+                    </div>
+                    <div class="ai-insight">
+                        <i class="bi-exclamation-triangle-fill text-warning flex-shrink-0 mt-1"></i>
+                        <span>Acumulado del proyecto: <strong>@_todas.Sum(i => i.ActosInseguros)</strong> actos inseguros y
+                            <strong>@_todas.Sum(i => i.CondicionesInseguras)</strong> condiciones inseguras registradas.</span>
+                    </div>
+                    @if (_labelsHallPorArea.Length > 0)
+                    {
+                        <div class="ai-insight">
+                            <i class="bi-geo-alt-fill text-danger flex-shrink-0 mt-1"></i>
+                            <span>El área <strong>@_labelsHallPorArea[0]</strong> concentra el mayor número de hallazgos
+                                (<strong>@_valoresHallPorArea[0]</strong>). Se recomienda intensificar la vigilancia en esta zona.</span>
+                        </div>
+                    }
+                    <div class="ai-insight">
+                        <i class="bi-clock-fill text-warning flex-shrink-0 mt-1"></i>
+                        <span>Existen <strong>@(_hAbiertos + _hRevision + _hImpl)</strong> hallazgos abiertos, de los cuales
+                            <strong>@_hVencidos</strong> tienen fecha de compromiso vencida.</span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="ai-insight">
+                        <i class="bi-shield-exclamation text-danger flex-shrink-0 mt-1"></i>
+                        <span>Nivel de riesgo del proyecto:
+                            <strong>@(_hAbiertos + _hRevision + _hImpl > 5 ? "⚠ Alto" : _hAbiertos + _hRevision + _hImpl > 2 ? "◆ Medio" : "✓ Bajo")</strong>.
+                            @(_hAbiertos + _hRevision + _hImpl > 2 ? "Priorizar el cierre de hallazgos críticos antes del próximo período." : "Mantener la frecuencia actual de inspecciones.")</span>
+                    </div>
+                    @if (_labelsRanking.Length > 0)
+                    {
+                        <div class="ai-insight">
+                            <i class="bi-person-exclamation text-warning flex-shrink-0 mt-1"></i>
+                            <span>El @(_rankingFiltro == "area" ? "área" : _rankingFiltro == "inspector" ? "inspector" : "frente")
+                                <strong>@_labelsRanking[0]</strong> lidera el ranking con <strong>@_valoresRanking[0]</strong> hallazgos reportados.</span>
+                        </div>
+                    }
+                    <div class="ai-insight">
+                        <i class="bi-lightbulb-fill text-warning flex-shrink-0 mt-1"></i>
+                        <span>Recomendación: Aplicar el análisis Pareto para concentrar acciones correctivas en las causas raíz que generan el 80% de los hallazgos.</span>
+                    </div>
+                    <div class="ai-insight">
+                        <i class="bi-info-circle text-info flex-shrink-0 mt-1"></i>
+                        <span class="text-white-50" style="font-size:.8rem">Este módulo se conectará a IA generativa (Claude / GPT) para análisis predictivos y recomendaciones personalizadas en la próxima versión de RenergeIA.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         NIVEL 3 — TABLA DINÁMICA
+         ════════════════════════════════════════════════════════════════════════ -->
+    <p class="section-label"><i class="bi-table me-1"></i>Registro de Inspecciones</p>
 
     @if (_mostrarFormulario)
     {
         <div class="card shadow-sm mb-4 border-primary">
-            <div class="card-header bg-primary text-white d-flex justify-content-between">
-                <strong>@(_editandoId.HasValue ? "Editar Inspección" : "Nueva Inspección de Seguridad")</strong>
+            <div class="card-header text-white d-flex justify-content-between" style="background:#183963">
+                <strong><i class="bi-clipboard2-plus me-2"></i>@(_editandoId.HasValue ? "Editar Inspección" : "Nueva Inspección")</strong>
                 <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
             </div>
             <div class="card-body">
@@ -61,69 +268,73 @@ else
                     <div class="row g-3">
                         <div class="col-md-2">
                             <label class="form-label">Código *</label>
-                            <InputText class="form-control" @bind-Value="_form.Codigo" />
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Codigo" />
                             <ValidationMessage For="() => _form.Codigo" />
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Área</label>
-                            <InputText class="form-control" @bind-Value="_form.Area" placeholder="Ej: Eléctrico, Civil" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Frente de Trabajo</label>
-                            <InputText class="form-control" @bind-Value="_form.Frente" />
+                        <div class="col-md-2">
+                            <label class="form-label">Tipo</label>
+                            <InputSelect class="form-select form-select-sm" @bind-Value="_form.Tipo">
+                                <option value="Seguridad">Seguridad</option>
+                                <option value="OTS">OTS</option>
+                                <option value="STC">STC</option>
+                            </InputSelect>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">Fecha</label>
-                            <InputDate class="form-control" @bind-Value="_form.FechaInspeccion" />
+                            <label class="form-label">Área</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Area" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Frente</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Frente" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Inspector *</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Inspector" />
+                            <ValidationMessage For="() => _form.Inspector" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Fecha *</label>
+                            <InputDate class="form-control form-control-sm" @bind-Value="_form.FechaInspeccion" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Estado</label>
-                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                            <InputSelect class="form-select form-select-sm" @bind-Value="_form.Estado">
                                 @foreach (var e in Enum.GetValues<EstadoInspeccionHSEQ>())
                                 { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
                             </InputSelect>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Responsable *</label>
-                            <InputText class="form-control" @bind-Value="_form.Responsable" />
-                            <ValidationMessage For="() => _form.Responsable" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Inspector *</label>
-                            <InputText class="form-control" @bind-Value="_form.Inspector" />
-                            <ValidationMessage For="() => _form.Inspector" />
-                        </div>
-                        <div class="col-md-2">
+                        <div class="col-md-1">
                             <label class="form-label">Hallazgos</label>
-                            <InputNumber class="form-control" @bind-Value="_form.HallazgosEncontrados" />
+                            <InputNumber class="form-control form-control-sm" @bind-Value="_form.HallazgosEncontrados" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Cerrados</label>
+                            <InputNumber class="form-control form-control-sm" @bind-Value="_form.HallazgosCerrados" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Actos</label>
+                            <InputNumber class="form-control form-control-sm" @bind-Value="_form.ActosInseguros" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Cond.</label>
+                            <InputNumber class="form-control form-control-sm" @bind-Value="_form.CondicionesInseguras" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">Cerrados</label>
-                            <InputNumber class="form-control" @bind-Value="_form.HallazgosCerrados" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Actos Inseguros</label>
-                            <InputNumber class="form-control" @bind-Value="_form.ActosInseguros" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Cond. Inseguras</label>
-                            <InputNumber class="form-control" @bind-Value="_form.CondicionesInseguras" />
-                        </div>
-                        <div class="col-md-3">
                             <label class="form-label">Responsable Cierre</label>
-                            <InputText class="form-control" @bind-Value="_form.ResponsableCierre" />
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.ResponsableCierre" />
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Fecha Compromiso</label>
-                            <InputDate class="form-control" @bind-Value="_form.FechaCompromiso" />
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Acciones Generadas</label>
-                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.AccionesGeneradas" />
+                        <div class="col-md-2">
+                            <label class="form-label">F. Compromiso</label>
+                            <InputDate class="form-control form-control-sm" @bind-Value="_form.FechaCompromiso" />
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Observaciones</label>
-                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                            <label class="form-label">Acciones Generadas / Observaciones</label>
+                            <InputTextArea class="form-control form-control-sm" rows="2" @bind-Value="_form.Observaciones" />
                         </div>
                     </div>
                     <div class="mt-3 d-flex gap-2">
@@ -135,58 +346,109 @@ else
         </div>
     }
 
-    <div class="d-flex gap-2 mb-3">
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar..."
-               @bind="_busqueda" @bind:event="oninput" />
-        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroEstado">
-            <option value="">Todos</option>
-            @foreach (var e in Enum.GetValues<EstadoInspeccionHSEQ>())
-            { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
-        </select>
+    <!-- Filtros -->
+    <div class="card dash-chart-card p-3 mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label form-label-sm mb-1">Buscar</label>
+                <input class="form-control form-control-sm" placeholder="Código, área, inspector..."
+                       @bind="_busqueda" @bind:event="oninput" @bind:after="AplicarFiltros" />
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <label class="form-label form-label-sm mb-1">Tipo</label>
+                <select class="form-select form-select-sm" @bind="_filtroTipo" @bind:after="AplicarFiltros">
+                    <option value="">Todos</option>
+                    <option value="Seguridad">Seguridad</option>
+                    <option value="OTS">OTS</option>
+                    <option value="STC">STC</option>
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <label class="form-label form-label-sm mb-1">Estado</label>
+                <select class="form-select form-select-sm" @bind="_filtroEstado" @bind:after="AplicarFiltros">
+                    <option value="">Todos</option>
+                    @foreach (var e in Enum.GetValues<EstadoInspeccionHSEQ>())
+                    { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <label class="form-label form-label-sm mb-1">Mes</label>
+                <select class="form-select form-select-sm" @bind="_filtroMes" @bind:after="AplicarFiltros">
+                    <option value="0">Todos</option>
+                    @for (int m = 1; m <= 12; m++)
+                    { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <label class="form-label form-label-sm mb-1">Con hallazgos</label>
+                <select class="form-select form-select-sm" @bind="_filtroHallazgos" @bind:after="AplicarFiltros">
+                    <option value="">Todos</option>
+                    <option value="si">Con hallazgos</option>
+                    <option value="no">Sin hallazgos</option>
+                </select>
+            </div>
+            <div class="col-sm-4 col-md-1 d-flex gap-1">
+                <button class="btn btn-outline-secondary btn-sm flex-fill" title="Limpiar filtros" @onclick="LimpiarFiltros">
+                    <i class="bi-x-lg"></i>
+                </button>
+                <button class="btn btn-success btn-sm flex-fill" title="Exportar Excel" @onclick="ExportarExcelAsync">
+                    <i class="bi-file-earmark-excel"></i>
+                </button>
+            </div>
+        </div>
+        <small class="text-muted mt-2 d-block">
+            @_filtradas.Count inspección(es) encontradas de @_todas.Count registradas
+        </small>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card dash-chart-card">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-light">
+                <thead style="background:#183963;color:white">
                     <tr>
-                        <th>Código</th>
-                        <th>Área</th>
+                        <th @onclick='() => Ordenar("Codigo")' style="cursor:pointer;white-space:nowrap">Código @OrdenIcon("Codigo")</th>
+                        <th @onclick='() => Ordenar("Tipo")' style="cursor:pointer">Tipo @OrdenIcon("Tipo")</th>
+                        <th @onclick='() => Ordenar("Area")' style="cursor:pointer">Área @OrdenIcon("Area")</th>
                         <th>Frente</th>
-                        <th>Inspector</th>
-                        <th>Fecha</th>
+                        <th @onclick='() => Ordenar("Inspector")' style="cursor:pointer">Inspector @OrdenIcon("Inspector")</th>
+                        <th @onclick='() => Ordenar("Responsable")' style="cursor:pointer">Responsable @OrdenIcon("Responsable")</th>
+                        <th @onclick='() => Ordenar("FechaInspeccion")' style="cursor:pointer;white-space:nowrap">Fecha @OrdenIcon("FechaInspeccion")</th>
+                        <th class="text-center">Hall.</th>
+                        <th class="text-center">Cerr.</th>
                         <th class="text-center">Actos</th>
                         <th class="text-center">Cond.</th>
-                        <th class="text-center">Hallazgos</th>
                         <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
+                        <th class="text-center" style="width:80px">Acc.</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @if (!InspeccionesFiltradas.Any())
+                    @if (!_filtradas.Any())
                     {
-                        <tr><td colspan="10" class="text-center text-muted py-4">No hay inspecciones de seguridad registradas.</td></tr>
+                        <tr><td colspan="13" class="text-center text-muted py-5">
+                            <i class="bi-clipboard2-x fs-2 d-block mb-2"></i>
+                            No hay inspecciones que coincidan con los filtros.
+                        </td></tr>
                     }
-                    @foreach (var i in InspeccionesFiltradas)
+                    @foreach (var i in _filtradas)
                     {
-                        var tieneVencida = i.FechaCompromiso.HasValue && i.FechaCompromiso < DateTime.Today && i.Estado != EstadoInspeccionHSEQ.Realizada;
-                        <tr class="@(tieneVencida ? "table-warning" : "")">
-                            <td class="font-monospace text-muted">@i.Codigo</td>
-                            <td>@i.Area</td>
-                            <td class="text-muted">@i.Frente</td>
-                            <td>@i.Inspector</td>
-                            <td>@i.FechaInspeccion.ToString("dd/MM/yyyy")</td>
-                            <td class="text-center @(i.ActosInseguros > 0 ? "text-warning fw-bold" : "text-muted")">@i.ActosInseguros</td>
-                            <td class="text-center @(i.CondicionesInseguras > 0 ? "text-warning fw-bold" : "text-muted")">@i.CondicionesInseguras</td>
-                            <td class="text-center">
-                                @if (i.HallazgosEncontrados > 0)
-                                {
-                                    <span class="badge bg-danger">@(i.HallazgosEncontrados - i.HallazgosCerrados) ab.</span>
-                                    <span class="badge bg-success ms-1">@i.HallazgosCerrados cer.</span>
-                                }
-                                else { <span class="text-muted">0</span> }
+                        var vencida = i.FechaCompromiso.HasValue && i.FechaCompromiso < DateTime.Today && i.Estado != EstadoInspeccionHSEQ.Realizada;
+                        <tr class="@(vencida ? "table-warning" : "")">
+                            <td class="font-monospace text-muted" style="font-size:.75rem">@i.Codigo</td>
+                            <td>
+                                <span class="badge" style="background:@TipoBadge(i.Tipo);font-size:.65rem">@i.Tipo</span>
                             </td>
-                            <td class="text-center"><span class="badge @BadgeInsp(i.Estado)">@EnumDisplay.Mostrar(i.Estado)</span></td>
+                            <td>@(i.Area ?? "—")</td>
+                            <td class="text-muted">@(i.Frente ?? "—")</td>
+                            <td>@i.Inspector</td>
+                            <td class="text-muted">@i.Responsable</td>
+                            <td style="white-space:nowrap">@i.FechaInspeccion.ToString("dd/MM/yy")</td>
+                            <td class="text-center @(i.HallazgosEncontrados > 0 ? "fw-bold text-danger" : "text-muted")">@i.HallazgosEncontrados</td>
+                            <td class="text-center text-success">@(i.HallazgosCerrados > 0 ? i.HallazgosCerrados.ToString() : "—")</td>
+                            <td class="text-center @(i.ActosInseguros > 0 ? "fw-bold text-danger" : "text-muted")">@(i.ActosInseguros > 0 ? i.ActosInseguros.ToString() : "—")</td>
+                            <td class="text-center @(i.CondicionesInseguras > 0 ? "fw-bold text-warning" : "text-muted")">@(i.CondicionesInseguras > 0 ? i.CondicionesInseguras.ToString() : "—")</td>
+                            <td class="text-center">
+                                <span class="badge @BadgeEstado(i.Estado)" style="font-size:.65rem">@EnumDisplay.Mostrar(i.Estado)</span>
+                            </td>
                             <td class="text-center">
                                 @if (_confirmandoEliminar == i.Id)
                                 {
@@ -209,35 +471,360 @@ else
 
 @code {
     [Parameter] public int ProyectoId { get; set; }
-
     private Proyecto? _proyecto;
-    private List<InspeccionSST> _inspecciones = [];
-    private bool _mostrarFormulario;
-    private int? _editandoId;
-    private int? _confirmandoEliminar;
-    private string _busqueda = "";
-    private string _filtroEstado = "";
+    private readonly CultureInfo _ci = new("es-CO");
+
+    // ── Gauge ─────────────────────────────────────────────────────────────────
+    private record Gauge(string Titulo, string ValorCentral, string SubTexto, int Porcentaje, string Color, string Estado);
+    private List<Gauge> _gauges = [];
+
+    // ── Raw data ──────────────────────────────────────────────────────────────
+    private List<InspeccionSST> _todas = [];
+    private List<HallazgoHSEQ>  _hallazgosHSEQ = [];
+
+    // ── Chart data ────────────────────────────────────────────────────────────
+    private string[] _labelsHallPorArea = [], _labelsActos = [], _labelsMeses = [], _labelsPareto = [], _labelsRanking = [];
+    private int[]    _valoresHallPorArea = [], _actosXArea = [], _condXArea = [], _inspXMes = [], _hallXMes = [], _valoresPareto = [], _valoresRanking = [];
+    private double[] _acumPareto = [];
+    private int      _hAbiertos, _hRevision, _hImpl, _hCerrados, _hVencidos;
+    private List<(string Area, int[] Counts)> _heatRows = [];
+
+    // ── Ranking ───────────────────────────────────────────────────────────────
+    private string _rankingFiltro = "area";
+
+    // ── Table ─────────────────────────────────────────────────────────────────
+    private List<InspeccionSST> _filtradas = [];
+    private string _busqueda = "", _filtroTipo = "", _filtroEstado = "", _filtroHallazgos = "";
+    private int    _filtroMes;
+    private string _ordenCol = "FechaInspeccion";
+    private bool   _ordenAsc;
+
+    // ── Form ──────────────────────────────────────────────────────────────────
+    private bool   _mostrarFormulario;
+    private int?   _editandoId, _confirmandoEliminar;
     private FormModel _form = new();
 
-    private const string TipoFijo = "Seguridad";
-
-    private IEnumerable<InspeccionSST> InspeccionesFiltradas => _inspecciones
-        .Where(i =>
-            (string.IsNullOrEmpty(_busqueda) || i.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || i.Area.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || i.Inspector.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
-            && (string.IsNullOrEmpty(_filtroEstado) || i.Estado.ToString() == _filtroEstado));
+    // ── Render ────────────────────────────────────────────────────────────────
+    private bool _graficosListos;
 
     protected override async Task OnInitializedAsync()
     {
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
-        await CargarAsync();
+        await CargarDatosAsync();
     }
 
-    private async Task CargarAsync() =>
-        _inspecciones = await Db.InspeccionesSST
-            .Where(i => i.ProyectoId == ProyectoId && i.Tipo == TipoFijo)
-            .OrderByDescending(i => i.FechaInspeccion).ToListAsync();
+    private async Task CargarDatosAsync()
+    {
+        var hoy  = DateTime.Today;
+        var mes  = hoy.Month;
+        var anio = hoy.Year;
 
+        _todas = await Db.InspeccionesSST
+            .Where(i => i.ProyectoId == ProyectoId)
+            .OrderByDescending(i => i.FechaInspeccion)
+            .ToListAsync();
+
+        _hallazgosHSEQ = await Db.HallazgosHSEQ
+            .Where(h => h.ProyectoId == ProyectoId && h.Division == DivisionHSEQ.Seguridad)
+            .ToListAsync();
+
+        var acciones = await Db.AccionesHSEQ.Include(a => a.HallazgoHSEQ)
+            .Where(a => a.HallazgoHSEQ != null
+                     && a.HallazgoHSEQ.ProyectoId == ProyectoId
+                     && a.HallazgoHSEQ.Division   == DivisionHSEQ.Seguridad)
+            .ToListAsync();
+
+        // Cross-module
+        var plan    = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+        var pausas  = await Db.PausasActivas.Where(p => p.ProyectoId == ProyectoId && p.Mes == mes && p.Anio == anio).ToListAsync();
+        var capPlan = await Db.CapacitacionesPlanificadas.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
+        var capReal = await Db.Capacitaciones.Where(c => c.ProyectoId == ProyectoId).ToListAsync();
+        var epp     = await Db.EntregasEPP.Where(e => e.ProyectoId == ProyectoId).ToListAsync();
+        var checkISO= await Db.ChecklistsAuditoria
+            .Where(c => c.ProyectoId == ProyectoId && c.NormaISO == "ISO 45001:2018").ToListAsync();
+
+        // ── Conteos inspecciones ──────────────────────────────────────────────
+        var inspSeg = _todas.Where(i => i.Tipo == "Seguridad").ToList();
+        var inspOTS = _todas.Where(i => i.Tipo == "OTS").ToList();
+        var inspSTC = _todas.Where(i => i.Tipo == "STC").ToList();
+        int totalActos = _todas.Sum(i => i.ActosInseguros);
+        int totalCond  = _todas.Sum(i => i.CondicionesInseguras);
+
+        // ── Hallazgos ─────────────────────────────────────────────────────────
+        _hAbiertos = _hallazgosHSEQ.Count(h => h.Estado == EstadoNoConformidad.Abierta);
+        _hRevision = _hallazgosHSEQ.Count(h => h.Estado == EstadoNoConformidad.EnRevision);
+        _hImpl     = _hallazgosHSEQ.Count(h => h.Estado == EstadoNoConformidad.EnImplementacion);
+        _hCerrados = _hallazgosHSEQ.Count(h => h.Estado == EstadoNoConformidad.Cerrada);
+        _hVencidos = _hallazgosHSEQ.Count(h => h.Estado != EstadoNoConformidad.Cerrada
+                                             && h.FechaCompromiso.HasValue && h.FechaCompromiso < hoy);
+        int hallAbiertosTotal = _hAbiertos + _hRevision + _hImpl;
+        int accionesVenc = acciones.Count(a => a.Estado != EstadoNoConformidad.Cerrada && a.FechaCompromiso < hoy);
+
+        // ── Cross-module ──────────────────────────────────────────────────────
+        int planEjec = plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
+        int cumPlan  = plan.Count > 0  ? (int)Math.Round(planEjec * 100.0 / plan.Count) : 0;
+        int cumPausas= pausas.Any()    ? Math.Min(100, (int)Math.Round(pausas.Average(p => p.CantidadPausas) * 100.0 / 60)) : 0;
+        int cumCap   = capPlan.Count > 0 ? (int)Math.Round(capReal.Count(c => c.Estado == EstadoPlanTrabajo.Ejecutada) * 100.0 / capPlan.Count) : 0;
+        int eppAlDia = epp.Count(e => !e.FechaVencimiento.HasValue || e.FechaVencimiento >= hoy.AddDays(30));
+        int cumEPP   = epp.Count > 0  ? (int)Math.Round(eppAlDia * 100.0 / epp.Count) : 0;
+        int cumISO   = checkISO.Any() ? (int)Math.Round((double)checkISO.Average(c => c.PorcentajeCumplimiento)) : 0;
+
+        // ── 12 Gauges ─────────────────────────────────────────────────────────
+        _gauges =
+        [
+            new("Insp. Seguridad",  inspSeg.Count.ToString(), inspSeg.Count == 1 ? "inspección" : "inspecciones", Math.Min(100, inspSeg.Count), "#183963", "Informativo"),
+            new("OTS",              inspOTS.Count.ToString(), inspOTS.Count == 1 ? "observación" : "observaciones", Math.Min(100, inspOTS.Count), "#183963", "Informativo"),
+            new("STC",              inspSTC.Count.ToString(), inspSTC.Count == 1 ? "observación" : "observaciones", Math.Min(100, inspSTC.Count), "#183963", "Informativo"),
+            new("Hallazgos Abiertos",
+                hallAbiertosTotal.ToString(),
+                hallAbiertosTotal == 0 ? "sin hallazgos" : "por cerrar",
+                hallAbiertosTotal == 0 ? 100 : Math.Max(5, 100 - hallAbiertosTotal * 4),
+                hallAbiertosTotal == 0 ? "#6ABF4B" : "#dc3545",
+                hallAbiertosTotal == 0 ? "Saludable" : "Crítico"),
+            new("Actos Inseguros",
+                totalActos.ToString(),
+                totalActos == 0 ? "sin actos" : "detectados",
+                totalActos == 0 ? 100 : Math.Max(5, 100 - totalActos * 3),
+                totalActos == 0 ? "#6ABF4B" : "#dc3545",
+                totalActos == 0 ? "Saludable" : "En Riesgo"),
+            new("Cond. Inseguras",
+                totalCond.ToString(),
+                totalCond == 0 ? "sin condiciones" : "detectadas",
+                totalCond == 0 ? 100 : Math.Max(5, 100 - totalCond * 3),
+                totalCond == 0 ? "#6ABF4B" : "#ffc107",
+                totalCond == 0 ? "Saludable" : "En Riesgo"),
+            new("Acc. Vencidas",
+                accionesVenc.ToString(),
+                accionesVenc == 0 ? "al día" : "vencidas",
+                accionesVenc == 0 ? 100 : Math.Max(5, 100 - accionesVenc * 8),
+                accionesVenc == 0 ? "#6ABF4B" : "#dc3545",
+                accionesVenc == 0 ? "Saludable" : "Crítico"),
+            new("Plan de Trabajo",
+                plan.Count > 0 ? $"{cumPlan}%" : "—",
+                $"{planEjec} de {plan.Count} act.",
+                cumPlan, Cpct(cumPlan), plan.Count > 0 ? Epct(cumPlan) : "Informativo"),
+            new("Pausas Activas",
+                pausas.Any() ? $"{cumPausas}%" : "—",
+                "meta 60 pausas/mes",
+                cumPausas, !pausas.Any() ? "#adb5bd" : cumPausas >= 100 ? "#6ABF4B" : cumPausas >= 70 ? "#ffc107" : "#dc3545",
+                !pausas.Any() ? "Informativo" : cumPausas >= 100 ? "Saludable" : cumPausas >= 70 ? "En Riesgo" : "Crítico"),
+            new("Capacitaciones",
+                capPlan.Count > 0 ? $"{cumCap}%" : "—",
+                $"{capReal.Count(c => c.Estado == EstadoPlanTrabajo.Ejecutada)} de {capPlan.Count} ejec.",
+                cumCap, capPlan.Count > 0 ? Cpct(cumCap) : "#adb5bd", capPlan.Count > 0 ? Epct(cumCap) : "Informativo"),
+            new("EPP / Dotación",
+                epp.Count > 0 ? $"{cumEPP}%" : "—",
+                $"{eppAlDia} de {epp.Count} al día",
+                cumEPP, epp.Count > 0 ? Cpct(cumEPP) : "#adb5bd", epp.Count > 0 ? Epct(cumEPP) : "Informativo"),
+            new("ISO 45001",
+                checkISO.Any() ? $"{cumISO}%" : "—",
+                "cumplimiento",
+                cumISO, checkISO.Any() ? Cpct(cumISO) : "#adb5bd", checkISO.Any() ? Epct(cumISO) : "Informativo"),
+        ];
+
+        // ── Chart 1: Hallazgos por Área ───────────────────────────────────────
+        var gArea = _todas.Where(i => !string.IsNullOrWhiteSpace(i.Area))
+            .GroupBy(i => i.Area.Trim())
+            .Select(g => (Area: g.Key, Hall: g.Sum(x => x.HallazgosEncontrados)))
+            .OrderByDescending(x => x.Hall).Take(8).ToList();
+        _labelsHallPorArea  = gArea.Select(g => g.Area).ToArray();
+        _valoresHallPorArea = gArea.Select(g => g.Hall).ToArray();
+
+        // ── Chart 2: Actos vs Condiciones por Área ────────────────────────────
+        var gActos = _todas.Where(i => !string.IsNullOrWhiteSpace(i.Area))
+            .GroupBy(i => i.Area.Trim())
+            .Select(g => (Area: g.Key, A: g.Sum(x => x.ActosInseguros), C: g.Sum(x => x.CondicionesInseguras)))
+            .Where(x => x.A + x.C > 0)
+            .OrderByDescending(x => x.A + x.C).Take(6).ToList();
+        _labelsActos = gActos.Select(g => g.Area).ToArray();
+        _actosXArea  = gActos.Select(g => g.A).ToArray();
+        _condXArea   = gActos.Select(g => g.C).ToArray();
+
+        // ── Charts 4 & 5: Tendencia + por Mes (últimos 6 meses) ──────────────
+        var meses6 = Enumerable.Range(0, 6).Select(offset => hoy.AddMonths(-5 + offset))
+            .Select(m => new {
+                Label = m.ToString("MMM yy", _ci),
+                Insp  = _todas.Count(x => x.FechaInspeccion.Year == m.Year && x.FechaInspeccion.Month == m.Month),
+                Hall  = _todas.Where(x => x.FechaInspeccion.Year == m.Year && x.FechaInspeccion.Month == m.Month)
+                              .Sum(x => x.HallazgosEncontrados)
+            }).ToList();
+        _labelsMeses = meses6.Select(m => m.Label).ToArray();
+        _inspXMes    = meses6.Select(m => m.Insp).ToArray();
+        _hallXMes    = meses6.Select(m => m.Hall).ToArray();
+
+        // ── Chart 6: Pareto ───────────────────────────────────────────────────
+        List<(string Cat, int Count)> paretoItems;
+        if (_hallazgosHSEQ.Any(h => !string.IsNullOrEmpty(h.Clasificacion)))
+        {
+            paretoItems = _hallazgosHSEQ.Where(h => !string.IsNullOrEmpty(h.Clasificacion))
+                .GroupBy(h => h.Clasificacion!).Select(g => (g.Key, g.Count()))
+                .OrderByDescending(x => x.Item2).Take(8).ToList();
+        }
+        else
+        {
+            paretoItems = _todas.Where(i => !string.IsNullOrWhiteSpace(i.Area))
+                .GroupBy(i => i.Area.Trim())
+                .Select(g => (g.Key, g.Sum(x => x.HallazgosEncontrados)))
+                .OrderByDescending(x => x.Item2).Take(8).ToList();
+        }
+        int paretoTotal = Math.Max(1, paretoItems.Sum(x => x.Count));
+        _labelsPareto  = paretoItems.Select(x => x.Cat).ToArray();
+        _valoresPareto = paretoItems.Select(x => x.Count).ToArray();
+        _acumPareto    = paretoItems.Select((_, idx) =>
+            Math.Round(paretoItems.Take(idx + 1).Sum(x => x.Count) * 100.0 / paretoTotal, 1)).ToArray();
+
+        // ── Ranking ───────────────────────────────────────────────────────────
+        ActualizarRanking();
+
+        // ── Heatmap ───────────────────────────────────────────────────────────
+        var tiposInsp = new[] { "Seguridad", "OTS", "STC" };
+        var areas = _todas.Select(i => i.Area?.Trim() ?? "")
+            .Where(a => !string.IsNullOrEmpty(a)).Distinct().OrderBy(a => a).ToList();
+        _heatRows = areas.Select(area => (
+            Area:   area,
+            Counts: tiposInsp.Select(t => _todas.Count(i => (i.Area?.Trim() ?? "") == area && i.Tipo == t)).ToArray()
+        )).ToList();
+
+        AplicarFiltros();
+        _graficosListos = true;
+    }
+
+    private void ActualizarRanking()
+    {
+        var grupos = _rankingFiltro switch
+        {
+            "area"       => _todas.Where(i => !string.IsNullOrWhiteSpace(i.Area))       .GroupBy(i => i.Area.Trim()),
+            "frente"     => _todas.Where(i => !string.IsNullOrWhiteSpace(i.Frente))     .GroupBy(i => i.Frente.Trim()),
+            "inspector"  => _todas.Where(i => !string.IsNullOrWhiteSpace(i.Inspector))  .GroupBy(i => i.Inspector.Trim()),
+            _            => _todas.Where(i => !string.IsNullOrWhiteSpace(i.Responsable)).GroupBy(i => i.Responsable.Trim())
+        };
+        var ranked      = grupos.Select(g => (Key: g.Key, Hall: g.Sum(x => x.HallazgosEncontrados))).OrderByDescending(x => x.Hall).Take(8).ToList();
+        _labelsRanking  = ranked.Select(x => x.Key).ToArray();
+        _valoresRanking = ranked.Select(x => x.Hall).ToArray();
+    }
+
+    private string RankingTitulo => _rankingFiltro switch
+    {
+        "area"      => "Hallazgos por Área",
+        "frente"    => "Hallazgos por Frente",
+        "inspector" => "Hallazgos por Inspector",
+        _           => "Hallazgos por Responsable"
+    };
+
+    private async Task CambiarRankingAsync(string filtro)
+    {
+        _rankingFiltro = filtro;
+        ActualizarRanking();
+        if (_labelsRanking.Length > 0)
+            await JS.InvokeVoidAsync("renderRankingInsp", "chartRanking", _labelsRanking, _valoresRanking, RankingTitulo);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_graficosListos || _proyecto is null) return;
+        _graficosListos = false;
+
+        if (_labelsHallPorArea.Length > 0)
+            await JS.InvokeVoidAsync("renderHallazgosPorArea", "chartHallPorArea", _labelsHallPorArea, _valoresHallPorArea);
+
+        if (_labelsActos.Length > 0)
+            await JS.InvokeVoidAsync("renderActosVsCondiciones", "chartActosCond", _labelsActos, _actosXArea, _condXArea);
+
+        await JS.InvokeVoidAsync("renderEstadoHallazgos", "chartEstadoHall", _hAbiertos, _hRevision, _hImpl, _hCerrados, _hVencidos);
+
+        if (_labelsMeses.Length > 0)
+        {
+            await JS.InvokeVoidAsync("renderTendenciaInsp", "chartTendencia", _labelsMeses, _inspXMes, _hallXMes);
+            await JS.InvokeVoidAsync("renderInspPorMes",    "chartInspMes",   _labelsMeses, _inspXMes);
+        }
+
+        if (_labelsPareto.Length > 0)
+            await JS.InvokeVoidAsync("renderParetoHallazgos", "chartPareto", _labelsPareto, _valoresPareto, _acumPareto);
+
+        if (_labelsRanking.Length > 0)
+            await JS.InvokeVoidAsync("renderRankingInsp", "chartRanking", _labelsRanking, _valoresRanking, RankingTitulo);
+    }
+
+    // ── Filtros ───────────────────────────────────────────────────────────────
+    private void AplicarFiltros()
+    {
+        var q = _todas.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_busqueda))
+            q = q.Where(i => i.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase)
+                           || (i.Area        ?? "").Contains(_busqueda, StringComparison.OrdinalIgnoreCase)
+                           || (i.Inspector   ?? "").Contains(_busqueda, StringComparison.OrdinalIgnoreCase)
+                           || (i.Responsable ?? "").Contains(_busqueda, StringComparison.OrdinalIgnoreCase)
+                           || (i.Frente      ?? "").Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(_filtroTipo))     q = q.Where(i => i.Tipo == _filtroTipo);
+        if (!string.IsNullOrEmpty(_filtroEstado))   q = q.Where(i => i.Estado.ToString() == _filtroEstado);
+        if (_filtroMes > 0)                         q = q.Where(i => i.FechaInspeccion.Month == _filtroMes);
+        if (_filtroHallazgos == "si")               q = q.Where(i => i.HallazgosEncontrados > 0);
+        if (_filtroHallazgos == "no")               q = q.Where(i => i.HallazgosEncontrados == 0);
+        q = _ordenAsc
+            ? _ordenCol switch { "Codigo" => q.OrderBy(i => i.Codigo), "Tipo" => q.OrderBy(i => i.Tipo), "Area" => q.OrderBy(i => i.Area), "Inspector" => q.OrderBy(i => i.Inspector), "Responsable" => q.OrderBy(i => i.Responsable), _ => q.OrderBy(i => i.FechaInspeccion) }
+            : _ordenCol switch { "Codigo" => q.OrderByDescending(i => i.Codigo), "Tipo" => q.OrderByDescending(i => i.Tipo), "Area" => q.OrderByDescending(i => i.Area), "Inspector" => q.OrderByDescending(i => i.Inspector), "Responsable" => q.OrderByDescending(i => i.Responsable), _ => q.OrderByDescending(i => i.FechaInspeccion) };
+        _filtradas = q.ToList();
+    }
+
+    private void LimpiarFiltros()
+    {
+        _busqueda = _filtroTipo = _filtroEstado = _filtroHallazgos = "";
+        _filtroMes = 0;
+        AplicarFiltros();
+    }
+
+    private void Ordenar(string col)
+    {
+        _ordenAsc = _ordenCol == col ? !_ordenAsc : true;
+        _ordenCol = col;
+        AplicarFiltros();
+    }
+
+    private string OrdenIcon(string col) => _ordenCol != col ? "" : _ordenAsc ? " ▲" : " ▼";
+
+    // ── Export Excel ──────────────────────────────────────────────────────────
+    private async Task ExportarExcelAsync()
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("Inspecciones SST");
+        var hdr = new[] { "Código","Tipo","Área","Frente","Inspector","Responsable","Fecha","Hallazgos","Cerrados","Actos","Condiciones","Estado","Observaciones" };
+        for (int c = 0; c < hdr.Length; c++)
+        {
+            ws.Cell(1, c + 1).Value = hdr[c];
+            ws.Cell(1, c + 1).Style.Font.Bold = true;
+            ws.Cell(1, c + 1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#183963");
+            ws.Cell(1, c + 1).Style.Font.FontColor = ClosedXML.Excel.XLColor.White;
+        }
+        int row = 2;
+        foreach (var i in _filtradas)
+        {
+            ws.Cell(row,  1).Value = i.Codigo;
+            ws.Cell(row,  2).Value = i.Tipo;
+            ws.Cell(row,  3).Value = i.Area;
+            ws.Cell(row,  4).Value = i.Frente;
+            ws.Cell(row,  5).Value = i.Inspector;
+            ws.Cell(row,  6).Value = i.Responsable;
+            ws.Cell(row,  7).Value = i.FechaInspeccion.ToString("dd/MM/yyyy");
+            ws.Cell(row,  8).Value = i.HallazgosEncontrados;
+            ws.Cell(row,  9).Value = i.HallazgosCerrados;
+            ws.Cell(row, 10).Value = i.ActosInseguros;
+            ws.Cell(row, 11).Value = i.CondicionesInseguras;
+            ws.Cell(row, 12).Value = EnumDisplay.Mostrar(i.Estado);
+            ws.Cell(row, 13).Value = i.Observaciones;
+            row++;
+        }
+        ws.Columns().AdjustToContents();
+        ws.SheetView.FreezeRows(1);
+        using var ms = new System.IO.MemoryStream();
+        wb.SaveAs(ms);
+        await JS.InvokeVoidAsync("downloadFile",
+            $"Inspecciones_{_proyecto!.Nombre}_{DateTime.Today:yyyyMMdd}.xlsx",
+            Convert.ToBase64String(ms.ToArray()),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    // ── CRUD ──────────────────────────────────────────────────────────────────
     private void MostrarFormulario() { _form = new FormModel { FechaInspeccion = DateTime.Today }; _editandoId = null; _mostrarFormulario = true; }
     private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
 
@@ -245,21 +832,13 @@ else
     {
         _form = new FormModel
         {
-            Codigo               = i.Codigo,
-            Area                 = i.Area,
-            Frente               = i.Frente,
-            Responsable          = i.Responsable,
-            Inspector            = i.Inspector,
-            FechaInspeccion      = i.FechaInspeccion,
-            Estado               = i.Estado,
-            HallazgosEncontrados = i.HallazgosEncontrados,
-            HallazgosCerrados    = i.HallazgosCerrados,
-            ActosInseguros       = i.ActosInseguros,
-            CondicionesInseguras = i.CondicionesInseguras,
-            AccionesGeneradas    = i.AccionesGeneradas,
-            ResponsableCierre    = i.ResponsableCierre,
-            FechaCompromiso      = i.FechaCompromiso,
-            Observaciones        = i.Observaciones
+            Codigo = i.Codigo, Tipo = i.Tipo, Area = i.Area, Frente = i.Frente,
+            Responsable = i.Responsable, Inspector = i.Inspector,
+            FechaInspeccion = i.FechaInspeccion, Estado = i.Estado,
+            HallazgosEncontrados = i.HallazgosEncontrados, HallazgosCerrados = i.HallazgosCerrados,
+            ActosInseguros = i.ActosInseguros, CondicionesInseguras = i.CondicionesInseguras,
+            ResponsableCierre = i.ResponsableCierre, FechaCompromiso = i.FechaCompromiso,
+            Observaciones = i.Observaciones
         };
         _editandoId = i.Id; _mostrarFormulario = true;
     }
@@ -273,33 +852,24 @@ else
         }
         else
         {
-            var e = new InspeccionSST { ProyectoId = ProyectoId, Tipo = TipoFijo };
+            var e = new InspeccionSST { ProyectoId = ProyectoId };
             MapearForm(e);
             Db.InspeccionesSST.Add(e);
         }
         await Db.SaveChangesAsync();
         CancelarFormulario();
-        await CargarAsync();
+        await CargarDatosAsync();
     }
 
-    private void MapearForm(InspeccionSST i)
+    private void MapearForm(InspeccionSST e)
     {
-        i.Codigo               = _form.Codigo;
-        i.Area                 = _form.Area;
-        i.Frente               = _form.Frente;
-        i.Responsable          = _form.Responsable;
-        i.Inspector            = _form.Inspector;
-        i.FechaInspeccion      = _form.FechaInspeccion;
-        i.Estado               = _form.Estado;
-        i.HallazgosEncontrados = _form.HallazgosEncontrados;
-        i.HallazgosCerrados    = _form.HallazgosCerrados;
-        i.ActosInseguros       = _form.ActosInseguros;
-        i.CondicionesInseguras = _form.CondicionesInseguras;
-        i.AccionesGeneradas    = _form.AccionesGeneradas;
-        i.ResponsableCierre    = _form.ResponsableCierre;
-        i.FechaCompromiso      = _form.FechaCompromiso;
-        i.Observaciones        = _form.Observaciones;
-        i.FechaModificacion    = DateTime.UtcNow;
+        e.Codigo = _form.Codigo; e.Tipo = _form.Tipo; e.Area = _form.Area; e.Frente = _form.Frente;
+        e.Responsable = _form.Responsable; e.Inspector = _form.Inspector;
+        e.FechaInspeccion = _form.FechaInspeccion; e.Estado = _form.Estado;
+        e.HallazgosEncontrados = _form.HallazgosEncontrados; e.HallazgosCerrados = _form.HallazgosCerrados;
+        e.ActosInseguros = _form.ActosInseguros; e.CondicionesInseguras = _form.CondicionesInseguras;
+        e.ResponsableCierre = _form.ResponsableCierre; e.FechaCompromiso = _form.FechaCompromiso;
+        e.Observaciones = _form.Observaciones; e.FechaModificacion = DateTime.UtcNow;
     }
 
     private async Task EliminarAsync(int id)
@@ -307,34 +877,87 @@ else
         var e = await Db.InspeccionesSST.FindAsync(id);
         if (e is not null) { Db.InspeccionesSST.Remove(e); await Db.SaveChangesAsync(); }
         _confirmandoEliminar = null;
-        await CargarAsync();
+        await CargarDatosAsync();
     }
 
-    private static string BadgeInsp(EstadoInspeccionHSEQ e) => e switch
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    private static string Cpct(int pct) => pct >= 80 ? "#6ABF4B" : pct >= 60 ? "#ffc107" : "#dc3545";
+    private static string Epct(int pct) => pct >= 80 ? "Saludable" : pct >= 60 ? "En Riesgo" : "Crítico";
+
+    private static string TipoBadge(string tipo) => tipo switch { "OTS" => "#0d6efd", "STC" => "#6f42c1", _ => "#183963" };
+
+    private static string BadgeEstado(EstadoInspeccionHSEQ e) => e switch
     {
         EstadoInspeccionHSEQ.Realizada  => "bg-success",
         EstadoInspeccionHSEQ.Programada => "bg-primary",
         EstadoInspeccionHSEQ.Vencida    => "bg-danger",
         EstadoInspeccionHSEQ.Cancelada  => "bg-secondary",
-        _                               => "bg-secondary"
+        _ => "bg-secondary"
+    };
+
+    private static string HeatColor(int val, int max)
+    {
+        if (max == 0 || val == 0) return "#f8f9fa";
+        double pct = (double)val / max;
+        return pct >= 0.75 ? "#f8d7da" : pct >= 0.50 ? "#ffe0b2" : pct >= 0.25 ? "#fff3cd" : "#d4edda";
+    }
+
+    private static string HeatText(int val, int max)
+    {
+        if (max == 0 || val == 0) return "#adb5bd";
+        double pct = (double)val / max;
+        return pct >= 0.75 ? "#58151c" : pct >= 0.50 ? "#7c3700" : pct >= 0.25 ? "#664d03" : "#0a3622";
+    }
+
+    private RenderFragment GaugeCard(Gauge g) => __builder =>
+    {
+        var pct = Math.Clamp(g.Porcentaje, 0, 100);
+        var (bg, fg) = g.Estado switch
+        {
+            "Saludable"   => ("#d1e7dd", "#0a3622"),
+            "En Riesgo"   => ("#fff3cd", "#664d03"),
+            "Crítico"     => ("#f8d7da", "#58151c"),
+            "Informativo" => ("#cfe2ff", "#084298"),
+            _             => ("#e9ecef", "#495057")
+        };
+        __builder.AddMarkupContent(0, $"""
+            <div class="card border-0 shadow-sm text-center px-2 py-2 h-100">
+                <div style="position:relative;width:100px;height:100px;margin:0 auto 6px">
+                    <svg viewBox="0 0 36 36" width="100" height="100">
+                        <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#e9ecef" stroke-width="3"/>
+                        <circle cx="18" cy="18" r="15.9155" fill="none"
+                                stroke="{g.Color}" stroke-width="3"
+                                stroke-dasharray="{pct} 100"
+                                stroke-linecap="round"
+                                transform="rotate(-90 18 18)"/>
+                    </svg>
+                    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px">
+                        <div style="font-size:1.1rem;font-weight:700;color:{g.Color};line-height:1.1">{g.ValorCentral}</div>
+                        <div style="font-size:.52rem;color:#6c757d;line-height:1.2;max-width:70px">{g.SubTexto}</div>
+                    </div>
+                </div>
+                <div style="font-size:.7rem;font-weight:600;color:#183963;margin-bottom:3px;line-height:1.2">{g.Titulo}</div>
+                <span style="font-size:.55rem;padding:1px 7px;border-radius:20px;background:{bg};color:{fg};font-weight:600;display:inline-block">{g.Estado}</span>
+            </div>
+            """);
     };
 
     private sealed class FormModel
     {
-        [System.ComponentModel.DataAnnotations.Required] public string Codigo { get; set; } = "";
-        public string Area { get; set; } = "";
-        public string Frente { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Codigo    { get; set; } = "";
+        public string Tipo        { get; set; } = "Seguridad";
+        public string Area        { get; set; } = "";
+        public string Frente      { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Inspector  { get; set; } = "";
         [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
-        [System.ComponentModel.DataAnnotations.Required] public string Inspector { get; set; } = "";
-        public DateTime FechaInspeccion { get; set; } = DateTime.Today;
-        public EstadoInspeccionHSEQ Estado { get; set; } = EstadoInspeccionHSEQ.Programada;
-        public int HallazgosEncontrados { get; set; }
-        public int HallazgosCerrados { get; set; }
-        public int ActosInseguros { get; set; }
-        public int CondicionesInseguras { get; set; }
-        public string? AccionesGeneradas { get; set; }
-        public string? ResponsableCierre { get; set; }
-        public DateTime? FechaCompromiso { get; set; }
-        public string? Observaciones { get; set; }
+        public DateTime  FechaInspeccion      { get; set; } = DateTime.Today;
+        public EstadoInspeccionHSEQ Estado    { get; set; } = EstadoInspeccionHSEQ.Programada;
+        public int       HallazgosEncontrados { get; set; }
+        public int       HallazgosCerrados    { get; set; }
+        public int       ActosInseguros       { get; set; }
+        public int       CondicionesInseguras { get; set; }
+        public string?   ResponsableCierre    { get; set; }
+        public DateTime? FechaCompromiso      { get; set; }
+        public string?   Observaciones        { get; set; }
     }
 }
