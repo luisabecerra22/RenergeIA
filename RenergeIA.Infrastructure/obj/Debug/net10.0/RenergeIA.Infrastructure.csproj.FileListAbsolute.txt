@@ -15,3 +15,4 @@ C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Pr
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\ref\RenergeIA.Infrastructure.dll
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Infrastructure.runtimeconfig.json
 C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.genruntimeconfig.cache
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.sourcelink.json

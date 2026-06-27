@@ -1199,3 +1199,5 @@ dotnet run --project RenergeIA.Web
 
 *Guía actualizada el 24 de junio de 2026 — RenergeIA v1.0 en desarrollo activo.*
 
+
+dotnet run --project RenergeIA.Webvdotnet run --project RenergeIA.Websdsdsd
