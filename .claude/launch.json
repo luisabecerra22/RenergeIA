@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "RenergeIA.Web (http)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "RenergeIA.Web", "--launch-profile", "http"],
+      "port": 5169
+    },
+    {
+      "name": "RenergeIA.Web (https)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "RenergeIA.Web", "--launch-profile", "https"],
+      "port": 7138
+    }
+  ]
+}

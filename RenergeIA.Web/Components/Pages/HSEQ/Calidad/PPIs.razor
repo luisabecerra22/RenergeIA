@@ -1,0 +1,272 @@
+@page "/proyectos/{ProyectoId:int}/hseq/calidad/ppis"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>PPIs — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-clipboard-check-fill me-2" style="color:#183963"></i>PPIs — Programa de Puntos de Inspección</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo PPI
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar PPI" : "Nuevo PPI")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Código *</label>
+                            <InputText class="form-control" @bind-Value="_form.Codigo" />
+                            <ValidationMessage For="() => _form.Codigo" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Descripción *</label>
+                            <InputText class="form-control" @bind-Value="_form.Descripcion" />
+                            <ValidationMessage For="() => _form.Descripcion" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Disciplina</label>
+                            <InputText class="form-control" @bind-Value="_form.Disciplina" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Actividad WBS</label>
+                            <InputText class="form-control" @bind-Value="_form.ActividadWBS" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.FrenteTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Planeada *</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaPlaneada" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoPPI>())
+                                {
+                                    <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Observaciones</label>
+                            <InputText class="form-control" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Filtros -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar..."
+               @bind="_busqueda" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="max-width:180px" @bind="_filtroEstado">
+            <option value="">Todos los estados</option>
+            @foreach (var e in Enum.GetValues<EstadoPPI>())
+            {
+                <option value="@e">@EnumDisplay.Mostrar(e)</option>
+            }
+        </select>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Disciplina</th>
+                        <th>Responsable</th>
+                        <th>Fecha Planeada</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!PPIsFiltrados.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No hay PPIs registrados.</td></tr>
+                    }
+                    @foreach (var p in PPIsFiltrados)
+                    {
+                        <tr>
+                            <td class="font-monospace small text-muted">@p.Codigo</td>
+                            <td>@p.Descripcion</td>
+                            <td class="text-muted small">@(p.Disciplina ?? "—")</td>
+                            <td class="small">@p.Responsable</td>
+                            <td class="small">@p.FechaPlaneada.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                <span class="badge @BadgePPI(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span>
+                            </td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == p.Id)
+                                {
+                                    <span class="me-1 text-danger small">¿Eliminar?</span>
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<PPI> _ppis = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private string _filtroEstado = "";
+    private FormModel _form = new();
+
+    private IEnumerable<PPI> PPIsFiltrados => _ppis
+        .Where(p => (string.IsNullOrEmpty(_busqueda) || p.Descripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || p.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+                 && (string.IsNullOrEmpty(_filtroEstado) || p.Estado.ToString() == _filtroEstado));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _ppis = await Db.PPIs.Where(p => p.ProyectoId == ProyectoId).OrderByDescending(p => p.FechaPlaneada).ToListAsync();
+    }
+
+    private void MostrarFormulario()
+    {
+        _form = new FormModel { FechaPlaneada = DateTime.Today };
+        _editandoId = null;
+        _mostrarFormulario = true;
+    }
+
+    private void EditarItem(PPI p)
+    {
+        _form = new FormModel
+        {
+            Codigo        = p.Codigo,
+            Descripcion   = p.Descripcion,
+            Disciplina    = p.Disciplina,
+            ActividadWBS  = p.ActividadWBS,
+            FrenteTrabajo = p.FrenteTrabajo,
+            Responsable   = p.Responsable,
+            FechaPlaneada = p.FechaPlaneada,
+            Estado        = p.Estado,
+            Observaciones = p.Observaciones
+        };
+        _editandoId = p.Id;
+        _mostrarFormulario = true;
+    }
+
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var entidad = await Db.PPIs.FindAsync(_editandoId.Value);
+            if (entidad is not null) MapearForm(entidad);
+        }
+        else
+        {
+            var entidad = new PPI { ProyectoId = ProyectoId };
+            MapearForm(entidad);
+            Db.PPIs.Add(entidad);
+        }
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private void MapearForm(PPI p)
+    {
+        p.Codigo        = _form.Codigo;
+        p.Descripcion   = _form.Descripcion;
+        p.Disciplina    = _form.Disciplina;
+        p.ActividadWBS  = _form.ActividadWBS;
+        p.FrenteTrabajo = _form.FrenteTrabajo;
+        p.Responsable   = _form.Responsable;
+        p.FechaPlaneada = _form.FechaPlaneada;
+        p.Estado        = _form.Estado;
+        p.Observaciones = _form.Observaciones;
+        p.FechaModificacion = DateTime.UtcNow;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var entidad = await Db.PPIs.FindAsync(id);
+        if (entidad is not null) { Db.PPIs.Remove(entidad); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgePPI(EstadoPPI estado) => estado switch
+    {
+        EstadoPPI.Aprobado           => "bg-success",
+        EstadoPPI.EnProceso          => "bg-primary",
+        EstadoPPI.Pendiente          => "bg-secondary",
+        EstadoPPI.Rechazado          => "bg-danger",
+        EstadoPPI.RequiereCorreccion => "bg-warning text-dark",
+        _                            => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Codigo { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Descripcion { get; set; } = "";
+        public string? Disciplina { get; set; }
+        public string? ActividadWBS { get; set; }
+        public string? FrenteTrabajo { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
+        public DateTime FechaPlaneada { get; set; } = DateTime.Today;
+        public EstadoPPI Estado { get; set; } = EstadoPPI.Pendiente;
+        public string? Observaciones { get; set; }
+    }
+}

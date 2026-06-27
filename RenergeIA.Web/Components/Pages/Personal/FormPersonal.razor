@@ -1,0 +1,223 @@
+@page "/proyectos/{ProyectoId:int}/personal/nuevo"
+@page "/proyectos/{ProyectoId:int}/personal/{PersonalId:int}/editar"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>@(_esNuevo ? "Agregar Personal" : "Editar Personal") — RenergeIA</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="/proyectos/@ProyectoId/personal" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+    <h1 class="h3 mb-0">@(_esNuevo ? "Agregar persona al proyecto" : "Editar persona")</h1>
+</div>
+
+@if (_form is not null)
+{
+    <div class="card shadow-sm" style="max-width: 680px;">
+        <div class="card-body">
+            <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Nombre *</label>
+                        <InputText class="form-control" @bind-Value="_form.Nombre" />
+                        <ValidationMessage For="() => _form.Nombre" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Apellido *</label>
+                        <InputText class="form-control" @bind-Value="_form.Apellido" />
+                        <ValidationMessage For="() => _form.Apellido" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Documento de identidad *</label>
+                        <InputText class="form-control" @bind-Value="_form.DocumentoIdentidad" />
+                        <ValidationMessage For="() => _form.DocumentoIdentidad" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Cargo *</label>
+                        <InputText class="form-control" @bind-Value="_form.Cargo" />
+                        <ValidationMessage For="() => _form.Cargo" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Empresa *</label>
+                        <InputText class="form-control" @bind-Value="_form.Empresa" />
+                        <ValidationMessage For="() => _form.Empresa" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Tipo de personal</label>
+                        <InputSelect class="form-select" @bind-Value="_form.TipoPersonal">
+                            @foreach (var t in Enum.GetValues<TipoPersonal>())
+                            {
+                                <option value="@t">@EnumDisplay.Mostrar(t)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha de ingreso *</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaIngreso" />
+                        <ValidationMessage For="() => _form.FechaIngreso" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha de salida</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaSalida" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email</label>
+                        <InputText type="email" class="form-control" @bind-Value="_form.Email" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Teléfono</label>
+                        <InputText class="form-control" @bind-Value="_form.Telefono" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" @bind-Value="_form.Activo" id="activo" />
+                            <label class="form-check-label" for="activo">Persona activa en el proyecto</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">@(_esNuevo ? "Agregar" : "Guardar cambios")</button>
+                    <a href="/proyectos/@ProyectoId/personal" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+
+                @if (!_esNuevo && _confirmarEliminar)
+                {
+                    <div class="alert alert-danger d-flex align-items-center gap-3 mt-3 py-2">
+                        <span>¿Eliminar esta persona del proyecto?</span>
+                        <button type="button" class="btn btn-danger btn-sm" @onclick="EliminarAsync">Sí, eliminar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmarEliminar = false">Cancelar</button>
+                    </div>
+                }
+                else if (!_esNuevo)
+                {
+                    <button type="button" class="btn btn-outline-danger mt-3 btn-sm"
+                            @onclick="() => _confirmarEliminar = true">Eliminar persona</button>
+                }
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int? PersonalId { get; set; }
+
+    private bool _esNuevo => PersonalId is null;
+    private FormModel? _form;
+    private bool _confirmarEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_esNuevo)
+        {
+            _form = new FormModel { FechaIngreso = DateTime.Today };
+        }
+        else
+        {
+            var persona = await Db.PersonalProyecto.FindAsync(PersonalId!.Value);
+            if (persona is null) { Navigation.NavigateTo($"/proyectos/{ProyectoId}/personal"); return; }
+
+            _form = new FormModel
+            {
+                Nombre = persona.Nombre,
+                Apellido = persona.Apellido,
+                DocumentoIdentidad = persona.DocumentoIdentidad,
+                Cargo = persona.Cargo,
+                Empresa = persona.Empresa,
+                TipoPersonal = persona.TipoPersonal,
+                FechaIngreso = persona.FechaIngreso,
+                FechaSalida = persona.FechaSalida,
+                Email = persona.Email,
+                Telefono = persona.Telefono,
+                Activo = persona.Activo
+            };
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_form is null) return;
+
+        if (_esNuevo)
+        {
+            var nueva = new PersonalProyecto
+            {
+                ProyectoId = ProyectoId,
+                Nombre = _form.Nombre,
+                Apellido = _form.Apellido,
+                DocumentoIdentidad = _form.DocumentoIdentidad,
+                Cargo = _form.Cargo,
+                Empresa = _form.Empresa,
+                TipoPersonal = _form.TipoPersonal,
+                FechaIngreso = _form.FechaIngreso,
+                FechaSalida = _form.FechaSalida,
+                Email = _form.Email,
+                Telefono = _form.Telefono,
+                Activo = _form.Activo
+            };
+            Db.PersonalProyecto.Add(nueva);
+        }
+        else
+        {
+            var persona = await Db.PersonalProyecto.FindAsync(PersonalId!.Value);
+            if (persona is null) return;
+
+            persona.Nombre = _form.Nombre;
+            persona.Apellido = _form.Apellido;
+            persona.DocumentoIdentidad = _form.DocumentoIdentidad;
+            persona.Cargo = _form.Cargo;
+            persona.Empresa = _form.Empresa;
+            persona.TipoPersonal = _form.TipoPersonal;
+            persona.FechaIngreso = _form.FechaIngreso;
+            persona.FechaSalida = _form.FechaSalida;
+            persona.Email = _form.Email;
+            persona.Telefono = _form.Telefono;
+            persona.Activo = _form.Activo;
+            persona.FechaModificacion = DateTime.UtcNow;
+        }
+
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo($"/proyectos/{ProyectoId}/personal");
+    }
+
+    private async Task EliminarAsync()
+    {
+        var persona = await Db.PersonalProyecto.FindAsync(PersonalId!.Value);
+        if (persona is null) return;
+        Db.PersonalProyecto.Remove(persona);
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo($"/proyectos/{ProyectoId}/personal");
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "El nombre es obligatorio")]
+        public string Nombre { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El apellido es obligatorio")]
+        public string Apellido { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El documento es obligatorio")]
+        public string DocumentoIdentidad { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El cargo es obligatorio")]
+        public string Cargo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La empresa es obligatoria")]
+        public string Empresa { get; set; } = string.Empty;
+
+        public TipoPersonal TipoPersonal { get; set; } = TipoPersonal.Empleado;
+
+        [Required]
+        public DateTime FechaIngreso { get; set; } = DateTime.Today;
+
+        public DateTime? FechaSalida { get; set; }
+        public string? Email { get; set; }
+        public string? Telefono { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+}

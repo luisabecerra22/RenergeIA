@@ -1,0 +1,355 @@
+@page "/proyectos/{ProyectoId:int}/hseq"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>HSEQ — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <!-- Encabezado -->
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0">
+                <i class="bi-shield-check me-2" style="color:#183963"></i>HSEQ
+            </h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
+        </div>
+        <span class="badge fs-6 @BadgeEstadoHSEQ(_estadoGeneral)">@MostrarEstado(_estadoGeneral)</span>
+    </div>
+
+    <!-- Banner Fase 1 -->
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-4 py-2">
+        <i class="bi-info-circle-fill"></i>
+        <span><strong>Fase 1 — Estructura base.</strong> Los KPIs muestran datos de demostración. Conectar con BD real en Fase 2.</span>
+    </div>
+
+    <!-- 4 tarjetas de división -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/calidad")'>
+                <div class="card-body text-center p-4">
+                    <div class="mb-2" style="font-size:2.5rem;color:#183963"><i class="bi-patch-check-fill"></i></div>
+                    <h5 class="fw-bold mb-1">Calidad</h5>
+                    <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_calidad)">@MostrarEstado(_calidad)</span></div>
+                    <div class="display-6 fw-bold" style="color:#183963">87%</div>
+                    <small class="text-muted">Cumplimiento ISO 9001</small>
+                    <div class="mt-3">
+                        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-primary w-100">Ver Calidad &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/seguridad")'>
+                <div class="card-body text-center p-4">
+                    <div class="mb-2" style="font-size:2.5rem;color:#dc3545"><i class="bi-shield-exclamation"></i></div>
+                    <h5 class="fw-bold mb-1">Seguridad</h5>
+                    <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_seguridad)">@MostrarEstado(_seguridad)</span></div>
+                    <div class="display-6 fw-bold" style="color:#dc3545">72%</div>
+                    <small class="text-muted">Cumplimiento ISO 45001</small>
+                    <div class="mt-3">
+                        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-danger w-100">Ver Seguridad &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/ambiental")'>
+                <div class="card-body text-center p-4">
+                    <div class="mb-2" style="font-size:2.5rem;color:#6ABF4B"><i class="bi-tree-fill"></i></div>
+                    <h5 class="fw-bold mb-1">Ambiental</h5>
+                    <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_ambiental)">@MostrarEstado(_ambiental)</span></div>
+                    <div class="display-6 fw-bold" style="color:#6ABF4B">93%</div>
+                    <small class="text-muted">Cumplimiento ISO 14001</small>
+                    <div class="mt-3">
+                        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-success w-100">Ver Ambiental &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
+                 @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/social")'>
+                <div class="card-body text-center p-4">
+                    <div class="mb-2" style="font-size:2.5rem;color:#fd7e14"><i class="bi-people-fill"></i></div>
+                    <h5 class="fw-bold mb-1">Social</h5>
+                    <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_social)">@MostrarEstado(_social)</span></div>
+                    <div class="display-6 fw-bold" style="color:#fd7e14">61%</div>
+                    <small class="text-muted">Cumplimiento Social</small>
+                    <div class="mt-3">
+                        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm w-100" style="border-color:#fd7e14;color:#fd7e14">Ver Social &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs General -->
+    <h5 class="fw-bold mb-3" style="color:#183963">Indicadores Generales HSEQ</h5>
+    <div class="row g-3 mb-4">
+        @foreach (var kpi in _kpis)
+        {
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @kpi.Clase">
+                    <div class="text-muted small fw-semibold mb-1">@kpi.Titulo.ToUpper()</div>
+                    <div class="fw-bold" style="font-size:1.8rem;color:@kpi.Color">@kpi.Valor</div>
+                    <div class="text-muted small">@kpi.Subtitulo</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Gráficas -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Cumplimiento por División</strong></div>
+                <div class="card-body d-flex flex-column align-items-stretch gap-3 pt-3">
+                    @foreach (var (div, pct, color) in _cumplimientoDivision)
+                    {
+                        <div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold">@div</span>
+                                <span class="fw-bold">@pct%</span>
+                            </div>
+                            <div class="progress" style="height:14px;border-radius:7px">
+                                <div class="progress-bar" style="width:@pct%;background:@color;border-radius:7px"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Hallazgos Abiertos vs Cerrados</strong></div>
+                <div class="card-body">
+                    <div class="row g-3 mt-1">
+                        <div class="col-6 text-center">
+                            <div style="font-size:3rem;color:#dc3545;font-weight:700">12</div>
+                            <div class="text-muted">Abiertos</div>
+                        </div>
+                        <div class="col-6 text-center">
+                            <div style="font-size:3rem;color:#6ABF4B;font-weight:700">38</div>
+                            <div class="text-muted">Cerrados</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="progress" style="height:18px;border-radius:9px">
+                                <div class="progress-bar" style="width:76%;background:#6ABF4B;border-radius:9px">76% cerrados</div>
+                            </div>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="row g-2 text-center">
+                        <div class="col-4">
+                            <div class="fw-bold text-danger">5</div>
+                            <small class="text-muted">Acciones vencidas</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold" style="color:#fd7e14">8</div>
+                            <small class="text-muted">En proceso</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold text-success">21</div>
+                            <small class="text-muted">Cerradas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tendencia mensual + Ranking proyectos -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Tendencia Mensual HSEQ</strong>
+                    <small class="text-muted">Últimos 6 meses</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Mes</th>
+                                    <th class="text-center">Calidad</th>
+                                    <th class="text-center">Seguridad</th>
+                                    <th class="text-center">Ambiental</th>
+                                    <th class="text-center">Social</th>
+                                    <th class="text-center">General</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var fila in _tendencia)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@fila.Mes</td>
+                                        <td class="text-center @ColorPct(fila.Calidad)">@fila.Calidad%</td>
+                                        <td class="text-center @ColorPct(fila.Seguridad)">@fila.Seguridad%</td>
+                                        <td class="text-center @ColorPct(fila.Ambiental)">@fila.Ambiental%</td>
+                                        <td class="text-center @ColorPct(fila.Social)">@fila.Social%</td>
+                                        <td class="text-center fw-bold @ColorPct(fila.General)">@fila.General%</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Estado General por División</strong></div>
+                <div class="card-body d-flex flex-column gap-3 pt-3">
+                    @foreach (var item in _semaforos)
+                    {
+                        <div class="d-flex align-items-center gap-3">
+                            <div style="width:18px;height:18px;border-radius:50%;background:@item.Color;flex-shrink:0;box-shadow:0 0 6px @item.Color"></div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">@item.Division</div>
+                                <div class="text-muted small">@item.Estado</div>
+                            </div>
+                            <div class="fw-bold" style="color:@item.Color">@item.Pct%</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Análisis Inteligente IA -->
+    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963 0%,#1e4d8c 100%)">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi-robot" style="font-size:1.5rem"></i>
+                <h5 class="mb-0 fw-bold">Análisis Inteligente HSEQ</h5>
+                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
+            </div>
+            <div class="row g-3">
+                @foreach (var msg in _mensajesIA)
+                {
+                    <div class="col-12">
+                        <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
+                            <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
+                            <div>
+                                <span class="badge mb-1 @msg.BadgeClass">@msg.Division</span>
+                                <p class="mb-0 small">@msg.Texto</p>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <p class="text-white-50 small mt-3 mb-0">
+                <i class="bi-info-circle me-1"></i>El módulo de IA analizará tendencias, detectará riesgos y generará recomendaciones automáticas. Disponible en Fase 3.
+            </p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+
+    private EstadoHSEQ _estadoGeneral = EstadoHSEQ.EnRiesgo;
+    private EstadoHSEQ _calidad       = EstadoHSEQ.Saludable;
+    private EstadoHSEQ _seguridad     = EstadoHSEQ.EnRiesgo;
+    private EstadoHSEQ _ambiental     = EstadoHSEQ.Saludable;
+    private EstadoHSEQ _social        = EstadoHSEQ.Critico;
+
+    private record KpiCard(string Titulo, string Valor, string Subtitulo, string Color, string Clase);
+    private record TendenciaMes(string Mes, int Calidad, int Seguridad, int Ambiental, int Social, int General);
+    private record SemaforoDiv(string Division, string Estado, string Color, int Pct);
+    private record MensajeIA(string Division, string Texto, string BadgeClass);
+
+    private readonly List<KpiCard> _kpis =
+    [
+        new("Cumplimiento General",           "78%",  "HSEQ consolidado",              "#183963", "border-primary"),
+        new("Hallazgos Abiertos",             "12",   "pendientes de cierre",          "#dc3545", "border-danger"),
+        new("Acciones Vencidas",              "5",    "superaron fecha compromiso",     "#dc3545", "border-danger"),
+        new("No Conformidades Abiertas",      "3",    "calidad + seguridad",            "#fd7e14", "border-warning"),
+        new("Incidentes (mes)",               "2",    "último mes registrado",          "#ffc107", "border-warning"),
+        new("Accidentes (mes)",               "0",    "sin accidentes registrados",     "#6ABF4B", "border-success"),
+        new("Documentos Vencidos",            "4",    "requieren actualización",        "#dc3545", "border-danger"),
+        new("Equipos Calibración Vencida",    "2",    "de 18 equipos registrados",     "#fd7e14", "border-warning"),
+        new("PPIs Pendientes",                "7",    "de 23 planeados",               "#fd7e14", "border-warning"),
+        new("Permisos Activos",               "5",    "en campo hoy",                  "#183963", "border-primary"),
+        new("Compromisos Sociales Vencidos",  "3",    "con comunidades",               "#dc3545", "border-danger"),
+        new("PQRs Abiertas",                  "4",    "sin respuesta definitiva",       "#fd7e14", "border-warning"),
+    ];
+
+    private readonly List<TendenciaMes> _tendencia =
+    [
+        new("Enero",    82, 75, 90, 55, 76),
+        new("Febrero",  84, 70, 91, 58, 76),
+        new("Marzo",    85, 68, 92, 57, 76),
+        new("Abril",    86, 72, 93, 60, 78),
+        new("Mayo",     87, 71, 93, 61, 78),
+        new("Junio",    87, 72, 93, 61, 78),
+    ];
+
+    private readonly List<SemaforoDiv> _semaforos =
+    [
+        new("Calidad",   "Saludable — ISO 9001 al 87%",  "#6ABF4B", 87),
+        new("Seguridad", "En Riesgo — Hallazgos EPP",     "#ffc107", 72),
+        new("Ambiental", "Saludable — Sin derrames",      "#6ABF4B", 93),
+        new("Social",    "Crítico — Compromisos vencidos","#dc3545", 61),
+    ];
+
+    private readonly List<(string div, int pct, string color)> _cumplimientoDivision =
+    [
+        ("Calidad",   87, "#183963"),
+        ("Seguridad", 72, "#ffc107"),
+        ("Ambiental", 93, "#6ABF4B"),
+        ("Social",    61, "#dc3545"),
+    ];
+
+    private readonly List<MensajeIA> _mensajesIA =
+    [
+        new("General",   "El proyecto presenta riesgo HSEQ por aumento de acciones vencidas y PPIs pendientes.", "bg-warning text-dark"),
+        new("Calidad",   "Calidad se encuentra en riesgo por equipos de medición próximos a vencer.", "bg-primary"),
+        new("Seguridad", "Seguridad presenta aumento de hallazgos relacionados con EPP en campo.", "bg-danger"),
+        new("Ambiental", "Ambiental mantiene buen desempeño. Sin derrames registrados este período.", "bg-success"),
+        new("Social",    "Social presenta compromisos vencidos con comunidades locales.", "bg-warning text-dark"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+    }
+
+    private static string BadgeEstadoHSEQ(EstadoHSEQ estado) => estado switch
+    {
+        EstadoHSEQ.Saludable => "bg-success",
+        EstadoHSEQ.EnRiesgo  => "bg-warning text-dark",
+        EstadoHSEQ.Critico   => "bg-danger",
+        _                    => "bg-secondary"
+    };
+
+    private static string MostrarEstado(EstadoHSEQ estado) => estado switch
+    {
+        EstadoHSEQ.Saludable => "Saludable",
+        EstadoHSEQ.EnRiesgo  => "En Riesgo",
+        EstadoHSEQ.Critico   => "Crítico",
+        _                    => "Sin Datos"
+    };
+
+    private static string ColorPct(int pct) =>
+        pct >= 85 ? "text-success fw-semibold" :
+        pct >= 70 ? "text-warning" :
+        "text-danger fw-semibold";
+}

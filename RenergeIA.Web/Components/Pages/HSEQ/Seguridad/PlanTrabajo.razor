@@ -1,0 +1,346 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/plan-trabajo"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Plan de Trabajo HSE — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-calendar3 me-2" style="color:#183963"></i>Plan de Trabajo HSE</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Nueva Actividad</button>
+    </div>
+
+    <!-- Resumen KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.6rem;color:#183963">@_plan.Count</div>
+                <div class="text-muted small">Total</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.6rem;color:#6ABF4B">@_plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada)</div>
+                <div class="text-muted small">Ejecutadas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.6rem;color:#ffc107">@_plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente || p.Estado == EstadoPlanTrabajo.Planificada)</div>
+                <div class="text-muted small">Pendientes</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_plan.Count(p => p.FechaPlanificada < DateTime.Today && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada)</div>
+                <div class="text-muted small">Vencidas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(_cumplimiento>=80?"border-success":_cumplimiento>=60?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.6rem;color:@(_cumplimiento>=80?"#6ABF4B":_cumplimiento>=60?"#ffc107":"#dc3545")">@_cumplimiento%</div>
+                <div class="text-muted small">Cumplimiento</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card shadow-sm p-3 h-100">
+                <div class="text-muted small mb-1">Avance</div>
+                <div class="progress mt-1" style="height:14px;border-radius:6px">
+                    <div class="progress-bar @(_cumplimiento>=80?"bg-success":_cumplimiento>=60?"bg-warning":"bg-danger")"
+                         style="width:@_cumplimiento%;font-size:.7rem">@_cumplimiento%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar Actividad" : "Nueva Actividad del Plan")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Actividad *</label>
+                            <InputText class="form-control" @bind-Value="_form.Actividad" />
+                            <ValidationMessage For="() => _form.Actividad" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo de Intervención *</label>
+                            <InputText class="form-control" @bind-Value="_form.TipoIntervencion" placeholder="Ej: Capacitación, Inspección" />
+                            <ValidationMessage For="() => _form.TipoIntervencion" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Área</label>
+                            <InputText class="form-control" @bind-Value="_form.Area" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Responsable</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Recursos</label>
+                            <InputText class="form-control" @bind-Value="_form.Recursos" placeholder="Ej: Instructor, presupuesto" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Mes</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Mes">
+                                @for (int m = 1; m <= 12; m++)
+                                {
+                                    <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Año</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Anio" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Planificada *</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaPlanificada" />
+                            <ValidationMessage For="() => _form.FechaPlanificada" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoPlanTrabajo>())
+                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Ejecutada</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaEjecutada" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Ejecutado Por</label>
+                            <InputText class="form-control" @bind-Value="_form.EjecutadoPor" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Filtros -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Buscar actividad..."
+               @bind="_busqueda" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroEstado">
+            <option value="">Todos los estados</option>
+            @foreach (var e in Enum.GetValues<EstadoPlanTrabajo>())
+            { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+        </select>
+        <select class="form-select form-select-sm" style="max-width:120px" @bind="_filtroMes">
+            <option value="0">Todos los meses</option>
+            @for (int m = 1; m <= 12; m++)
+            { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+        </select>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Actividad</th>
+                        <th>Tipo</th>
+                        <th>Área</th>
+                        <th>Responsable</th>
+                        <th>F. Planificada</th>
+                        <th>F. Ejecutada</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!PlanFiltrado.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay actividades registradas.</td></tr>
+                    }
+                    @foreach (var p in PlanFiltrado)
+                    {
+                        var vencida = p.FechaPlanificada < DateTime.Today && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada;
+                        <tr class="@(vencida ? "table-danger" : "")">
+                            <td>
+                                <div class="fw-semibold">@p.Actividad</div>
+                                @if (!string.IsNullOrEmpty(p.Observaciones))
+                                { <div class="text-muted" style="font-size:.78rem">@p.Observaciones</div> }
+                            </td>
+                            <td class="text-muted">@p.TipoIntervencion</td>
+                            <td class="text-muted">@(p.Area ?? "—")</td>
+                            <td>@(p.Responsable ?? "—")</td>
+                            <td class="@(vencida ? "text-danger fw-bold" : "")">@p.FechaPlanificada.ToString("dd/MM/yyyy")</td>
+                            <td class="text-muted">@(p.FechaEjecutada?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td class="text-center"><span class="badge @BadgePlan(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span></td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == p.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private List<PlanTrabajoHSE> _plan = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private string _filtroEstado = "";
+    private int _filtroMes;
+    private FormModel _form = new();
+    private int _cumplimiento;
+
+    private IEnumerable<PlanTrabajoHSE> PlanFiltrado => _plan
+        .Where(p =>
+            (string.IsNullOrEmpty(_busqueda) || p.Actividad.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrEmpty(_filtroEstado) || p.Estado.ToString() == _filtroEstado)
+            && (_filtroMes == 0 || p.Mes == _filtroMes))
+        .OrderBy(p => p.FechaPlanificada);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _plan = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.FechaPlanificada).ToListAsync();
+        _cumplimiento = _plan.Count > 0 ? (int)Math.Round(_plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada) * 100.0 / _plan.Count) : 0;
+    }
+
+    private void MostrarFormulario()
+    {
+        _form = new FormModel { FechaPlanificada = DateTime.Today, Mes = DateTime.Today.Month, Anio = DateTime.Today.Year };
+        _editandoId = null; _mostrarFormulario = true;
+    }
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+
+    private void EditarItem(PlanTrabajoHSE p)
+    {
+        _form = new FormModel
+        {
+            Actividad       = p.Actividad,
+            TipoIntervencion = p.TipoIntervencion,
+            Area            = p.Area,
+            Responsable     = p.Responsable,
+            Recursos        = p.Recursos,
+            Mes             = p.Mes,
+            Anio            = p.Anio,
+            FechaPlanificada = p.FechaPlanificada,
+            FechaEjecutada  = p.FechaEjecutada,
+            EjecutadoPor    = p.EjecutadoPor,
+            Estado          = p.Estado,
+            Observaciones   = p.Observaciones
+        };
+        _editandoId = p.Id; _mostrarFormulario = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var e = await Db.PlanesTrabajoHSE.FindAsync(_editandoId.Value);
+            if (e is not null) MapearForm(e);
+        }
+        else
+        {
+            var e = new PlanTrabajoHSE { ProyectoId = ProyectoId };
+            MapearForm(e);
+            Db.PlanesTrabajoHSE.Add(e);
+        }
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private void MapearForm(PlanTrabajoHSE e)
+    {
+        e.Actividad        = _form.Actividad;
+        e.TipoIntervencion = _form.TipoIntervencion;
+        e.Area             = _form.Area;
+        e.Responsable      = _form.Responsable;
+        e.Recursos         = _form.Recursos;
+        e.Mes              = _form.Mes;
+        e.Anio             = _form.Anio;
+        e.FechaPlanificada = _form.FechaPlanificada;
+        e.FechaEjecutada   = _form.FechaEjecutada;
+        e.EjecutadoPor     = _form.EjecutadoPor;
+        e.Estado           = _form.Estado;
+        e.Observaciones    = _form.Observaciones;
+        e.FechaModificacion = DateTime.UtcNow;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var e = await Db.PlanesTrabajoHSE.FindAsync(id);
+        if (e is not null) { Db.PlanesTrabajoHSE.Remove(e); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgePlan(EstadoPlanTrabajo e) => e switch
+    {
+        EstadoPlanTrabajo.Ejecutada    => "bg-success",
+        EstadoPlanTrabajo.Planificada  => "bg-primary",
+        EstadoPlanTrabajo.Pendiente    => "bg-warning text-dark",
+        EstadoPlanTrabajo.Vencida      => "bg-danger",
+        EstadoPlanTrabajo.Reprogramada => "bg-info text-dark",
+        EstadoPlanTrabajo.Cancelada    => "bg-secondary",
+        _                              => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Actividad { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string TipoIntervencion { get; set; } = "";
+        public string? Area { get; set; }
+        public string? Responsable { get; set; }
+        public string? Recursos { get; set; }
+        public int Mes { get; set; } = DateTime.Today.Month;
+        public int Anio { get; set; } = DateTime.Today.Year;
+        public DateTime FechaPlanificada { get; set; } = DateTime.Today;
+        public DateTime? FechaEjecutada { get; set; }
+        public string? EjecutadoPor { get; set; }
+        public EstadoPlanTrabajo Estado { get; set; } = EstadoPlanTrabajo.Planificada;
+        public string? Observaciones { get; set; }
+    }
+}

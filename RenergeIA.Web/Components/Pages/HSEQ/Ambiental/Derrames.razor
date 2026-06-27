@@ -1,0 +1,239 @@
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental/derrames"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Derrames — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-droplet-half me-2" style="color:#dc3545"></i>Registro de Derrames</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-danger btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Registrar Derrame
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-danger">
+            <div class="card-header bg-danger text-white d-flex justify-content-between">
+                <strong>Nuevo Derrame</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Número *</label>
+                            <InputText class="form-control" @bind-Value="_form.Numero" />
+                            <ValidationMessage For="() => _form.Numero" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Sustancia *</label>
+                            <InputText class="form-control" @bind-Value="_form.Sustancia" placeholder="Ej: Aceite hidráulico, Combustible" />
+                            <ValidationMessage For="() => _form.Sustancia" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Volumen (L)</label>
+                            <InputNumber class="form-control" @bind-Value="_form.VolumenLitros" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.FrenteTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Reportado Por *</label>
+                            <InputText class="form-control" @bind-Value="_form.ReportadoPor" />
+                            <ValidationMessage For="() => _form.ReportadoPor" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Evento</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaEvento" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoNoConformidad>())
+                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Causa Raíz</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.CausaRaiz" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Acciones Inmediatas</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.AccionesInmediatas" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-danger btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(_derrames.Any() ? "border-danger" : "border-success")">
+                <div class="fw-bold" style="font-size:2rem;color:@(_derrames.Any() ? "#dc3545" : "#6ABF4B")">@_derrames.Count</div>
+                <div class="text-muted small">Derrames registrados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:2rem;color:#ffc107">@_derrames.Sum(d => d.VolumenLitros).ToString("N1")</div>
+                <div class="text-muted small">Total litros derramados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            @if (!_derrames.Any())
+            {
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                    <i class="bi-check-circle-fill text-success d-block mb-1" style="font-size:2rem"></i>
+                    <div class="text-muted small">Sin derrames. ¡Excelente!</div>
+                </div>
+            }
+            else
+            {
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                    <div class="fw-bold" style="font-size:1.2rem;color:#dc3545">
+                        @(_derrames.Max(d => d.FechaEvento).ToString("dd/MM/yyyy"))
+                    </div>
+                    <div class="text-muted small">Fecha último derrame</div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Número</th>
+                        <th>Sustancia</th>
+                        <th class="text-center">Litros</th>
+                        <th>Frente</th>
+                        <th>Reportado Por</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_derrames.Any())
+                    {
+                        <tr><td colspan="8" class="text-center py-4">
+                            <i class="bi-check-circle text-success d-block mb-2" style="font-size:2rem"></i>
+                            <span class="text-muted">Sin derrames registrados. ¡Excelente desempeño ambiental!</span>
+                        </td></tr>
+                    }
+                    @foreach (var d in _derrames.OrderByDescending(x => x.FechaEvento))
+                    {
+                        <tr>
+                            <td class="font-monospace small text-muted">@d.Numero</td>
+                            <td>@d.Sustancia</td>
+                            <td class="text-center fw-semibold">@d.VolumenLitros.ToString("N1")</td>
+                            <td class="small text-muted">@d.FrenteTrabajo</td>
+                            <td class="small">@d.ReportadoPor</td>
+                            <td class="small">@d.FechaEvento.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                <span class="badge @(d.Estado == EstadoNoConformidad.Cerrada ? "bg-success" : "bg-danger")">
+                                    @EnumDisplay.Mostrar(d.Estado)
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == d.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(d.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = d.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Derrame> _derrames = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _derrames = await Db.Derrames.Where(d => d.ProyectoId == ProyectoId).OrderByDescending(d => d.FechaEvento).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { FechaEvento = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.Derrames.Add(new Derrame
+        {
+            ProyectoId       = ProyectoId,
+            Numero           = _form.Numero,
+            Sustancia        = _form.Sustancia,
+            VolumenLitros    = _form.VolumenLitros,
+            FrenteTrabajo    = _form.FrenteTrabajo ?? "",
+            ReportadoPor     = _form.ReportadoPor,
+            FechaEvento      = _form.FechaEvento,
+            Estado           = _form.Estado,
+            CausaRaiz        = _form.CausaRaiz,
+            AccionesInmediatas = _form.AccionesInmediatas
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var d = await Db.Derrames.FindAsync(id);
+        if (d is not null) { Db.Derrames.Remove(d); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Numero { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Sustancia { get; set; } = "";
+        public decimal VolumenLitros { get; set; }
+        public string? FrenteTrabajo { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string ReportadoPor { get; set; } = "";
+        public DateTime FechaEvento { get; set; } = DateTime.Today;
+        public EstadoNoConformidad Estado { get; set; } = EstadoNoConformidad.Abierta;
+        public string? CausaRaiz { get; set; }
+        public string? AccionesInmediatas { get; set; }
+    }
+}

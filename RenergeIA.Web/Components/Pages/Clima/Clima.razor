@@ -1,0 +1,969 @@
+@page "/proyectos/{ProyectoId:int}/clima"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject IHttpClientFactory HttpFactory
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@using System.Text.Json
+@using System.Globalization
+
+<PageTitle>Clima — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0">
+            <i class="bi-cloud-sun me-2 text-info"></i>Clima — @_proyecto.Nombre
+        </h1>
+        <span class="badge bg-info text-white ms-2">
+            <i class="bi-thermometer-sun me-1"></i>Open-Meteo · Sin clave API
+        </span>
+    </div>
+
+    <!-- A. Datos de ubicación -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi-geo-alt-fill text-primary"></i>
+            <strong>Ubicación exacta del proyecto</strong>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label d-flex align-items-center gap-2">
+                        País
+                        @if (_geocodificando)
+                        {
+                            <span class="spinner-border spinner-border-sm text-info" role="status"></span>
+                            <span class="text-muted small">Detectando...</span>
+                        }
+                    </label>
+                    <input class="form-control" @bind="_form.Pais" placeholder="Ej: Colombia" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Departamento / Estado</label>
+                    <input class="form-control" @bind="_form.Departamento" placeholder="Ej: Cundinamarca" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Municipio / Ciudad</label>
+                    <input class="form-control" @bind="_form.Municipio" placeholder="Ej: Bogotá" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Dirección o referencia</label>
+                    <input class="form-control" @bind="_form.Direccion" placeholder="Ej: Km 10 vía Bogotá-Cali, vereda El Triunfo" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">
+                        Latitud <span class="text-danger">*</span>
+                        <span class="text-muted fw-normal small">(−90 a 90)</span>
+                    </label>
+                    <input type="number" class="form-control @(_latitudInvalida ? "is-invalid" : "")"
+                           step="0.000001" min="-90" max="90"
+                           value="@(_form.Latitud?.ToString("F6", CultureInfo.InvariantCulture))"
+                           @onchange="OnLatitudChange"
+                           placeholder="Ej: 4.710989" />
+                    @if (_latitudInvalida)
+                    {
+                        <div class="invalid-feedback">Debe estar entre −90 y 90.</div>
+                    }
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">
+                        Longitud <span class="text-danger">*</span>
+                        <span class="text-muted fw-normal small">(−180 a 180)</span>
+                    </label>
+                    <input type="number" class="form-control @(_longitudInvalida ? "is-invalid" : "")"
+                           step="0.000001" min="-180" max="180"
+                           value="@(_form.Longitud?.ToString("F6", CultureInfo.InvariantCulture))"
+                           @onchange="OnLongitudChange"
+                           placeholder="Ej: -74.072092" />
+                    @if (_longitudInvalida)
+                    {
+                        <div class="invalid-feedback">Debe estar entre −180 y 180.</div>
+                    }
+                </div>
+                @if (_form.Latitud.HasValue && _form.Longitud.HasValue)
+                {
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="alert alert-success py-2 mb-0 w-100 small">
+                            <i class="bi-pin-map-fill me-1"></i>
+                            Marcador fijado en:
+                            <strong>@_form.Latitud.Value.ToString("F6", CultureInfo.InvariantCulture)</strong>,
+                            <strong>@_form.Longitud.Value.ToString("F6", CultureInfo.InvariantCulture)</strong>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- B. Mapa interactivo -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi-map text-primary"></i>
+            <strong>Mapa interactivo</strong>
+            <span class="text-muted small ms-1">
+                — Navega hasta la ubicación del proyecto y haz <strong>clic</strong> para fijar el punto exacto
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div id="leaflet-map" style="height:430px;width:100%;border-radius:0 0 0.375rem 0.375rem;"></div>
+        </div>
+    </div>
+
+    <!-- C. Confirmar ubicación -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+            <button class="btn btn-success px-4" @onclick="ConfirmarUbicacionAsync" disabled="@_guardando">
+                @if (_guardando)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                else
+                {
+                    <i class="bi-check-circle-fill me-1"></i>
+                }
+                Confirmar ubicación
+            </button>
+            @if (_mensajeUbicacion is not null)
+            {
+                <span class="text-success fw-semibold">
+                    <i class="bi-check2-circle me-1"></i>@_mensajeUbicacion
+                </span>
+            }
+            @if (_errorUbicacion is not null)
+            {
+                <span class="text-danger">
+                    <i class="bi-x-circle me-1"></i>@_errorUbicacion
+                </span>
+            }
+        </div>
+    </div>
+
+    <!-- D. Consultar clima y pronóstico (Open-Meteo) -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi-cloud-download text-info"></i>
+            <strong>Consultar clima y pronóstico</strong>
+            <span class="badge bg-success ms-auto">Gratis · Sin clave · Open-Meteo</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3 small">
+                <i class="bi-info-circle me-1"></i>
+                Una vez confirmada la ubicación, consulta el clima actual y el pronóstico de los próximos 16 días.
+                El dato climático actual se guarda automáticamente en el historial.
+            </p>
+            <button class="btn btn-info text-white px-4"
+                    @onclick="ConsultarClimaAsync"
+                    disabled="@(_buscandoClima || !_ubicacionConfirmada)">
+                @if (_buscandoClima)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span>Consultando...</span>
+                }
+                else
+                {
+                    <i class="bi-cloud-sun me-1"></i>
+                    <span>Consultar clima y pronóstico</span>
+                }
+            </button>
+            @if (!_ubicacionConfirmada)
+            {
+                <div class="text-muted small mt-2">
+                    <i class="bi-lock me-1"></i>Primero confirma la ubicación para habilitar esta acción.
+                </div>
+            }
+            @if (_errorClima is not null)
+            {
+                <div class="alert alert-danger mt-3 py-2 mb-0">
+                    <i class="bi-exclamation-triangle me-1"></i>@_errorClima
+                </div>
+            }
+            @if (_mensajeClima is not null)
+            {
+                <div class="alert alert-success mt-3 py-2 mb-0">
+                    <i class="bi-check2-circle me-1"></i>@_mensajeClima
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (_climaActual is not null)
+    {
+        <!-- E. Clima actual -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="bi-thermometer-sun text-info"></i>
+                <strong>Condiciones actuales</strong>
+                @if (_horaConsulta is not null)
+                {
+                    <span class="text-muted small ms-auto">
+                        Actualizado: @_horaConsulta
+                    </span>
+                }
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-center">
+                    <div class="col-auto text-center">
+                        <i class="@IconoWMO(_climaActual.WmoCode)" style="font-size:3.5rem;"></i>
+                        <div class="fw-semibold mt-1">@DescripcionWMO(_climaActual.WmoCode)</div>
+                    </div>
+                    <div class="col">
+                        <div class="row g-2">
+                            <div class="col-6 col-md-3">
+                                <div class="card border-primary text-center py-3">
+                                    <div class="fw-bold fs-3 text-primary">
+                                        @_climaActual.Temperatura.ToString("F1", CultureInfo.InvariantCulture)°C
+                                    </div>
+                                    <div class="text-muted small">Temperatura</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card border-secondary text-center py-3">
+                                    <div class="fw-bold fs-3 text-secondary">
+                                        @_climaActual.TemperaturaAparente.ToString("F1", CultureInfo.InvariantCulture)°C
+                                    </div>
+                                    <div class="text-muted small">Sensación</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card border-info text-center py-3">
+                                    <div class="fw-bold fs-3 text-info">@_climaActual.Humedad%</div>
+                                    <div class="text-muted small">Humedad</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card border-secondary text-center py-3">
+                                    <div class="fw-bold fs-3 text-secondary">
+                                        @_climaActual.VientoKmh.ToString("F0", CultureInfo.InvariantCulture)
+                                    </div>
+                                    <div class="text-muted small">Viento (km/h)</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card border-primary text-center py-2">
+                                    <div class="fw-bold fs-4 text-primary">
+                                        @_climaActual.PrecipMm.ToString("F1", CultureInfo.InvariantCulture) mm
+                                    </div>
+                                    <div class="text-muted small">Precipitación</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- F. Pronóstico 7 días -->
+        @if (_pronostico.Count > 0)
+        {
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="bi-calendar-week text-primary"></i>
+                    <strong>Pronóstico — próximos 7 días</strong>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-2 overflow-auto pb-1">
+                        @foreach (var d in _pronostico.Take(7))
+                        {
+                            var esPrimero = d == _pronostico[0];
+                            <div class="card text-center @(esPrimero ? "border-primary border-2" : "")"
+                                 style="min-width:120px;">
+                                <div class="card-header py-1 @(esPrimero ? "bg-primary text-white" : "bg-light") small fw-bold">
+                                    @if (esPrimero)
+                                    {
+                                        <span>Hoy</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@DiaSemana(d.Fecha)</span>
+                                    }
+                                    <br />
+                                    <span class="fw-normal">@d.Fecha.Day @MesCorto(d.Fecha.Month)</span>
+                                </div>
+                                <div class="card-body px-2 py-3">
+                                    <i class="@IconoWMO(d.WmoCode)" style="font-size:2rem;"></i>
+                                    <div class="small text-muted mt-1" style="font-size:0.72rem;">
+                                        @DescripcionWMO(d.WmoCode)
+                                    </div>
+                                    <div class="mt-2">
+                                        <span class="fw-bold text-danger">@d.TempMax.ToString("F0", CultureInfo.InvariantCulture)°</span>
+                                        <span class="text-muted mx-1">/</span>
+                                        <span class="text-primary">@d.TempMin.ToString("F0", CultureInfo.InvariantCulture)°</span>
+                                    </div>
+                                    <div class="small mt-1">
+                                        <i class="bi-droplet-fill text-primary" style="font-size:0.75rem;"></i>
+                                        @d.PrecipProbabilidad%
+                                    </div>
+                                    @if (d.PrecipSum > 0)
+                                    {
+                                        <div class="small text-muted">
+                                            @d.PrecipSum.ToString("F1", CultureInfo.InvariantCulture) mm
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="text-muted small mt-2">
+                        <i class="bi-info-circle me-1"></i>
+                        Temp. máx <span class="text-danger fw-bold">rojo</span> / mín <span class="text-primary fw-bold">azul</span>.
+                        <i class="bi-droplet-fill text-primary ms-2"></i> = probabilidad de precipitación.
+                    </div>
+                </div>
+            </div>
+
+            <!-- G. Pronóstico extendido 16 días -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="bi-calendar-month text-secondary"></i>
+                    <strong>Pronóstico extendido — 16 días</strong>
+                    <span class="badge bg-secondary ms-auto">Open-Meteo · Modelo GFS/ECMWF</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Condición</th>
+                                <th class="text-center">Máx (°C)</th>
+                                <th class="text-center">Mín (°C)</th>
+                                <th class="text-center">Prob. lluvia</th>
+                                <th class="text-center">Precip. (mm)</th>
+                                <th class="text-center">Viento máx (km/h)</th>
+                                <th class="text-center">Apto obra</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _pronostico)
+                            {
+                                var aptitud = AptitudObra(d);
+                                <tr class="@(d == _pronostico[0] ? "table-primary" : "")">
+                                    <td class="text-nowrap fw-semibold">
+                                        @if (d == _pronostico[0])
+                                        {
+                                            <span class="badge bg-primary me-1">Hoy</span>
+                                        }
+                                        @DiaSemana(d.Fecha) @d.Fecha.Day/@d.Fecha.Month
+                                    </td>
+                                    <td>
+                                        <i class="@IconoWMO(d.WmoCode) me-1"></i>
+                                        @DescripcionWMO(d.WmoCode)
+                                    </td>
+                                    <td class="text-center fw-bold text-danger">
+                                        @d.TempMax.ToString("F1", CultureInfo.InvariantCulture)
+                                    </td>
+                                    <td class="text-center text-primary">
+                                        @d.TempMin.ToString("F1", CultureInfo.InvariantCulture)
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge @BadgeProbabilidad(d.PrecipProbabilidad)">
+                                            @d.PrecipProbabilidad%
+                                        </span>
+                                    </td>
+                                    <td class="text-center @(d.PrecipSum > 5 ? "text-primary fw-bold" : "")">
+                                        @d.PrecipSum.ToString("F1", CultureInfo.InvariantCulture)
+                                    </td>
+                                    <td class="text-center @(d.VientoMax > 40 ? "text-danger fw-bold" : "")">
+                                        @d.VientoMax.ToString("F0", CultureInfo.InvariantCulture)
+                                    </td>
+                                    <td class="text-center">
+                                        @if (aptitud == "apto")
+                                        {
+                                            <span class="badge bg-success">
+                                                <i class="bi-check-circle me-1"></i>Sí
+                                            </span>
+                                        }
+                                        else if (aptitud == "precaucion")
+                                        {
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="bi-exclamation-triangle me-1"></i>Con precauciones
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">
+                                                <i class="bi-x-circle me-1"></i>No · Revisar actividades
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer text-muted small">
+                    <i class="bi-info-circle me-1"></i>
+                    <span class="badge bg-success me-1">Sí</span> prob. lluvia &lt; 60% ·
+                    <span class="badge bg-warning text-dark me-1">Con precauciones</span> entre 60% y 84% ·
+                    <span class="badge bg-danger me-1">No · Revisar actividades</span> ≥ 85%.
+                    Los pronósticos a más de 7 días tienen mayor incertidumbre.
+                </div>
+            </div>
+        }
+    }
+
+    <!-- H. Historial climático -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="bi-clock-history text-secondary"></i>
+            <strong>Historial climático del proyecto</strong>
+            <span class="badge bg-secondary ms-auto">@_historial.Count registros</span>
+        </div>
+        @if (_historial.Count == 0)
+        {
+            <div class="card-body">
+                <p class="text-muted mb-0">
+                    <i class="bi-info-circle me-1"></i>
+                    Aún no hay registros climáticos para este proyecto. Consulta el clima actual para crear el primero.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha y hora</th>
+                            <th>Condición</th>
+                            <th class="text-center">Temp. (°C)</th>
+                            <th class="text-center">Humedad (%)</th>
+                            <th class="text-center">Viento (km/h)</th>
+                            <th class="text-center">Precip. (mm)</th>
+                            <th>Fuente</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _historial)
+                        {
+                            <tr>
+                                <td class="text-nowrap">@r.Fecha.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    <i class="@IconoWMO(CondicionAWmo(r.Condicion)) me-1"></i>
+                                    <span class="badge @BadgeClima(r.Condicion)">
+                                        @EnumDisplay.Mostrar(r.Condicion)
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    @(r.TemperaturaMaxima?.ToString("F1", CultureInfo.InvariantCulture) ?? "—")
+                                </td>
+                                <td class="text-center">@(r.HumedadRelativa?.ToString("F0") ?? "—")</td>
+                                <td class="text-center">
+                                    @(r.VelocidadViento?.ToString("F1", CultureInfo.InvariantCulture) ?? "—")
+                                </td>
+                                <td class="text-center">
+                                    @(r.PrecipitacionMm?.ToString("F1", CultureInfo.InvariantCulture) ?? "—")
+                                </td>
+                                <td class="text-muted small">
+                                    @(r.Observaciones?.Split('|').FirstOrDefault()?.Trim() ?? "—")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto?             _proyecto;
+    private UbicacionForm         _form             = new();
+    private bool                  _guardando;
+    private bool                  _buscandoClima;
+    private bool                  _geocodificando;
+    private bool                  _ubicacionConfirmada;
+    private bool                  _latitudInvalida;
+    private bool                  _longitudInvalida;
+    private string?               _mensajeUbicacion;
+    private string?               _errorUbicacion;
+    private string?               _mensajeClima;
+    private string?               _errorClima;
+    private string?               _horaConsulta;
+    private List<RegistroClima>   _historial        = [];
+    private ClimaActualDto?       _climaActual;
+    private List<PronosticoDiarioDto> _pronostico   = [];
+
+    private DotNetObjectReference<Clima>? _dotNetRef;
+    private bool _mapaInicializado;
+
+    // ── Ciclo de vida ──────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) return;
+
+        _form = new UbicacionForm
+        {
+            Pais         = _proyecto.Pais,
+            Departamento = _proyecto.Departamento ?? string.Empty,
+            Municipio    = _proyecto.Municipio    ?? string.Empty,
+            Direccion    = _proyecto.Ubicacion,
+            Latitud      = _proyecto.Latitud,
+            Longitud     = _proyecto.Longitud
+        };
+
+        _ubicacionConfirmada = _proyecto.Latitud.HasValue && _proyecto.Longitud.HasValue;
+
+        _historial = await Db.RegistrosClima
+            .Where(r => r.ProyectoId == ProyectoId)
+            .OrderByDescending(r => r.Fecha)
+            .Take(100)
+            .ToListAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_mapaInicializado && _proyecto is not null)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("leafletMap.init",
+                "leaflet-map",
+                _form.Latitud.HasValue  ? (object)(double)_form.Latitud.Value  : null,
+                _form.Longitud.HasValue ? (object)(double)_form.Longitud.Value : null,
+                _dotNetRef);
+            _mapaInicializado = true;
+        }
+    }
+
+    // ── Callback del mapa (JS → C#) ───────────────────────────────────────────
+
+    [JSInvokable]
+    public async Task OnMapClick(double lat, double lng)
+    {
+        _form.Latitud  = (decimal)Math.Round(lat, 6);
+        _form.Longitud = (decimal)Math.Round(lng, 6);
+        _latitudInvalida  = false;
+        _longitudInvalida = false;
+        _mensajeUbicacion = null;
+        _errorUbicacion   = null;
+        await InvokeAsync(StateHasChanged);
+        await GeocodeReversoAsync(_form.Latitud.Value, _form.Longitud.Value);
+    }
+
+    // ── Inputs manuales ───────────────────────────────────────────────────────
+
+    private async Task OnLatitudChange(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString() ?? string.Empty;
+        if (decimal.TryParse(texto, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+        {
+            _latitudInvalida = val < -90m || val > 90m;
+            if (!_latitudInvalida)
+            {
+                _form.Latitud = val;
+                if (_mapaInicializado && _form.Longitud.HasValue)
+                    await JS.InvokeVoidAsync("leafletMap.setMarker", (double)val, (double)_form.Longitud.Value);
+                if (_form.Longitud.HasValue)
+                    await GeocodeReversoAsync(val, _form.Longitud.Value);
+            }
+        }
+        else
+        {
+            _form.Latitud    = null;
+            _latitudInvalida = false;
+        }
+    }
+
+    private async Task OnLongitudChange(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString() ?? string.Empty;
+        if (decimal.TryParse(texto, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+        {
+            _longitudInvalida = val < -180m || val > 180m;
+            if (!_longitudInvalida)
+            {
+                _form.Longitud = val;
+                if (_mapaInicializado && _form.Latitud.HasValue)
+                    await JS.InvokeVoidAsync("leafletMap.setMarker", (double)_form.Latitud.Value, (double)val);
+                if (_form.Latitud.HasValue)
+                    await GeocodeReversoAsync(_form.Latitud.Value, val);
+            }
+        }
+        else
+        {
+            _form.Longitud    = null;
+            _longitudInvalida = false;
+        }
+    }
+
+    // ── Geocodificación inversa (Nominatim / OpenStreetMap) ───────────────────
+
+    private async Task GeocodeReversoAsync(decimal lat, decimal lng)
+    {
+        _geocodificando = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var latStr = lat.ToString("F6", CultureInfo.InvariantCulture);
+            var lngStr = lng.ToString("F6", CultureInfo.InvariantCulture);
+            var url    = $"https://nominatim.openstreetmap.org/reverse?lat={latStr}&lon={lngStr}&format=json&accept-language=es";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "RenergeIA/1.0 (internal-app)");
+
+            var client   = HttpFactory.CreateClient();
+            var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return;
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            if (!doc.RootElement.TryGetProperty("address", out var addr)) return;
+
+            if (addr.TryGetProperty("country", out var country))
+            {
+                var pais = country.GetString();
+                if (!string.IsNullOrEmpty(pais)) _form.Pais = pais;
+            }
+
+            if (addr.TryGetProperty("state", out var state))
+            {
+                var depto = state.GetString();
+                if (!string.IsNullOrEmpty(depto)) _form.Departamento = depto;
+            }
+
+            // Municipio: intentar varios campos en orden de preferencia
+            foreach (var key in new[] { "city", "town", "village", "municipality", "county", "suburb" })
+            {
+                if (addr.TryGetProperty(key, out var val))
+                {
+                    var mun = val.GetString();
+                    if (!string.IsNullOrEmpty(mun))
+                    {
+                        _form.Municipio = mun;
+                        break;
+                    }
+                }
+            }
+        }
+        catch { /* Geocodificación silenciosa: si falla, el usuario puede llenar manualmente */ }
+        finally
+        {
+            _geocodificando = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // ── Confirmar ubicación ───────────────────────────────────────────────────
+
+    private async Task ConfirmarUbicacionAsync()
+    {
+        _mensajeUbicacion = null;
+        _errorUbicacion   = null;
+
+        if (!_form.Latitud.HasValue || !_form.Longitud.HasValue)
+        {
+            _errorUbicacion = "Latitud y longitud son obligatorias. Haz clic en el mapa o escríbelas manualmente.";
+            return;
+        }
+        if (_form.Latitud < -90m || _form.Latitud > 90m)
+        {
+            _errorUbicacion = "La latitud debe estar entre −90 y 90.";
+            return;
+        }
+        if (_form.Longitud < -180m || _form.Longitud > 180m)
+        {
+            _errorUbicacion = "La longitud debe estar entre −180 y 180.";
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var proy = await Db.Proyectos.FindAsync(ProyectoId);
+            if (proy is null) { _errorUbicacion = "Proyecto no encontrado."; return; }
+
+            proy.Pais              = _form.Pais;
+            proy.Departamento      = _form.Departamento;
+            proy.Municipio         = _form.Municipio;
+            proy.Ubicacion         = _form.Direccion;
+            proy.Latitud           = _form.Latitud;
+            proy.Longitud          = _form.Longitud;
+            proy.FechaModificacion = DateTime.UtcNow;
+            await Db.SaveChangesAsync();
+
+            _proyecto            = proy;
+            _ubicacionConfirmada = true;
+            _mensajeUbicacion    = "Ubicación climática confirmada correctamente.";
+        }
+        catch (Exception ex)
+        {
+            _errorUbicacion = $"Error al guardar: {ex.Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    // ── Consultar clima + pronóstico (Open-Meteo, sin clave) ─────────────────
+
+    private async Task ConsultarClimaAsync()
+    {
+        _errorClima   = null;
+        _mensajeClima = null;
+        _climaActual  = null;
+        _pronostico.Clear();
+
+        if (!_form.Latitud.HasValue || !_form.Longitud.HasValue)
+        {
+            _errorClima = "Confirma la ubicación primero.";
+            return;
+        }
+
+        _buscandoClima = true;
+        try
+        {
+            var lat = _form.Latitud.Value.ToString("F6", CultureInfo.InvariantCulture);
+            var lon = _form.Longitud.Value.ToString("F6", CultureInfo.InvariantCulture);
+
+            var url = $"https://api.open-meteo.com/v1/forecast" +
+                      $"?latitude={lat}&longitude={lon}" +
+                      $"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m" +
+                      $"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max" +
+                      $"&timezone=auto&forecast_days=16";
+
+            var client   = HttpFactory.CreateClient();
+            var response = await client.GetAsync(url);
+            var json     = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _errorClima = $"Open-Meteo respondió {(int)response.StatusCode}. Intenta de nuevo en un momento.";
+                return;
+            }
+
+            using var doc = JsonDocument.Parse(json);
+
+            // ── Clima actual ──────────────────────────────────────────────────
+            var cur  = doc.RootElement.GetProperty("current");
+            var temp = cur.GetProperty("temperature_2m").GetDecimal();
+            var sens = cur.GetProperty("apparent_temperature").GetDecimal();
+            var hum  = cur.GetProperty("relative_humidity_2m").GetDecimal();
+            var wind = cur.GetProperty("wind_speed_10m").GetDecimal();
+            var prec = cur.GetProperty("precipitation").GetDecimal();
+            var wmo  = cur.GetProperty("weather_code").GetInt32();
+
+            _climaActual  = new ClimaActualDto(temp, sens, hum, wind, prec, wmo);
+            _horaConsulta = DateTime.Now.ToString("HH:mm dd/MM/yyyy");
+
+            // Guardar en historial
+            var condicion = MapearCondicion(wmo);
+            var registro  = new RegistroClima
+            {
+                ProyectoId        = ProyectoId,
+                Fecha             = DateTime.Now,
+                Condicion         = condicion,
+                TemperaturaMaxima = temp,
+                TemperaturaMinima = temp,
+                HumedadRelativa   = hum,
+                VelocidadViento   = wind,
+                PrecipitacionMm   = prec,
+                AfectoActividades = false,
+                Observaciones     = $"Open-Meteo | {DescripcionWMO(wmo)}"
+            };
+            Db.RegistrosClima.Add(registro);
+            await Db.SaveChangesAsync();
+            _historial.Insert(0, registro);
+
+            // ── Pronóstico diario 16 días ────────────────────────────────────
+            var daily      = doc.RootElement.GetProperty("daily");
+            var fechas     = daily.GetProperty("time");
+            var wmos       = daily.GetProperty("weather_code");
+            var tMax       = daily.GetProperty("temperature_2m_max");
+            var tMin       = daily.GetProperty("temperature_2m_min");
+            var precipSum  = daily.GetProperty("precipitation_sum");
+            var precipProb = daily.GetProperty("precipitation_probability_max");
+            var windMax    = daily.GetProperty("wind_speed_10m_max");
+
+            for (int i = 0; i < fechas.GetArrayLength(); i++)
+            {
+                _pronostico.Add(new PronosticoDiarioDto(
+                    Fecha:             DateOnly.Parse(fechas[i].GetString()!),
+                    WmoCode:           wmos[i].GetInt32(),
+                    TempMax:           tMax[i].ValueKind == JsonValueKind.Null ? 0m : tMax[i].GetDecimal(),
+                    TempMin:           tMin[i].ValueKind == JsonValueKind.Null ? 0m : tMin[i].GetDecimal(),
+                    PrecipSum:         precipSum[i].ValueKind == JsonValueKind.Null ? 0m : precipSum[i].GetDecimal(),
+                    PrecipProbabilidad: precipProb[i].ValueKind == JsonValueKind.Null ? 0 : precipProb[i].GetInt32(),
+                    VientoMax:         windMax[i].ValueKind == JsonValueKind.Null ? 0m : windMax[i].GetDecimal()
+                ));
+            }
+
+            _mensajeClima = $"Clima y pronóstico de 16 días obtenidos correctamente ({DateTime.Now:HH:mm}).";
+        }
+        catch (Exception ex)
+        {
+            _errorClima = $"Error al consultar Open-Meteo: {ex.Message}";
+        }
+        finally
+        {
+            _buscandoClima = false;
+        }
+    }
+
+    // ── Lógica de "Apto para obra" ────────────────────────────────────────────
+
+    // "apto" < 60% · "precaucion" 60-84% · "no" ≥ 85%
+    private static string AptitudObra(PronosticoDiarioDto d) => d.PrecipProbabilidad switch
+    {
+        < 60 => "apto",
+        < 85 => "precaucion",
+        _    => "no"
+    };
+
+    // ── Helpers WMO ───────────────────────────────────────────────────────────
+
+    private static string DescripcionWMO(int code) => code switch
+    {
+        0             => "Despejado",
+        1             => "Mayormente despejado",
+        2             => "Parcialmente nublado",
+        3             => "Nublado",
+        45 or 48      => "Niebla",
+        51 or 53 or 55 => "Llovizna",
+        56 or 57      => "Llovizna helada",
+        61 or 63      => "Lluvia",
+        65            => "Lluvia fuerte",
+        71 or 73 or 75 => "Nevada",
+        77            => "Granizo",
+        80 or 81      => "Chubascos",
+        82            => "Chubascos fuertes",
+        85 or 86      => "Nieve con viento",
+        95            => "Tormenta eléctrica",
+        96 or 99      => "Tormenta con granizo",
+        _             => "—"
+    };
+
+    private static string IconoWMO(int code) => code switch
+    {
+        0 or 1                  => "bi-sun text-warning",
+        2                       => "bi-cloud-sun text-secondary",
+        3                       => "bi-cloud text-secondary",
+        45 or 48                => "bi-cloud-fog2 text-secondary",
+        51 or 53 or 55 or 56 or 57 => "bi-cloud-drizzle text-info",
+        61 or 63 or 80 or 81   => "bi-cloud-rain text-primary",
+        65 or 82                => "bi-cloud-rain-heavy text-primary",
+        71 or 73 or 75 or 77 or 85 or 86 => "bi-snow text-info",
+        95 or 96 or 99          => "bi-cloud-lightning-rain text-danger",
+        _                       => "bi-question-circle text-muted"
+    };
+
+    private static CondicionClimatica MapearCondicion(int code) => code switch
+    {
+        0 or 1        => CondicionClimatica.Soleado,
+        2             => CondicionClimatica.ParcialmenteNublado,
+        3             => CondicionClimatica.Nublado,
+        45 or 48      => CondicionClimatica.Niebla,
+        95 or 96 or 99 => CondicionClimatica.Tormenta,
+        65 or 82      => CondicionClimatica.LluviaFuerte,
+        _             => CondicionClimatica.Lluvia
+    };
+
+    private static int CondicionAWmo(CondicionClimatica c) => c switch
+    {
+        CondicionClimatica.Soleado             => 0,
+        CondicionClimatica.ParcialmenteNublado => 2,
+        CondicionClimatica.Nublado             => 3,
+        CondicionClimatica.Niebla              => 45,
+        CondicionClimatica.LluviaFuerte        => 65,
+        CondicionClimatica.Tormenta            => 95,
+        CondicionClimatica.Lluvia              => 61,
+        CondicionClimatica.Viento              => 0,
+        _                                      => 3
+    };
+
+    private static string BadgeClima(CondicionClimatica c) => c switch
+    {
+        CondicionClimatica.Soleado             => "bg-warning text-dark",
+        CondicionClimatica.ParcialmenteNublado => "bg-secondary",
+        CondicionClimatica.Nublado             => "bg-secondary",
+        CondicionClimatica.Lluvia              => "bg-primary",
+        CondicionClimatica.LluviaFuerte        => "bg-danger",
+        CondicionClimatica.Tormenta            => "bg-danger",
+        CondicionClimatica.Viento              => "bg-info text-dark",
+        CondicionClimatica.Niebla              => "bg-light text-dark border",
+        _                                      => "bg-secondary"
+    };
+
+    private static string BadgeProbabilidad(int prob) => prob switch
+    {
+        < 30  => "bg-success",
+        < 60  => "bg-warning text-dark",
+        _     => "bg-danger"
+    };
+
+    // ── Helpers de fecha ──────────────────────────────────────────────────────
+
+    private static string DiaSemana(DateOnly d) => d.DayOfWeek switch
+    {
+        DayOfWeek.Monday    => "Lun",
+        DayOfWeek.Tuesday   => "Mar",
+        DayOfWeek.Wednesday => "Mié",
+        DayOfWeek.Thursday  => "Jue",
+        DayOfWeek.Friday    => "Vie",
+        DayOfWeek.Saturday  => "Sáb",
+        DayOfWeek.Sunday    => "Dom",
+        _                   => ""
+    };
+
+    private static string MesCorto(int m) => m switch
+    {
+        1 => "Ene", 2 => "Feb", 3 => "Mar", 4 => "Abr",
+        5 => "May", 6 => "Jun", 7 => "Jul", 8 => "Ago",
+        9 => "Sep", 10 => "Oct", 11 => "Nov", 12 => "Dic",
+        _ => ""
+    };
+
+    // ── Dispose ───────────────────────────────────────────────────────────────
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_mapaInicializado)
+        {
+            try { await JS.InvokeVoidAsync("leafletMap.destroy"); } catch { }
+        }
+        _dotNetRef?.Dispose();
+    }
+
+    // ── Modelos locales ───────────────────────────────────────────────────────
+
+    private sealed class UbicacionForm
+    {
+        public string   Pais         { get; set; } = string.Empty;
+        public string   Departamento { get; set; } = string.Empty;
+        public string   Municipio    { get; set; } = string.Empty;
+        public string   Direccion    { get; set; } = string.Empty;
+        public decimal? Latitud      { get; set; }
+        public decimal? Longitud     { get; set; }
+    }
+
+    private record ClimaActualDto(
+        decimal Temperatura,
+        decimal TemperaturaAparente,
+        decimal Humedad,
+        decimal VientoKmh,
+        decimal PrecipMm,
+        int     WmoCode
+    );
+
+    private record PronosticoDiarioDto(
+        DateOnly Fecha,
+        int      WmoCode,
+        decimal  TempMax,
+        decimal  TempMin,
+        decimal  PrecipSum,
+        int      PrecipProbabilidad,
+        decimal  VientoMax
+    );
+}

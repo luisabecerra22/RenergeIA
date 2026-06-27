@@ -1,0 +1,233 @@
+@page "/proyectos/{ProyectoId:int}/hseq/social/compromisos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Compromisos Sociales — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-patch-check me-2" style="color:#183963"></i>Compromisos Sociales</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo Compromiso
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Nuevo Compromiso Social</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Descripción *</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Descripcion" />
+                            <ValidationMessage For="() => _form.Descripcion" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoCompromisoSocial>())
+                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Comunidad</label>
+                            <InputSelect class="form-select" @bind-Value="_form.ComunidadId">
+                                <option value="">— Sin comunidad —</option>
+                                @foreach (var c in _comunidades)
+                                { <option value="@c.Id">@c.Nombre</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fuente / Origen</label>
+                            <InputText class="form-control" @bind-Value="_form.FuenteCompromiso" placeholder="Ej: Acta reunión, PMA, PAGA" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Compromiso</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaCompromiso" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Cumplimiento</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaCumplimiento" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_compromisos.Count</div>
+                <div class="text-muted small">Total compromisos</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Cumplido)</div>
+                <div class="text-muted small">Cumplidos</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.EnCumplimiento)</div>
+                <div class="text-muted small">En cumplimiento</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Vencido)</div>
+                <div class="text-muted small">Vencidos</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Descripción</th>
+                        <th>Responsable</th>
+                        <th>F. Cumplimiento</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_compromisos.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">No hay compromisos sociales registrados.</td></tr>
+                    }
+                    @foreach (var c in _compromisos.OrderBy(x => x.FechaCompromiso))
+                    {
+                        var vencido = c.Estado == EstadoCompromisoSocial.Vencido;
+                        <tr class="@(vencido ? "table-warning" : "")">
+                            <td>@c.Descripcion</td>
+                            <td class="small">@c.Responsable</td>
+                            <td class="small @(c.FechaCumplimiento < DateTime.Today && c.Estado != EstadoCompromisoSocial.Cumplido ? "text-danger fw-bold" : "")">
+                                @(c.FechaCumplimiento?.ToString("dd/MM/yyyy") ?? "—")
+                            </td>
+                            <td class="text-center"><span class="badge @BadgeComp(c.Estado)">@EnumDisplay.Mostrar(c.Estado)</span></td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == c.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<CompromisoSocial> _compromisos = [];
+    private List<Comunidad> _comunidades = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        _comunidades = await Db.Comunidades.Where(c => c.ProyectoId == ProyectoId).OrderBy(c => c.Nombre).ToListAsync();
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _compromisos = await Db.CompromissosSociales.Where(c => c.ProyectoId == ProyectoId).OrderBy(c => c.FechaCompromiso).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { FechaCompromiso = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.CompromissosSociales.Add(new CompromisoSocial
+        {
+            ProyectoId        = ProyectoId,
+            Descripcion       = _form.Descripcion,
+            Estado            = _form.Estado,
+            ComunidadId       = _form.ComunidadId == 0 ? null : _form.ComunidadId,
+            Responsable       = _form.Responsable,
+            Beneficiario      = "",
+            FuenteCompromiso  = _form.FuenteCompromiso,
+            FechaCompromiso   = _form.FechaCompromiso,
+            FechaCumplimiento = _form.FechaCumplimiento,
+            Observaciones     = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var c = await Db.CompromissosSociales.FindAsync(id);
+        if (c is not null) { Db.CompromissosSociales.Remove(c); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgeComp(EstadoCompromisoSocial e) => e switch
+    {
+        EstadoCompromisoSocial.Cumplido       => "bg-success",
+        EstadoCompromisoSocial.EnCumplimiento => "bg-primary",
+        EstadoCompromisoSocial.Pendiente      => "bg-warning text-dark",
+        EstadoCompromisoSocial.Vencido        => "bg-danger",
+        EstadoCompromisoSocial.Cancelado      => "bg-secondary",
+        _                                     => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Descripcion { get; set; } = "";
+        public EstadoCompromisoSocial Estado { get; set; } = EstadoCompromisoSocial.Pendiente;
+        public int ComunidadId { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
+        public string? FuenteCompromiso { get; set; }
+        public DateTime FechaCompromiso { get; set; } = DateTime.Today;
+        public DateTime? FechaCumplimiento { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

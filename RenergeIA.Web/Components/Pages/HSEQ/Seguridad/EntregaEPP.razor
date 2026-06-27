@@ -1,0 +1,493 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/epp"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using RenergeIA.Core.Entities.HSEQ
+@using ClosedXML.Excel
+
+<PageTitle>EPP / Dotación — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-shield-fill-check me-2" style="color:#183963"></i>EPP / Dotación</h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; Período reposición: cada 4 meses</small>
+        </div>
+        <button class="btn btn-success btn-sm" @onclick="ExportarExcelAsync">
+            <i class="bi-file-earmark-excel me-1"></i>Exportar Excel
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="ImprimirAsync">
+            <i class="bi-printer me-1"></i>Imprimir
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Registrar Entrega</button>
+    </div>
+
+    <!-- Alertas de vencimiento -->
+    @if (_proximasVencer.Any())
+    {
+        <div class="alert alert-warning border-0 shadow-sm mb-3 py-2">
+            <i class="bi-clock-fill me-2"></i>
+            <strong>@_proximasVencer.Count entrega(s)</strong> de EPP vencen en los próximos 30 días.
+            <a class="alert-link ms-2" @onclick="FiltrarProximas" href="#">Ver</a>
+        </div>
+    }
+    @if (_vencidas.Any())
+    {
+        <div class="alert alert-danger border-0 shadow-sm mb-3 py-2">
+            <i class="bi-shield-x me-2"></i>
+            <strong>@_vencidas.Count entrega(s)</strong> de EPP/Dotación están vencidas y requieren reposición.
+            <a class="alert-link ms-2" @onclick="FiltrarVencidas" href="#">Ver</a>
+        </div>
+    }
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_entregas.Count</div>
+                <div class="text-muted small">Total Registros</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_entregas.Count(e => !e.FechaVencimiento.HasValue || e.FechaVencimiento >= DateTime.Today.AddDays(30))</div>
+                <div class="text-muted small">Al Día</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_proximasVencer.Count</div>
+                <div class="text-muted small">Próx. a Vencer (30 días)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_vencidas.Count</div>
+                <div class="text-muted small">Vencidas</div>
+            </div>
+        </div>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar Entrega EPP / Dotación" : "Registrar Entrega EPP / Dotación")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Trabajador *</label>
+                            <InputText class="form-control" @bind-Value="_form.Trabajador" />
+                            <ValidationMessage For="() => _form.Trabajador" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Documento (CC) *</label>
+                            <InputText class="form-control" @bind-Value="_form.Documento" />
+                            <ValidationMessage For="() => _form.Documento" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Cargo</label>
+                            <InputText class="form-control" @bind-Value="_form.Cargo" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Área *</label>
+                            <InputText class="form-control" @bind-Value="_form.Area" />
+                            <ValidationMessage For="() => _form.Area" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo de Entrega</label>
+                            <InputSelect class="form-select" @bind-Value="_form.TipoEntrega">
+                                <option value="EPP">EPP</option>
+                                <option value="Dotación">Dotación</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Ítem *</label>
+                            <InputText class="form-control" @bind-Value="_form.ItemEPP" placeholder="Ej: Casco, Arnés, Overol" />
+                            <ValidationMessage For="() => _form.ItemEPP" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Descripción</label>
+                            <InputText class="form-control" @bind-Value="_form.Descripcion" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Talla</label>
+                            <InputText class="form-control" @bind-Value="_form.Talla" placeholder="S, M, L, XL, 42..." />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cantidad</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Cantidad" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Entrega</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaEntrega" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Próxima Entrega</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaVencimiento" />
+                            <div class="form-text">Reposición cada 4 meses</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Entregado Por *</label>
+                            <InputText class="form-control" @bind-Value="_form.EntregadoPor" />
+                            <ValidationMessage For="() => _form.EntregadoPor" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="_form.FirmaConformidad" id="firma" />
+                                <label class="form-check-label" for="firma">Firma OK</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Filtros -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Buscar trabajador o ítem..."
+               @bind="_busqueda" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="max-width:140px" @bind="_filtroTipo">
+            <option value="">Todos</option>
+            <option value="EPP">EPP</option>
+            <option value="Dotación">Dotación</option>
+        </select>
+        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroAlerta">
+            <option value="">Todo</option>
+            <option value="vencidas">Solo vencidas</option>
+            <option value="proximas">Próx. a vencer</option>
+        </select>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Trabajador</th>
+                        <th>Área</th>
+                        <th>Tipo</th>
+                        <th>Ítem</th>
+                        <th>Talla</th>
+                        <th class="text-center">Cant.</th>
+                        <th>F. Entrega</th>
+                        <th>Próx. Entrega</th>
+                        <th>Entregado Por</th>
+                        <th class="text-center">Firma</th>
+                        <th class="text-center">Acc.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!EPPFiltrado.Any())
+                    {
+                        <tr><td colspan="11" class="text-center text-muted py-4">No hay registros de EPP.</td></tr>
+                    }
+                    @foreach (var e in EPPFiltrado)
+                    {
+                        var vencida = e.FechaVencimiento.HasValue && e.FechaVencimiento < DateTime.Today;
+                        var proxima = e.FechaVencimiento.HasValue && e.FechaVencimiento >= DateTime.Today && e.FechaVencimiento <= DateTime.Today.AddDays(30);
+                        <tr class="@(vencida ? "table-danger" : proxima ? "table-warning" : "")">
+                            <td>
+                                <div class="fw-semibold">@e.Trabajador</div>
+                                <div class="text-muted" style="font-size:.78rem">@e.Documento &bull; @e.Cargo</div>
+                            </td>
+                            <td>@e.Area</td>
+                            <td><span class="badge @(e.TipoEntrega == "EPP" ? "bg-primary" : "bg-info text-dark")">@e.TipoEntrega</span></td>
+                            <td>
+                                <div>@e.ItemEPP</div>
+                                @if (!string.IsNullOrEmpty(e.Descripcion))
+                                { <div class="text-muted" style="font-size:.78rem">@e.Descripcion</div> }
+                            </td>
+                            <td class="text-muted">@(e.Talla ?? "—")</td>
+                            <td class="text-center">@e.Cantidad</td>
+                            <td>@e.FechaEntrega.ToString("dd/MM/yyyy")</td>
+                            <td class="@(vencida ? "text-danger fw-bold" : proxima ? "text-warning fw-bold" : "")">
+                                @(e.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                                @if (vencida) { <span class="badge bg-danger ms-1">Vencida</span> }
+                                else if (proxima) { <span class="badge bg-warning text-dark ms-1">Pronto</span> }
+                            </td>
+                            <td>@e.EntregadoPor</td>
+                            <td class="text-center">
+                                @if (e.FirmaConformidad)
+                                { <i class="bi-check-circle-fill text-success"></i> }
+                                else
+                                { <i class="bi-x-circle text-danger"></i> }
+                            </td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == e.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(e.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(e)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = e.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<RenergeIA.Core.Entities.HSEQ.EntregaEPP> _entregas = [];
+    private List<RenergeIA.Core.Entities.HSEQ.EntregaEPP> _vencidas = [];
+    private List<RenergeIA.Core.Entities.HSEQ.EntregaEPP> _proximasVencer = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private string _filtroTipo = "";
+    private string _filtroAlerta = "";
+    private FormModel _form = new();
+
+    private IEnumerable<RenergeIA.Core.Entities.HSEQ.EntregaEPP> EPPFiltrado => _entregas
+        .Where(e =>
+            (string.IsNullOrEmpty(_busqueda) || e.Trabajador.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || e.ItemEPP.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrEmpty(_filtroTipo) || e.TipoEntrega == _filtroTipo)
+            && (_filtroAlerta == "" ||
+                (_filtroAlerta == "vencidas" && e.FechaVencimiento.HasValue && e.FechaVencimiento < DateTime.Today) ||
+                (_filtroAlerta == "proximas" && e.FechaVencimiento.HasValue && e.FechaVencimiento >= DateTime.Today && e.FechaVencimiento <= DateTime.Today.AddDays(30))));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _entregas = await Db.EntregasEPP.Where(e => e.ProyectoId == ProyectoId).OrderByDescending(e => e.FechaEntrega).ToListAsync();
+        _vencidas = _entregas.Where(e => e.FechaVencimiento.HasValue && e.FechaVencimiento < DateTime.Today).ToList();
+        _proximasVencer = _entregas.Where(e => e.FechaVencimiento.HasValue && e.FechaVencimiento >= DateTime.Today && e.FechaVencimiento <= DateTime.Today.AddDays(30)).ToList();
+    }
+
+    private void MostrarFormulario() { _form = new FormModel { FechaEntrega = DateTime.Today }; _editandoId = null; _mostrarFormulario = true; }
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+    private void FiltrarProximas() { _filtroAlerta = "proximas"; }
+    private void FiltrarVencidas() { _filtroAlerta = "vencidas"; }
+
+    private void EditarItem(RenergeIA.Core.Entities.HSEQ.EntregaEPP e)
+    {
+        _form = new FormModel
+        {
+            Trabajador       = e.Trabajador,
+            Documento        = e.Documento,
+            Cargo            = e.Cargo,
+            Area             = e.Area,
+            TipoEntrega      = e.TipoEntrega,
+            ItemEPP          = e.ItemEPP,
+            Descripcion      = e.Descripcion,
+            Talla            = e.Talla,
+            Cantidad         = e.Cantidad,
+            FechaEntrega     = e.FechaEntrega,
+            FechaVencimiento = e.FechaVencimiento,
+            EntregadoPor     = e.EntregadoPor,
+            FirmaConformidad = e.FirmaConformidad,
+            Observaciones    = e.Observaciones
+        };
+        _editandoId = e.Id;
+        _mostrarFormulario = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var entidad = await Db.EntregasEPP.FindAsync(_editandoId.Value);
+            if (entidad is not null)
+            {
+                entidad.Trabajador       = _form.Trabajador;
+                entidad.Documento        = _form.Documento;
+                entidad.Cargo            = _form.Cargo;
+                entidad.Area             = _form.Area;
+                entidad.TipoEntrega      = _form.TipoEntrega;
+                entidad.ItemEPP          = _form.ItemEPP;
+                entidad.Descripcion      = _form.Descripcion;
+                entidad.Talla            = _form.Talla;
+                entidad.Cantidad         = _form.Cantidad;
+                entidad.FechaEntrega     = _form.FechaEntrega;
+                entidad.FechaVencimiento = _form.FechaVencimiento;
+                entidad.EntregadoPor     = _form.EntregadoPor;
+                entidad.FirmaConformidad = _form.FirmaConformidad;
+                entidad.Observaciones    = _form.Observaciones;
+                entidad.FechaModificacion = DateTime.UtcNow;
+            }
+            await Db.SaveChangesAsync();
+            CancelarFormulario();
+            await CargarAsync();
+            return;
+        }
+
+        Db.EntregasEPP.Add(new RenergeIA.Core.Entities.HSEQ.EntregaEPP
+        {
+            ProyectoId       = ProyectoId,
+            Trabajador       = _form.Trabajador,
+            Documento        = _form.Documento,
+            Cargo            = _form.Cargo,
+            Area             = _form.Area,
+            TipoEntrega      = _form.TipoEntrega,
+            ItemEPP          = _form.ItemEPP,
+            Descripcion      = _form.Descripcion,
+            Talla            = _form.Talla,
+            Cantidad         = _form.Cantidad,
+            FechaEntrega     = _form.FechaEntrega,
+            FechaVencimiento = _form.FechaVencimiento,
+            EntregadoPor     = _form.EntregadoPor,
+            FirmaConformidad = _form.FirmaConformidad,
+            Observaciones    = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var e = await Db.EntregasEPP.FindAsync(id);
+        if (e is not null) { Db.EntregasEPP.Remove(e); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Trabajador { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Documento { get; set; } = "";
+        public string Cargo { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Area { get; set; } = "";
+        public string TipoEntrega { get; set; } = "EPP";
+        [System.ComponentModel.DataAnnotations.Required] public string ItemEPP { get; set; } = "";
+        public string Descripcion { get; set; } = "";
+        public string? Talla { get; set; }
+        public int Cantidad { get; set; } = 1;
+        public DateTime FechaEntrega { get; set; } = DateTime.Today;
+        public DateTime? FechaVencimiento { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string EntregadoPor { get; set; } = "";
+        public bool FirmaConformidad { get; set; }
+        public string? Observaciones { get; set; }
+    }
+
+    // ── Exportar ─────────────────────────────────────────────────────────────
+
+    private async Task ExportarExcelAsync()
+    {
+        var hoy = DateTime.Today;
+
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add("EPP Dotación");
+
+        // Título
+        ws.Cell(1, 1).Value = $"Registro EPP / Dotación — {_proyecto!.Nombre}";
+        ws.Cell(1, 1).Style.Font.Bold = true;
+        ws.Cell(1, 1).Style.Font.FontSize = 14;
+        ws.Cell(1, 1).Style.Font.FontColor = XLColor.FromHtml("#183963");
+        ws.Range(1, 1, 1, 14).Merge();
+
+        ws.Cell(2, 1).Value = $"Generado: {DateTime.Now:dd/MM/yyyy HH:mm}    Total registros: {_entregas.Count}";
+        ws.Cell(2, 1).Style.Font.Italic = true;
+        ws.Cell(2, 1).Style.Font.FontColor = XLColor.Gray;
+        ws.Range(2, 1, 2, 14).Merge();
+
+        // Encabezados
+        var headers = new[] { "Trabajador", "Documento", "Cargo", "Área", "Tipo", "Ítem EPP",
+                               "Descripción", "Talla", "Cantidad", "F. Entrega", "Próxima Entrega",
+                               "Entregado Por", "Firma", "Estado" };
+        for (int c = 0; c < headers.Length; c++)
+        {
+            var cell = ws.Cell(4, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        }
+
+        // Filas de datos
+        int fila = 5;
+        foreach (var e in _entregas)
+        {
+            var estado = e.FechaVencimiento.HasValue && e.FechaVencimiento < hoy ? "Vencida"
+                       : e.FechaVencimiento.HasValue && e.FechaVencimiento <= hoy.AddDays(30) ? "Próxima a vencer"
+                       : "Al día";
+
+            ws.Cell(fila, 1).Value  = e.Trabajador;
+            ws.Cell(fila, 2).Value  = e.Documento;
+            ws.Cell(fila, 3).Value  = e.Cargo;
+            ws.Cell(fila, 4).Value  = e.Area;
+            ws.Cell(fila, 5).Value  = e.TipoEntrega;
+            ws.Cell(fila, 6).Value  = e.ItemEPP;
+            ws.Cell(fila, 7).Value  = e.Descripcion;
+            ws.Cell(fila, 8).Value  = e.Talla ?? "";
+            ws.Cell(fila, 9).Value  = e.Cantidad;
+            ws.Cell(fila, 10).Value = e.FechaEntrega.ToString("dd/MM/yyyy");
+            ws.Cell(fila, 11).Value = e.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "";
+            ws.Cell(fila, 12).Value = e.EntregadoPor;
+            ws.Cell(fila, 13).Value = e.FirmaConformidad ? "Sí" : "No";
+            ws.Cell(fila, 14).Value = estado;
+
+            // Color de fondo según estado
+            var bgColor = estado == "Vencida"            ? XLColor.FromHtml("#ffd6d6")
+                        : estado == "Próxima a vencer"   ? XLColor.FromHtml("#fff3cd")
+                        : XLColor.White;
+
+            ws.Range(fila, 1, fila, 14).Style.Fill.BackgroundColor = bgColor;
+            ws.Range(fila, 1, fila, 14).Style.Border.OutsideBorder = XLBorderStyleValues.Hair;
+
+            // Color celda Estado
+            var estadoCell = ws.Cell(fila, 14);
+            estadoCell.Style.Font.Bold = true;
+            estadoCell.Style.Font.FontColor = estado == "Vencida"          ? XLColor.Red
+                                            : estado == "Próxima a vencer" ? XLColor.FromHtml("#856404")
+                                            : XLColor.FromHtml("#146c43");
+            fila++;
+        }
+
+        // Ancho automático
+        ws.Columns().AdjustToContents();
+
+        // Fijar encabezados
+        ws.SheetView.FreezeRows(4);
+
+        // Convertir a bytes y descargar
+        using var ms = new System.IO.MemoryStream();
+        wb.SaveAs(ms);
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        var nombre = $"EPP_Dotacion_{_proyecto.Nombre.Replace(" ", "_")}_{DateTime.Today:yyyyMMdd}.xlsx";
+
+        await JS.InvokeVoidAsync("downloadFile", nombre, base64,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private async Task ImprimirAsync()
+    {
+        await JS.InvokeVoidAsync("imprimirPagina");
+    }
+}

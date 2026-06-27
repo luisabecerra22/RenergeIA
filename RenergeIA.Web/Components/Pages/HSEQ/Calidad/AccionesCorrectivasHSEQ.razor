@@ -1,0 +1,129 @@
+@page "/proyectos/{ProyectoId:int}/hseq/calidad/acciones"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Acciones Correctivas Calidad — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-arrow-repeat me-2" style="color:#183963"></i>Acciones Correctivas — Calidad</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+    </div>
+
+    @if (!_acciones.Any())
+    {
+        <div class="card shadow-sm text-center py-5">
+            <i class="bi-arrow-repeat d-block mb-2" style="font-size:3rem;color:#D9D9D6"></i>
+            <p class="text-muted mb-2">No hay acciones correctivas registradas.</p>
+            <p class="text-muted small">Las acciones correctivas se crean desde las No Conformidades.</p>
+            <a href="/proyectos/@ProyectoId/hseq/calidad/no-conformidades" class="btn btn-primary btn-sm">
+                Ir a No Conformidades
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                    <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta && a.FechaCompromiso < DateTime.Today)</div>
+                    <div class="text-muted small">Vencidas</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                    <div class="fw-bold" style="font-size:1.6rem;color:#183963">@_acciones.Count(a => a.Estado == EstadoNoConformidad.EnImplementacion)</div>
+                    <div class="text-muted small">En Proceso</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                    <div class="fw-bold" style="font-size:1.6rem;color:#6ABF4B">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Cerrada)</div>
+                    <div class="text-muted small">Cerradas</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                    <div class="fw-bold" style="font-size:1.6rem;color:#fd7e14">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta)</div>
+                    <div class="text-muted small">Abiertas</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Descripción</th>
+                            <th>Responsable</th>
+                            <th class="text-center">Avance</th>
+                            <th>F. Compromiso</th>
+                            <th class="text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _acciones.OrderBy(x => x.FechaCompromiso))
+                        {
+                            <tr>
+                                <td>@a.Descripcion</td>
+                                <td class="small">@a.Responsable</td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:8px">
+                                            <div class="progress-bar @(a.AvancePorcentaje >= 100 ? "bg-success" : a.AvancePorcentaje >= 50 ? "bg-primary" : "bg-warning")"
+                                                 style="width:@a.AvancePorcentaje%"></div>
+                                        </div>
+                                        <small>@a.AvancePorcentaje%</small>
+                                    </div>
+                                </td>
+                                <td class="small @(a.FechaCompromiso < DateTime.Today && a.Estado != EstadoNoConformidad.Cerrada ? "text-danger fw-bold" : "")">
+                                    @a.FechaCompromiso.ToString("dd/MM/yyyy")
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @BadgeAcc(a.Estado)">@EnumDisplay.Mostrar(a.Estado)</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<AccionHSEQ> _acciones = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        _acciones = await Db.AccionesHSEQ
+            .Include(a => a.HallazgoHSEQ)
+            .Where(a => a.HallazgoHSEQ.ProyectoId == ProyectoId && a.HallazgoHSEQ.Division == DivisionHSEQ.Calidad)
+            .OrderBy(a => a.FechaCompromiso)
+            .ToListAsync();
+    }
+
+    private static string BadgeAcc(EstadoNoConformidad e) => e switch
+    {
+        EstadoNoConformidad.Cerrada          => "bg-success",
+        EstadoNoConformidad.EnImplementacion => "bg-primary",
+        EstadoNoConformidad.Abierta          => "bg-warning text-dark",
+        _                                    => "bg-secondary"
+    };
+}

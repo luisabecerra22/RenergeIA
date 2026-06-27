@@ -1,0 +1,250 @@
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental/fauna-flora"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Fauna y Flora — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-bug me-2" style="color:#6ABF4B"></i>Fauna y Flora</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo Registro
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header text-white d-flex justify-content-between" style="background:#6ABF4B">
+                <strong>Registro de Fauna y Flora</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo *</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Tipo">
+                                <option value="Fauna">Fauna</option>
+                                <option value="Flora">Flora</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Especie *</label>
+                            <InputText class="form-control" @bind-Value="_form.Especie" placeholder="Nombre común" />
+                            <ValidationMessage For="() => _form.Especie" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nombre Científico</label>
+                            <InputText class="form-control" @bind-Value="_form.NombreCientifico" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Estado de Conservación</label>
+                            <InputText class="form-control" @bind-Value="_form.Estado" placeholder="Ej: VU, EN, LC, CR" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ubicación</label>
+                            <InputText class="form-control" @bind-Value="_form.Ubicacion" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Registro</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaRegistro" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Registrado Por</label>
+                            <InputText class="form-control" @bind-Value="_form.RegistradoPor" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Acciones de Manejo</label>
+                            <InputText class="form-control" @bind-Value="_form.AccionesManejo" placeholder="Ej: Rescate y relocalización, Protección in situ" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="d-flex gap-2 mb-3">
+        <select class="form-select form-select-sm" style="max-width:150px" @bind="_filtroTipo">
+            <option value="">Fauna + Flora</option>
+            <option value="Fauna">Solo Fauna</option>
+            <option value="Flora">Solo Flora</option>
+        </select>
+        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar especie..."
+               @bind="_busqueda" @bind:event="oninput" />
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_registros.Count</div>
+                <div class="text-muted small">Total registros</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_registros.Count(r => r.Tipo == "Fauna")</div>
+                <div class="text-muted small">Fauna</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_registros.Count(r => r.Tipo == "Flora")</div>
+                <div class="text-muted small">Flora</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_registros.Count(r => !string.IsNullOrEmpty(r.Estado) && r.Estado != "LC")</div>
+                <div class="text-muted small">Con estado especial</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Especie</th>
+                        <th>Estado conservación</th>
+                        <th>Ubicación</th>
+                        <th>Registrado Por</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!RegistrosFiltrados.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No hay registros de fauna y flora.</td></tr>
+                    }
+                    @foreach (var r in RegistrosFiltrados)
+                    {
+                        <tr>
+                            <td>
+                                <span class="badge @(r.Tipo == "Fauna" ? "bg-primary" : "bg-success")">
+                                    <i class="bi-@(r.Tipo == "Fauna" ? "bug" : "tree") me-1"></i>@r.Tipo
+                                </span>
+                            </td>
+                            <td class="fw-semibold">@r.Especie</td>
+                            <td class="text-center">
+                                @if (!string.IsNullOrEmpty(r.Estado))
+                                {
+                                    <span class="badge @(r.Estado == "LC" ? "bg-success" : r.Estado == "VU" ? "bg-warning text-dark" : "bg-danger")">
+                                        @r.Estado
+                                    </span>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td class="small text-muted">@(string.IsNullOrEmpty(r.Ubicacion) ? "—" : r.Ubicacion)</td>
+                            <td class="small">@(string.IsNullOrEmpty(r.RegistradoPor) ? "—" : r.RegistradoPor)</td>
+                            <td class="small">@r.FechaRegistro.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == r.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<RegistroFaunaFlora> _registros = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private string _filtroTipo = "";
+    private FormModel _form = new();
+
+    private IEnumerable<RegistroFaunaFlora> RegistrosFiltrados => _registros
+        .Where(r =>
+            (string.IsNullOrEmpty(_filtroTipo) || r.Tipo == _filtroTipo)
+            && (string.IsNullOrEmpty(_busqueda) || r.Especie.Contains(_busqueda, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _registros = await Db.RegistrosFaunaFlora.Where(r => r.ProyectoId == ProyectoId).OrderByDescending(r => r.FechaRegistro).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { FechaRegistro = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.RegistrosFaunaFlora.Add(new RegistroFaunaFlora
+        {
+            ProyectoId      = ProyectoId,
+            Tipo            = _form.Tipo,
+            Especie         = _form.Especie,
+            NombreCientifico = _form.NombreCientifico ?? "",
+            Estado          = _form.Estado ?? "",
+            Ubicacion       = _form.Ubicacion ?? "",
+            FechaRegistro   = _form.FechaRegistro,
+            RegistradoPor   = _form.RegistradoPor ?? "",
+            AccionesManejo  = _form.AccionesManejo,
+            Observaciones   = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var r = await Db.RegistrosFaunaFlora.FindAsync(id);
+        if (r is not null) { Db.RegistrosFaunaFlora.Remove(r); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        public string Tipo { get; set; } = "Fauna";
+        [System.ComponentModel.DataAnnotations.Required] public string Especie { get; set; } = "";
+        public string? NombreCientifico { get; set; }
+        public string? Estado { get; set; }
+        public string? Ubicacion { get; set; }
+        public DateTime FechaRegistro { get; set; } = DateTime.Today;
+        public string? RegistradoPor { get; set; }
+        public string? AccionesManejo { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

@@ -1,0 +1,303 @@
+@page "/proyectos/{ProyectoId:int}/hseq/calidad/calibracion"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Calibración Equipos — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-tools me-2" style="color:#183963"></i>Control de Calibración de Equipos</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo Equipo
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar Equipo" : "Nuevo Equipo de Medición")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Código *</label>
+                            <InputText class="form-control" @bind-Value="_form.Codigo" />
+                            <ValidationMessage For="() => _form.Codigo" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Nombre del Equipo *</label>
+                            <InputText class="form-control" @bind-Value="_form.Nombre" />
+                            <ValidationMessage For="() => _form.Nombre" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Serial</label>
+                            <InputText class="form-control" @bind-Value="_form.Serial" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Marca</label>
+                            <InputText class="form-control" @bind-Value="_form.Marca" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Modelo</label>
+                            <InputText class="form-control" @bind-Value="_form.Modelo" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">N° Certificado</label>
+                            <InputText class="form-control" @bind-Value="_form.NumeroCertificado" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Calibración</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaCalibracion" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Vencimiento</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaVencimiento" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Ubicación</label>
+                            <InputText class="form-control" @bind-Value="_form.Ubicacion" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Observaciones</label>
+                            <InputText class="form-control" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Semáforo visual -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div style="font-size:2rem;color:#6ABF4B"><i class="bi-circle-fill"></i></div>
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vigente)</div>
+                <div class="text-muted small">Vigentes</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div style="font-size:2rem;color:#fd7e14"><i class="bi-circle-fill"></i></div>
+                <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.ProximoAVencer)</div>
+                <div class="text-muted small">Próximos a Vencer</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                <div style="font-size:2rem;color:#dc3545"><i class="bi-circle-fill"></i></div>
+                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vencido)</div>
+                <div class="text-muted small">Vencidos</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-secondary">
+                <div style="font-size:2rem;color:#6c757d"><i class="bi-circle-fill"></i></div>
+                <div class="fw-bold" style="font-size:1.8rem;color:#6c757d">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.SinCertificado)</div>
+                <div class="text-muted small">Sin Certificado</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 mb-3">
+        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar equipo..."
+               @bind="_busqueda" @bind:event="oninput" />
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Equipo</th>
+                        <th>Marca / Modelo</th>
+                        <th>Serial</th>
+                        <th>Vencimiento</th>
+                        <th class="text-center">Estado</th>
+                        <th>Responsable</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!EquiposFiltrados.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay equipos registrados.</td></tr>
+                    }
+                    @foreach (var e in EquiposFiltrados)
+                    {
+                        var estado = EstadoCalib(e);
+                        <tr>
+                            <td class="font-monospace small text-muted">@e.Codigo</td>
+                            <td class="fw-semibold">@e.Nombre</td>
+                            <td class="text-muted small">@e.Marca @e.Modelo</td>
+                            <td class="text-muted small">@(e.Serial ?? "—")</td>
+                            <td class="small @(estado == EstadoCalibracion.Vencido ? "text-danger fw-bold" : estado == EstadoCalibracion.ProximoAVencer ? "text-warning fw-semibold" : "")">
+                                @(e.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @BadgeCalib(estado)">@EnumDisplay.Mostrar(estado)</span>
+                            </td>
+                            <td class="small">@e.Responsable</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == e.Id)
+                                {
+                                    <span class="me-1 text-danger small">¿Eliminar?</span>
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(e.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(e)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = e.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<EquipoCalibracion> _equipos = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private FormModel _form = new();
+
+    private IEnumerable<EquipoCalibracion> EquiposFiltrados => _equipos
+        .Where(e => string.IsNullOrEmpty(_busqueda) || e.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || e.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _equipos = await Db.EquiposCalibracion.Where(e => e.ProyectoId == ProyectoId).OrderBy(e => e.Nombre).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel(); _editandoId = null; _mostrarFormulario = true; }
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+
+    private void EditarItem(EquipoCalibracion e)
+    {
+        _form = new FormModel
+        {
+            Codigo            = e.Codigo,
+            Nombre            = e.Nombre,
+            Serial            = e.Serial,
+            Marca             = e.Marca,
+            Modelo            = e.Modelo,
+            NumeroCertificado = e.NumeroCertificado,
+            FechaCalibracion  = e.FechaCalibracion,
+            FechaVencimiento  = e.FechaVencimiento,
+            Responsable       = e.Responsable,
+            Ubicacion         = e.Ubicacion,
+            Observaciones     = e.Observaciones
+        };
+        _editandoId = e.Id;
+        _mostrarFormulario = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var entidad = await Db.EquiposCalibracion.FindAsync(_editandoId.Value);
+            if (entidad is not null) MapearForm(entidad);
+        }
+        else
+        {
+            var entidad = new EquipoCalibracion { ProyectoId = ProyectoId };
+            MapearForm(entidad);
+            Db.EquiposCalibracion.Add(entidad);
+        }
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private void MapearForm(EquipoCalibracion e)
+    {
+        e.Codigo            = _form.Codigo;
+        e.Nombre            = _form.Nombre;
+        e.Serial            = _form.Serial ?? "";
+        e.Marca             = _form.Marca ?? "";
+        e.Modelo            = _form.Modelo ?? "";
+        e.NumeroCertificado = _form.NumeroCertificado;
+        e.FechaCalibracion  = _form.FechaCalibracion;
+        e.FechaVencimiento  = _form.FechaVencimiento;
+        e.Responsable       = _form.Responsable;
+        e.Ubicacion         = _form.Ubicacion;
+        e.Observaciones     = _form.Observaciones;
+        e.FechaModificacion = DateTime.UtcNow;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var entidad = await Db.EquiposCalibracion.FindAsync(id);
+        if (entidad is not null) { Db.EquiposCalibracion.Remove(entidad); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static EstadoCalibracion EstadoCalib(EquipoCalibracion e) =>
+        e.FechaVencimiento is null ? EstadoCalibracion.SinCertificado :
+        e.FechaVencimiento < DateTime.Today ? EstadoCalibracion.Vencido :
+        e.FechaVencimiento < DateTime.Today.AddDays(30) ? EstadoCalibracion.ProximoAVencer :
+        EstadoCalibracion.Vigente;
+
+    private static string BadgeCalib(EstadoCalibracion estado) => estado switch
+    {
+        EstadoCalibracion.Vigente        => "bg-success",
+        EstadoCalibracion.ProximoAVencer => "bg-warning text-dark",
+        EstadoCalibracion.Vencido        => "bg-danger",
+        _                                => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Codigo { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Nombre { get; set; } = "";
+        public string? Serial { get; set; }
+        public string? Marca { get; set; }
+        public string? Modelo { get; set; }
+        public string? NumeroCertificado { get; set; }
+        public DateTime? FechaCalibracion { get; set; }
+        public DateTime? FechaVencimiento { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
+        public string? Ubicacion { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

@@ -1,0 +1,130 @@
+@page "/proyectos/{ProyectoId:int}/personal"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>Personal — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0">Personal — @_proyecto.Nombre</h1>
+    </div>
+    <p class="text-muted small mb-3">Empleados, contratistas y subcontratistas vinculados al proyecto.</p>
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <input class="form-control form-control-sm" style="width:220px" placeholder="Buscar nombre, cargo..."
+                   @bind="_busqueda" @bind:event="oninput" />
+            <select class="form-select form-select-sm" style="width:160px" @bind="_filtroTipo">
+                <option value="">Todos los tipos</option>
+                @foreach (var t in Enum.GetValues<TipoPersonal>())
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+            <select class="form-select form-select-sm" style="width:140px" @bind="_filtroActivo">
+                <option value="true">Solo activos</option>
+                <option value="false">Solo inactivos</option>
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <a href="/proyectos/@ProyectoId/personal/nuevo" class="btn btn-primary btn-sm">+ Agregar persona</a>
+    </div>
+
+    @if (!PersonalFiltrado.Any())
+    {
+        <div class="alert alert-info">No hay personal que coincida con los filtros.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Cargo</th>
+                        <th>Empresa</th>
+                        <th>Tipo</th>
+                        <th>Ingreso</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in PersonalFiltrado)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@p.Apellido</strong>, @p.Nombre<br />
+                                <small class="text-muted">@p.DocumentoIdentidad</small>
+                            </td>
+                            <td>@p.Cargo</td>
+                            <td>@p.Empresa</td>
+                            <td><span class="badge @TipoBadge(p.TipoPersonal)">@EnumDisplay.Mostrar(p.TipoPersonal)</span></td>
+                            <td>@p.FechaIngreso.ToShortDateString()</td>
+                            <td>
+                                @if (p.Activo)
+                                {
+                                    <span class="badge bg-success">Activo</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactivo</span>
+                                }
+                            </td>
+                            <td>
+                                <a href="/proyectos/@ProyectoId/personal/@p.Id/editar"
+                                   class="btn btn-sm btn-outline-primary">Editar</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<PersonalProyecto> _personal = [];
+    private string _busqueda = string.Empty;
+    private string _filtroTipo = string.Empty;
+    private string _filtroActivo = "true";
+
+    private IEnumerable<PersonalProyecto> PersonalFiltrado => _personal
+        .Where(p =>
+            (string.IsNullOrEmpty(_busqueda) ||
+             $"{p.Nombre} {p.Apellido} {p.Cargo} {p.Empresa}".Contains(_busqueda, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(_filtroTipo) || p.TipoPersonal.ToString() == _filtroTipo) &&
+            (string.IsNullOrEmpty(_filtroActivo) || p.Activo.ToString().ToLower() == _filtroActivo)
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        _personal = await Db.PersonalProyecto
+            .Where(p => p.ProyectoId == ProyectoId)
+            .OrderBy(p => p.Apellido).ThenBy(p => p.Nombre)
+            .ToListAsync();
+    }
+
+    private static string TipoBadge(TipoPersonal tipo) => tipo switch
+    {
+        TipoPersonal.Empleado => "bg-primary",
+        TipoPersonal.Contratista => "bg-info text-dark",
+        TipoPersonal.Subcontratista => "bg-warning text-dark",
+        TipoPersonal.Visitante => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+}

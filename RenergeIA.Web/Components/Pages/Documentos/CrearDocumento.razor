@@ -1,0 +1,315 @@
+@page "/proyectos/{ProyectoId:int}/documentos/crear"
+@page "/proyectos/{ProyectoId:int}/documentos/{DocumentoId:int}/editar"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject DocumentoService DocService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>@(_esNuevo ? "Nuevo documento" : "Editar documento") — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@ProyectoId/documentos" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div>
+            <h1 class="h3 mb-0">@(_esNuevo ? "Nuevo documento" : "Editar documento")</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Código <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_form.Codigo" placeholder="Ej: PL-CIV-001" />
+                        <ValidationMessage For="() => _form.Codigo" />
+                    </div>
+
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Título <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_form.Titulo" placeholder="Nombre descriptivo del documento" />
+                        <ValidationMessage For="() => _form.Titulo" />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+                        <InputSelect class="form-select" @bind-Value="_form.TipoDocumento">
+                            @foreach (var tipo in Enum.GetValues<TipoDocumento>())
+                            {
+                                <option value="@tipo">@NombreTipo(tipo)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Disciplina</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Disciplina">
+                            @foreach (var disc in Enum.GetValues<DisciplinaDocumento>())
+                            {
+                                <option value="@disc">@NombreDisciplina(disc)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Estado</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Estado">
+                            @foreach (var est in Enum.GetValues<EstadoDocumento>())
+                            {
+                                <option value="@est">@EnumDisplay.Mostrar(est)</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Fecha de emisión</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaEmision" />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Descripción</label>
+                        <InputTextArea class="form-control" @bind-Value="_form.Descripcion" rows="2"
+                                       placeholder="Descripción breve del documento (opcional)" />
+                    </div>
+
+                    @if (_esNuevo)
+                    {
+                        <div class="col-12">
+                            <hr />
+                            <h6 class="text-muted">Primera versión del documento</h6>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Archivo <span class="text-danger">*</span></label>
+                            <InputFile OnChange="SeleccionarArchivo" class="form-control" accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.zip,.rar" />
+                            @if (_archivoSeleccionado is not null)
+                            {
+                                <div class="mt-1 text-muted small">
+                                    ✓ @_archivoSeleccionado.Name — @DocumentoService.FormatearTamanio(_archivoSeleccionado.Size)
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(_errorArchivo))
+                            {
+                                <div class="text-danger small mt-1">@_errorArchivo</div>
+                            }
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Comentarios de la Rev 0</label>
+                            <InputText class="form-control" @bind-Value="_form.ComentariosVersion"
+                                       placeholder="Descripción inicial del documento" />
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary" disabled="@_guardando">
+                        @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        @(_esNuevo ? "Crear documento" : "Guardar cambios")
+                    </button>
+                    <a href="/proyectos/@ProyectoId/documentos" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int? DocumentoId { get; set; }
+
+    private bool _esNuevo => DocumentoId is null;
+    private Proyecto? _proyecto;
+    private FormModel _form = new();
+    private IBrowserFile? _archivoSeleccionado;
+    private string _errorArchivo = "";
+    private string _error = "";
+    private bool _guardando;
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "El código es obligatorio")]
+        [MaxLength(50, ErrorMessage = "Máximo 50 caracteres")]
+        public string Codigo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El título es obligatorio")]
+        [MaxLength(200, ErrorMessage = "Máximo 200 caracteres")]
+        public string Titulo { get; set; } = string.Empty;
+
+        public TipoDocumento TipoDocumento { get; set; }
+        public DisciplinaDocumento Disciplina { get; set; } = DisciplinaDocumento.Otro;
+        public EstadoDocumento Estado { get; set; } = EstadoDocumento.Borrador;
+        public DateTime? FechaEmision { get; set; }
+        public string? Descripcion { get; set; }
+        public string? ComentariosVersion { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        if (!_esNuevo)
+        {
+            var doc = await Db.Documentos.FindAsync(DocumentoId);
+            if (doc is null || doc.ProyectoId != ProyectoId)
+            {
+                Navigation.NavigateTo($"/proyectos/{ProyectoId}/documentos");
+                return;
+            }
+
+            _form = new FormModel
+            {
+                Codigo = doc.Codigo,
+                Titulo = doc.Titulo,
+                TipoDocumento = doc.TipoDocumento,
+                Disciplina = doc.Disciplina,
+                Estado = doc.Estado,
+                FechaEmision = doc.FechaEmision,
+                Descripcion = doc.Descripcion
+            };
+        }
+    }
+
+    private void SeleccionarArchivo(InputFileChangeEventArgs e)
+    {
+        _errorArchivo = "";
+        _archivoSeleccionado = e.File;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _error = "";
+        _guardando = true;
+
+        try
+        {
+            // Validar código único
+            if (!await DocService.CodigoEsUnicoAsync(Db, ProyectoId, _form.Codigo, DocumentoId))
+            {
+                _error = $"Ya existe un documento con el código '{_form.Codigo}' en este proyecto.";
+                return;
+            }
+
+            if (_esNuevo)
+            {
+                if (_archivoSeleccionado is null)
+                {
+                    _error = "Debes seleccionar un archivo para la primera versión.";
+                    return;
+                }
+
+                // Crear documento
+                var doc = new Documento
+                {
+                    ProyectoId = ProyectoId,
+                    Codigo = _form.Codigo.Trim(),
+                    Titulo = _form.Titulo.Trim(),
+                    TipoDocumento = _form.TipoDocumento,
+                    Disciplina = _form.Disciplina,
+                    Estado = _form.Estado,
+                    FechaEmision = _form.FechaEmision,
+                    Descripcion = _form.Descripcion?.Trim()
+                };
+
+                Db.Documentos.Add(doc);
+                await Db.SaveChangesAsync(); // Para obtener doc.Id
+
+                // Guardar archivo
+                await using var stream = _archivoSeleccionado.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+                var (rutaGuardada, errorArchivo) = await DocService.GuardarArchivoAsync(
+                    stream, _archivoSeleccionado.Name, _archivoSeleccionado.Size,
+                    ProyectoId, doc.Id, "Rev0");
+
+                if (rutaGuardada is null)
+                {
+                    _error = errorArchivo ?? "Error al guardar el archivo.";
+                    Db.Documentos.Remove(doc);
+                    await Db.SaveChangesAsync();
+                    return;
+                }
+
+                var version = new VersionDocumento
+                {
+                    DocumentoId = doc.Id,
+                    NumeroVersion = "Rev 0",
+                    RutaArchivo = rutaGuardada ?? "",
+                    NombreArchivo = _archivoSeleccionado.Name,
+                    TamanioBytes = _archivoSeleccionado.Size,
+                    FechaSubida = DateTime.UtcNow,
+                    SubidoPor = (await AuthState.GetAuthenticationStateAsync())
+                                    .User.Identity?.Name ?? "Sistema",
+                    Comentarios = _form.ComentariosVersion,
+                    EsVersionActual = true
+                };
+
+                Db.VersionesDocumento.Add(version);
+                await Db.SaveChangesAsync();
+                Navigation.NavigateTo($"/proyectos/{ProyectoId}/documentos/{doc.Id}");
+            }
+            else
+            {
+                var doc = await Db.Documentos.FindAsync(DocumentoId);
+                if (doc is null) return;
+
+                doc.Codigo = _form.Codigo.Trim();
+                doc.Titulo = _form.Titulo.Trim();
+                doc.TipoDocumento = _form.TipoDocumento;
+                doc.Disciplina = _form.Disciplina;
+                doc.Estado = _form.Estado;
+                doc.FechaEmision = _form.FechaEmision;
+                doc.Descripcion = _form.Descripcion?.Trim();
+                doc.FechaModificacion = DateTime.UtcNow;
+
+                await Db.SaveChangesAsync();
+                Navigation.NavigateTo($"/proyectos/{ProyectoId}/documentos/{DocumentoId}");
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private static string NombreTipo(TipoDocumento t) => t switch
+    {
+        TipoDocumento.Plano => "Plano",
+        TipoDocumento.Especificacion => "Especificación",
+        TipoDocumento.Contrato => "Contrato",
+        TipoDocumento.Permiso => "Permiso",
+        TipoDocumento.Informe => "Informe",
+        TipoDocumento.Procedimiento => "Procedimiento",
+        TipoDocumento.Certificado => "Certificado",
+        _ => "Otro"
+    };
+
+    private static string NombreDisciplina(DisciplinaDocumento d) => d switch
+    {
+        DisciplinaDocumento.Civil => "Civil",
+        DisciplinaDocumento.Electrico => "Eléctrico",
+        DisciplinaDocumento.Mecanico => "Mecánico",
+        DisciplinaDocumento.Estructural => "Estructural",
+        DisciplinaDocumento.InstrumentacionControl => "Instrumentación y Control",
+        DisciplinaDocumento.SCADA => "SCADA",
+        DisciplinaDocumento.GestionProyecto => "Gestión del Proyecto",
+        DisciplinaDocumento.HSE => "HSE",
+        DisciplinaDocumento.Calidad => "Calidad",
+        DisciplinaDocumento.Ambiental => "Ambiental",
+        _ => "Otro"
+    };
+}

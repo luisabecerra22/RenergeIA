@@ -1,0 +1,547 @@
+@page "/proyectos/{ProyectoId:int}/informes/crear"
+@page "/proyectos/{ProyectoId:int}/informes/{InformeId:int}/editar"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject InformeDiarioService InformeSvc
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>@(_esNuevo ? "Nuevo Informe" : "Editar Informe") — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@ProyectoId/informes" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div>
+            <h1 class="h3 mb-0">@(_esNuevo ? "Nuevo Informe Diario" : "Editar Informe Diario")</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger alert-dismissible">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="GuardarAsync" FormName="form-informe-diario">
+        <DataAnnotationsValidator />
+
+        <!-- INFORMACIÓN GENERAL -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><strong>Información general del informe</strong></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Fecha <span class="text-danger">*</span></label>
+                        <InputDate class="form-control" @bind-Value="_form.Fecha"
+                                   @bind-Value:after="RecalcularAvanceProgramado" />
+                        <ValidationMessage For="() => _form.Fecha" class="text-danger small" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">N° de Informe</label>
+                        <InputText class="form-control" @bind-Value="_form.NumeroCertificado"
+                                   readonly="@_esNuevo" />
+                        @if (_esNuevo)
+                        {
+                            <small class="text-muted">Generado automáticamente</small>
+                        }
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Personal total en sitio</label>
+                        <InputNumber class="form-control" @bind-Value="_form.PersonalTotal" />
+                        <ValidationMessage For="() => _form.PersonalTotal" class="text-danger small" />
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-md-6">
+                        <label class="form-label">Resumen de actividades del día</label>
+                        <InputTextArea class="form-control" rows="3"
+                                       @bind-Value="_form.ResumenActividades"
+                                       placeholder="Describe brevemente las actividades realizadas..." />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Observaciones generales</label>
+                        <InputTextArea class="form-control" rows="3"
+                                       @bind-Value="_form.Observaciones"
+                                       placeholder="Novedades, incidentes, clima, etc..." />
+                    </div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-12">
+                        <label class="form-label">Comentarios adicionales</label>
+                        <InputTextArea class="form-control" rows="2"
+                                       @bind-Value="_form.ComentariosGenerales" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AVANCE DE ACTIVIDADES -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <strong>Avances del Día (@_filas.Count actividades)</strong>
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="badge bg-success">@_conteoAdelantado Adelantados</span>
+                    <span class="badge bg-primary">@_conteoAlDia Al Día</span>
+                    <span class="badge bg-warning text-dark">@_conteoAtrasado Atrasados</span>
+                    <span class="badge bg-danger">@_conteoCritico Críticos</span>
+                </div>
+            </div>
+            <div class="card-body p-2">
+                <!-- Filtro de búsqueda -->
+                <div class="mb-2 px-1">
+                    <input type="text" class="form-control form-control-sm"
+                           style="max-width:360px"
+                           placeholder="Buscar por código o nombre..."
+                           @bind="_filtro" @bind:event="oninput" />
+                </div>
+
+                @if (!_filas.Any())
+                {
+                    <p class="text-muted text-center py-3 mb-0">
+                        No hay actividades WBS activas en este proyecto.
+                        <a href="/proyectos/@ProyectoId/wbs">Ir a WBS</a>
+                    </p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle mb-0"
+                               style="font-size:0.82rem">
+                            <thead class="table-dark" style="position:sticky;top:0;z-index:1">
+                                <tr>
+                                    <th style="min-width:90px">Código WBS</th>
+                                    <th style="min-width:200px">Actividad</th>
+                                    <th style="min-width:50px" class="text-center">Disc.</th>
+                                    <th style="min-width:80px">Inicio</th>
+                                    <th style="min-width:80px">Fin</th>
+                                    <th style="min-width:50px" class="text-center">Dur.</th>
+                                    <th style="min-width:90px" class="text-center">Programado %</th>
+                                    <th style="min-width:105px" class="text-center">Avance Real %</th>
+                                    <th style="min-width:90px" class="text-center">Desviación</th>
+                                    <th style="min-width:65px" class="text-center">Personal</th>
+                                    <th style="min-width:65px" class="text-center">Horas</th>
+                                    <th style="min-width:45px" class="text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var fila in FilasFiltradas)
+                                {
+                                    <tr @key="fila.ActividadWBSId"
+                                        class="@(fila.TieneDatos ? "table-light" : "")">
+                                        <td class="font-monospace text-muted small">
+                                            @fila.CodigoWBS
+                                        </td>
+                                        <td>
+                                            @fila.Nombre
+                                            @if (fila.EsCritica)
+                                            {
+                                                <span class="badge bg-danger ms-1" style="font-size:.6rem">CR</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (fila.Disciplina.HasValue)
+                                            {
+                                                <span title="@EnumDisplay.Mostrar(fila.Disciplina.Value)">
+                                                    @EnumDisplay.IconoDisciplina(fila.Disciplina.Value)
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="text-muted small">
+                                            @fila.FechaInicio.ToString("dd/MM/yy")
+                                        </td>
+                                        <td class="text-muted small">
+                                            @fila.FechaFin.ToString("dd/MM/yy")
+                                        </td>
+                                        <td class="text-center text-muted small">
+                                            @fila.DuracionDias d
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-primary" style="font-size:0.75rem">
+                                                @fila.AvanceProgramado.ToString("F2")%
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="input-group input-group-sm justify-content-center"
+                                                 style="max-width:95px;margin:auto">
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       min="0" max="100" step="1"
+                                                       value="@fila.PorcentajeAvance"
+                                                       @onchange="e => ActualizarAvance(fila, e.Value?.ToString())" />
+                                                <span class="input-group-text px-1"
+                                                      style="font-size:0.7rem">%</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge @BadgeDesv(fila.Desviacion)"
+                                                  style="font-size:0.75rem">
+                                                @(fila.Desviacion >= 0 ? "+" : "")@fila.Desviacion.ToString("F2")%
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="number"
+                                                   class="form-control form-control-sm text-end"
+                                                   style="max-width:60px;margin:auto"
+                                                   min="0" placeholder="0"
+                                                   value="@fila.PersonalEnSitio"
+                                                   @onchange="e => fila.PersonalEnSitio = int.TryParse(e.Value?.ToString(), out var v) ? v : (int?)null" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="number"
+                                                   class="form-control form-control-sm text-end"
+                                                   style="max-width:60px;margin:auto"
+                                                   min="0" step="0.5" placeholder="0"
+                                                   value="@fila.HorasTrabajadas"
+                                                   @onchange="e => fila.HorasTrabajadas = decimal.TryParse(e.Value?.ToString(), out var v) ? v : (decimal?)null" />
+                                        </td>
+                                        <td class="text-center">
+                                            <span style="font-size:1.1rem;color:@ColorEstado(fila.Desviacion)"
+                                                  title="@NombreEstado(fila.Desviacion)">●</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (!FilasFiltradas.Any())
+                    {
+                        <p class="text-muted text-center py-3 mb-0">
+                            Sin resultados para "<strong>@_filtro</strong>".
+                        </p>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary" disabled="@_guardando">
+                @(_guardando ? "Guardando..." : (_esNuevo ? "Crear informe" : "Guardar cambios"))
+            </button>
+            <a href="/proyectos/@ProyectoId/informes" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int? InformeId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<ActividadWBS> _actividades = [];
+    private List<FilaRegistro> _filas = [];
+    private FormModel _form = new();
+    private string? _error;
+    private bool _guardando;
+    private string _filtro = "";
+
+    private bool _esNuevo => InformeId is null;
+
+    private IEnumerable<FilaRegistro> FilasFiltradas =>
+        string.IsNullOrWhiteSpace(_filtro)
+            ? _filas
+            : _filas.Where(f =>
+                f.Nombre.Contains(_filtro, StringComparison.OrdinalIgnoreCase) ||
+                f.CodigoWBS.Contains(_filtro, StringComparison.OrdinalIgnoreCase));
+
+    private int _conteoAdelantado => _filas.Count(f => f.Desviacion >= 5);
+    private int _conteoAlDia      => _filas.Count(f => f.Desviacion is >= 0 and < 5);
+    private int _conteoAtrasado   => _filas.Count(f => f.Desviacion < 0 && f.Desviacion >= -15);
+    private int _conteoCritico    => _filas.Count(f => f.Desviacion < -15);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        var versionVigente = await Db.CronogramasVersion
+            .FirstOrDefaultAsync(v => v.ProyectoId == ProyectoId && v.EsVigente);
+
+        _actividades = (await Db.ActividadesWBS
+            .Where(a => a.ProyectoId == ProyectoId && a.Activo
+                     && (versionVigente == null || a.CronogramaVersionId == versionVigente.Id))
+            .ToListAsync())
+            .OrderBy(a => WbsSortKey(a.CodigoWBS))
+            .ToList();
+
+        Dictionary<int, RegistroAvanceDiario> mapaRegistros = [];
+
+        if (_esNuevo)
+        {
+            _form.NumeroCertificado = await GenerarNumeroInformeAsync();
+        }
+        else
+        {
+            var informe = await Db.InformesDiarios
+                .Include(i => i.RegistrosAvance)
+                .FirstOrDefaultAsync(i => i.Id == InformeId && i.ProyectoId == ProyectoId);
+
+            if (informe is null || informe.Estado != EstadoInforme.Borrador)
+            {
+                Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes");
+                return;
+            }
+
+            _form.Fecha                = informe.Fecha;
+            _form.NumeroCertificado    = informe.NumeroCertificado;
+            _form.PersonalTotal        = informe.PersonalTotal;
+            _form.ResumenActividades   = informe.ResumenActividades;
+            _form.Observaciones        = informe.Observaciones;
+            _form.ComentariosGenerales = informe.ComentariosGenerales;
+            mapaRegistros = informe.RegistrosAvance.ToDictionary(r => r.ActividadWBSId);
+        }
+
+        // Pre-populate ALL activities
+        foreach (var act in _actividades)
+        {
+            var fila = new FilaRegistro
+            {
+                ActividadWBSId   = act.Id,
+                CodigoWBS        = act.CodigoWBS,
+                Nombre           = act.Nombre,
+                Disciplina       = act.Disciplina,
+                FechaInicio      = act.FechaInicioPlaneada,
+                FechaFin         = act.FechaFinPlaneada,
+                EsCritica        = act.EsCritica,
+                AvanceProgramado = InformeSvc.CalcularAvanceEsperado(
+                    act.FechaInicioPlaneada, act.FechaFinPlaneada, _form.Fecha)
+            };
+
+            if (mapaRegistros.TryGetValue(act.Id, out var reg))
+            {
+                fila.RegistroId       = reg.Id;
+                fila.PorcentajeAvance = reg.PorcentajeAvance;
+                fila.HorasTrabajadas  = reg.HorasTrabajadas;
+                fila.PersonalEnSitio  = reg.PersonalEnSitio;
+                fila.Observaciones    = reg.Observaciones;
+            }
+
+            _filas.Add(fila);
+        }
+    }
+
+    private void RecalcularAvanceProgramado()
+    {
+        foreach (var fila in _filas)
+            fila.AvanceProgramado = InformeSvc.CalcularAvanceEsperado(
+                fila.FechaInicio, fila.FechaFin, _form.Fecha);
+    }
+
+    private static void ActualizarAvance(FilaRegistro fila, string? valor)
+    {
+        if (decimal.TryParse(valor, out var v))
+            fila.PorcentajeAvance = Math.Min(100, Math.Max(0, v));
+    }
+
+    private async Task GuardarAsync()
+    {
+        _error = null;
+
+        var fechaDuplicada = await Db.InformesDiarios.AnyAsync(i =>
+            i.ProyectoId == ProyectoId &&
+            i.Fecha == _form.Fecha &&
+            i.Id != InformeId);
+        if (fechaDuplicada)
+        {
+            _error = $"Ya existe un informe para el {_form.Fecha:dd/MM/yyyy}. Solo puede haber un informe por día.";
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(_form.NumeroCertificado))
+        {
+            var duplicado = await Db.InformesDiarios.AnyAsync(i =>
+                i.ProyectoId == ProyectoId &&
+                i.NumeroCertificado == _form.NumeroCertificado &&
+                i.Id != InformeId);
+            if (duplicado)
+            {
+                _error = $"Ya existe un informe con el N° '{_form.NumeroCertificado}'.";
+                return;
+            }
+        }
+
+        _guardando = true;
+        try
+        {
+            if (_esNuevo) await CrearAsync();
+            else          await EditarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error al guardar: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CrearAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var usuario = authState.User.Identity?.Name ?? "Sistema";
+
+        var informe = new InformeDiario
+        {
+            ProyectoId           = ProyectoId,
+            Fecha                = _form.Fecha,
+            NumeroCertificado    = _form.NumeroCertificado,
+            PersonalTotal        = _form.PersonalTotal,
+            ResumenActividades   = _form.ResumenActividades,
+            Observaciones        = _form.Observaciones,
+            ComentariosGenerales = _form.ComentariosGenerales,
+            CreadoPor            = usuario,
+            Estado               = EstadoInforme.Borrador
+        };
+
+        foreach (var fila in _filas)
+        {
+            var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
+            var registro = new RegistroAvanceDiario
+            {
+                ProyectoId       = ProyectoId,
+                ActividadWBSId   = fila.ActividadWBSId,
+                Fecha            = _form.Fecha,
+                PorcentajeAvance = fila.PorcentajeAvance,
+                HorasTrabajadas  = fila.HorasTrabajadas,
+                PersonalEnSitio  = fila.PersonalEnSitio,
+                Observaciones    = fila.Observaciones,
+                ReportadoPor     = usuario
+            };
+            await InformeSvc.ActualizarCalculosAsync(registro, actividad);
+            informe.RegistrosAvance.Add(registro);
+        }
+
+        Db.InformesDiarios.Add(informe);
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes/{informe.Id}");
+    }
+
+    private async Task EditarAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var usuario = authState.User.Identity?.Name ?? "Sistema";
+
+        var informe = await Db.InformesDiarios
+            .Include(i => i.RegistrosAvance)
+            .FirstAsync(i => i.Id == InformeId);
+
+        informe.Fecha                = _form.Fecha;
+        informe.NumeroCertificado    = _form.NumeroCertificado;
+        informe.PersonalTotal        = _form.PersonalTotal;
+        informe.ResumenActividades   = _form.ResumenActividades;
+        informe.Observaciones        = _form.Observaciones;
+        informe.ComentariosGenerales = _form.ComentariosGenerales;
+        informe.FechaModificacion    = DateTime.UtcNow;
+
+        // Eliminar registros que ya no tienen actividad activa
+        var idsActivosFiolas = _filas.Where(f => f.RegistroId > 0).Select(f => f.RegistroId).ToHashSet();
+        var aEliminar = informe.RegistrosAvance.Where(r => !idsActivosFiolas.Contains(r.Id)).ToList();
+        Db.RegistrosAvanceDiario.RemoveRange(aEliminar);
+
+        // Actualizar registros existentes
+        foreach (var fila in _filas.Where(f => f.RegistroId > 0))
+        {
+            var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
+            var r = informe.RegistrosAvance.First(x => x.Id == fila.RegistroId);
+            r.ActividadWBSId    = fila.ActividadWBSId;
+            r.Fecha             = _form.Fecha;
+            r.PorcentajeAvance  = fila.PorcentajeAvance;
+            r.HorasTrabajadas   = fila.HorasTrabajadas;
+            r.PersonalEnSitio   = fila.PersonalEnSitio;
+            r.Observaciones     = fila.Observaciones;
+            r.FechaModificacion = DateTime.UtcNow;
+            await InformeSvc.ActualizarCalculosAsync(r, actividad);
+        }
+
+        // Crear registros para todas las actividades sin registro previo
+        foreach (var fila in _filas.Where(f => f.RegistroId == 0))
+        {
+            var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
+            var r = new RegistroAvanceDiario
+            {
+                ProyectoId       = ProyectoId,
+                ActividadWBSId   = fila.ActividadWBSId,
+                Fecha            = _form.Fecha,
+                PorcentajeAvance = fila.PorcentajeAvance,
+                HorasTrabajadas  = fila.HorasTrabajadas,
+                PersonalEnSitio  = fila.PersonalEnSitio,
+                Observaciones    = fila.Observaciones,
+                ReportadoPor     = usuario
+            };
+            await InformeSvc.ActualizarCalculosAsync(r, actividad);
+            informe.RegistrosAvance.Add(r);
+        }
+
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes/{informe.Id}");
+    }
+
+    private async Task<string> GenerarNumeroInformeAsync()
+    {
+        var numeros = await Db.InformesDiarios
+            .Where(i => i.ProyectoId == ProyectoId && i.NumeroCertificado != null)
+            .Select(i => i.NumeroCertificado!)
+            .ToListAsync();
+
+        int max = 0;
+        foreach (var n in numeros)
+            if (int.TryParse(n, out var num) && num > max)
+                max = num;
+
+        return (max + 1).ToString("D3");
+    }
+
+    private static string WbsSortKey(string codigo) =>
+        string.Join(".", codigo.Split('.').Select(p => p.PadLeft(4, '0')));
+
+    private static string BadgeDesv(decimal desv) =>
+        desv >= 0 ? "bg-success" : desv >= -5 ? "bg-warning text-dark" : "bg-danger";
+
+    private static string ColorEstado(decimal desv) =>
+        desv >= 5 ? "#198754" : desv >= 0 ? "#0d6efd" : desv >= -15 ? "#fd7e14" : "#dc3545";
+
+    private static string NombreEstado(decimal desv) =>
+        desv >= 5 ? "Adelantado" : desv >= 0 ? "Al Día" : desv >= -15 ? "Atrasado" : "Crítico";
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "La fecha es obligatoria")]
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        public string? NumeroCertificado { get; set; }
+        public string? ResumenActividades { get; set; }
+        [Range(0, 9999)] public int PersonalTotal { get; set; }
+        public string? Observaciones { get; set; }
+        public string? ComentariosGenerales { get; set; }
+    }
+
+    private sealed class FilaRegistro
+    {
+        public int ActividadWBSId { get; set; }
+        public string CodigoWBS { get; set; } = "";
+        public string Nombre { get; set; } = "";
+        public Disciplina? Disciplina { get; set; }
+        public DateTime FechaInicio { get; set; }
+        public DateTime FechaFin { get; set; }
+        public bool EsCritica { get; set; }
+        public decimal AvanceProgramado { get; set; }
+        public int RegistroId { get; set; }
+        public decimal PorcentajeAvance { get; set; }
+        public decimal? HorasTrabajadas { get; set; }
+        public int? PersonalEnSitio { get; set; }
+        public string? Observaciones { get; set; }
+        public decimal Desviacion => PorcentajeAvance - AvanceProgramado;
+        public int DuracionDias => Math.Max(1, (int)(FechaFin - FechaInicio).TotalDays + 1);
+        public bool TieneDatos => PorcentajeAvance > 0 || HorasTrabajadas > 0
+                                  || PersonalEnSitio > 0
+                                  || !string.IsNullOrWhiteSpace(Observaciones);
+    }
+}

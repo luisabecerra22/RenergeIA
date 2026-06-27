@@ -1,0 +1,287 @@
+/* ── Mobile toggler (checkbox trick) ── */
+.navbar-toggler {
+    appearance: none;
+    cursor: pointer;
+    width: 3.5rem;
+    height: 2.5rem;
+    color: white;
+    position: absolute;
+    top: 0.5rem;
+    right: 1rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255,255,255,0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255,255,255,0.1);
+}
+
+.navbar-toggler:checked {
+    background-color: rgba(255,255,255,0.5);
+}
+
+/* ── Sidebar header ── */
+.top-row {
+    min-height: 3.5rem;
+    background-color: rgba(0,0,0,0.35);
+}
+
+.navbar-brand {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+/* ── Scrollable wrapper ── */
+.nav-scrollable {
+    display: none;
+}
+
+.navbar-toggler:checked ~ .nav-scrollable {
+    display: block;
+}
+
+@media (min-width: 641px) {
+    .navbar-toggler {
+        display: none;
+    }
+
+    .nav-scrollable {
+        display: block;
+        height: calc(100vh - 3.5rem);
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+}
+
+/* ══════════════════════════════════════════════════
+   NIVEL 0 — Items principales: Inicio, Proyectos
+   ══════════════════════════════════════════════════ */
+
+.nav-section-item {
+    padding: 0 8px;
+    margin-bottom: 2px;
+}
+
+.nav-section-item:first-child {
+    margin-top: 12px;
+}
+
+/* Link principal (Inicio / Proyectos) — ::deep necesario porque NavLink es componente hijo */
+.nav-section-item ::deep .nav-top-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(215,215,215,0.9);
+    text-decoration: none;
+    border-radius: 6px;
+    height: 2.6rem;
+    padding: 0 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-section-item ::deep .nav-top-link:hover {
+    background: rgba(106,191,75,0.18);
+    color: white;
+    text-decoration: none;
+}
+
+.nav-section-item ::deep .nav-top-link.active {
+    background: #6ABF4B !important;
+    color: white !important;
+}
+
+.nav-top-icon {
+    font-size: 0.88rem;
+    flex-shrink: 0;
+}
+
+/* Fila Proyectos: NavLink + botón chevron */
+.nav-top-link-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+/* Botón chevron de sección */
+.nav-chevron-btn {
+    background: none;
+    border: none;
+    color: rgba(215,215,215,0.5);
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+}
+
+.nav-chevron-btn:hover {
+    color: white;
+    background: rgba(255,255,255,0.08);
+}
+
+/* ══════════════════════════════════════════════════
+   NIVEL 1 — Lista de proyectos
+   ══════════════════════════════════════════════════ */
+
+.nav-projects-container {
+    padding: 2px 8px 8px 8px;
+}
+
+.nav-msg-error {
+    font-size: 0.7rem;
+    color: rgba(255,180,180,0.8);
+    margin: 4px 8px 0;
+    padding: 0;
+}
+
+.nav-msg-empty {
+    font-size: 0.7rem;
+    color: rgba(215,215,215,0.45);
+    margin: 4px 8px 0;
+    padding: 0;
+}
+
+.nav-project-block {
+    margin-bottom: 3px;
+}
+
+/* Contenedor del encabezado de proyecto */
+.nav-project-header {
+    display: flex;
+    align-items: center;
+    border-left: 2px solid transparent;
+    border-radius: 5px;
+    transition: background 0.15s, border-color 0.15s;
+    overflow: hidden;
+}
+
+.nav-project-header:hover {
+    background: rgba(106,191,75,0.12);
+}
+
+.nav-project-active {
+    background: rgba(106,191,75,0.15) !important;
+    border-left-color: #6ABF4B !important;
+}
+
+.nav-project-active .nav-project-link {
+    color: #6ABF4B !important;
+}
+
+/* Link del nombre del proyecto (navega al detalle) */
+.nav-project-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    padding: 6px 4px 6px 10px;
+    color: rgba(215,215,215,0.82);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    transition: color 0.15s;
+}
+
+.nav-project-link:hover {
+    color: white;
+    text-decoration: none;
+}
+
+.nav-project-icon {
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+
+.nav-project-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Botón solo para expandir/contraer */
+.nav-project-toggle {
+    background: none;
+    border: none;
+    color: rgba(215,215,215,0.45);
+    cursor: pointer;
+    padding: 6px 8px;
+    font-size: 0.62rem;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+
+.nav-project-toggle:hover {
+    color: white;
+}
+
+/* ══════════════════════════════════════════════════
+   NIVEL 2 — Módulos del proyecto
+   ══════════════════════════════════════════════════ */
+
+/* Contenedor con línea vertical que conecta los módulos */
+.nav-modules-list {
+    padding: 2px 0 4px 16px;
+    margin-left: 14px;
+    border-left: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 4px;
+}
+
+/* Item de módulo (link activo o deshabilitado) */
+.nav-module-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 6px;
+    color: rgba(215,215,215,0.75);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.73rem;
+    line-height: 1.3;
+    transition: background 0.12s, color 0.12s;
+    cursor: pointer;
+}
+
+.nav-module-item:hover {
+    background: rgba(106,191,75,0.14);
+    color: white;
+    text-decoration: none;
+}
+
+/* Módulo activo */
+.nav-module-active {
+    color: #6ABF4B !important;
+    background: rgba(106,191,75,0.13);
+    font-weight: 600;
+}
+
+/* Módulo deshabilitado (próximamente) */
+.nav-module-disabled {
+    color: rgba(200,200,200,0.28) !important;
+    cursor: default !important;
+    pointer-events: none;
+}
+
+.nav-module-icon {
+    font-size: 0.65rem;
+    flex-shrink: 0;
+    width: 13px;
+    text-align: center;
+}
+
+/* Badge "pronto" */
+.nav-badge-pronto {
+    font-size: 0.57rem;
+    background: rgba(255,255,255,0.09);
+    border-radius: 8px;
+    padding: 1px 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+    color: rgba(215,215,215,0.38);
+    letter-spacing: 0.02em;
+}

@@ -1,0 +1,329 @@
+@page "/proyectos/{ProyectoId:int}/restricciones"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Helpers
+
+<PageTitle>Restricciones — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0 flex-grow-1">Restricciones — @_proyecto.Nombre</h1>
+        <button class="btn btn-primary" @onclick="MostrarFormulario">+ Nueva Restricción</button>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3 border-start border-4 border-secondary">
+                <div class="text-muted small fw-semibold">TOTAL</div>
+                <div class="fw-bold fs-4">@_restricciones.Count</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3 border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold">ABIERTAS</div>
+                <div class="fw-bold fs-4 text-danger">@_restricciones.Count(r => r.Estado == EstadoRestriccion.Abierta)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3 border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold">EN GESTIÓN</div>
+                <div class="fw-bold fs-4 text-warning">@_restricciones.Count(r => r.Estado == EstadoRestriccion.EnGestion)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3 border-start border-4 border-success">
+                <div class="text-muted small fw-semibold">LEVANTADAS</div>
+                <div class="fw-bold fs-4 text-success">@_restricciones.Count(r => r.Estado == EstadoRestriccion.Levantada)</div>
+            </div>
+        </div>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <strong>@(_editandoId.HasValue ? "Editar Restricción" : "Nueva Restricción")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Número *</label>
+                            <InputText class="form-control" @bind-Value="_form.Numero" placeholder="RES-001" />
+                            <ValidationMessage For="() => _form.Numero" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Tipo">
+                                <option value="">— Seleccionar —</option>
+                                @foreach (var t in _tipos)
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoRestriccion>())
+                                {
+                                    <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Identificación *</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaIdentificacion" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción *</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Descripcion" rows="2" placeholder="Descripción de la restricción..." />
+                            <ValidationMessage For="() => _form.Descripcion" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Compromiso</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaCompromiso" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Levantamiento</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaLevantamiento" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Impacto</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Impacto" rows="2" placeholder="¿Cómo impacta al proyecto?" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Plan de Acción</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.Plan" rows="2" placeholder="Acciones para levantar la restricción..." />
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="alert alert-danger mt-3 py-2">@_error</div>
+                    }
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    @if (!_restricciones.Any())
+    {
+        <div class="card shadow-sm text-center py-5">
+            <p class="text-muted mb-3">No hay restricciones registradas para este proyecto.</p>
+            <button class="btn btn-primary" @onclick="MostrarFormulario">+ Registrar primera restricción</button>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:90px">#</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Responsable</th>
+                            <th>Estado</th>
+                            <th>F. Compromiso</th>
+                            <th style="width:200px">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _restricciones.OrderByDescending(x => x.FechaCreacion))
+                        {
+                            <tr>
+                                <td><span class="badge bg-secondary">@r.Numero</span></td>
+                                <td><span class="text-muted small">@(r.Tipo ?? "—")</span></td>
+                                <td>@r.Descripcion</td>
+                                <td>@(r.Responsable ?? "—")</td>
+                                <td><span class="badge @BadgeEstado(r.Estado)">@EnumDisplay.Mostrar(r.Estado)</span></td>
+                                <td class="small">@(r.FechaCompromiso?.ToShortDateString() ?? "—")</td>
+                                <td>
+                                    <div class="d-flex gap-1 flex-wrap">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarRestriccion(r)">Editar</button>
+                                        @if (r.Estado == EstadoRestriccion.Abierta || r.Estado == EstadoRestriccion.EnGestion)
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => LevantarAsync(r)">✓ Levantar</button>
+                                        }
+                                        @if (_confirmandoEliminar == r.Id)
+                                        {
+                                            <button class="btn btn-sm btn-danger" @onclick="() => EliminarAsync(r.Id)">Confirmar</button>
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmandoEliminar = null">×</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => _confirmandoEliminar = r.Id">Eliminar</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Restriccion> _restricciones = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private string? _error;
+
+    private readonly string[] _tipos = ["Meteorológica", "Administrativa", "Técnica", "Financiera", "Permisos"];
+
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _restricciones = await Db.Restricciones
+            .Where(r => r.ProyectoId == ProyectoId)
+            .ToListAsync();
+    }
+
+    private void MostrarFormulario()
+    {
+        _form = new FormModel { FechaIdentificacion = DateTime.Today };
+        _editandoId = null;
+        _mostrarFormulario = true;
+        _error = null;
+    }
+
+    private void EditarRestriccion(Restriccion r)
+    {
+        _form = new FormModel
+        {
+            Numero              = r.Numero,
+            Descripcion         = r.Descripcion,
+            Tipo                = r.Tipo,
+            Estado              = r.Estado,
+            FechaIdentificacion = r.FechaIdentificacion,
+            FechaCompromiso     = r.FechaCompromiso,
+            FechaLevantamiento  = r.FechaLevantamiento,
+            Responsable         = r.Responsable,
+            Impacto             = r.Impacto,
+            Plan                = r.Plan
+        };
+        _editandoId = r.Id;
+        _mostrarFormulario = true;
+        _error = null;
+    }
+
+    private void CancelarFormulario()
+    {
+        _mostrarFormulario = false;
+        _editandoId = null;
+        _error = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _error = null;
+        if (_editandoId.HasValue)
+        {
+            var r = await Db.Restricciones.FindAsync(_editandoId.Value);
+            if (r is null) return;
+            MapearForm(r);
+            r.FechaModificacion = DateTime.UtcNow;
+        }
+        else
+        {
+            var r = new Restriccion { ProyectoId = ProyectoId };
+            MapearForm(r);
+            Db.Restricciones.Add(r);
+        }
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+        CancelarFormulario();
+    }
+
+    private void MapearForm(Restriccion r)
+    {
+        r.Numero              = _form.Numero;
+        r.Descripcion         = _form.Descripcion;
+        r.Tipo                = _form.Tipo;
+        r.Estado              = _form.Estado;
+        r.FechaIdentificacion = _form.FechaIdentificacion;
+        r.FechaCompromiso     = _form.FechaCompromiso;
+        r.FechaLevantamiento  = _form.FechaLevantamiento;
+        r.Responsable         = _form.Responsable;
+        r.Impacto             = _form.Impacto;
+        r.Plan                = _form.Plan;
+    }
+
+    private async Task LevantarAsync(Restriccion r)
+    {
+        r.Estado               = EstadoRestriccion.Levantada;
+        r.FechaLevantamiento   = DateTime.Today;
+        r.FechaModificacion    = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var r = await Db.Restricciones.FindAsync(id);
+        if (r is null) return;
+        Db.Restricciones.Remove(r);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgeEstado(EstadoRestriccion e) => e switch
+    {
+        EstadoRestriccion.Abierta   => "bg-danger",
+        EstadoRestriccion.EnGestion => "bg-warning text-dark",
+        EstadoRestriccion.Levantada => "bg-success",
+        EstadoRestriccion.Cancelada => "bg-secondary",
+        _                           => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "El número es obligatorio")]
+        public string Numero { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La descripción es obligatoria")]
+        public string Descripcion { get; set; } = string.Empty;
+
+        public string? Tipo { get; set; }
+        public EstadoRestriccion Estado { get; set; } = EstadoRestriccion.Abierta;
+        public DateTime FechaIdentificacion { get; set; } = DateTime.Today;
+        public DateTime? FechaCompromiso { get; set; }
+        public DateTime? FechaLevantamiento { get; set; }
+        public string? Responsable { get; set; }
+        public string? Impacto { get; set; }
+        public string? Plan { get; set; }
+    }
+}

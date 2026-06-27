@@ -1,0 +1,66 @@
+@page "/proyectos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+
+<PageTitle>Proyectos — RenergeIA</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Proyectos</h1>
+    <a href="/proyectos/nuevo" class="btn btn-primary">+ Nuevo proyecto</a>
+</div>
+
+@if (_proyectos is null)
+{
+    <p>Cargando...</p>
+}
+else if (!_proyectos.Any())
+{
+    <div class="alert alert-info">No hay proyectos registrados. Crea el primero.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var p in _proyectos)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary">@p.Codigo</span>
+                            <span class="badge @BadgeClass(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span>
+                        </div>
+                        <h5 class="card-title">@p.Nombre</h5>
+                        <p class="card-text text-muted small">@p.Cliente</p>
+                        <p class="card-text small">
+                            <strong>Ubicación:</strong> @p.Ubicacion, @p.Pais<br />
+                            <strong>Capacidad:</strong> @p.CapacidadKWp kWp
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/proyectos/@p.Id" class="btn btn-sm btn-outline-primary w-100">Ver detalle</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Proyecto>? _proyectos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyectos = await Db.Proyectos.OrderByDescending(p => p.FechaCreacion).ToListAsync();
+    }
+
+    private static string BadgeClass(EstadoProyecto estado) => estado switch
+    {
+        EstadoProyecto.Planificacion => "bg-secondary",
+        EstadoProyecto.EnEjecucion   => "bg-success",
+        EstadoProyecto.Suspendido    => "bg-warning text-dark",
+        EstadoProyecto.Completado    => "bg-primary",
+        EstadoProyecto.Cancelado     => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

@@ -1,0 +1,221 @@
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental/residuos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Gestión de Residuos — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-recycle me-2" style="color:#6ABF4B"></i>Gestión de Residuos</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Registrar Residuo
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header text-white d-flex justify-content-between" style="background:#6ABF4B">
+                <strong>Registro de Residuos</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Tipo de Residuo *</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Tipo">
+                                @foreach (var t in Enum.GetValues<TipoResiduos>())
+                                { <option value="@t">@EnumDisplay.Mostrar(t)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Descripción *</label>
+                            <InputText class="form-control" @bind-Value="_form.Descripcion" />
+                            <ValidationMessage For="() => _form.Descripcion" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Cantidad (kg)</label>
+                            <InputNumber class="form-control" @bind-Value="_form.CantidadKg" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.FrenteTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Gestor Autorizado</label>
+                            <InputText class="form-control" @bind-Value="_form.GestorAutorizado" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Registro</label>
+                            <InputDate class="form-control" @bind-Value="_form.Fecha" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Destino Final / Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Semáforos por tipo -->
+    <div class="row g-3 mb-4">
+        @foreach (var tipo in Enum.GetValues<TipoResiduos>())
+        {
+            var total = _residuos.Where(r => r.Tipo == tipo).Sum(r => r.CantidadKg);
+            <div class="col-6 col-md-2">
+                <div class="card shadow-sm p-2 text-center border-start border-4 @(tipo == TipoResiduos.Peligroso ? "border-danger" : "border-success")">
+                    <div class="fw-bold" style="font-size:1.2rem;color:@(tipo == TipoResiduos.Peligroso ? "#dc3545" : "#6ABF4B")">@total.ToString("N0") kg</div>
+                    <div class="text-muted" style="font-size:0.75rem">@EnumDisplay.Mostrar(tipo)</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="d-flex gap-2 mb-3">
+        <select class="form-select form-select-sm" style="max-width:180px" @bind="_filtroTipo">
+            <option value="">Todos los tipos</option>
+            @foreach (var t in Enum.GetValues<TipoResiduos>())
+            { <option value="@t">@EnumDisplay.Mostrar(t)</option> }
+        </select>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Descripción</th>
+                        <th class="text-center">Tipo</th>
+                        <th class="text-center">Cantidad (kg)</th>
+                        <th>Frente</th>
+                        <th>Gestor</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!ResiduosFiltrados.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No hay registros de residuos.</td></tr>
+                    }
+                    @foreach (var r in ResiduosFiltrados)
+                    {
+                        <tr>
+                            <td>@r.Descripcion</td>
+                            <td class="text-center">
+                                <span class="badge @(r.Tipo == TipoResiduos.Peligroso ? "bg-danger" : "bg-success")">
+                                    @EnumDisplay.Mostrar(r.Tipo)
+                                </span>
+                            </td>
+                            <td class="text-center fw-semibold">@r.CantidadKg.ToString("N1")</td>
+                            <td class="small text-muted">@(r.FrenteTrabajo ?? "—")</td>
+                            <td class="small">@(r.GestorAutorizado ?? "—")</td>
+                            <td class="small">@r.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == r.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="table-light fw-semibold">
+                    <tr>
+                        <td colspan="2">Total mostrado</td>
+                        <td class="text-center">@ResiduosFiltrados.Sum(r => r.CantidadKg).ToString("N1") kg</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<RenergeIA.Core.Entities.HSEQ.GestionResiduos> _residuos = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private string _filtroTipo = "";
+    private FormModel _form = new();
+
+    private IEnumerable<RenergeIA.Core.Entities.HSEQ.GestionResiduos> ResiduosFiltrados => _residuos
+        .Where(r => string.IsNullOrEmpty(_filtroTipo) || r.Tipo.ToString() == _filtroTipo);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _residuos = await Db.GestionResiduos.Where(r => r.ProyectoId == ProyectoId).OrderByDescending(r => r.Fecha).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { Fecha = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.GestionResiduos.Add(new RenergeIA.Core.Entities.HSEQ.GestionResiduos
+        {
+            ProyectoId       = ProyectoId,
+            Tipo             = _form.Tipo,
+            Descripcion      = _form.Descripcion,
+            CantidadKg       = _form.CantidadKg,
+            FrenteTrabajo    = _form.FrenteTrabajo ?? "",
+            Responsable      = "",
+            GestorAutorizado = _form.GestorAutorizado,
+            Fecha            = _form.Fecha,
+            Observaciones    = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var r = await Db.GestionResiduos.FindAsync(id);
+        if (r is not null) { Db.GestionResiduos.Remove(r); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        public TipoResiduos Tipo { get; set; } = TipoResiduos.Aprovechable;
+        [System.ComponentModel.DataAnnotations.Required] public string Descripcion { get; set; } = "";
+        public decimal CantidadKg { get; set; }
+        public string? FrenteTrabajo { get; set; }
+        public string? GestorAutorizado { get; set; }
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        public string? Observaciones { get; set; }
+    }
+}

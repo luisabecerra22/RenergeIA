@@ -1,0 +1,247 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/permisos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Permisos de Trabajo — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-file-earmark-check me-2" style="color:#183963"></i>Permisos de Trabajo</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo Permiso
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Nuevo Permiso de Trabajo</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Número *</label>
+                            <InputText class="form-control" @bind-Value="_form.Numero" />
+                            <ValidationMessage For="() => _form.Numero" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo *</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Tipo">
+                                @foreach (var t in Enum.GetValues<TipoPermisoTrabajo>())
+                                { <option value="@t">@EnumDisplay.Mostrar(t)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Actividad *</label>
+                            <InputText class="form-control" @bind-Value="_form.Actividad" />
+                            <ValidationMessage For="() => _form.Actividad" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.FrenteTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable Trabajo *</label>
+                            <InputText class="form-control" @bind-Value="_form.ResponsableTrabajo" />
+                            <ValidationMessage For="() => _form.ResponsableTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Emitido Por</label>
+                            <InputText class="form-control" @bind-Value="_form.EmitidoPor" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Emisión</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaEmision" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Vencimiento</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaVencimiento" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoPermisoTrabajo>())
+                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Medidas de Control</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.MedidasControl" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Buscar..."
+               @bind="_busqueda" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroTipo">
+            <option value="">Todos los tipos</option>
+            @foreach (var t in Enum.GetValues<TipoPermisoTrabajo>())
+            { <option value="@t">@EnumDisplay.Mostrar(t)</option> }
+        </select>
+        <select class="form-select form-select-sm" style="max-width:150px" @bind="_filtroEstado">
+            <option value="">Todos los estados</option>
+            @foreach (var e in Enum.GetValues<EstadoPermisoTrabajo>())
+            { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+        </select>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Número</th>
+                        <th>Tipo</th>
+                        <th>Actividad</th>
+                        <th>Responsable</th>
+                        <th>Emisión</th>
+                        <th>Vencimiento</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!PermisosFiltrados.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay permisos de trabajo registrados.</td></tr>
+                    }
+                    @foreach (var p in PermisosFiltrados)
+                    {
+                        <tr>
+                            <td class="font-monospace small text-muted">@p.Numero</td>
+                            <td class="small">@EnumDisplay.Mostrar(p.Tipo)</td>
+                            <td>@p.Actividad</td>
+                            <td class="small">@p.ResponsableTrabajo</td>
+                            <td class="small">@p.FechaEmision.ToString("dd/MM/yyyy")</td>
+                            <td class="small @(p.FechaVencimiento < DateTime.Today && p.Estado == EstadoPermisoTrabajo.Activo ? "text-danger fw-bold" : "")">
+                                @p.FechaVencimiento.ToString("dd/MM/yyyy")
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @BadgePerm(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span>
+                            </td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == p.Id)
+                                {
+                                    <span class="me-1 text-danger small">¿Eliminar?</span>
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<PermisoTrabajo> _permisos = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private string _filtroTipo = "";
+    private string _filtroEstado = "";
+    private FormModel _form = new();
+
+    private IEnumerable<PermisoTrabajo> PermisosFiltrados => _permisos
+        .Where(p =>
+            (string.IsNullOrEmpty(_busqueda) || p.Actividad.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || p.Numero.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrEmpty(_filtroTipo) || p.Tipo.ToString() == _filtroTipo)
+            && (string.IsNullOrEmpty(_filtroEstado) || p.Estado.ToString() == _filtroEstado));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _permisos = await Db.PermisosTrabajo.Where(p => p.ProyectoId == ProyectoId).OrderByDescending(p => p.FechaEmision).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { FechaEmision = DateTime.Today, FechaVencimiento = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        var entidad = new PermisoTrabajo
+        {
+            ProyectoId         = ProyectoId,
+            Numero             = _form.Numero,
+            Tipo               = _form.Tipo,
+            Actividad          = _form.Actividad,
+            FrenteTrabajo      = _form.FrenteTrabajo,
+            ResponsableTrabajo = _form.ResponsableTrabajo,
+            EmitidoPor         = _form.EmitidoPor,
+            FechaEmision       = _form.FechaEmision,
+            FechaVencimiento   = _form.FechaVencimiento,
+            Estado             = _form.Estado,
+            MedidasControl     = _form.MedidasControl
+        };
+        Db.PermisosTrabajo.Add(entidad);
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var entidad = await Db.PermisosTrabajo.FindAsync(id);
+        if (entidad is not null) { Db.PermisosTrabajo.Remove(entidad); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgePerm(EstadoPermisoTrabajo e) => e switch
+    {
+        EstadoPermisoTrabajo.Activo    => "bg-success",
+        EstadoPermisoTrabajo.Vencido   => "bg-danger",
+        EstadoPermisoTrabajo.Cerrado   => "bg-secondary",
+        EstadoPermisoTrabajo.Cancelado => "bg-dark",
+        _                              => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Numero { get; set; } = "";
+        public TipoPermisoTrabajo Tipo { get; set; } = TipoPermisoTrabajo.General;
+        [System.ComponentModel.DataAnnotations.Required] public string Actividad { get; set; } = "";
+        public string FrenteTrabajo { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string ResponsableTrabajo { get; set; } = "";
+        public string EmitidoPor { get; set; } = "";
+        public DateTime FechaEmision { get; set; } = DateTime.Today;
+        public DateTime FechaVencimiento { get; set; } = DateTime.Today;
+        public EstadoPermisoTrabajo Estado { get; set; } = EstadoPermisoTrabajo.Activo;
+        public string? MedidasControl { get; set; }
+    }
+}

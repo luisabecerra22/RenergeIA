@@ -1,0 +1,287 @@
+@page "/proyectos/{ProyectoId:int}/hseq/calidad"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Enums
+
+<PageTitle>Calidad HSEQ — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <!-- Encabezado -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0">
+                <i class="bi-patch-check-fill me-2" style="color:#183963"></i>Calidad — ISO 9001
+            </h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy")</small>
+        </div>
+        <span class="badge bg-success fs-6">Saludable</span>
+    </div>
+
+    <!-- Navegación sub-módulos -->
+    <div class="d-flex gap-2 flex-wrap mb-4">
+        <span class="btn btn-primary btn-sm">Dashboard</span>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/checklist"       class="btn btn-outline-secondary btn-sm">Checklist ISO 9001</a>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/ppis"            class="btn btn-outline-secondary btn-sm">PPIs</a>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/calibracion"     class="btn btn-outline-secondary btn-sm">Calibración Equipos</a>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/documentos"      class="btn btn-outline-secondary btn-sm">Control Documental</a>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/no-conformidades" class="btn btn-outline-secondary btn-sm">No Conformidades</a>
+        <a href="/proyectos/@ProyectoId/hseq/calidad/acciones"        class="btn btn-outline-secondary btn-sm">Acciones Correctivas</a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO ISO 9001</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-patch-check-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">87%</div>
+                </div>
+                <div class="text-muted small">de requisitos verificados</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">PPIs EJECUTADOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-clipboard-check" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">16</div>
+                </div>
+                <div class="text-muted small">de 23 planeados</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold mb-1">PPIs PENDIENTES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-clipboard" style="font-size:1.6rem;color:#ffc107"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">7</div>
+                </div>
+                <div class="text-muted small">requieren ejecución</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">LIBERACIONES APROBADAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-check-circle-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">12</div>
+                </div>
+                <div class="text-muted small">este período</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">LIBERACIONES RECHAZADAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-x-circle-fill" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">2</div>
+                </div>
+                <div class="text-muted small">requieren corrección</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">EQUIPOS VIGENTES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-tools" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">14</div>
+                </div>
+                <div class="text-muted small">de 18 equipos registrados</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">CALIBRACIÓN VENCIDA</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-exclamation-triangle-fill" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">2</div>
+                </div>
+                <div class="text-muted small">equipos fuera de vigencia</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold mb-1">NO CONFORMIDADES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-exclamation-octagon" style="font-size:1.6rem;color:#fd7e14"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">3</div>
+                </div>
+                <div class="text-muted small">abiertas pendientes</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjetas acceso sub-módulos -->
+    <h5 class="fw-bold mb-3" style="color:#183963">Gestión de Calidad</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/checklist" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-list-check d-block mb-2" style="font-size:2rem;color:#183963"></i>
+                    <div class="fw-semibold small">Checklist</div>
+                    <div class="fw-semibold small">ISO 9001</div>
+                    <span class="badge bg-success mt-1">87%</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/ppis" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-clipboard-check-fill d-block mb-2" style="font-size:2rem;color:#183963"></i>
+                    <div class="fw-semibold small">PPIs</div>
+                    <div class="text-muted small">Inspección</div>
+                    <span class="badge bg-warning text-dark mt-1">7 pend.</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/calibracion" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-tools d-block mb-2" style="font-size:2rem;color:#183963"></i>
+                    <div class="fw-semibold small">Calibración</div>
+                    <div class="text-muted small">Equipos</div>
+                    <span class="badge bg-danger mt-1">2 vencidos</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/documentos" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-folder2-open d-block mb-2" style="font-size:2rem;color:#183963"></i>
+                    <div class="fw-semibold small">Control</div>
+                    <div class="text-muted small">Documental</div>
+                    <span class="badge bg-danger mt-1">4 vencidos</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/no-conformidades" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-exclamation-octagon d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">No Conform.</div>
+                    <div class="text-muted small">NCRs</div>
+                    <span class="badge bg-warning text-dark mt-1">3 abiertas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/proyectos/@ProyectoId/hseq/calidad/acciones" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-arrow-repeat d-block mb-2" style="font-size:2rem;color:#183963"></i>
+                    <div class="fw-semibold small">Acciones</div>
+                    <div class="text-muted small">Correctivas</div>
+                    <span class="badge bg-danger mt-1">2 vencidas</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Gráficas de estado -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header"><strong>Estado Calibración de Equipos</strong></div>
+                <div class="card-body">
+                    <div class="row g-2 text-center">
+                        <div class="col-3">
+                            <div class="p-2 rounded" style="background:#d4edda">
+                                <div class="fw-bold" style="font-size:1.4rem;color:#6ABF4B">14</div>
+                                <small class="text-success">Vigentes</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-2 rounded" style="background:#fff3cd">
+                                <div class="fw-bold" style="font-size:1.4rem;color:#fd7e14">2</div>
+                                <small class="text-warning">Prox. Venc.</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-2 rounded" style="background:#f8d7da">
+                                <div class="fw-bold" style="font-size:1.4rem;color:#dc3545">2</div>
+                                <small class="text-danger">Vencidos</small>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-2 rounded" style="background:#e2e3e5">
+                                <div class="fw-bold" style="font-size:1.4rem;color:#6c757d">0</div>
+                                <small class="text-muted">Sin Cert.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height:14px;border-radius:7px">
+                        <div class="progress-bar" style="width:78%;background:#6ABF4B;border-radius:7px 0 0 7px"></div>
+                        <div class="progress-bar" style="width:11%;background:#fd7e14"></div>
+                        <div class="progress-bar" style="width:11%;background:#dc3545;border-radius:0 7px 7px 0"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header"><strong>PPIs — Estado Resumen</strong></div>
+                <div class="card-body">
+                    <div class="row g-2 text-center">
+                        <div class="col">
+                            <div class="fw-bold" style="font-size:1.4rem;color:#6ABF4B">10</div>
+                            <small class="text-muted">Aprobados</small>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold" style="font-size:1.4rem;color:#183963">6</div>
+                            <small class="text-muted">En Proceso</small>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold" style="font-size:1.4rem;color:#ffc107">7</div>
+                            <small class="text-muted">Pendientes</small>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold" style="font-size:1.4rem;color:#dc3545">2</div>
+                            <small class="text-muted">Rechazados</small>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height:14px;border-radius:7px">
+                        <div class="progress-bar" style="width:43%;background:#6ABF4B;border-radius:7px 0 0 7px"></div>
+                        <div class="progress-bar" style="width:26%;background:#183963"></div>
+                        <div class="progress-bar" style="width:22%;background:#ffc107"></div>
+                        <div class="progress-bar" style="width:9%;background:#dc3545;border-radius:0 7px 7px 0"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IA -->
+    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963,#1e4d8c)">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi-robot" style="font-size:1.4rem"></i>
+                <h6 class="mb-0 fw-bold">Análisis Inteligente — Calidad</h6>
+                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
+            </div>
+            <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
+                <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
+                <p class="mb-0 small">Calidad presenta riesgo por 2 equipos de medición próximos a vencer y 4 documentos con vigencia superada. Se recomienda priorizar calibraciones antes del cierre del mes.</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+    }
+}

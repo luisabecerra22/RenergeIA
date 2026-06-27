@@ -1,0 +1,284 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/pausas-activas"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Pausas Activas — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-stopwatch me-2" style="color:#183963"></i>Pausas Activas</h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; Meta: 60 pausas / trabajador / mes</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Registrar</button>
+    </div>
+
+    <!-- Filtro mes / año -->
+    <div class="d-flex gap-2 mb-4 flex-wrap align-items-center">
+        <label class="form-label mb-0 fw-semibold">Mes:</label>
+        <select class="form-select form-select-sm" style="max-width:140px" @bind="_mesFiltro" @bind:after="CargarAsync">
+            @for (int m = 1; m <= 12; m++)
+            { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+        </select>
+        <label class="form-label mb-0 fw-semibold">Año:</label>
+        <InputNumber class="form-control form-control-sm" style="max-width:90px" @bind-Value="_anioFiltro" />
+        <button class="btn btn-outline-secondary btn-sm" @onclick="CargarAsync">Aplicar</button>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_pausas.Select(p => p.Documento).Distinct().Count()</div>
+                <div class="text-muted small">Trabajadores con registro</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_pausas.Sum(p => p.CantidadPausas)</div>
+                <div class="text-muted small">Total pausas registradas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            @{ var prom = _pausas.Any() ? (int)Math.Round(_pausas.Average(p => p.CantidadPausas)) : 0; }
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@prom</div>
+                <div class="text-muted small">Promedio pausas / persona</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            @{ var cumPct = _pausas.Any() ? Math.Min(100, (int)Math.Round(_pausas.Average(p => p.CantidadPausas) * 100.0 / 60)) : 0; }
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(cumPct>=100?"border-success":cumPct>=70?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.8rem;color:@(cumPct>=100?"#6ABF4B":cumPct>=70?"#ffc107":"#dc3545")">@cumPct%</div>
+                <div class="text-muted small">% Cumplimiento meta (60)</div>
+            </div>
+        </div>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar Registro" : "Registrar Pausas Activas")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Trabajador *</label>
+                            <InputText class="form-control" @bind-Value="_form.Trabajador" />
+                            <ValidationMessage For="() => _form.Trabajador" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Documento (CC) *</label>
+                            <InputText class="form-control" @bind-Value="_form.Documento" />
+                            <ValidationMessage For="() => _form.Documento" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Área *</label>
+                            <InputText class="form-control" @bind-Value="_form.Area" />
+                            <ValidationMessage For="() => _form.Area" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cargo</label>
+                            <InputText class="form-control" @bind-Value="_form.Cargo" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Mes *</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Mes">
+                                @for (int m = 1; m <= 12; m++)
+                                { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Año *</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Anio" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">N° Pausas *</label>
+                            <InputNumber class="form-control" @bind-Value="_form.CantidadPausas" />
+                            <div class="form-text">Meta: 60/mes</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable Registro *</label>
+                            <InputText class="form-control" @bind-Value="_form.ResponsableRegistro" />
+                            <ValidationMessage For="() => _form.ResponsableRegistro" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Trabajador</th>
+                        <th>Documento</th>
+                        <th>Área</th>
+                        <th>Cargo</th>
+                        <th class="text-center">Pausas</th>
+                        <th class="text-center">% Meta</th>
+                        <th>Responsable</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_pausas.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay registros para este período.</td></tr>
+                    }
+                    @foreach (var p in _pausas.OrderBy(p => p.Trabajador))
+                    {
+                        var pct = Math.Min(100, (int)Math.Round(p.CantidadPausas * 100.0 / 60));
+                        <tr>
+                            <td class="fw-semibold">@p.Trabajador</td>
+                            <td class="text-muted">@p.Documento</td>
+                            <td>@p.Area</td>
+                            <td class="text-muted">@p.Cargo</td>
+                            <td class="text-center fw-bold @(p.CantidadPausas>=60?"text-success":p.CantidadPausas>=42?"text-warning":"text-danger")">@p.CantidadPausas</td>
+                            <td class="text-center" style="min-width:100px">
+                                <div class="progress" style="height:8px;border-radius:4px">
+                                    <div class="progress-bar @(pct>=100?"bg-success":pct>=70?"bg-warning":"bg-danger")" style="width:@pct%"></div>
+                                </div>
+                                <small class="@(pct>=100?"text-success":pct>=70?"text-warning":"text-danger")">@pct%</small>
+                            </td>
+                            <td class="text-muted">@p.ResponsableRegistro</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == p.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private List<PausaActiva> _pausas = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private int _mesFiltro = DateTime.Today.Month;
+    private int _anioFiltro = DateTime.Today.Year;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _pausas = await Db.PausasActivas
+            .Where(p => p.ProyectoId == ProyectoId && p.Mes == _mesFiltro && p.Anio == _anioFiltro)
+            .ToListAsync();
+
+    private void MostrarFormulario()
+    {
+        _form = new FormModel { Mes = _mesFiltro, Anio = _anioFiltro };
+        _editandoId = null; _mostrarFormulario = true;
+    }
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+
+    private void EditarItem(PausaActiva p)
+    {
+        _form = new FormModel
+        {
+            Trabajador          = p.Trabajador,
+            Documento           = p.Documento,
+            Area                = p.Area,
+            Cargo               = p.Cargo,
+            Mes                 = p.Mes,
+            Anio                = p.Anio,
+            CantidadPausas      = p.CantidadPausas,
+            ResponsableRegistro = p.ResponsableRegistro,
+            Observaciones       = p.Observaciones
+        };
+        _editandoId = p.Id; _mostrarFormulario = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var e = await Db.PausasActivas.FindAsync(_editandoId.Value);
+            if (e is not null) MapearForm(e);
+        }
+        else
+        {
+            var e = new PausaActiva { ProyectoId = ProyectoId };
+            MapearForm(e);
+            Db.PausasActivas.Add(e);
+        }
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private void MapearForm(PausaActiva e)
+    {
+        e.Trabajador          = _form.Trabajador;
+        e.Documento           = _form.Documento;
+        e.Area                = _form.Area;
+        e.Cargo               = _form.Cargo;
+        e.Mes                 = _form.Mes;
+        e.Anio                = _form.Anio;
+        e.CantidadPausas      = _form.CantidadPausas;
+        e.ResponsableRegistro = _form.ResponsableRegistro;
+        e.Observaciones       = _form.Observaciones;
+        e.FechaModificacion   = DateTime.UtcNow;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var e = await Db.PausasActivas.FindAsync(id);
+        if (e is not null) { Db.PausasActivas.Remove(e); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Trabajador { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Documento { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Area { get; set; } = "";
+        public string Cargo { get; set; } = "";
+        public int Mes { get; set; } = DateTime.Today.Month;
+        public int Anio { get; set; } = DateTime.Today.Year;
+        [System.ComponentModel.DataAnnotations.Range(0, 9999)] public int CantidadPausas { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string ResponsableRegistro { get; set; } = "";
+        public string? Observaciones { get; set; }
+    }
+}

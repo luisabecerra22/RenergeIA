@@ -1,0 +1,206 @@
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>Ambiental HSEQ — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0">
+                <i class="bi-tree-fill me-2" style="color:#6ABF4B"></i>Ambiental — ISO 14001
+            </h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy")</small>
+        </div>
+        <span class="badge bg-success fs-6">Saludable</span>
+    </div>
+
+    <!-- Navegación -->
+    <div class="d-flex gap-2 flex-wrap mb-4">
+        <span class="btn btn-success btn-sm">Dashboard</span>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/checklist"    class="btn btn-outline-secondary btn-sm">Checklist ISO 14001</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/inspecciones" class="btn btn-outline-secondary btn-sm">Inspecciones Ambientales</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/residuos"     class="btn btn-outline-secondary btn-sm">Gestión de Residuos</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/aspectos"     class="btn btn-outline-secondary btn-sm">Aspectos e Impactos</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/derrames"     class="btn btn-outline-secondary btn-sm">Derrames</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/fauna-flora"  class="btn btn-outline-secondary btn-sm">Fauna y Flora</a>
+        <a href="/proyectos/@ProyectoId/hseq/ambiental/acciones"     class="btn btn-outline-secondary btn-sm">Acciones Correctivas</a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO ISO 14001</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-tree-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">93%</div>
+                </div>
+                <div class="text-muted small">de requisitos verificados</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">INSPECCIONES AMBIENTALES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-binoculars-fill" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">12</div>
+                </div>
+                <div class="text-muted small">realizadas este período</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">HALLAZGOS AMBIENTALES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-exclamation-circle" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">1</div>
+                </div>
+                <div class="text-muted small">abierto (bajo impacto)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">RESIDUOS GESTIONADOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-recycle" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">2.4t</div>
+                </div>
+                <div class="text-muted small">este período (Kg totales)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">RESIDUOS APROVECHABLES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-arrow-repeat" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">1.8t</div>
+                </div>
+                <div class="text-muted small">75% del total generado</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">RESIDUOS PELIGROSOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-radioactive" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">0.6t</div>
+                </div>
+                <div class="text-muted small">gestionado con empresa certificada</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">DERRAMES</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-droplet-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">0</div>
+                </div>
+                <div class="text-muted small">sin derrames registrados</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">ASPECTOS CONTROLADOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-check2-all" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">15</div>
+                </div>
+                <div class="text-muted small">de 16 aspectos identificados</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acceso sub-módulos -->
+    <h5 class="fw-bold mb-3" style="color:#183963">Gestión Ambiental</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/checklist" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-list-check d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Checklist ISO 14001</div>
+                    <span class="badge bg-success mt-1">93%</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/inspecciones" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-binoculars-fill d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Inspecciones Ambientales</div>
+                    <span class="badge bg-success mt-1">12 realizadas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/residuos" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-recycle d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Gestión de Residuos</div>
+                    <span class="badge bg-primary mt-1">2.4t gestionadas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/aspectos" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-diagram-3-fill d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Aspectos e Impactos</div>
+                    <span class="badge bg-success mt-1">15/16 controlados</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/derrames" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-droplet-fill d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Derrames</div>
+                    <span class="badge bg-success mt-1">0 registrados</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-4">
+            <a href="/proyectos/@ProyectoId/hseq/ambiental/fauna-flora" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-flower2 d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
+                    <div class="fw-semibold small">Fauna y Flora</div>
+                    <span class="badge bg-primary mt-1">3 registros</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- IA -->
+    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963,#1e4d8c)">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi-robot" style="font-size:1.4rem"></i>
+                <h6 class="mb-0 fw-bold">Análisis Inteligente — Ambiental</h6>
+                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
+            </div>
+            <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
+                <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
+                <p class="mb-0 small">Ambiental mantiene buen desempeño. Sin derrames registrados y gestión de residuos dentro de parámetros. Se recomienda continuar seguimiento al aspecto ambiental pendiente de control en el frente civil.</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+    }
+}

@@ -1,0 +1,248 @@
+@page "/proyectos/{ProyectoId:int}/hseq/social"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Enums
+
+<PageTitle>Social HSEQ — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0">
+                <i class="bi-people-fill me-2" style="color:#fd7e14"></i>Social
+            </h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy")</small>
+        </div>
+        <span class="badge bg-danger fs-6">Crítico</span>
+    </div>
+
+    <!-- Navegación -->
+    <div class="d-flex gap-2 flex-wrap mb-4">
+        <span class="btn btn-sm" style="background:#fd7e14;color:white">Dashboard</span>
+        <a href="/proyectos/@ProyectoId/hseq/social/comunidades"          class="btn btn-outline-secondary btn-sm">Comunidades</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/reuniones"            class="btn btn-outline-secondary btn-sm">Reuniones Comunitarias</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/pqr"                  class="btn btn-outline-secondary btn-sm">PQR / Quejas / Reclamos</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/compromisos"          class="btn btn-outline-secondary btn-sm">Compromisos Sociales</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/contratacion-local"   class="btn btn-outline-secondary btn-sm">Contratación Local</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/compras-locales"      class="btn btn-outline-secondary btn-sm">Compras Locales</a>
+        <a href="/proyectos/@ProyectoId/hseq/social/actas"                class="btn btn-outline-secondary btn-sm">Actas y Evidencias</a>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO SOCIAL</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-people-fill" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">61%</div>
+                </div>
+                <div class="text-muted small">general del período</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">REUNIONES COMUNITARIAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-chat-square-text-fill" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">8</div>
+                </div>
+                <div class="text-muted small">realizadas este período</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold mb-1">PQRs RECIBIDAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-envelope-exclamation" style="font-size:1.6rem;color:#fd7e14"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">11</div>
+                </div>
+                <div class="text-muted small">total acumulado</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">PQRs CERRADAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-envelope-check" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">7</div>
+                </div>
+                <div class="text-muted small">con respuesta definitiva</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">PQRs ABIERTAS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-envelope-open" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">4</div>
+                </div>
+                <div class="text-muted small">pendientes de respuesta</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">COMPROMISOS CUMPLIDOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-check-circle-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">9</div>
+                </div>
+                <div class="text-muted small">de 15 compromisos totales</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                <div class="text-muted small fw-semibold mb-1">COMPROMISOS VENCIDOS</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-exclamation-circle-fill" style="font-size:1.6rem;color:#dc3545"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">3</div>
+                </div>
+                <div class="text-muted small">superaron fecha compromiso</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">CONTRATACIÓN LOCAL</div>
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi-person-fill-check" style="font-size:1.6rem;color:#183963"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">28</div>
+                </div>
+                <div class="text-muted small">trabajadores locales activos</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acceso sub-módulos -->
+    <h5 class="fw-bold mb-3" style="color:#183963">Gestión Social</h5>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/comunidades" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-house-heart-fill d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">Comunidades</div>
+                    <span class="badge bg-primary mt-1">4 registradas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/reuniones" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-chat-square-text-fill d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">Reuniones Comunitarias</div>
+                    <span class="badge bg-primary mt-1">8 realizadas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/pqr" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-envelope-exclamation d-block mb-2" style="font-size:2rem;color:#dc3545"></i>
+                    <div class="fw-semibold small">PQR / Quejas</div>
+                    <span class="badge bg-danger mt-1">4 abiertas</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/compromisos" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-hand-thumbs-up-fill d-block mb-2" style="font-size:2rem;color:#dc3545"></i>
+                    <div class="fw-semibold small">Compromisos Sociales</div>
+                    <span class="badge bg-danger mt-1">3 vencidos</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/contratacion-local" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-person-fill-check d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">Contratación Local</div>
+                    <span class="badge bg-primary mt-1">28 activos</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/compras-locales" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-cart-fill d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">Compras Locales</div>
+                    <span class="badge bg-success mt-1">$45M COP</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a href="/proyectos/@ProyectoId/hseq/social/actas" class="text-decoration-none">
+                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
+                    <i class="bi-file-earmark-text-fill d-block mb-2" style="font-size:2rem;color:#fd7e14"></i>
+                    <div class="fw-semibold small">Actas y Evidencias</div>
+                    <span class="badge bg-primary mt-1">16 actas</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- PQR resumen -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Estado PQRs</strong>
+            <a href="/proyectos/@ProyectoId/hseq/social/pqr" class="btn btn-sm btn-outline-primary">Ver todas</a>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 text-center mb-3">
+                <div class="col-3">
+                    <div class="fw-bold" style="font-size:1.5rem;color:#dc3545">4</div>
+                    <small class="text-muted">Abiertas</small>
+                </div>
+                <div class="col-3">
+                    <div class="fw-bold" style="font-size:1.5rem;color:#fd7e14">0</div>
+                    <small class="text-muted">En Gestión</small>
+                </div>
+                <div class="col-3">
+                    <div class="fw-bold" style="font-size:1.5rem;color:#6ABF4B">7</div>
+                    <small class="text-muted">Cerradas</small>
+                </div>
+                <div class="col-3">
+                    <div class="fw-bold" style="font-size:1.5rem;color:#adb5bd">0</div>
+                    <small class="text-muted">Vencidas</small>
+                </div>
+            </div>
+            <div class="progress" style="height:14px;border-radius:7px">
+                <div class="progress-bar" style="width:36%;background:#dc3545;border-radius:7px 0 0 7px"></div>
+                <div class="progress-bar" style="width:64%;background:#6ABF4B;border-radius:0 7px 7px 0"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- IA -->
+    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963,#1e4d8c)">
+        <div class="card-body p-4 text-white">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi-robot" style="font-size:1.4rem"></i>
+                <h6 class="mb-0 fw-bold">Análisis Inteligente — Social</h6>
+                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
+            </div>
+            <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
+                <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
+                <p class="mb-0 small">Social presenta 3 compromisos vencidos con comunidades del área de influencia y 4 PQRs sin respuesta definitiva. Se requiere gestión urgente para evitar escalamiento de conflictos con comunidades.</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+    }
+}

@@ -1,0 +1,17 @@
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Infrastructure.deps.json
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Infrastructure.dll
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Infrastructure.pdb
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Core.dll
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Core.pdb
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.AssemblyInfo.cs
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeI.B8D553F1.Up2Date
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.dll
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\refint\RenergeIA.Infrastructure.dll
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.pdb
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\ref\RenergeIA.Infrastructure.dll
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\bin\Debug\net10.0\RenergeIA.Infrastructure.runtimeconfig.json
+C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente\RenergeIA.Infrastructure\obj\Debug\net10.0\RenergeIA.Infrastructure.genruntimeconfig.cache

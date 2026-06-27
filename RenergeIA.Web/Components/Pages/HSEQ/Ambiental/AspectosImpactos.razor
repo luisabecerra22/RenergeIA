@@ -1,0 +1,223 @@
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental/aspectos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Aspectos e Impactos — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-globe me-2" style="color:#6ABF4B"></i>Aspectos e Impactos Ambientales</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo Aspecto
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header text-white d-flex justify-content-between" style="background:#6ABF4B">
+                <strong>Nuevo Aspecto e Impacto Ambiental</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Aspecto Ambiental *</label>
+                            <InputText class="form-control" @bind-Value="_form.Aspecto" placeholder="Ej: Generación de residuos sólidos" />
+                            <ValidationMessage For="() => _form.Aspecto" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Impacto Asociado *</label>
+                            <InputText class="form-control" @bind-Value="_form.Impacto" placeholder="Ej: Contaminación del suelo" />
+                            <ValidationMessage For="() => _form.Impacto" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Actividad</label>
+                            <InputText class="form-control" @bind-Value="_form.Actividad" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Medio Afectado</label>
+                            <InputText class="form-control" @bind-Value="_form.MedioAfectado" placeholder="Suelo, Agua, Aire, Fauna..." />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Magnitud (1-5)</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Magnitud" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Frecuencia (1-5)</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Frecuencia" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Duración (1-5)</label>
+                            <InputNumber class="form-control" @bind-Value="_form.Duracion" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Medidas de Manejo</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.MedidasControl" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_aspectos.Count</div>
+                <div class="text-muted small">Aspectos identificados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
+                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_aspectos.Count(a => a.NivelSignificancia >= 12)</div>
+                <div class="text-muted small">Significativos (≥ 12)</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_aspectos.Count(a => a.NivelSignificancia >= 8 && a.NivelSignificancia < 12)</div>
+                <div class="text-muted small">Moderados (8-11)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Aspecto</th>
+                        <th>Impacto</th>
+                        <th>Medio Afectado</th>
+                        <th class="text-center">Mag</th>
+                        <th class="text-center">Frec</th>
+                        <th class="text-center">Dur</th>
+                        <th class="text-center">Nivel</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_aspectos.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-4">No hay aspectos e impactos registrados.</td></tr>
+                    }
+                    @foreach (var a in _aspectos.OrderByDescending(x => x.NivelSignificancia))
+                    {
+                        <tr>
+                            <td>@a.Aspecto</td>
+                            <td class="small">@a.Impacto</td>
+                            <td class="small text-muted">@(string.IsNullOrEmpty(a.MedioAfectado) ? "—" : a.MedioAfectado)</td>
+                            <td class="text-center">@a.Magnitud</td>
+                            <td class="text-center">@a.Frecuencia</td>
+                            <td class="text-center">@a.Duracion</td>
+                            <td class="text-center">
+                                <span class="badge @(a.NivelSignificancia >= 12 ? "bg-danger" : a.NivelSignificancia >= 8 ? "bg-warning text-dark" : "bg-success")">
+                                    @a.NivelSignificancia
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == a.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(a.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = a.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<AspectoImpacto> _aspectos = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _aspectos = await Db.AspectosImpactos.Where(a => a.ProyectoId == ProyectoId).OrderByDescending(a => a.NivelSignificancia).ToListAsync();
+
+    private void MostrarFormulario() { _form = new(); _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        var nivel = _form.Magnitud * _form.Frecuencia * _form.Duracion;
+        Db.AspectosImpactos.Add(new AspectoImpacto
+        {
+            ProyectoId         = ProyectoId,
+            Aspecto            = _form.Aspecto,
+            Impacto            = _form.Impacto,
+            Actividad          = _form.Actividad ?? "",
+            MedioAfectado      = _form.MedioAfectado ?? "",
+            Magnitud           = _form.Magnitud,
+            Frecuencia         = _form.Frecuencia,
+            Duracion           = _form.Duracion,
+            NivelSignificancia = nivel,
+            EsSignificativo    = nivel >= 12,
+            Responsable        = "",
+            MedidasControl     = _form.MedidasControl,
+            Observaciones      = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var a = await Db.AspectosImpactos.FindAsync(id);
+        if (a is not null) { Db.AspectosImpactos.Remove(a); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Aspecto { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Impacto { get; set; } = "";
+        public string? Actividad { get; set; }
+        public string? MedioAfectado { get; set; }
+        public int Magnitud { get; set; } = 1;
+        public int Frecuencia { get; set; } = 1;
+        public int Duracion { get; set; } = 1;
+        public string? MedidasControl { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

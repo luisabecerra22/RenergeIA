@@ -1,0 +1,419 @@
+@page "/proyectos/{ProyectoId:int}/documentos/{DocumentoId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject DocumentoService DocService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
+
+<PageTitle>@(_doc?.Titulo ?? "Documento") — RenergeIA</PageTitle>
+
+@if (_doc is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@ProyectoId/documentos" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div>
+            <h1 class="h3 mb-0">@_doc.Titulo</h1>
+            <small class="text-muted"><code>@_doc.Codigo</code> · @_doc.Proyecto.Nombre</small>
+        </div>
+        <span class="badge @BadgeEstado(_doc.Estado) ms-1">@EnumDisplay.Mostrar(_doc.Estado)</span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_mensaje))
+    {
+        <div class="alert alert-@_tipoMensaje alert-dismissible">
+            @_mensaje
+            <button type="button" class="btn-close" @onclick="() => _mensaje = string.Empty"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Información general -->
+        <div class="col-md-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Información general</strong>
+                    @if (_doc.Estado == EstadoDocumento.Borrador)
+                    {
+                        <a href="/proyectos/@ProyectoId/documentos/@DocumentoId/editar"
+                           class="btn btn-sm btn-outline-primary">Editar</a>
+                    }
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Código</dt>
+                        <dd class="col-7"><code>@_doc.Codigo</code></dd>
+                        <dt class="col-5">Tipo</dt>
+                        <dd class="col-7">@NombreTipo(_doc.TipoDocumento)</dd>
+                        <dt class="col-5">Disciplina</dt>
+                        <dd class="col-7">@NombreDisciplina(_doc.Disciplina)</dd>
+                        <dt class="col-5">Estado</dt>
+                        <dd class="col-7"><span class="badge @BadgeEstado(_doc.Estado)">@EnumDisplay.Mostrar(_doc.Estado)</span></dd>
+                        <dt class="col-5">Fecha emisión</dt>
+                        <dd class="col-7">@(_doc.FechaEmision?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                        <dt class="col-5">Creado</dt>
+                        <dd class="col-7">@_doc.FechaCreacion.ToString("dd/MM/yyyy")</dd>
+                        @if (!string.IsNullOrEmpty(_doc.Descripcion))
+                        {
+                            <dt class="col-5">Descripción</dt>
+                            <dd class="col-7">@_doc.Descripcion</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Versión actual -->
+        <div class="col-md-7">
+            @if (_versionActual is not null)
+            {
+                <div class="card border-success shadow-sm h-100">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <strong>Versión actual: @_versionActual.NumeroVersion</strong>
+                        <button class="btn btn-sm btn-light" @onclick="() => DescargarArchivo(_versionActual)">
+                            ⬇ Descargar
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-5">Archivo</dt>
+                            <dd class="col-7 text-break">@_versionActual.NombreArchivo</dd>
+                            <dt class="col-5">Tamaño</dt>
+                            <dd class="col-7">@DocumentoService.FormatearTamanio(_versionActual.TamanioBytes)</dd>
+                            <dt class="col-5">Subido</dt>
+                            <dd class="col-7">@_versionActual.FechaSubida.ToString("dd/MM/yyyy HH:mm")</dd>
+                            <dt class="col-5">Subido por</dt>
+                            <dd class="col-7">@_versionActual.SubidoPor</dd>
+                            @if (!string.IsNullOrEmpty(_versionActual.Comentarios))
+                            {
+                                <dt class="col-5">Comentarios</dt>
+                                <dd class="col-7">@_versionActual.Comentarios</dd>
+                            }
+                        </dl>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="card shadow-sm h-100">
+                    <div class="card-body text-center py-4">
+                        <p class="text-muted">Este documento aún no tiene versiones.</p>
+                        <button class="btn btn-primary" @onclick="() => _mostrarModalVersion = true">
+                            Subir primera versión
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Historial de versiones -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>Historial de versiones (@_doc.Versiones.Count)</strong>
+            <button class="btn btn-sm btn-outline-primary" @onclick="() => _mostrarModalVersion = true">
+                + Subir nueva versión
+            </button>
+        </div>
+        @if (_doc.Versiones.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Versión</th>
+                            <th>Archivo</th>
+                            <th>Tamaño</th>
+                            <th>Fecha</th>
+                            <th>Subido por</th>
+                            <th>Comentarios</th>
+                            <th>Estado</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in _doc.Versiones.OrderByDescending(v => v.FechaSubida))
+                        {
+                            <tr class="@(v.EsVersionActual ? "table-success" : "")">
+                                <td>
+                                    <span class="badge @(v.EsVersionActual ? "bg-success" : "bg-secondary")">
+                                        @v.NumeroVersion
+                                    </span>
+                                </td>
+                                <td class="text-break" style="max-width:200px">@v.NombreArchivo</td>
+                                <td>@DocumentoService.FormatearTamanio(v.TamanioBytes)</td>
+                                <td>@v.FechaSubida.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@v.SubidoPor</td>
+                                <td>@(v.Comentarios ?? "—")</td>
+                                <td>@(v.EsVersionActual ? "Actual" : "Histórica")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => DescargarArchivo(v)">
+                                        ⬇
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted text-center">No hay versiones registradas.</div>
+        }
+    </div>
+}
+
+<!-- Modal Subir Nueva Versión -->
+@if (_mostrarModalVersion)
+{
+    <div class="modal-backdrop fade show" style="z-index:1040"></div>
+    <div class="modal show d-block" tabindex="-1" style="z-index:1050">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Subir nueva versión</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_doc is not null)
+                    {
+                        <p class="text-muted small">
+                            Versión actual: <strong>@(_versionActual?.NumeroVersion ?? "—")</strong> →
+                            Nueva versión: <strong class="text-primary">@_siguienteVersion</strong>
+                        </p>
+
+                        @if (!string.IsNullOrEmpty(_errorModal))
+                        {
+                            <div class="alert alert-danger small py-2">@_errorModal</div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Archivo <span class="text-danger">*</span></label>
+                            <InputFile OnChange="SeleccionarArchivoModal"
+                                       class="form-control"
+                                       accept=".pdf,.dwg,.dxf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.zip,.rar" />
+                            @if (_archivoModal is not null)
+                            {
+                                <div class="mt-1 text-muted small">
+                                    ✓ @_archivoModal.Name — @DocumentoService.FormatearTamanio(_archivoModal.Size)
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                ¿Qué cambió? <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" rows="3" @bind="_comentariosModal"
+                                      placeholder="Describe brevemente los cambios de esta revisión"></textarea>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button class="btn btn-primary" @onclick="SubirNuevaVersionAsync" disabled="@_subiendoVersion">
+                        @if (_subiendoVersion) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Subir versión @_siguienteVersion
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int DocumentoId { get; set; }
+
+    private Documento? _doc;
+    private VersionDocumento? _versionActual;
+    private bool _mostrarModalVersion;
+    private IBrowserFile? _archivoModal;
+    private string _comentariosModal = "";
+    private string _errorModal = "";
+    private string _siguienteVersion = "";
+    private bool _subiendoVersion;
+    private string _mensaje = "";
+    private string _tipoMensaje = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _doc = await Db.Documentos
+            .Include(d => d.Versiones)
+            .Include(d => d.Proyecto)
+            .FirstOrDefaultAsync(d => d.Id == DocumentoId && d.ProyectoId == ProyectoId);
+
+        if (_doc is null) { Navigation.NavigateTo($"/proyectos/{ProyectoId}/documentos"); return; }
+
+        _versionActual = _doc.Versiones.FirstOrDefault(v => v.EsVersionActual);
+        _siguienteVersion = await DocService.SiguienteVersionAsync(Db, DocumentoId);
+    }
+
+    private void SeleccionarArchivoModal(InputFileChangeEventArgs e)
+    {
+        _errorModal = "";
+        _archivoModal = e.File;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModalVersion = false;
+        _archivoModal = null;
+        _comentariosModal = "";
+        _errorModal = "";
+    }
+
+    private async Task SubirNuevaVersionAsync()
+    {
+        _errorModal = "";
+
+        if (_archivoModal is null)
+        {
+            _errorModal = "Selecciona un archivo.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_comentariosModal))
+        {
+            _errorModal = "Describe los cambios de esta versión.";
+            return;
+        }
+
+        _subiendoVersion = true;
+        try
+        {
+            await DocService.DesmarcarVersionesActualesAsync(Db, DocumentoId);
+
+            await using var stream = _archivoModal.OpenReadStream(maxAllowedSize: 50L * 1024 * 1024);
+            var versionLimpia = _siguienteVersion.Replace(" ", "");
+            var (ruta, errorArchivo) = await DocService.GuardarArchivoAsync(
+                stream, _archivoModal.Name, _archivoModal.Size,
+                ProyectoId, DocumentoId, versionLimpia);
+
+            if (ruta is null)
+            {
+                _errorModal = errorArchivo ?? "Error al guardar el archivo.";
+                return;
+            }
+
+            var nuevaVersion = new VersionDocumento
+            {
+                DocumentoId = DocumentoId,
+                NumeroVersion = _siguienteVersion,
+                RutaArchivo = ruta,
+                NombreArchivo = _archivoModal.Name,
+                TamanioBytes = _archivoModal.Size,
+                FechaSubida = DateTime.UtcNow,
+                SubidoPor = (await AuthState.GetAuthenticationStateAsync())
+                                .User.Identity?.Name ?? "Sistema",
+                Comentarios = _comentariosModal.Trim(),
+                EsVersionActual = true
+            };
+
+            Db.VersionesDocumento.Add(nuevaVersion);
+            await Db.SaveChangesAsync();
+
+            CerrarModal();
+            _mensaje = $"Versión {_siguienteVersion} subida correctamente.";
+            _tipoMensaje = "success";
+            await CargarAsync();
+        }
+        finally
+        {
+            _subiendoVersion = false;
+        }
+    }
+
+    private async Task DescargarArchivo(VersionDocumento version)
+    {
+        try
+        {
+            var rutaCompleta = DocService.ObtenerRutaCompleta(version.RutaArchivo);
+            if (!File.Exists(rutaCompleta))
+            {
+                _mensaje = "El archivo no se encontró en el servidor.";
+                _tipoMensaje = "warning";
+                return;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(rutaCompleta);
+            var base64 = Convert.ToBase64String(bytes);
+            var mimeType = ObtenerMimeType(version.NombreArchivo);
+
+            await JS.InvokeVoidAsync("downloadFile", version.NombreArchivo, base64, mimeType);
+        }
+        catch
+        {
+            _mensaje = "Error al descargar el archivo.";
+            _tipoMensaje = "danger";
+        }
+    }
+
+    private static string ObtenerMimeType(string nombre)
+    {
+        var ext = Path.GetExtension(nombre).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf" => "application/pdf",
+            ".dwg" or ".dxf" => "application/octet-stream",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xls" => "application/vnd.ms-excel",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".doc" => "application/msword",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".zip" => "application/zip",
+            ".rar" => "application/x-rar-compressed",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private static string NombreTipo(TipoDocumento t) => t switch
+    {
+        TipoDocumento.Plano => "Plano",
+        TipoDocumento.Especificacion => "Especificación",
+        TipoDocumento.Contrato => "Contrato",
+        TipoDocumento.Permiso => "Permiso",
+        TipoDocumento.Informe => "Informe",
+        TipoDocumento.Procedimiento => "Procedimiento",
+        TipoDocumento.Certificado => "Certificado",
+        _ => "Otro"
+    };
+
+    private static string NombreDisciplina(DisciplinaDocumento d) => d switch
+    {
+        DisciplinaDocumento.Civil => "Civil",
+        DisciplinaDocumento.Electrico => "Eléctrico",
+        DisciplinaDocumento.Mecanico => "Mecánico",
+        DisciplinaDocumento.Estructural => "Estructural",
+        DisciplinaDocumento.InstrumentacionControl => "Instrumentación y Control",
+        DisciplinaDocumento.SCADA => "SCADA",
+        DisciplinaDocumento.GestionProyecto => "Gestión del Proyecto",
+        DisciplinaDocumento.HSE => "HSE",
+        DisciplinaDocumento.Calidad => "Calidad",
+        DisciplinaDocumento.Ambiental => "Ambiental",
+        _ => "Otro"
+    };
+
+    private static string BadgeEstado(EstadoDocumento e) => e switch
+    {
+        EstadoDocumento.Borrador => "bg-secondary",
+        EstadoDocumento.EnRevision => "bg-warning text-dark",
+        EstadoDocumento.Aprobado => "bg-success",
+        EstadoDocumento.Rechazado => "bg-danger",
+        EstadoDocumento.Obsoleto => "bg-dark",
+        _ => "bg-secondary"
+    };
+}

@@ -1,0 +1,382 @@
+@page "/proyectos/{ProyectoId:int}/dashboard"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject InformeDiarioService InformeSvc
+@inject IJSRuntime JS
+
+<PageTitle>Dashboard — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0">Dashboard</h1>
+            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
+        </div>
+        @if (_dash.TieneDatos)
+        {
+            <span class="badge fs-6 @BadgeEstado(_dash.EstadoGeneral)">@_dash.EstadoGeneral</span>
+        }
+    </div>
+
+    @if (!_dash.TieneDatos)
+    {
+        <div class="card shadow-sm text-center py-5">
+            <p class="text-muted mb-3">No hay actividades WBS configuradas para este proyecto.</p>
+            <a href="/proyectos/@ProyectoId/wbs" class="btn btn-primary">Ir a WBS</a>
+        </div>
+    }
+    else
+    {
+        <!-- KPIs fila 1: avance -->
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
+                    <div class="text-muted small fw-semibold mb-1">AVANCE PROGRAMADO</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:#183963">
+                        @_dash.AvanceProgramadoTotal.ToString("F1")%
+                    </div>
+                    <div class="text-muted small">al día de hoy</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeReal()">
+                    <div class="text-muted small fw-semibold mb-1">AVANCE REAL</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorDesv(_dash.DesviacionTotal)">
+                        @_dash.AvanceRealTotal.ToString("F1")%
+                    </div>
+                    <div class="text-muted small">acumulado</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeDesv()">
+                    <div class="text-muted small fw-semibold mb-1">DESVIACIÓN</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorDesv(_dash.DesviacionTotal)">
+                        @(_dash.DesviacionTotal >= 0 ? "+" : "")@_dash.DesviacionTotal.ToString("F1")%
+                    </div>
+                    <div class="text-muted small">real vs programado</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeSPI()">
+                    <div class="text-muted small fw-semibold mb-1">SPI GLOBAL</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorSPI()">
+                        @_dash.SPIGlobal.ToString("F2")
+                    </div>
+                    <div class="text-muted small">
+                        @(_dash.SPIGlobal >= 1m ? "Al día o adelantado" : _dash.SPIGlobal >= 0.9m ? "Leve atraso" : "Atraso significativo")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs fila 2: actividades -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
+                    <div class="text-muted small fw-semibold mb-1">ACT. ATRASADAS</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:@(_dash.Atrasadas > 0 ? "#fd7e14" : "#6ABF4B")">
+                        @_dash.Atrasadas
+                    </div>
+                    <div class="text-muted small">de @_dash.TotalActividades total</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
+                    <div class="text-muted small fw-semibold mb-1">ACT. CRÍTICAS</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:@(_dash.Criticas > 0 ? "#dc3545" : "#6ABF4B")">
+                        @_dash.Criticas
+                    </div>
+                    <div class="text-muted small">desviación &lt; -15%</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
+                    <div class="text-muted small fw-semibold mb-1">ACT. FINALIZADAS</div>
+                    <div class="fw-bold" style="font-size:1.9rem;color:#6ABF4B">@_dash.Finalizadas</div>
+                    <div class="text-muted small">avance &ge; 100%</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeSPI()">
+                    <div class="text-muted small fw-semibold mb-1">ESTADO GENERAL</div>
+                    <div class="fw-bold" style="font-size:1.6rem;color:@ColorSPI()">
+                        @_dash.EstadoGeneral
+                    </div>
+                    <div class="text-muted small">@_dash.EnLinea en línea &bull; @_dash.NoIniciadas sin iniciar</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Curva S -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Curva S — Avance real vs planificado</strong>
+                <small class="text-muted">Por fecha de informe diario</small>
+            </div>
+            <div class="card-body">
+                @if (_dash.CurvaS.Fechas.Count < 2)
+                {
+                    <div class="text-center py-4">
+                        <p class="text-muted mb-2">
+                            Se necesitan al menos 2 informes con registros de avance para mostrar la Curva S.
+                        </p>
+                        <a href="/proyectos/@ProyectoId/informes/crear" class="btn btn-sm btn-outline-primary">
+                            Registrar informe
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <canvas id="curvaSChart" style="max-height:320px"></canvas>
+                }
+            </div>
+        </div>
+
+        <!-- Disciplinas + Donut -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Avance por disciplina — Real vs Programado</strong></div>
+                    <div class="card-body">
+                        @if (!_dash.PorDisciplina.Any())
+                        {
+                            <p class="text-muted text-center py-4">
+                                No hay actividades con disciplina asignada.
+                            </p>
+                        }
+                        else
+                        {
+                            <canvas id="disciplinasChart" style="max-height:280px"></canvas>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header"><strong>Estado de actividades</strong></div>
+                    <div class="card-body d-flex align-items-center justify-content-center">
+                        <canvas id="estadoChart" style="max-height:260px"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top actividades atrasadas -->
+        @if (_dash.TopAtrasadas.Any())
+        {
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Actividades más atrasadas</strong>
+                    <small class="text-muted">Top @_dash.TopAtrasadas.Count por desviación</small>
+                </div>
+                <div class="card-body">
+                    <canvas id="atrasadasChart"
+                            style="min-height:@(_dash.TopAtrasadas.Count * 36 + 50)px;max-height:480px">
+                    </canvas>
+                </div>
+            </div>
+        }
+
+        <!-- Tabla actividades críticas y atrasadas -->
+        @if (_dash.ActividadesCriticas.Any())
+        {
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Plan de acción — Actividades críticas y atrasadas</strong>
+                    <span class="badge bg-danger">@_dash.ActividadesCriticas.Count actividades</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Actividad</th>
+                                <th class="text-center">Disciplina</th>
+                                <th class="text-end">Prog.</th>
+                                <th class="text-end">Real</th>
+                                <th class="text-end">Desv.</th>
+                                <th class="text-center">Estado</th>
+                                <th>Recomendación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in _dash.ActividadesCriticas)
+                            {
+                                <tr>
+                                    <td class="font-monospace small text-muted">@a.Codigo</td>
+                                    <td>
+                                        <span class="@(a.EsCritica ? "fw-bold" : "")">@a.Nombre</span>
+                                        @if (a.EsCritica)
+                                        {
+                                            <span class="badge bg-danger ms-1" style="font-size:.65rem">CR</span>
+                                        }
+                                    </td>
+                                    <td class="text-center text-muted small">
+                                        @if (a.Disciplina.HasValue)
+                                        { @EnumDisplay.Mostrar(a.Disciplina.Value) }
+                                        else { <span>—</span> }
+                                    </td>
+                                    <td class="text-end text-muted">@a.AvanceProgramado.ToString("F1")%</td>
+                                    <td class="text-end fw-bold">@a.AvanceReal.ToString("F1")%</td>
+                                    <td class="text-end fw-bold @(a.Desviacion < -15 ? "text-danger" : "text-warning")">
+                                        @a.Desviacion.ToString("F1")%
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge @BadgeActividad(a.Estado)">
+                                            @NombreEstado(a.Estado)
+                                        </span>
+                                    </td>
+                                    <td class="small text-muted" style="max-width:260px">
+                                        @a.Recomendacion
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- Tabla detalle por disciplina -->
+        @if (_dash.PorDisciplina.Any())
+        {
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><strong>Detalle por disciplina</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Disciplina</th>
+                                <th class="text-end">Programado</th>
+                                <th class="text-end">Real</th>
+                                <th class="text-end">Desviación</th>
+                                <th class="text-end">Atrasadas</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in _dash.PorDisciplina)
+                            {
+                                <tr>
+                                    <td>@EnumDisplay.Mostrar(d.Disciplina)</td>
+                                    <td class="text-end text-muted">@d.AvanceProgramado.ToString("F1")%</td>
+                                    <td class="text-end fw-bold">@d.AvanceReal.ToString("F1")%</td>
+                                    <td class="text-end fw-bold @(d.Desviacion >= 0 ? "text-success" : d.Desviacion >= -5 ? "text-warning" : "text-danger")">
+                                        @(d.Desviacion >= 0 ? "+" : "")@d.Desviacion.ToString("F1")%
+                                    </td>
+                                    <td class="text-end @(d.Atrasadas > 0 ? "text-danger fw-bold" : "text-muted")">
+                                        @d.Atrasadas
+                                    </td>
+                                    <td class="text-end text-muted">@d.Total</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private DashboardCompleto _dash = new();
+    private bool _chartsRendered;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        _dash = await InformeSvc.ObtenerDashboardCompletoAsync(ProyectoId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_dash.TieneDatos || _chartsRendered) return;
+        _chartsRendered = true;
+
+        if (_dash.CurvaS.Fechas.Count >= 2)
+            await JS.InvokeVoidAsync("renderLineChart",
+                "curvaSChart",
+                _dash.CurvaS.Fechas,
+                _dash.CurvaS.AvanceReal,
+                _dash.CurvaS.AvancePlanificado,
+                "Avance Real (%)", "Avance Planificado (%)");
+
+        if (_dash.PorDisciplina.Any())
+        {
+            var labels = _dash.PorDisciplina.Select(d => EnumDisplay.Mostrar(d.Disciplina)).ToList();
+            var reales = _dash.PorDisciplina.Select(d => (double)d.AvanceReal).ToList();
+            var progs  = _dash.PorDisciplina.Select(d => (double)d.AvanceProgramado).ToList();
+            await JS.InvokeVoidAsync("renderBarChart",
+                "disciplinasChart", labels, reales, progs,
+                "Avance Real (%)", "Programado (%)");
+        }
+
+        var estadoLabels = new[] { "En Línea", "Atrasadas", "Críticas", "Finalizadas", "Sin iniciar" };
+        var estadoData   = new[] { _dash.EnLinea, _dash.Atrasadas, _dash.Criticas, _dash.Finalizadas, _dash.NoIniciadas };
+        var estadoColors = new[] { "#6ABF4B", "#ffc107", "#dc3545", "#183963", "#adb5bd" };
+        await JS.InvokeVoidAsync("renderDoughnutChart", "estadoChart", estadoLabels, estadoData, estadoColors);
+
+        if (_dash.TopAtrasadas.Any())
+        {
+            var labels = _dash.TopAtrasadas
+                .Select(a => a.Nombre.Length > 38 ? a.Nombre[..38] + "…" : a.Nombre)
+                .ToList();
+            var data = _dash.TopAtrasadas.Select(a => (double)a.Desviacion).ToList();
+            await JS.InvokeVoidAsync("renderHorizontalBarChart", "atrasadasChart", labels, data, "Desviación (%)");
+        }
+    }
+
+    private string ColorDesv(decimal desv) =>
+        desv >= 0 ? "#6ABF4B" : desv >= -5 ? "#fd7e14" : "#dc3545";
+
+    private string BordeReal() =>
+        _dash.AvanceRealTotal >= _dash.AvanceProgramadoTotal ? "border-success" : "border-danger";
+
+    private string BordeDesv() =>
+        _dash.DesviacionTotal >= 0 ? "border-success" : _dash.DesviacionTotal >= -5 ? "border-warning" : "border-danger";
+
+    private string BordeSPI() =>
+        _dash.SPIGlobal >= 1m ? "border-success" : _dash.SPIGlobal >= 0.9m ? "border-warning" : "border-danger";
+
+    private string ColorSPI() =>
+        _dash.SPIGlobal >= 1m ? "#6ABF4B" : _dash.SPIGlobal >= 0.9m ? "#fd7e14" : "#dc3545";
+
+    private static string BadgeEstado(string estado) => estado switch
+    {
+        "Al Día"      => "bg-success",
+        "Leve Atraso" => "bg-warning text-dark",
+        "Atrasado"    => "bg-warning text-dark",
+        "Crítico"     => "bg-danger",
+        _             => "bg-secondary"
+    };
+
+    private static string BadgeActividad(EstadoDashboard estado) => estado switch
+    {
+        EstadoDashboard.Critica    => "bg-danger",
+        EstadoDashboard.Atrasada   => "bg-warning text-dark",
+        EstadoDashboard.Finalizada => "bg-primary",
+        EstadoDashboard.NoIniciada => "bg-secondary",
+        _                          => "bg-success"
+    };
+
+    private static string NombreEstado(EstadoDashboard estado) => estado switch
+    {
+        EstadoDashboard.Critica    => "Crítica",
+        EstadoDashboard.Atrasada   => "Atrasada",
+        EstadoDashboard.Finalizada => "Finalizada",
+        EstadoDashboard.NoIniciada => "Sin iniciar",
+        _                          => "En línea"
+    };
+}

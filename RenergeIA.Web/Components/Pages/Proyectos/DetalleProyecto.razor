@@ -1,0 +1,157 @@
+@page "/proyectos/{Id:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>@(_proyecto?.Nombre ?? "Proyecto") — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0">@_proyecto.Nombre</h1>
+        <span class="badge @BadgeClass(_proyecto.Estado)">@EnumDisplay.Mostrar(_proyecto.Estado)</span>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Información general</strong></div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Código</dt><dd class="col-7">@_proyecto.Codigo</dd>
+                        <dt class="col-5">Cliente</dt><dd class="col-7">@_proyecto.Cliente</dd>
+                        <dt class="col-5">Ubicación</dt><dd class="col-7">@_proyecto.Ubicacion</dd>
+                        <dt class="col-5">País</dt><dd class="col-7">@_proyecto.Pais</dd>
+                        <dt class="col-5">Capacidad</dt><dd class="col-7">@_proyecto.CapacidadKWp kWp</dd>
+                        <dt class="col-5">Presupuesto</dt><dd class="col-7">@($"USD {_proyecto.PresupuestoContractual:N0}")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Cronograma</strong></div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-6">Inicio planeado</dt>
+                        <dd class="col-6">@_proyecto.FechaInicioPlaneada.ToShortDateString()</dd>
+                        <dt class="col-6">Fin planeado</dt>
+                        <dd class="col-6">@_proyecto.FechaFinPlaneada.ToShortDateString()</dd>
+                        <dt class="col-6">Inicio real</dt>
+                        <dd class="col-6">@(_proyecto.FechaInicioReal?.ToShortDateString() ?? "—")</dd>
+                        <dt class="col-6">Fin real</dt>
+                        <dd class="col-6">@(_proyecto.FechaFinReal?.ToShortDateString() ?? "—")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_proyecto.Descripcion))
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header"><strong>Descripción</strong></div>
+            <div class="card-body"><p class="mb-0">@_proyecto.Descripcion</p></div>
+        </div>
+    }
+
+    <h4 class="mb-3">Módulos del proyecto</h4>
+    <div class="row g-3 mb-4">
+        @foreach (var (nombre, color, disponible, url) in _modulos)
+        {
+            <div class="col-6 col-md-4 col-lg-3">
+                @if (disponible && url is not null)
+                {
+                    <a href="@url" class="card text-center p-3 shadow-sm text-decoration-none text-dark h-100 d-flex align-items-center justify-content-center flex-column">
+                        <div class="rounded-circle mb-2 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:@color">
+                            <span class="text-white fw-bold" style="font-size:1.1rem">@nombre[..2]</span>
+                        </div>
+                        <div class="small fw-semibold">@nombre</div>
+                    </a>
+                }
+                else
+                {
+                    <div class="card text-center p-3 shadow-sm h-100 d-flex align-items-center justify-content-center flex-column opacity-50">
+                        <div class="rounded-circle mb-2 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:@color">
+                            <span class="text-white fw-bold" style="font-size:1.1rem">@nombre[..2]</span>
+                        </div>
+                        <div class="small">@nombre</div>
+                        <span class="badge bg-secondary mt-1" style="font-size:0.65rem">Próximamente</span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="/proyectos/@_proyecto.Id/editar" class="btn btn-outline-primary">Editar</a>
+        @if (_confirmarEliminar)
+        {
+            <div class="alert alert-danger d-flex align-items-center gap-3 py-2 mb-0">
+                <span>¿Seguro que deseas eliminar <strong>@_proyecto.Nombre</strong>?</span>
+                <button class="btn btn-danger btn-sm" @onclick="EliminarAsync">Sí, eliminar</button>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmarEliminar = false">Cancelar</button>
+            </div>
+        }
+        else
+        {
+            <button class="btn btn-outline-danger" @onclick="() => _confirmarEliminar = true">Eliminar</button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Proyecto? _proyecto;
+    private bool _confirmarEliminar;
+    private List<(string Nombre, string Color, bool Disponible, string? Url)> _modulos = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(Id);
+        if (_proyecto is not null)
+        {
+            _modulos =
+            [
+                ("Personal",          "#183963", true,  $"/proyectos/{Id}/personal"),
+                ("WBS / Actividades", "#183963", true,  $"/proyectos/{Id}/wbs"),
+                ("Equipos",           "#183963", true,  $"/proyectos/{Id}/equipos"),
+                ("Informe Diario",    "#6ABF4B", true,  $"/proyectos/{Id}/informes"),
+                ("Documentos",        "#183963", true,  $"/proyectos/{Id}/documentos"),
+                ("Dashboard",         "#6ABF4B", true,  $"/proyectos/{Id}/dashboard"),
+                ("Costos",            "#183963", true,  $"/proyectos/{Id}/costos"),
+                ("No Conformidades",  "#183963", true,  $"/proyectos/{Id}/no-conformidades"),
+                ("HSEQ",              "#6ABF4B", true,  $"/proyectos/{Id}/hseq"),
+                ("Restricciones",     "#6ABF4B", true,  $"/proyectos/{Id}/restricciones"),
+                ("Histogramas",       "#183963", true,  $"/proyectos/{Id}/histogramas"),
+                ("Clima",             "#17a2b8", true,  $"/proyectos/{Id}/clima"),
+                ("Alertas",           "#D9D9D6", false, null),
+            ];
+        }
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (_proyecto is null) return;
+        Db.Proyectos.Remove(_proyecto);
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo("/proyectos");
+    }
+
+    private static string BadgeClass(EstadoProyecto estado) => estado switch
+    {
+        EstadoProyecto.Planificacion => "bg-secondary",
+        EstadoProyecto.EnEjecucion   => "bg-success",
+        EstadoProyecto.Suspendido    => "bg-warning text-dark",
+        EstadoProyecto.Completado    => "bg-primary",
+        EstadoProyecto.Cancelado     => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

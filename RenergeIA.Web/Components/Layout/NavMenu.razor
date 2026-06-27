@@ -1,0 +1,199 @@
+@rendermode InteractiveServer
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">RenergeIA</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+
+        <!-- ── Inicio ──────────────────────────────────────── -->
+        <div class="nav-section-item">
+            <NavLink class="nav-top-link" href="" Match="NavLinkMatch.All">
+                <i class="bi-house-door-fill nav-top-icon"></i>
+                <span>Inicio</span>
+            </NavLink>
+        </div>
+
+        <!-- ── Proyectos ─────────────────────────────────── -->
+        <div class="nav-section-item">
+            <div class="nav-top-link-row">
+                <NavLink class="nav-top-link" href="proyectos">
+                    <i class="bi-folder-fill nav-top-icon"></i>
+                    <span>Proyectos</span>
+                </NavLink>
+                <button class="nav-chevron-btn"
+                        @onclick="ToggleSeccionProyectos"
+                        @onclick:stopPropagation="true">
+                    <i class="@(_proyectosExpandido ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (_proyectosExpandido)
+        {
+            <div class="nav-projects-container">
+                @if (_error)
+                {
+                    <p class="nav-msg-error">No se pudieron cargar proyectos</p>
+                }
+                else if (!_proyectos.Any())
+                {
+                    <p class="nav-msg-empty">Sin proyectos</p>
+                }
+                else
+                {
+                    @foreach (var p in _proyectos)
+                    {
+                        <div class="nav-project-block">
+
+                            <div class="nav-project-header @(ProyectoActualId == p.Id ? "nav-project-active" : "")">
+                                <a href="proyectos/@p.Id"
+                                   class="nav-project-link"
+                                   @onclick:stopPropagation="true">
+                                    <i class="bi-folder2-open nav-project-icon"></i>
+                                    <span class="nav-project-name">@p.Nombre</span>
+                                </a>
+                                <button class="nav-project-toggle"
+                                        @onclick="() => ToggleProyecto(p.Id)"
+                                        @onclick:stopPropagation="true"
+                                        title="Expandir / contraer">
+                                    <i class="@(_expandidos.Contains(p.Id) ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                                </button>
+                            </div>
+
+                            @if (_expandidos.Contains(p.Id))
+                            {
+                                <div class="nav-modules-list">
+                                    @foreach (var mod in _modulos)
+                                    {
+                                        @if (mod.Proximamente)
+                                        {
+                                            <span class="nav-module-item nav-module-disabled">
+                                                <i class="@mod.Icono nav-module-icon"></i>
+                                                <span>@mod.Nombre</span>
+                                                <span class="nav-badge-pronto">pronto</span>
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <a href="proyectos/@p.Id/@mod.Ruta"
+                                               class="nav-module-item @(ModuloActivo(p.Id, mod.Ruta) ? "nav-module-active" : "")">
+                                                <i class="@mod.Icono nav-module-icon"></i>
+                                                <span>@mod.Nombre</span>
+                                            </a>
+                                        }
+                                    }
+                                </div>
+                            }
+
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+    </nav>
+</div>
+
+@code {
+    private record ProyectoNavItem(int Id, string Nombre);
+    private record Modulo(string Nombre, string Ruta, string Icono, bool Proximamente = false);
+
+    private static readonly Modulo[] _modulos =
+    [
+        new("Dashboard",         "dashboard",        "bi-speedometer2"),
+        new("Informe Diario",    "informes",         "bi-journal-text"),
+        new("WBS / Actividades", "wbs",              "bi-diagram-3"),
+        new("Personal",          "personal",         "bi-people-fill"),
+        new("Equipos",           "equipos",          "bi-truck"),
+        new("Documentos",        "documentos",       "bi-folder2-open"),
+        new("Costos",            "costos",           "bi-currency-dollar"),
+        new("HSEQ",              "hseq",             "bi-shield-check"),
+        new("No Conformidades",  "no-conformidades", "bi-exclamation-octagon"),
+        new("Restricciones",     "restricciones",    "bi-shield-x"),
+        new("Histogramas",       "histogramas",      "bi-bar-chart-steps"),
+        new("Clima",             "clima",            "bi-cloud-sun"),
+        new("Alertas",           "alertas",          "bi-bell",       true),
+    ];
+
+    private List<ProyectoNavItem> _proyectos = [];
+    private readonly HashSet<int>  _expandidos = [];
+    private bool _proyectosExpandido = true;
+    private bool _error = false;
+
+    // ── Detección de ruta activa ─────────────────────────────────────────────
+
+    private int? ProyectoActualId
+    {
+        get
+        {
+            var segs = new Uri(Nav.Uri).AbsolutePath
+                           .Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return segs.Length >= 2 && segs[0] == "proyectos" &&
+                   int.TryParse(segs[1], out var id) ? id : null;
+        }
+    }
+
+    private bool ModuloActivo(int proyectoId, string ruta)
+    {
+        var expected = $"/proyectos/{proyectoId}/{ruta}";
+        var actual   = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+        return actual == expected || actual.StartsWith(expected + "/");
+    }
+
+    // ── Ciclo de vida ────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnUriChanged;
+        await CargarProyectosAsync();
+        var id = ProyectoActualId;
+        if (id.HasValue) _expandidos.Add(id.Value);
+    }
+
+    private async Task CargarProyectosAsync()
+    {
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<RenergeIADbContext>();
+            _proyectos = await db.Proyectos
+                .AsNoTracking()
+                .OrderBy(p => p.Nombre)
+                .Select(p => new ProyectoNavItem(p.Id, p.Nombre))
+                .ToListAsync();
+        }
+        catch
+        {
+            _error = true;
+        }
+    }
+
+    private void OnUriChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var id = ProyectoActualId;
+        if (id.HasValue) _expandidos.Add(id.Value);
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Acciones ─────────────────────────────────────────────────────────────
+
+    private void ToggleSeccionProyectos() =>
+        _proyectosExpandido = !_proyectosExpandido;
+
+    private void ToggleProyecto(int id)
+    {
+        if (!_expandidos.Remove(id)) _expandidos.Add(id);
+    }
+
+    public void Dispose() =>
+        Nav.LocationChanged -= OnUriChanged;
+}

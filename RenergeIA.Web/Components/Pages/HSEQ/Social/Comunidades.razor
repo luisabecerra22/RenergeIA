@@ -1,0 +1,189 @@
+@page "/proyectos/{ProyectoId:int}/hseq/social/comunidades"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Comunidades — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-people-fill me-2" style="color:#183963"></i>Comunidades de Influencia</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nueva Comunidad
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Registrar Comunidad</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Nombre *</label>
+                            <InputText class="form-control" @bind-Value="_form.Nombre" />
+                            <ValidationMessage For="() => _form.Nombre" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Municipio *</label>
+                            <InputText class="form-control" @bind-Value="_form.Municipio" />
+                            <ValidationMessage For="() => _form.Municipio" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Departamento *</label>
+                            <InputText class="form-control" @bind-Value="_form.Departamento" />
+                            <ValidationMessage For="() => _form.Departamento" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Líder Comunal</label>
+                            <InputText class="form-control" @bind-Value="_form.LiderComunal" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Teléfono</label>
+                            <InputText class="form-control" @bind-Value="_form.Telefono" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="_form.Email" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">N° Pobladores</label>
+                            <InputNumber class="form-control" @bind-Value="_form.NumeroPobladores" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3">
+        @if (!_comunidades.Any())
+        {
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi-people d-block mb-2" style="font-size:3rem;color:#D9D9D6"></i>
+                No hay comunidades registradas en este proyecto.
+            </div>
+        }
+        @foreach (var c in _comunidades)
+        {
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0 fw-bold" style="color:#183963">@c.Nombre</h5>
+                            @if (_confirmandoEliminar == c.Id)
+                            {
+                                <span>
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                </span>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                            }
+                        </div>
+                        <p class="text-muted small mb-1"><i class="bi-geo-alt me-1"></i>@c.Municipio — @c.Departamento</p>
+                        @if (!string.IsNullOrEmpty(c.LiderComunal))
+                        { <p class="small mt-2 mb-0"><i class="bi-person me-1"></i>@c.LiderComunal</p> }
+                        @if (!string.IsNullOrEmpty(c.Telefono))
+                        { <p class="small mb-0 text-muted"><i class="bi-telephone me-1"></i>@c.Telefono</p> }
+                        @if (c.NumeroPobladores.HasValue)
+                        { <p class="small mb-0 text-muted"><i class="bi-people me-1"></i>@c.NumeroPobladores.Value.ToString("N0") pobladores</p> }
+                    </div>
+                    <div class="card-footer bg-transparent d-flex gap-2">
+                        <a href="/proyectos/@ProyectoId/hseq/social/reuniones" class="btn btn-outline-primary btn-sm flex-fill">
+                            <i class="bi-calendar-event me-1"></i>Reuniones
+                        </a>
+                        <a href="/proyectos/@ProyectoId/hseq/social/pqr" class="btn btn-outline-secondary btn-sm flex-fill">
+                            <i class="bi-chat-dots me-1"></i>PQR
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Comunidad> _comunidades = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _comunidades = await Db.Comunidades.Where(c => c.ProyectoId == ProyectoId).OrderBy(c => c.Nombre).ToListAsync();
+
+    private void MostrarFormulario() { _form = new(); _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.Comunidades.Add(new Comunidad
+        {
+            ProyectoId      = ProyectoId,
+            Nombre          = _form.Nombre,
+            Municipio       = _form.Municipio,
+            Departamento    = _form.Departamento,
+            LiderComunal    = _form.LiderComunal,
+            Telefono        = _form.Telefono,
+            Email           = _form.Email,
+            NumeroPobladores = _form.NumeroPobladores,
+            Observaciones   = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var c = await Db.Comunidades.FindAsync(id);
+        if (c is not null) { Db.Comunidades.Remove(c); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Nombre { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Municipio { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Departamento { get; set; } = "";
+        public string? LiderComunal { get; set; }
+        public string? Telefono { get; set; }
+        public string? Email { get; set; }
+        public int? NumeroPobladores { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

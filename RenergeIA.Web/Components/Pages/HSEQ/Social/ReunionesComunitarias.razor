@@ -1,0 +1,239 @@
+@page "/proyectos/{ProyectoId:int}/hseq/social/reuniones"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Reuniones Comunitarias — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-calendar-check me-2" style="color:#183963"></i>Reuniones Comunitarias</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario" disabled="@(!_comunidades.Any())">
+            <i class="bi-plus-lg me-1"></i>Nueva Reunión
+        </button>
+    </div>
+
+    @if (!_comunidades.Any())
+    {
+        <div class="alert alert-warning">
+            <i class="bi-exclamation-triangle me-2"></i>
+            Primero registra al menos una comunidad. <a href="/proyectos/@ProyectoId/hseq/social/comunidades" class="alert-link">Ir a Comunidades →</a>
+        </div>
+    }
+
+    @if (_mostrarFormulario && _comunidades.Any())
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Registrar Reunión Comunitaria</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label">Título / Tema *</label>
+                            <InputText class="form-control" @bind-Value="_form.Titulo" />
+                            <ValidationMessage For="() => _form.Titulo" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Comunidad *</label>
+                            <InputSelect class="form-select" @bind-Value="_form.ComunidadId">
+                                <option value="0">— Seleccionar —</option>
+                                @foreach (var c in _comunidades)
+                                { <option value="@c.Id">@c.Nombre</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Fecha</label>
+                            <InputDate class="form-control" @bind-Value="_form.Fecha" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Asistentes</label>
+                            <InputNumber class="form-control" @bind-Value="_form.NumeroAsistentes" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Lugar *</label>
+                            <InputText class="form-control" @bind-Value="_form.Lugar" />
+                            <ValidationMessage For="() => _form.Lugar" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Facilitador *</label>
+                            <InputText class="form-control" @bind-Value="_form.Facilitador" />
+                            <ValidationMessage For="() => _form.Facilitador" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Objetivo *</label>
+                            <InputText class="form-control" @bind-Value="_form.Objetivo" />
+                            <ValidationMessage For="() => _form.Objetivo" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Temas Tratados</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.TemasTratados" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Acuerdos / Compromisos</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Acuerdos" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_reuniones.Count</div>
+                <div class="text-muted small">Reuniones realizadas</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_reuniones.Sum(r => r.NumeroAsistentes)</div>
+                <div class="text-muted small">Total participantes</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_comunidades.Count</div>
+                <div class="text-muted small">Comunidades activas</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.3rem;color:#6ABF4B">
+                    @(_reuniones.Any() ? _reuniones.Max(r => r.Fecha).ToString("dd/MM/yyyy") : "—")
+                </div>
+                <div class="text-muted small">Última reunión</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Título</th>
+                        <th>Comunidad</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Asistentes</th>
+                        <th>Lugar</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_reuniones.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">No hay reuniones comunitarias registradas.</td></tr>
+                    }
+                    @foreach (var r in _reuniones.OrderByDescending(x => x.Fecha))
+                    {
+                        <tr>
+                            <td>@r.Titulo</td>
+                            <td class="small text-muted">@(r.Comunidad?.Nombre ?? "—")</td>
+                            <td class="small">@r.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center fw-semibold">@r.NumeroAsistentes</td>
+                            <td class="small">@r.Lugar</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == r.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<ReunionComunitaria> _reuniones = [];
+    private List<Comunidad> _comunidades = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        _comunidades = await Db.Comunidades.Where(c => c.ProyectoId == ProyectoId).OrderBy(c => c.Nombre).ToListAsync();
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _reuniones = await Db.ReunionesComunitarias
+            .Include(r => r.Comunidad)
+            .Where(r => r.ProyectoId == ProyectoId)
+            .OrderByDescending(r => r.Fecha).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { Fecha = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        if (_form.ComunidadId == 0) return;
+        Db.ReunionesComunitarias.Add(new ReunionComunitaria
+        {
+            ProyectoId         = ProyectoId,
+            ComunidadId        = _form.ComunidadId,
+            Titulo             = _form.Titulo,
+            Objetivo           = _form.Objetivo,
+            Fecha              = _form.Fecha,
+            Lugar              = _form.Lugar,
+            Facilitador        = _form.Facilitador,
+            NumeroAsistentes   = _form.NumeroAsistentes,
+            TemasTratatados    = _form.TemasTratados,
+            Acuerdos           = _form.Acuerdos
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var r = await Db.ReunionesComunitarias.FindAsync(id);
+        if (r is not null) { Db.ReunionesComunitarias.Remove(r); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Titulo { get; set; } = "";
+        public int ComunidadId { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string Objetivo { get; set; } = "";
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        [System.ComponentModel.DataAnnotations.Required] public string Lugar { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Facilitador { get; set; } = "";
+        public int NumeroAsistentes { get; set; }
+        public string? TemasTratados { get; set; }
+        public string? Acuerdos { get; set; }
+    }
+}

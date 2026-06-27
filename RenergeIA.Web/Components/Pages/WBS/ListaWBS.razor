@@ -1,0 +1,951 @@
+@page "/proyectos/{ProyectoId:int}/wbs"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>WBS — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0">WBS / Actividades — @_proyecto.Nombre</h1>
+    </div>
+    <p class="text-muted small mb-3">Estructura de desglose de trabajo del proyecto.</p>
+
+    @if (_actividades.Count == 0 && !_versiones.Any())
+    {
+        <div class="card shadow-sm p-4 text-center" style="max-width:500px;margin:3rem auto">
+            <h5 class="mb-1">No hay actividades aún</h5>
+            <p class="text-muted small mb-4">Puedes cargar la plantilla estándar tipo EPC fotovoltaico o crear actividades manualmente.</p>
+            <div class="d-flex gap-3 justify-content-center">
+                <button class="btn btn-success" @onclick="CargarPlantillaAsync" disabled="@_cargando">
+                    @if (_cargando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Cargar plantilla EPC
+                </button>
+                <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-outline-primary">+ Nueva actividad</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Selector de versión de cronograma -->
+        @if (_versiones.Any())
+        {
+            <div class="d-flex align-items-center gap-2 mb-3 px-3 py-2 rounded"
+                 style="background:#f8f9fa;border:1px solid #dee2e6">
+                <span class="text-muted small fw-semibold" style="white-space:nowrap">Cronograma:</span>
+                <select class="form-select form-select-sm" style="max-width:300px"
+                        value="@_versionSeleccionadaId"
+                        @onchange="OnVersionChange">
+                    @foreach (var v in _versiones.OrderByDescending(x => x.NumeroVersion))
+                    {
+                        <option value="@v.Id">@v.Nombre @(v.EsVigente ? "★" : "")</option>
+                    }
+                </select>
+                @if (_esVersionVigente)
+                {
+                    <span class="badge" style="background:#6ABF4B;color:white;font-size:0.72rem;white-space:nowrap">● Vigente</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary" style="font-size:0.72rem;white-space:nowrap">○ Histórica</span>
+                }
+                @if (!string.IsNullOrEmpty(_versionSeleccionada?.MotivoReprogramacion))
+                {
+                    <span class="text-muted small" style="font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px"
+                          title="@_versionSeleccionada.MotivoReprogramacion">
+                        — @_versionSeleccionada.MotivoReprogramacion
+                    </span>
+                }
+            </div>
+        }
+
+        @if (!_esVersionVigente)
+        {
+            <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3" style="font-size:0.87rem">
+                <span>🔒</span>
+                <span>Esta es una versión histórica del cronograma. <strong>Solo consulta</strong> — no se pueden modificar fechas ni avances.</span>
+            </div>
+        }
+
+        <!-- Tarjetas de resumen -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo)</div>
+                        <div class="small text-muted">Activas</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold" style="color:#6ABF4B">@_actividades.Count(a => a.Activo && EstadoOperativo(a) == "Finalizada")</div>
+                        <div class="small text-muted">Completadas</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo && EstadoOperativo(a) == "EnProgreso")</div>
+                        <div class="small text-muted">En progreso</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold" style="color:#dc3545">@_actividades.Count(a => a.Activo && (EstadoOperativo(a) == "Atrasada" || EstadoOperativo(a) == "Critica"))</div>
+                        <div class="small text-muted">Con problemas</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barra de herramientas -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+
+            <!-- Tabs ACTIVAS / INACTIVAS -->
+            <div style="display:flex;background:#f0f0f0;border-radius:8px;padding:3px;gap:3px">
+                <button @onclick="() => _vistaActivas = true"
+                        style="border:none;border-radius:6px;padding:5px 18px;font-size:0.8rem;font-weight:700;cursor:pointer;transition:all 0.15s;
+                               background:@(_vistaActivas ? "#6ABF4B" : "transparent");
+                               color:@(_vistaActivas ? "white" : "#6c757d")">
+                    ● Activas (@_actividades.Count(x => x.Activo))
+                </button>
+                <button @onclick="() => _vistaActivas = false"
+                        style="border:none;border-radius:6px;padding:5px 18px;font-size:0.8rem;font-weight:700;cursor:pointer;transition:all 0.15s;
+                               background:@(!_vistaActivas ? "#dc3545" : "transparent");
+                               color:@(!_vistaActivas ? "white" : "#6c757d")">
+                    ○ Inactivas (@_actividades.Count(x => !x.Activo))
+                </button>
+            </div>
+
+            <!-- Botones de acción (solo versión vigente) -->
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                @if (_esVersionVigente)
+                {
+                    @if (_cambiosGuardados)
+                    {
+                        <span style="color:#6ABF4B;font-size:0.8rem;font-weight:600">✓ Cambios guardados</span>
+                    }
+                    <button class="btn btn-sm" disabled="@_guardandoCambios"
+                            style="background:#6ABF4B;color:white;border:none"
+                            @onclick="GuardarTodosAsync">
+                        @if (_guardandoCambios) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Guardar cambios
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning"
+                            @onclick="() => { _mostrarModalReprogramacion = true; _motivoReprogramacion = string.Empty; _errorReprogramacion = null; }">
+                        + Crear reprogramación
+                    </button>
+                    <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-sm"
+                       style="background:#183963;color:white;border:none">+ Nueva actividad</a>
+                }
+            </div>
+        </div>
+
+        <!-- Tabla WBS -->
+        <div class="table-responsive">
+            <table id="wbs-table" class="table table-sm table-hover align-middle mb-0"
+                   style="font-size:0.81rem;table-layout:fixed">
+                <thead>
+                    <tr style="background:#183963;color:white;font-size:0.77rem;letter-spacing:0.02em">
+                        <th style="width:380px;text-align:left;padding:9px 12px;overflow:hidden;white-space:nowrap">Actividad</th>
+                        <th style="width:80px;text-align:center;padding:9px 6px;overflow:hidden">Av. Planificado</th>
+                        <th style="width:100px;text-align:center;padding:9px 6px;overflow:hidden">Av. Real</th>
+                        <th style="width:82px;text-align:center;padding:9px 4px;overflow:hidden">Desviación</th>
+                        <th style="width:118px;text-align:center;padding:9px 4px;overflow:hidden">Inicio Plan.</th>
+                        <th style="width:118px;text-align:center;padding:9px 4px;overflow:hidden">Fin Plan.</th>
+                        <th style="width:108px;text-align:center;padding:9px 4px;overflow:hidden">Estado</th>
+                        <th style="width:90px;text-align:center;padding:9px 4px;overflow:hidden">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in ActividadesMostradas)
+                    {
+                        <tr style="border-bottom:1px solid #f0f0f0">
+
+                            <!-- Actividad (sangría según nivel) -->
+                            <td style="padding-left:@((a.NivelWBS - 1) * 20 + 10)px;padding-top:6px;padding-bottom:6px">
+                                @if (a.NivelWBS == 1)
+                                {
+                                    <strong style="color:#183963">@a.CodigoWBS — @a.Nombre</strong>
+                                }
+                                else if (a.NivelWBS == 2)
+                                {
+                                    <span class="fw-semibold">@a.CodigoWBS — @a.Nombre</span>
+                                }
+                                else
+                                {
+                                    <span style="color:#444">@a.CodigoWBS — @a.Nombre</span>
+                                }
+                            </td>
+
+                            <!-- Avance Planificado -->
+                            <td style="text-align:center;padding:4px 6px">
+                                <span style="color:#000;font-size:0.81rem;font-weight:700">@AvancePlan(a).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%</span>
+                            </td>
+
+                            <!-- Avance Real -->
+                            <td style="text-align:center;padding:4px 6px">
+                                @if (_esVersionVigente && EsHoja(a))
+                                {
+                                    <input type="number" min="0" max="100" step="0.1"
+                                           class="form-control form-control-sm text-center"
+                                           style="font-size:0.78rem;padding:2px 4px;border-color:#dee2e6;width:76px;margin:0 auto;color:#183963;font-weight:700"
+                                           value="@a.AvanceReal.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)"
+                                           @onchange="e => GuardarAvanceRealAsync(a, e)" />
+                                }
+                                else
+                                {
+                                    <span style="color:#183963;font-size:0.78rem;font-weight:700"
+                                          title="@(!EsHoja(a) ? "Promedio automático de subactividades" : "")">
+                                        @a.AvanceReal.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)%
+                                        @if (!EsHoja(a)) { <i class="bi bi-arrow-up-short" style="color:#6c757d;font-size:0.65rem" title="Promedio de hijos"></i> }
+                                    </span>
+                                }
+                            </td>
+
+                            <!-- Desviación -->
+                            <td style="text-align:center">
+                                <span style="font-weight:700;font-size:0.79rem;color:@DesvColor(a)">@DesvTexto(a)</span>
+                            </td>
+
+                            <!-- Inicio Plan. -->
+                            <td style="text-align:center;padding:3px 4px">
+                                <input type="date"
+                                       class="form-control form-control-sm text-center"
+                                       style="font-size:0.73rem;padding:2px 3px;border-color:#dee2e6;min-width:102px"
+                                       value="@FechaVal(a.FechaInicioPlaneada)"
+                                       disabled="@(!_esVersionVigente)"
+                                       @onchange="e => GuardarFechaInicioAsync(a, e)" />
+                            </td>
+
+                            <!-- Fin Plan. -->
+                            <td style="text-align:center;padding:3px 4px">
+                                <input type="date"
+                                       class="form-control form-control-sm text-center"
+                                       style="font-size:0.73rem;padding:2px 3px;border-color:#dee2e6;min-width:102px"
+                                       value="@FechaVal(a.FechaFinPlaneada)"
+                                       disabled="@(!_esVersionVigente)"
+                                       @onchange="e => GuardarFechaFinAsync(a, e)" />
+                            </td>
+
+                            <!-- Estado -->
+                            <td style="text-align:center">
+                                <span class="badge"
+                                      style="background:@BadgeFondo(a);color:@BadgeLetra(a);font-size:0.66rem;border-radius:10px;padding:3px 7px;white-space:nowrap">
+                                    @BadgeTexto(a)
+                                </span>
+                            </td>
+
+                            <!-- Acciones -->
+                            <td style="text-align:center">
+                                <div class="d-flex gap-1 justify-content-center">
+                                    @if (_esVersionVigente)
+                                    {
+                                        <a href="/proyectos/@ProyectoId/wbs/@a.Id/editar"
+                                           class="btn btn-sm btn-outline-primary"
+                                           style="font-size:0.68rem;padding:2px 8px">Editar</a>
+                                        <button class="btn btn-sm"
+                                                title="@(a.Activo ? "Desactivar" : "Activar")"
+                                                style="font-size:0.68rem;padding:2px 6px;@(a.Activo ? "color:#6c757d;border:1px solid #dee2e6" : "color:#6ABF4B;border:1px solid #6ABF4B")"
+                                                @onclick="() => ToggleActivoAsync(a)">
+                                            @(a.Activo ? "⏸" : "▶")
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<!-- Modal: Crear reprogramación -->
+@if (_mostrarModalReprogramacion)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:500px">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header" style="background:#183963;color:white">
+                    <h5 class="modal-title" style="font-size:1rem">+ Crear Reprogramación del Cronograma</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            @onclick="() => _mostrarModalReprogramacion = false"
+                            disabled="@_creandoReprogramacion"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning py-2 small mb-3">
+                        <strong>¿Deseas continuar?</strong> Se creará una nueva versión del cronograma copiando
+                        <em>@_versionVigente?.Nombre</em>. La versión actual quedará como <strong>Histórica</strong>.
+                    </div>
+                    <label class="form-label fw-semibold">
+                        Motivo de reprogramación <span class="text-danger">*</span>
+                    </label>
+                    <textarea class="form-control" rows="3"
+                              placeholder="Ej: Ajuste de alcance por condiciones climáticas adversas..."
+                              @bind="_motivoReprogramacion"
+                              disabled="@_creandoReprogramacion"></textarea>
+                    @if (_errorReprogramacion is not null)
+                    {
+                        <div class="text-danger small mt-2">@_errorReprogramacion</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="() => _mostrarModalReprogramacion = false"
+                            disabled="@_creandoReprogramacion">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-warning btn-sm" disabled="@_creandoReprogramacion"
+                            @onclick="CrearReprogramacionAsync">
+                        @if (_creandoReprogramacion)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Creando...</span>
+                        }
+                        else
+                        {
+                            <span>Crear reprogramación</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<ActividadWBS> _actividades = [];
+    private List<CronogramaVersion> _versiones = [];
+    private CronogramaVersion? _versionSeleccionada;
+    private CronogramaVersion? _versionVigente;
+    private int _versionSeleccionadaId;
+    private bool _esVersionVigente => _versionSeleccionada?.EsVigente == true;
+
+    private bool _vistaActivas = true;
+    private bool _cargando;
+    private bool _guardandoCambios;
+    private bool _cambiosGuardados;
+    private bool _mostrarModalReprogramacion;
+    private string _motivoReprogramacion = string.Empty;
+    private bool _creandoReprogramacion;
+    private string? _errorReprogramacion;
+
+    // IDs de actividades que tienen al menos un hijo (nodos padre)
+    private HashSet<int> _conHijos = [];
+
+    private static readonly DateTime _sinFecha = DateTime.MinValue;
+
+    private IEnumerable<ActividadWBS> ActividadesMostradas =>
+        _actividades
+            .Where(a => _vistaActivas ? a.Activo : !a.Activo)
+            .OrderBy(a => WbsSortKey(a.CodigoWBS));
+
+    // ── Ciclo de vida ─────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await InicializarVersionesAsync();
+        await CargarActividadesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_actividades.Count > 0)
+            await JS.InvokeVoidAsync("wbsResize.init", "wbs-table");
+    }
+
+    // ── Versiones ─────────────────────────────────────────────────────────────
+
+    private async Task InicializarVersionesAsync()
+    {
+        _versiones = await Db.CronogramasVersion
+            .Where(v => v.ProyectoId == ProyectoId)
+            .OrderBy(v => v.NumeroVersion)
+            .ToListAsync();
+
+        // Auto-crear "Actividades Inicial" para proyectos existentes sin versión
+        if (!_versiones.Any())
+        {
+            var hayActividades = await Db.ActividadesWBS.AnyAsync(a => a.ProyectoId == ProyectoId);
+            if (hayActividades)
+            {
+                var inicial = new CronogramaVersion
+                {
+                    ProyectoId    = ProyectoId,
+                    Nombre        = "Actividades Inicial",
+                    NumeroVersion = 0,
+                    EsVigente     = true,
+                    CreadoPor     = "Sistema"
+                };
+                Db.CronogramasVersion.Add(inicial);
+                await Db.SaveChangesAsync();
+
+                await Db.ActividadesWBS
+                    .Where(a => a.ProyectoId == ProyectoId && a.CronogramaVersionId == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.CronogramaVersionId, inicial.Id));
+
+                _versiones = [inicial];
+            }
+        }
+
+        _versionVigente      = _versiones.FirstOrDefault(v => v.EsVigente);
+        _versionSeleccionada = _versionVigente ?? _versiones.LastOrDefault();
+        _versionSeleccionadaId = _versionSeleccionada?.Id ?? 0;
+    }
+
+    private async Task OnVersionChange(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id)) return;
+        _versionSeleccionadaId = id;
+        _versionSeleccionada   = _versiones.FirstOrDefault(v => v.Id == id);
+        await CargarActividadesAsync();
+    }
+
+    // ── Actividades ───────────────────────────────────────────────────────────
+
+    private async Task CargarActividadesAsync()
+    {
+        if (_versionSeleccionada is null && !_versiones.Any())
+        {
+            _actividades = [];
+            return;
+        }
+
+        var query = Db.ActividadesWBS.Where(a => a.ProyectoId == ProyectoId);
+        if (_versionSeleccionada is not null)
+            query = query.Where(a => a.CronogramaVersionId == _versionSeleccionada.Id);
+        else
+            query = query.Where(a => a.CronogramaVersionId == null);
+
+        _actividades = await query.ToListAsync();
+        ReconstruirMapaHijos();
+        if (_esVersionVigente)
+            await RecalcularYGuardarPadresAsync();
+    }
+
+    // ── Árbol de padres/hijos ─────────────────────────────────────────────────
+
+    private void ReconstruirMapaHijos()
+    {
+        _conHijos = _actividades
+            .Where(a => a.ActividadPadreId.HasValue)
+            .Select(a => a.ActividadPadreId!.Value)
+            .ToHashSet();
+    }
+
+    private bool EsHoja(ActividadWBS a) => !_conHijos.Contains(a.Id);
+
+    // Recalcula AvanceReal de todos los nodos padre bottom-up y guarda si hubo cambios
+    private async Task RecalcularYGuardarPadresAsync()
+    {
+        var padres = _actividades
+            .Where(a => _conHijos.Contains(a.Id))
+            .OrderByDescending(a => a.NivelWBS)
+            .ToList();
+
+        bool huboCambios = false;
+        foreach (var padre in padres)
+        {
+            var hijos = _actividades.Where(h => h.ActividadPadreId == padre.Id && h.Activo).ToList();
+            if (!hijos.Any()) continue;
+            var nuevoAvance = Math.Round(hijos.Average(h => h.AvanceReal), 1);
+            if (padre.AvanceReal != nuevoAvance)
+            {
+                padre.AvanceReal = nuevoAvance;
+                padre.FechaModificacion = DateTime.UtcNow;
+                huboCambios = true;
+            }
+        }
+        if (huboCambios)
+            await Db.SaveChangesAsync();
+    }
+
+    // Propaga el cambio de avance hacia arriba en el árbol (bottom-up recursivo)
+    private async Task RecalcularPadresAsync(ActividadWBS hijo)
+    {
+        if (hijo.ActividadPadreId is null) return;
+        var padre = _actividades.FirstOrDefault(p => p.Id == hijo.ActividadPadreId.Value);
+        if (padre is null) return;
+
+        var hijosActivos = _actividades.Where(h => h.ActividadPadreId == padre.Id && h.Activo).ToList();
+        if (!hijosActivos.Any()) return;
+
+        padre.AvanceReal = Math.Round(hijosActivos.Average(h => h.AvanceReal), 1);
+        padre.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await RecalcularPadresAsync(padre);
+    }
+
+    // ── Guardar todos los cambios ─────────────────────────────────────────────
+
+    private async Task GuardarTodosAsync()
+    {
+        _guardandoCambios = true;
+        _cambiosGuardados = false;
+        await Db.SaveChangesAsync();
+        _guardandoCambios = false;
+        _cambiosGuardados = true;
+        StateHasChanged();
+        await Task.Delay(3000);
+        _cambiosGuardados = false;
+    }
+
+    // ── Avance Real ───────────────────────────────────────────────────────────
+
+    private async Task GuardarAvanceRealAsync(ActividadWBS a, ChangeEventArgs e)
+    {
+        if (!_esVersionVigente || !EsHoja(a)) return;
+        if (!decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var valor)) return;
+        valor = Math.Clamp(Math.Round(valor, 1), 0m, 100m);
+        a.AvanceReal = valor;
+        a.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await RecalcularPadresAsync(a);
+    }
+
+    // ── Fechas ────────────────────────────────────────────────────────────────
+
+    private async Task GuardarFechaInicioAsync(ActividadWBS a, ChangeEventArgs e)
+    {
+        if (!_esVersionVigente) return;
+        if (!DateTime.TryParse(e.Value?.ToString(), out var nueva)) return;
+        if (a.FechaFinPlaneada != _sinFecha && nueva > a.FechaFinPlaneada) return;
+        a.FechaInicioPlaneada  = nueva;
+        a.FechaModificacion    = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task GuardarFechaFinAsync(ActividadWBS a, ChangeEventArgs e)
+    {
+        if (!_esVersionVigente) return;
+        if (!DateTime.TryParse(e.Value?.ToString(), out var nueva)) return;
+        if (a.FechaInicioPlaneada != _sinFecha && nueva < a.FechaInicioPlaneada) return;
+        a.FechaFinPlaneada  = nueva;
+        a.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    // ── Toggle activo ─────────────────────────────────────────────────────────
+
+    private async Task ToggleActivoAsync(ActividadWBS actividad)
+    {
+        if (!_esVersionVigente) return;
+        actividad.Activo = !actividad.Activo;
+        actividad.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    // ── Crear reprogramación ──────────────────────────────────────────────────
+
+    private async Task CrearReprogramacionAsync()
+    {
+        _errorReprogramacion = null;
+        if (string.IsNullOrWhiteSpace(_motivoReprogramacion))
+        {
+            _errorReprogramacion = "El motivo de reprogramación es obligatorio.";
+            return;
+        }
+        if (_versionVigente is null)
+        {
+            _errorReprogramacion = "No existe versión vigente del cronograma.";
+            return;
+        }
+
+        _creandoReprogramacion = true;
+        try
+        {
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            var usuario   = authState.User.Identity?.Name ?? "Sistema";
+
+            var sigNumero = _versiones.Max(v => v.NumeroVersion) + 1;
+            var nombre    = sigNumero == 1
+                ? "Actividades Reprogramación 1"
+                : $"Actividades Reprogramación {sigNumero}";
+
+            // 1. Crear nueva versión y marcar la anterior como histórica
+            _versionVigente.EsVigente = false;
+
+            var nuevaVersion = new CronogramaVersion
+            {
+                ProyectoId           = ProyectoId,
+                Nombre               = nombre,
+                NumeroVersion        = sigNumero,
+                EsVigente            = true,
+                MotivoReprogramacion = _motivoReprogramacion.Trim(),
+                CreadoPor            = usuario
+            };
+            Db.CronogramasVersion.Add(nuevaVersion);
+            await Db.SaveChangesAsync();
+
+            // 2. Duplicar actividades (1ª pasada: sin padre, para obtener IDs)
+            var actividadesOrigen = await Db.ActividadesWBS
+                .Where(a => a.ProyectoId == ProyectoId && a.CronogramaVersionId == _versionVigente.Id)
+                .ToListAsync();
+
+            var mapOldNew = new Dictionary<int, ActividadWBS>();
+
+            foreach (var act in actividadesOrigen)
+            {
+                var copia = new ActividadWBS
+                {
+                    ProyectoId                 = ProyectoId,
+                    CronogramaVersionId        = nuevaVersion.Id,
+                    CodigoWBS                  = act.CodigoWBS,
+                    Nombre                     = act.Nombre,
+                    NivelWBS                   = act.NivelWBS,
+                    Disciplina                 = act.Disciplina,
+                    FechaInicioPlaneada        = act.FechaInicioPlaneada,
+                    FechaFinPlaneada           = act.FechaFinPlaneada,
+                    AvancePlanificado          = act.AvancePlanificado,
+                    AvanceReal                 = act.AvanceReal,
+                    Estado                     = act.Estado,
+                    Activo                     = act.Activo,
+                    Responsable                = act.Responsable,
+                    CantidadTotal              = act.CantidadTotal,
+                    Unidad                     = act.Unidad,
+                    CantidadEjecutadaAcumulada = act.CantidadEjecutadaAcumulada,
+                    EsCritica                  = act.EsCritica,
+                    FrenteTrabajo              = act.FrenteTrabajo,
+                    ActividadPadreId           = null // se mapea en 2ª pasada
+                };
+                Db.ActividadesWBS.Add(copia);
+                mapOldNew[act.Id] = copia;
+            }
+            await Db.SaveChangesAsync(); // obtiene IDs nuevos
+
+            // 3. 2ª pasada: mapear padres usando los nuevos IDs
+            foreach (var act in actividadesOrigen.Where(a => a.ActividadPadreId.HasValue))
+            {
+                if (mapOldNew.TryGetValue(act.ActividadPadreId!.Value, out var nuevoPadre))
+                    mapOldNew[act.Id].ActividadPadreId = nuevoPadre.Id;
+            }
+            await Db.SaveChangesAsync();
+
+            // 4. Recargar UI
+            _versiones           = await Db.CronogramasVersion
+                .Where(v => v.ProyectoId == ProyectoId)
+                .OrderBy(v => v.NumeroVersion)
+                .ToListAsync();
+            _versionVigente      = nuevaVersion;
+            _versionSeleccionada = nuevaVersion;
+            _versionSeleccionadaId = nuevaVersion.Id;
+            await CargarActividadesAsync();
+
+            _mostrarModalReprogramacion = false;
+        }
+        catch (Exception ex)
+        {
+            _errorReprogramacion = $"Error al crear reprogramación: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        finally
+        {
+            _creandoReprogramacion = false;
+        }
+    }
+
+    // ── Plantilla EPC fotovoltaico ────────────────────────────────────────────
+
+    private async Task CargarPlantillaAsync()
+    {
+        if (_proyecto is null) return;
+        _cargando = true;
+        StateHasChanged();
+
+        // Crear versión inicial si no existe
+        if (!_versiones.Any())
+        {
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            var usuario   = authState.User.Identity?.Name ?? "Sistema";
+            var inicial = new CronogramaVersion
+            {
+                ProyectoId    = ProyectoId,
+                Nombre        = "Actividades Inicial",
+                NumeroVersion = 0,
+                EsVigente     = true,
+                CreadoPor     = usuario
+            };
+            Db.CronogramasVersion.Add(inicial);
+            await Db.SaveChangesAsync();
+            _versiones           = [inicial];
+            _versionVigente      = inicial;
+            _versionSeleccionada = inicial;
+            _versionSeleccionadaId = inicial.Id;
+        }
+
+        var inicio = _proyecto.FechaInicioPlaneada;
+        var idMap  = new Dictionary<string, int>();
+
+        for (int nivel = 1; nivel <= 4; nivel++)
+        {
+            var batch    = _plantilla.Where(p => p.Nivel == nivel).ToList();
+            var entities = new List<(string Codigo, ActividadWBS Entity)>();
+
+            foreach (var item in batch)
+            {
+                int? padreId = item.CodigoPadre is not null &&
+                               idMap.TryGetValue(item.CodigoPadre, out var pid) ? pid : null;
+
+                var act = new ActividadWBS
+                {
+                    ProyectoId          = ProyectoId,
+                    CronogramaVersionId = _versionSeleccionada!.Id,
+                    CodigoWBS           = item.Codigo,
+                    Nombre              = item.Nombre,
+                    NivelWBS            = item.Nivel,
+                    ActividadPadreId    = padreId,
+                    FechaInicioPlaneada = inicio.AddDays(item.DiasOffset),
+                    FechaFinPlaneada    = inicio.AddDays(item.DiasOffset + Math.Max(item.Duracion, 1) - 1),
+                    AvancePlanificado   = 0,
+                    AvanceReal          = 0,
+                    Estado              = EstadoActividad.Pendiente,
+                    Activo              = true
+                };
+                Db.ActividadesWBS.Add(act);
+                entities.Add((item.Codigo, act));
+            }
+
+            await Db.SaveChangesAsync();
+            foreach (var (codigo, entity) in entities)
+                idMap[codigo] = entity.Id;
+        }
+
+        await CargarActividadesAsync();
+        _cargando = false;
+    }
+
+    // ── Avance Planificado ────────────────────────────────────────────────────
+
+    private static decimal AvancePlan(ActividadWBS a)
+    {
+        if (a.FechaInicioPlaneada == _sinFecha || a.FechaFinPlaneada == _sinFecha)
+            return 0m;
+        var hoy = DateTime.Today;
+        var ini = a.FechaInicioPlaneada.Date;
+        var fin = a.FechaFinPlaneada.Date;
+        if (hoy < ini) return 0m;
+        if (hoy >= fin) return 100m;
+        var dur = (fin - ini).TotalDays;
+        if (dur <= 0) return 100m;
+        return Math.Min(100m, Math.Round((decimal)((hoy - ini).TotalDays / dur * 100), 1));
+    }
+
+    // ── Desviación ────────────────────────────────────────────────────────────
+
+    private static decimal Desviacion(ActividadWBS a) => a.AvanceReal - AvancePlan(a);
+
+    private static string DesvColor(ActividadWBS a) =>
+        Desviacion(a) >= 0 ? "#6ABF4B" : "#dc3545";
+
+    private static string DesvTexto(ActividadWBS a)
+    {
+        var d = Desviacion(a);
+        return (d >= 0 ? "+" : "") + d.ToString("F1") + "%";
+    }
+
+    // ── Estado operativo ──────────────────────────────────────────────────────
+
+    private static string EstadoOperativo(ActividadWBS a)
+    {
+        bool sinFechas = a.FechaInicioPlaneada == _sinFecha || a.FechaFinPlaneada == _sinFecha;
+        if (sinFechas) return "SinFechas";
+        if (a.AvanceReal >= 100m) return "Finalizada";
+
+        var plan = AvancePlan(a);
+        var diff = a.AvanceReal - plan;
+
+        if (a.AvanceReal == 0m && DateTime.Today < a.FechaInicioPlaneada.Date)
+            return "Pendiente";
+        if (diff >= -5m)  return "EnProgreso";
+        if (diff >= -15m) return "Atrasada";
+        return "Critica";
+    }
+
+    private static string BadgeTexto(ActividadWBS a) => EstadoOperativo(a) switch
+    {
+        "Finalizada" => "Finalizada",
+        "EnProgreso" => "En Progreso",
+        "Atrasada"   => "Atrasada",
+        "Critica"    => "Crítica",
+        "SinFechas"  => "Sin Fechas",
+        _            => "Pendiente"
+    };
+
+    private static string BadgeFondo(ActividadWBS a) => EstadoOperativo(a) switch
+    {
+        "Finalizada" => "#6ABF4B",
+        "EnProgreso" => "#183963",
+        "Atrasada"   => "#ffc107",
+        "Critica"    => "#dc3545",
+        "SinFechas"  => "#e9ecef",
+        _            => "#6c757d"
+    };
+
+    private static string BadgeLetra(ActividadWBS a) => EstadoOperativo(a) switch
+    {
+        "Atrasada"  => "#111921",
+        "SinFechas" => "#6c757d",
+        _           => "white"
+    };
+
+    // ── Fechas: formato para input[type=date] ─────────────────────────────────
+
+    private static string FechaVal(DateTime d) =>
+        d == _sinFecha ? "" : d.ToString("yyyy-MM-dd");
+
+    // ── Utilidades ────────────────────────────────────────────────────────────
+
+    private static string WbsSortKey(string codigo) =>
+        string.Join(".", codigo.Split('.').Select(p => p.PadLeft(4, '0')));
+
+    // ── Plantilla EPC fotovoltaico (datos) ───────────────────────────────────
+
+    private record PlantillaItem(string Codigo, string? CodigoPadre, string Nombre, int Nivel, int DiasOffset, int Duracion);
+
+    private static readonly List<PlantillaItem> _plantilla =
+    [
+        new("1.1",  null,  "Hitos Principales del Contrato",            1,   0, 37),
+        new("1.2",  null,  "Hitos Generales del Contrato",              1,  39,  1),
+        new("1.3",  null,  "Permisos de construcción",                  1,  47,  1),
+        new("1.4",  null,  "Estudios de Ingenieria",                    1,  13, 20),
+        new("1.5",  null,  "Pull Out Test",                             1,  19, 14),
+        new("1.6",  null,  "Ingenieria de detalle",                     1,  35, 90),
+        new("1.7",  null,  "Suministros",                               1,  42,160),
+        new("1.8",  null,  "Construccion Planta",                       1,  35,238),
+        new("1.9",  null,  "CULMINACION SUSTANCIAL DEL PROYECTO",       1, 259, 25),
+        new("1.10", null,  "CIERRE",                                    1, 309,  6),
+        new("1.11", null,  "ACEPTACION PROVISIONAL",                    1, 287, 25),
+
+        new("1.1.1", "1.1", "Entrega Oferta a Green Yellow",            2,   0,  1),
+        new("1.1.2", "1.1", "Revisión del acuerdo EPC",                 2,   1, 15),
+        new("1.1.3", "1.1", "Ejecución del acuerdo EPC",                2,  19, 15),
+        new("1.1.4", "1.1", "Firma de Contrato",                        2,  35,  1),
+        new("1.1.5", "1.1", "Pago Anticipo",                            2,  41,  1),
+
+        new("1.7.1", "1.7", "Suministro Por Green Yellow (Modulos)",    2, 162, 28),
+        new("1.7.2", "1.7", "Suministro Por Green Yellow (Inversores)", 2,  42,126),
+        new("1.7.3", "1.7", "Suministro Por Renergeia",                 2,  48,154),
+
+        new("1.8.1",  "1.8", "Implantacion de Obra",                             2,  35, 10),
+        new("1.8.2",  "1.8", "Obras Civiles",                                    2,  46,159),
+        new("1.8.3",  "1.8", "Obras Mecanicas",                                  2, 146, 87),
+        new("1.8.4",  "1.8", "Equipos Principales",                              2, 176, 60),
+        new("1.8.5",  "1.8", "Obras Electricas",                                 2, 130, 92),
+        new("1.8.6",  "1.8", "Conexionado de Cables",                            2, 176, 62),
+        new("1.8.7",  "1.8", "Pruebas Preoperacionales",                         2, 203, 49),
+        new("1.8.8",  "1.8", "Fin de construccion",                              2, 256,  1),
+        new("1.8.9",  "1.8", "Finalización de obra civil",                       2, 237,  1),
+        new("1.8.10", "1.8", "Finalización de montaje y módulos",                2, 248,  1),
+        new("1.8.11", "1.8", "Finalización de obra eléctrica",                   2, 248,  1),
+        new("1.8.12", "1.8", "CULMINACION MECANICA",                             2, 258,  1),
+        new("1.8.13", "1.8", "ENERGIZACION DE LA PLANTA",                        2, 258,  1),
+        new("1.8.14", "1.8", "Pruebas Operacionales y puesta en marcha",         2, 259, 25),
+        new("1.8.15", "1.8", "DOSSIER",                                          2, 283, 30),
+
+        new("1.10.1", "1.10", "Trámite garantía bancaria",              2, 309,  6),
+
+        new("1.7.3.1",  "1.7.3", "Suministro de Centros de Transformacion",                         3,  48,133),
+        new("1.7.3.2",  "1.7.3", "Suministro de Centros de Secionamiento",                          3,  48,154),
+        new("1.7.3.3",  "1.7.3", "Suministros de Tracker (Estructuras)",                            3,  52, 97),
+        new("1.7.3.4",  "1.7.3", "Suministros de Hincas",                                           3,  52, 97),
+        new("1.7.3.5",  "1.7.3", "Suministros de Tablero de SSAA",                                  3, 167, 26),
+        new("1.7.3.6",  "1.7.3", "Suministro de Cargador y banco de baterias",                      3, 117, 30),
+        new("1.7.3.7",  "1.7.3", "Suministro de Cuarto de control",                                 3,  83, 33),
+        new("1.7.3.8",  "1.7.3", "Suministro de Cable de cobre desnudo (Malla Tierra)",             3,  81, 26),
+        new("1.7.3.9",  "1.7.3", "Suministro de Cable MT",                                          3,  77, 81),
+        new("1.7.3.10", "1.7.3", "Suministro de Cable BT",                                          3,  85, 78),
+        new("1.7.3.11", "1.7.3", "Suministro de Cable Solar",                                       3,  88, 82),
+        new("1.7.3.12", "1.7.3", "Suministro de Estación Meteorológica",                            3,  52,130),
+        new("1.7.3.13", "1.7.3", "Suministro de Sistema de control SCADA y Rack de Comunicaciones", 3,  52,130),
+        new("1.7.3.14", "1.7.3", "Suministro de CCTV y Control de Acceso",                         3,  56,120),
+        new("1.7.3.15", "1.7.3", "Suministro de Fibra Optica",                                      3, 167, 36),
+        new("1.7.3.16", "1.7.3", "Suministro de Sistema contraincendios",                           3, 175, 24),
+        new("1.7.3.17", "1.7.3", "Suministro de Cerramiento Perimetral",                            3,  67, 40),
+
+        new("1.8.1.1", "1.8.1", "Instalacion de Oficinas provisionales",  3,  35,  5),
+        new("1.8.1.2", "1.8.1", "Instalacion de Servicios profesionales", 3,  41,  5),
+
+        new("1.8.2.1",  "1.8.2", "Análisis previo",                                3,  46,  1),
+        new("1.8.2.2",  "1.8.2", "Movilización",                                   3,  47,  5),
+        new("1.8.2.3",  "1.8.2", "Aprovechamiento Forestal",                       3,  53, 25),
+        new("1.8.2.4",  "1.8.2", "Roceria Permanente",                             3,  82,110),
+        new("1.8.2.5",  "1.8.2", "Movimiento de tierras",                          3,  94, 30),
+        new("1.8.2.6",  "1.8.2", "Acondicionamiento del terreno",                  3, 102, 30),
+        new("1.8.2.7",  "1.8.2", "Construccion de Vias de Aceeso",                 3, 119, 17),
+        new("1.8.2.8",  "1.8.2", "Construccion Cerramiento Perimetral",            3, 140, 50),
+        new("1.8.2.9",  "1.8.2", "Construccion de canalizaciones de cables",       3, 130, 48),
+        new("1.8.2.10", "1.8.2", "Construccion de Cajas electricas",               3, 130, 48),
+        new("1.8.2.11", "1.8.2", "Cimentación cuarto de control y centros eléctricos", 3, 144, 55),
+        new("1.8.2.12", "1.8.2", "Cierre de canaletas y canalizaciones de cables", 3, 124, 60),
+        new("1.8.2.13", "1.8.2", "Excavaciones y uniones malla tierra general",    3, 126, 50),
+        new("1.8.2.14", "1.8.2", "Construccion de Vias Finales",                   3, 220, 14),
+        new("1.8.2.15", "1.8.2", "Drenajes",                                       3, 144, 60),
+
+        new("1.8.3.1", "1.8.3", "Replanteo de Hincas",         3, 146, 25),
+        new("1.8.3.2", "1.8.3", "Distribucion Hincas",         3, 159, 10),
+        new("1.8.3.3", "1.8.3", "Hincado Directo",             3, 166, 30),
+        new("1.8.3.4", "1.8.3", "Distribucion de Estructuras", 3, 173, 27),
+        new("1.8.3.5", "1.8.3", "Instalacion de Estructuras",  3, 185, 30),
+        new("1.8.3.6", "1.8.3", "Distribuccion de Modulos",    3, 202, 15),
+        new("1.8.3.7", "1.8.3", "Instalacion de Modulos",      3, 214, 30),
+
+        new("1.8.4.1", "1.8.4", "Instalacion de Centro de Transformacion", 3, 209,  3),
+        new("1.8.4.2", "1.8.4", "Instalacion de Inversores",               3, 176, 15),
+        new("1.8.4.3", "1.8.4", "Instalacion Estacion Metereologica",      3, 209, 20),
+        new("1.8.4.4", "1.8.4", "Montaje Cuarto de control",               3, 209,  7),
+        new("1.8.4.5", "1.8.4", "SCADA",                                   3, 217, 25),
+        new("1.8.4.6", "1.8.4", "CCTV",                                    3, 183, 20),
+        new("1.8.4.7", "1.8.4", "Instalacion de Tablero SSAA",             3, 209,  7),
+        new("1.8.4.8", "1.8.4", "Montaje Cargador y Banco de baterias",    3, 217,  5),
+        new("1.8.4.9", "1.8.4", "Montaje Centro Secionamiento",            3, 210,  4),
+
+        new("1.8.5.1", "1.8.5", "Cable Malla Tierra",               3, 130, 55),
+        new("1.8.5.2", "1.8.5", "Cable MT",                         3, 165, 15),
+        new("1.8.5.3", "1.8.5", "Cable BT",                         3, 182, 25),
+        new("1.8.5.4", "1.8.5", "Cable Solar",                      3, 206, 25),
+        new("1.8.5.5", "1.8.5", "Cable SSA",                        3, 185, 10),
+        new("1.8.5.6", "1.8.5", "Cable CCTV",                       3, 199,  7),
+        new("1.8.5.7", "1.8.5", "Fibra Optica",                     3, 206,  8),
+        new("1.8.5.8", "1.8.5", "Instalacion sistema contraincendio",3, 228, 10),
+
+        new("1.8.6.1", "1.8.6", "Conexionado MT",           3, 176, 15),
+        new("1.8.6.2", "1.8.6", "Conexionado BT",           3, 206, 15),
+        new("1.8.6.3", "1.8.6", "Conexionado Solar",        3, 223, 21),
+        new("1.8.6.4", "1.8.6", "Conexionado SSAA",         3, 217, 10),
+        new("1.8.6.5", "1.8.6", "Conexionado CCTV",         3, 200,  7),
+        new("1.8.6.6", "1.8.6", "Conexionado Fibra Optica", 3, 209,  7),
+
+        new("1.8.7.1", "1.8.7", "Test y pruebas Cables MT",           3, 215,  5),
+        new("1.8.7.2", "1.8.7", "Test y pruebas Cables BT",           3, 222,  5),
+        new("1.8.7.3", "1.8.7", "Test y pruebas Cables Solar",        3, 248,  7),
+        new("1.8.7.4", "1.8.7", "Test y pruebas Cables Fibra Optica", 3, 217,  7),
+        new("1.8.7.5", "1.8.7", "Integración con SCADA",              3, 245,  7),
+        new("1.8.7.6", "1.8.7", "Pruebas CCTV",                       3, 203,  5),
+        new("1.8.7.7", "1.8.7", "Liberacion Tracker y Modulos",       3, 244, 10),
+        new("1.8.7.8", "1.8.7", "Liberacion Obras Civiles",           3, 235,  2),
+        new("1.8.7.9", "1.8.7", "Certificacion Retie",                3, 242, 15),
+
+        new("1.8.14.1", "1.8.14", "Pruebas Operacionales",                       4, 259, 18),
+        new("1.8.14.2", "1.8.14", "Pruebas de Desempeño Iniciales (Pruebas PR)", 4, 279,  7),
+    ];
+}

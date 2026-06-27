@@ -1,0 +1,215 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/indicadores"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Indicadores Seguridad — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-graph-up-arrow me-2" style="color:#183963"></i>Indicadores de Seguridad</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+    </div>
+
+    <div class="alert alert-info border-0 shadow-sm mb-4 small">
+        <i class="bi-info-circle me-2"></i>
+        Los indicadores se calculan automáticamente con base en los eventos registrados.
+        Para registrar incidentes y accidentes, ve a <a href="/proyectos/@ProyectoId/hseq/seguridad/incidentes" class="alert-link">Incidentes y Accidentes</a>.
+    </div>
+
+    <!-- Selector de período -->
+    <div class="d-flex gap-3 mb-4 align-items-center flex-wrap">
+        <div class="d-flex align-items-center gap-2">
+            <label class="fw-semibold mb-0">Período:</label>
+            <select class="form-select form-select-sm" style="max-width:120px" @bind="_anio" @bind:after="CargarAsync">
+                @for (int a = DateTime.Today.Year; a >= DateTime.Today.Year - 4; a--)
+                { <option value="@a">@a</option> }
+            </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <InputNumber class="form-control form-control-sm" style="max-width:120px" @bind-Value="_horasHombre" />
+            <label class="mb-0 small text-muted">Horas-Hombre Trabajadas</label>
+        </div>
+    </div>
+
+    <!-- Indicadores principales -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-4 text-center border-start border-4" style="border-color:#183963!important">
+                <div class="text-muted small fw-semibold text-uppercase mb-1">IF — Índice de Frecuencia</div>
+                <div class="fw-bold" style="font-size:2.2rem;color:#183963">@_if.ToString("N2")</div>
+                <div class="text-muted small">Accidentes × 200,000 / HHT</div>
+                <div class="mt-2">
+                    <span class="badge @(_if <= 1 ? "bg-success" : _if <= 5 ? "bg-warning text-dark" : "bg-danger")">
+                        @(_if <= 1 ? "Bajo" : _if <= 5 ? "Medio" : "Alto")
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-4 text-center border-start border-4" style="border-color:#183963!important">
+                <div class="text-muted small fw-semibold text-uppercase mb-1">IG — Índice de Gravedad</div>
+                <div class="fw-bold" style="font-size:2.2rem;color:#183963">@_ig.ToString("N2")</div>
+                <div class="text-muted small">Días perdidos × 200,000 / HHT</div>
+                <div class="mt-2">
+                    <span class="badge @(_ig <= 10 ? "bg-success" : _ig <= 50 ? "bg-warning text-dark" : "bg-danger")">
+                        @(_ig <= 10 ? "Bajo" : _ig <= 50 ? "Medio" : "Alto")
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-4 text-center border-start border-4" style="border-color:#dc3545!important">
+                <div class="text-muted small fw-semibold text-uppercase mb-1">II — Índice de Incidentalidad</div>
+                <div class="fw-bold" style="font-size:2.2rem;color:#dc3545">@_ii.ToString("N2")</div>
+                <div class="text-muted small">Incidentes × 200,000 / HHT</div>
+                <div class="mt-2">
+                    <span class="badge @(_ii <= 5 ? "bg-success" : _ii <= 20 ? "bg-warning text-dark" : "bg-danger")">
+                        @(_ii <= 5 ? "Bajo" : _ii <= 20 ? "Medio" : "Alto")
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detalle por tipo de evento -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center">
+                <div class="fw-bold" style="font-size:1.6rem;color:#ffc107">@_casiAccidentes</div>
+                <div class="text-muted small">Casi Accidentes</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center">
+                <div class="fw-bold" style="font-size:1.6rem;color:#fd7e14">@_incidentes</div>
+                <div class="text-muted small">Incidentes</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center">
+                <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_accidentesLeves</div>
+                <div class="text-muted small">Accidentes Leves</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-danger border-2">
+                <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_accidentesGraves</div>
+                <div class="text-muted small">Accidentes Graves / Fatales</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicadores de gestión -->
+    <h6 class="text-uppercase text-muted fw-semibold mb-3" style="font-size:.78rem;letter-spacing:.06em">Indicadores de Gestión</h6>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(_cumPlan>=80?"border-success":_cumPlan>=60?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.8rem;color:@(_cumPlan>=80?"#6ABF4B":_cumPlan>=60?"#ffc107":"#dc3545")">@_cumPlan%</div>
+                <div class="text-muted small">% Cumplimiento Plan HSE</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(_cumCap>=80?"border-success":_cumCap>=60?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.8rem;color:@(_cumCap>=80?"#6ABF4B":_cumCap>=60?"#ffc107":"#dc3545")">@_cumCap%</div>
+                <div class="text-muted small">% Cumplimiento Capacitaciones</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(_cumISO>=80?"border-success":_cumISO>=60?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.8rem;color:@(_cumISO>=80?"#6ABF4B":_cumISO>=60?"#ffc107":"#dc3545")">@_cumISO%</div>
+                <div class="text-muted small">% Cumplimiento ISO 45001</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_totalInspecciones</div>
+                <div class="text-muted small">Total Inspecciones</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fórmulas -->
+    <div class="card shadow-sm border-0" style="background:#f8f9fa">
+        <div class="card-body">
+            <h6 class="fw-bold mb-3" style="color:#183963"><i class="bi-calculator me-2"></i>Fórmulas de Cálculo</h6>
+            <div class="row g-2 small text-muted">
+                <div class="col-md-4">
+                    <strong>IF (Índice de Frecuencia)</strong><br>
+                    = (N° Accidentes × 200,000) ÷ HHT
+                </div>
+                <div class="col-md-4">
+                    <strong>IG (Índice de Gravedad)</strong><br>
+                    = (Días Perdidos × 200,000) ÷ HHT
+                </div>
+                <div class="col-md-4">
+                    <strong>II (Índice de Incidentalidad)</strong><br>
+                    = (N° Incidentes × 200,000) ÷ HHT
+                </div>
+            </div>
+            <p class="mt-2 mb-0 small text-muted">HHT = Horas-Hombre Trabajadas ingresadas manualmente arriba. 200,000 = constante estándar (100 trabajadores × 40h/sem × 50 semanas)</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+
+    private int _anio = DateTime.Today.Year;
+    private decimal _horasHombre = 200000;
+
+    private double _if, _ig, _ii;
+    private int _casiAccidentes, _incidentes, _accidentesLeves, _accidentesGraves;
+    private int _cumPlan, _cumCap, _cumISO, _totalInspecciones;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var eventos = await Db.IncidentesAccidentes
+            .Where(e => e.ProyectoId == ProyectoId && e.FechaEvento.Year == _anio)
+            .ToListAsync();
+
+        _casiAccidentes  = eventos.Count(e => e.Tipo == TipoIncidente.CasiAccidente);
+        _incidentes      = eventos.Count(e => e.Tipo == TipoIncidente.Incidente);
+        _accidentesLeves = eventos.Count(e => e.Tipo == TipoIncidente.AccidenteLeve);
+        _accidentesGraves = eventos.Count(e => e.Tipo == TipoIncidente.AccidenteGrave || e.Tipo == TipoIncidente.AccidenteFatal);
+
+        var accidentesTotal = _accidentesLeves + _accidentesGraves;
+        var hht = (double)_horasHombre;
+
+        _if = hht > 0 ? accidentesTotal * 200000.0 / hht : 0;
+        _ig = hht > 0 ? 0 / hht : 0; // días perdidos pendiente — sin campo en entidad
+        _ii = hht > 0 ? _incidentes * 200000.0 / hht : 0;
+
+        // Plan
+        var plan = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId && p.Anio == _anio).ToListAsync();
+        _cumPlan = plan.Count > 0 ? (int)Math.Round(plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada) * 100.0 / plan.Count) : 0;
+
+        // Capacitaciones
+        var capPlan = await Db.CapacitacionesPlanificadas.Where(c => c.ProyectoId == ProyectoId).CountAsync();
+        var capReal = await Db.Capacitaciones.Where(c => c.ProyectoId == ProyectoId && c.Estado == EstadoPlanTrabajo.Ejecutada).CountAsync();
+        _cumCap = capPlan > 0 ? (int)Math.Round(capReal * 100.0 / capPlan) : 100;
+
+        // ISO 45001
+        var checkISO = await Db.ChecklistsAuditoria.Where(c => c.ProyectoId == ProyectoId && c.NormaISO == "ISO 45001:2018").ToListAsync();
+        _cumISO = checkISO.Any() ? (int)Math.Round((double)checkISO.Average(c => c.PorcentajeCumplimiento)) : 0;
+
+        // Inspecciones
+        _totalInspecciones = await Db.InspeccionesSST.Where(i => i.ProyectoId == ProyectoId).CountAsync();
+    }
+}

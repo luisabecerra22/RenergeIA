@@ -1,0 +1,213 @@
+@page "/proyectos/{ProyectoId:int}/hseq/calidad/checklist"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>Checklist ISO 9001 — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-list-check me-2" style="color:#183963"></i>Checklist ISO 9001</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nueva Auditoría
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Nueva Auditoría ISO 9001</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Auditor *</label>
+                            <InputText class="form-control" @bind-Value="_form.Auditor" />
+                            <ValidationMessage For="() => _form.Auditor" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha Auditoría *</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaAuditoria" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">% Cumplimiento</label>
+                            <InputNumber class="form-control" @bind-Value="_form.PorcentajeCumplimiento" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <!-- Resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO ACTUAL</div>
+                <div class="fw-bold" style="font-size:2rem;color:#6ABF4B">87%</div>
+                <div class="progress mt-2" style="height:10px;border-radius:5px">
+                    <div class="progress-bar bg-success" style="width:87%"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="text-muted small fw-semibold mb-1">TOTAL AUDITORÍAS</div>
+                <div class="fw-bold" style="font-size:2rem;color:#183963">@_checklists.Count</div>
+                <div class="text-muted small">registradas en el sistema</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="text-muted small fw-semibold mb-1">ÚLTIMA AUDITORÍA</div>
+                <div class="fw-bold" style="font-size:1.4rem;color:#fd7e14">
+                    @(_checklists.Any() ? _checklists.Max(c => c.FechaAuditoria).ToString("dd/MM/yyyy") : "—")
+                </div>
+                <div class="text-muted small">fecha más reciente</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card shadow-sm">
+        <div class="card-header"><strong>Auditorías ISO 9001 — @_proyecto.Nombre</strong></div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Auditor</th>
+                        <th class="text-center">Cumplimiento</th>
+                        <th>Observaciones</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_checklists.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-4">No hay auditorías registradas. Cree la primera.</td></tr>
+                    }
+                    @foreach (var c in _checklists.OrderByDescending(x => x.FechaAuditoria))
+                    {
+                        <tr>
+                            <td>@c.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                            <td>@c.Auditor</td>
+                            <td class="text-center">
+                                <span class="badge @BadgePct((int)c.PorcentajeCumplimiento)">
+                                    @c.PorcentajeCumplimiento.ToString("F0")%
+                                </span>
+                            </td>
+                            <td class="text-muted small" style="max-width:250px">@(c.Observaciones ?? "—")</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == c.Id)
+                                {
+                                    <span class="me-1 text-danger small">¿Eliminar?</span>
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id">
+                                        <i class="bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<ChecklistAuditoria> _checklists = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _checklists = await Db.ChecklistsAuditoria
+            .Where(c => c.ProyectoId == ProyectoId && c.Division == DivisionHSEQ.Calidad)
+            .OrderByDescending(c => c.FechaAuditoria)
+            .ToListAsync();
+    }
+
+    private void MostrarFormulario()
+    {
+        _form = new FormModel { FechaAuditoria = DateTime.Today };
+        _mostrarFormulario = true;
+    }
+
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        var entidad = new ChecklistAuditoria
+        {
+            ProyectoId             = ProyectoId,
+            Division               = DivisionHSEQ.Calidad,
+            NormaISO               = "ISO 9001:2015",
+            Auditor                = _form.Auditor,
+            FechaAuditoria         = _form.FechaAuditoria,
+            PorcentajeCumplimiento = _form.PorcentajeCumplimiento,
+            Observaciones          = _form.Observaciones
+        };
+        Db.ChecklistsAuditoria.Add(entidad);
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var entidad = await Db.ChecklistsAuditoria.FindAsync(id);
+        if (entidad is not null) { Db.ChecklistsAuditoria.Remove(entidad); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgePct(int pct) =>
+        pct >= 85 ? "bg-success" : pct >= 70 ? "bg-warning text-dark" : "bg-danger";
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El auditor es obligatorio")]
+        public string Auditor { get; set; } = "";
+        public DateTime FechaAuditoria { get; set; } = DateTime.Today;
+        public decimal PorcentajeCumplimiento { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

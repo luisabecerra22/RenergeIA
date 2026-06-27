@@ -1,0 +1,221 @@
+@page "/proyectos/{ProyectoId:int}/documentos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>Documentos — RenergeIA</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div>
+            <h1 class="h3 mb-0">Documentos</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <input class="form-control form-control-sm" style="width:200px"
+                   placeholder="Buscar por código o título..." @bind="_busqueda" @bind:event="oninput" />
+            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroTipo">
+                <option value="">Todos los tipos</option>
+                @foreach (var tipo in Enum.GetValues<TipoDocumento>())
+                {
+                    <option value="@tipo">@NombreTipo(tipo)</option>
+                }
+            </select>
+            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroDisciplina">
+                <option value="">Todas las disciplinas</option>
+                @foreach (var disc in Enum.GetValues<DisciplinaDocumento>())
+                {
+                    <option value="@disc">@NombreDisciplina(disc)</option>
+                }
+            </select>
+            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroEstado">
+                <option value="">Todos los estados</option>
+                @foreach (var est in Enum.GetValues<EstadoDocumento>())
+                {
+                    <option value="@est">@EnumDisplay.Mostrar(est)</option>
+                }
+            </select>
+        </div>
+        <a href="/proyectos/@ProyectoId/documentos/crear" class="btn btn-primary">+ Nuevo documento</a>
+    </div>
+
+    @if (!DocumentosFiltrados.Any())
+    {
+        <div class="card shadow-sm text-center py-5">
+            <p class="text-muted mb-3">No hay documentos registrados para este proyecto.</p>
+            <div>
+                <a href="/proyectos/@ProyectoId/documentos/crear" class="btn btn-primary">Agregar primer documento</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Título</th>
+                            <th>Tipo</th>
+                            <th>Disciplina</th>
+                            <th>Estado</th>
+                            <th>Versión</th>
+                            <th>Fecha emisión</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in DocumentosFiltrados)
+                        {
+                            var versionActual = doc.Versiones.FirstOrDefault(v => v.EsVersionActual);
+                            <tr>
+                                <td><code>@doc.Codigo</code></td>
+                                <td>
+                                    <div class="fw-semibold">@doc.Titulo</div>
+                                    @if (!string.IsNullOrEmpty(doc.Descripcion))
+                                    {
+                                        <small class="text-muted">@doc.Descripcion</small>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @BadgeTipo(doc.TipoDocumento)">
+                                        @NombreTipo(doc.TipoDocumento)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">
+                                        @NombreDisciplina(doc.Disciplina)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge @BadgeEstado(doc.Estado)">
+                                        @EnumDisplay.Mostrar(doc.Estado)
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (versionActual is not null)
+                                    {
+                                        <span class="badge bg-info text-dark">@versionActual.NumeroVersion</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>@(doc.FechaEmision?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end">
+                                        <a href="/proyectos/@ProyectoId/documentos/@doc.Id"
+                                           class="btn btn-sm btn-outline-secondary">Ver</a>
+                                        @if (doc.Estado == EstadoDocumento.Borrador)
+                                        {
+                                            <a href="/proyectos/@ProyectoId/documentos/@doc.Id/editar"
+                                               class="btn btn-sm btn-outline-primary">Editar</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-muted small mt-2">
+            @DocumentosFiltrados.Count() documento(s) encontrado(s)
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Documento> _documentos = [];
+    private string _busqueda = "";
+    private string _filtroTipo = "";
+    private string _filtroDisciplina = "";
+    private string _filtroEstado = "";
+
+    private IEnumerable<Documento> DocumentosFiltrados => _documentos.Where(d =>
+        (string.IsNullOrEmpty(_busqueda) ||
+            d.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+            d.Titulo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(_filtroTipo) || d.TipoDocumento.ToString() == _filtroTipo) &&
+        (string.IsNullOrEmpty(_filtroDisciplina) || d.Disciplina.ToString() == _filtroDisciplina) &&
+        (string.IsNullOrEmpty(_filtroEstado) || d.Estado.ToString() == _filtroEstado));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _documentos = await Db.Documentos
+            .Include(d => d.Versiones)
+            .Where(d => d.ProyectoId == ProyectoId)
+            .OrderByDescending(d => d.FechaCreacion)
+            .ToListAsync();
+    }
+
+    private static string NombreTipo(TipoDocumento t) => t switch
+    {
+        TipoDocumento.Plano => "Plano",
+        TipoDocumento.Especificacion => "Especificación",
+        TipoDocumento.Contrato => "Contrato",
+        TipoDocumento.Permiso => "Permiso",
+        TipoDocumento.Informe => "Informe",
+        TipoDocumento.Procedimiento => "Procedimiento",
+        TipoDocumento.Certificado => "Certificado",
+        _ => "Otro"
+    };
+
+    private static string NombreDisciplina(DisciplinaDocumento d) => d switch
+    {
+        DisciplinaDocumento.Civil => "Civil",
+        DisciplinaDocumento.Electrico => "Eléctrico",
+        DisciplinaDocumento.Mecanico => "Mecánico",
+        DisciplinaDocumento.Estructural => "Estructural",
+        DisciplinaDocumento.InstrumentacionControl => "I&C",
+        DisciplinaDocumento.SCADA => "SCADA",
+        DisciplinaDocumento.GestionProyecto => "Gestión",
+        DisciplinaDocumento.HSE => "HSE",
+        DisciplinaDocumento.Calidad => "Calidad",
+        DisciplinaDocumento.Ambiental => "Ambiental",
+        _ => "Otro"
+    };
+
+    private static string BadgeTipo(TipoDocumento t) => t switch
+    {
+        TipoDocumento.Plano => "bg-primary",
+        TipoDocumento.Contrato => "bg-success",
+        TipoDocumento.Permiso => "bg-warning text-dark",
+        TipoDocumento.Certificado => "bg-primary",
+        TipoDocumento.Informe => "bg-secondary",
+        _ => "bg-light text-dark border"
+    };
+
+    private static string BadgeEstado(EstadoDocumento e) => e switch
+    {
+        EstadoDocumento.Borrador => "bg-secondary",
+        EstadoDocumento.EnRevision => "bg-warning text-dark",
+        EstadoDocumento.Aprobado => "bg-success",
+        EstadoDocumento.Rechazado => "bg-danger",
+        EstadoDocumento.Obsoleto => "bg-dark",
+        _ => "bg-secondary"
+    };
+}

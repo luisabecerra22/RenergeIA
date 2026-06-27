@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="RenergeIA.Core/RenergeIA.Core.csproj" />
+  <Project Path="RenergeIA.Infrastructure/RenergeIA.Infrastructure.csproj" />
+  <Project Path="RenergeIA.Web/RenergeIA.Web.csproj" />
+</Solution>

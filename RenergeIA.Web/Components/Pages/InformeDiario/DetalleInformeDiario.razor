@@ -1,0 +1,333 @@
+@page "/proyectos/{ProyectoId:int}/informes/{InformeId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject InformeDiarioService InformeSvc
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Informe Diario — RenergeIA</PageTitle>
+
+@if (_informe is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <!-- Encabezado -->
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+        <a href="/proyectos/@ProyectoId/informes" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h1 class="h3 mb-0">Informe del @_informe.Fecha.ToString("dd 'de' MMMM 'de' yyyy")</h1>
+                <span class="badge @BadgeEstado(_informe.Estado) fs-6">@EnumDisplay.Mostrar(_informe.Estado)</span>
+            </div>
+            <small class="text-muted">
+                @_proyecto?.Nombre
+                @if (!string.IsNullOrEmpty(_informe.NumeroCertificado))
+                { <span> — Informe N° @_informe.NumeroCertificado</span> }
+            </small>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            @if (_informe.Estado == EstadoInforme.Borrador)
+            {
+                <a href="/proyectos/@ProyectoId/informes/@InformeId/editar"
+                   class="btn btn-outline-primary btn-sm">Editar</a>
+                <button class="btn btn-warning btn-sm" @onclick="EnviarARevisionAsync">
+                    Enviar a Revisión
+                </button>
+            }
+            @if (_informe.Estado == EstadoInforme.EnRevision)
+            {
+                <button class="btn btn-success btn-sm" @onclick="AprobarAsync">Aprobar</button>
+                <button class="btn btn-danger btn-sm"
+                        @onclick="() => _mostrarRechazo = !_mostrarRechazo">Rechazar</button>
+            }
+            @if (_informe.Estado == EstadoInforme.Rechazado)
+            {
+                <button class="btn btn-outline-secondary btn-sm"
+                        @onclick="VolverABorradorAsync">Volver a Borrador</button>
+            }
+        </div>
+    </div>
+
+    <!-- Panel de rechazo -->
+    @if (_mostrarRechazo)
+    {
+        <div class="card border-danger shadow-sm mb-4">
+            <div class="card-header bg-danger text-white"><strong>Rechazar informe</strong></div>
+            <div class="card-body">
+                <label class="form-label">Motivo del rechazo</label>
+                <textarea class="form-control mb-3" rows="2" @bind="_motivoRechazo"
+                          placeholder="Describe el motivo del rechazo..."></textarea>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger btn-sm" @onclick="RechazarAsync">Confirmar rechazo</button>
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="() => _mostrarRechazo = false">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_informe.Estado == EstadoInforme.Rechazado && !string.IsNullOrEmpty(_informe.MotivoRechazo))
+    {
+        <div class="alert alert-danger">
+            <strong>Motivo de rechazo:</strong> @_informe.MotivoRechazo
+        </div>
+    }
+
+    <!-- Información general + resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Información general</strong></div>
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5">Fecha</dt>
+                        <dd class="col-7">@_informe.Fecha.ToString("dd/MM/yyyy")</dd>
+                        <dt class="col-5">N° Informe</dt>
+                        <dd class="col-7">@(_informe.NumeroCertificado ?? "—")</dd>
+                        <dt class="col-5">Personal total</dt>
+                        <dd class="col-7">@_informe.PersonalTotal personas</dd>
+                        <dt class="col-5">Versión</dt>
+                        <dd class="col-7">v@(_informe.Version)</dd>
+                        <dt class="col-5">Creado por</dt>
+                        <dd class="col-7">@_informe.CreadoPor</dd>
+                        @if (_informe.RevisadoPor is not null)
+                        {
+                            <dt class="col-5">Revisado por</dt>
+                            <dd class="col-7">@_informe.RevisadoPor</dd>
+                            <dt class="col-5">Fecha revisión</dt>
+                            <dd class="col-7">@_informe.FechaRevision?.ToString("dd/MM/yyyy")</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Resumen del día</strong></div>
+                <div class="card-body small">
+                    @if (!string.IsNullOrEmpty(_informe.ResumenActividades))
+                    {
+                        <p><strong>Actividades:</strong> @_informe.ResumenActividades</p>
+                    }
+                    @if (!string.IsNullOrEmpty(_informe.Observaciones))
+                    {
+                        <p><strong>Observaciones:</strong> @_informe.Observaciones</p>
+                    }
+                    @if (!string.IsNullOrEmpty(_informe.ComentariosGenerales))
+                    {
+                        <p class="mb-0"><strong>Comentarios:</strong> @_informe.ComentariosGenerales</p>
+                    }
+                    @if (string.IsNullOrEmpty(_informe.ResumenActividades) &&
+                         string.IsNullOrEmpty(_informe.Observaciones) &&
+                         string.IsNullOrEmpty(_informe.ComentariosGenerales))
+                    {
+                        <p class="text-muted mb-0">Sin resumen registrado.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen por disciplina -->
+    @if (_resumen.Any())
+    {
+        <h5 class="mb-3">Avance por disciplina</h5>
+        <div class="row g-3 mb-4">
+            @foreach (var r in _resumen)
+            {
+                var colorBarra = r.AvancePromedio >= r.EsperadoPromedio ? "bg-success" : "bg-danger";
+                var colorSPI   = r.SPI >= 1m ? "bg-success" : r.SPI >= 0.9m ? "bg-warning text-dark" : "bg-danger";
+                <div class="col-md-4">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <span style="font-size:1.2rem">@EnumDisplay.IconoDisciplina(r.Disciplina)</span>
+                                    <strong class="ms-1" style="font-size:0.88rem">@EnumDisplay.Mostrar(r.Disciplina)</strong>
+                                </div>
+                                <span class="badge @colorSPI">SPI @r.SPI.ToString("F2")</span>
+                            </div>
+                            <div class="small text-muted mb-1">
+                                Avance real vs esperado (@r.Total actividades)
+                            </div>
+                            <div class="progress mb-1" style="height:6px">
+                                <div class="progress-bar @colorBarra"
+                                     style="width:@(Math.Min(r.AvancePromedio, 100))%"></div>
+                            </div>
+                            <div class="d-flex justify-content-between small">
+                                <span class="fw-bold">@r.AvancePromedio.ToString("F1")% real</span>
+                                <span class="text-muted">@r.EsperadoPromedio.ToString("F1")% esperado</span>
+                            </div>
+                            @if (r.Atrasadas > 0)
+                            {
+                                <div class="mt-1 small text-danger">
+                                    ⚠ @r.Atrasadas de @r.Total actividades con atraso
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Tabla de registros de avance -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <strong>Detalle de avances</strong>
+            <span class="badge bg-light text-dark border ms-2">@_informe.RegistrosAvance.Count actividades</span>
+        </div>
+        @if (!_informe.RegistrosAvance.Any())
+        {
+            <div class="card-body text-center text-muted py-4">
+                Este informe no tiene registros de avance.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Actividad</th>
+                            <th>Disciplina</th>
+                            <th class="text-end">Real %</th>
+                            <th class="text-end">Esperado %</th>
+                            <th class="text-end">Desviación</th>
+                            <th>Estado</th>
+                            <th class="text-end">Días atraso</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var reg in _informe.RegistrosAvance
+                            .OrderBy(r => WbsSortKey(r.ActividadWBS?.CodigoWBS ?? "")))
+                        {
+                            <tr>
+                                <td class="text-muted small">@reg.ActividadWBS?.CodigoWBS</td>
+                                <td>@reg.ActividadWBS?.Nombre</td>
+                                <td class="small">
+                                    @if (reg.ActividadWBS?.Disciplina.HasValue == true)
+                                    {
+                                        @EnumDisplay.IconoDisciplina(reg.ActividadWBS.Disciplina.Value)
+                                        <span class="ms-1">@EnumDisplay.Mostrar(reg.ActividadWBS.Disciplina.Value)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-end fw-bold">@reg.AvanceAcumulado.ToString("F1")%</td>
+                                <td class="text-end text-muted">@reg.AvanceEsperado.ToString("F1")%</td>
+                                <td class="text-end @(reg.Desviacion >= 0 ? "text-success" : "text-danger") fw-bold">
+                                    @(reg.Desviacion >= 0 ? "+" : "")@reg.Desviacion.ToString("F1")%
+                                </td>
+                                <td>
+                                    <span class="badge @BadgeEstadoAvance(reg.Estado)">
+                                        @EnumDisplay.Mostrar(reg.Estado)
+                                    </span>
+                                </td>
+                                <td class="text-end">@(reg.DiasAtraso > 0 ? $"{reg.DiasAtraso}d" : "—")</td>
+                                <td class="small text-muted">@(reg.Observaciones ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int InformeId { get; set; }
+
+    private Proyecto? _proyecto;
+    private InformeDiario? _informe;
+    private List<ResumenDisciplina> _resumen = [];
+    private bool _mostrarRechazo;
+    private string _motivoRechazo = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        _informe = await Db.InformesDiarios
+            .Include(i => i.RegistrosAvance)
+                .ThenInclude(r => r.ActividadWBS)
+            .FirstOrDefaultAsync(i => i.Id == InformeId && i.ProyectoId == ProyectoId);
+
+        if (_informe is null)
+        {
+            Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes");
+            return;
+        }
+
+        _resumen = await InformeSvc.ResumenPorDisciplinaAsync(ProyectoId, _informe.Fecha);
+    }
+
+    private async Task EnviarARevisionAsync()
+    {
+        if (_informe is null) return;
+        _informe.Estado = EstadoInforme.EnRevision;
+        _informe.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task AprobarAsync()
+    {
+        if (_informe is null) return;
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _informe.Estado = EstadoInforme.Aprobado;
+        _informe.RevisadoPor = authState.User.Identity?.Name;
+        _informe.FechaRevision = DateTime.UtcNow;
+        _informe.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task RechazarAsync()
+    {
+        if (_informe is null || string.IsNullOrWhiteSpace(_motivoRechazo)) return;
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _informe.Estado = EstadoInforme.Rechazado;
+        _informe.MotivoRechazo = _motivoRechazo;
+        _informe.RevisadoPor = authState.User.Identity?.Name;
+        _informe.FechaRevision = DateTime.UtcNow;
+        _informe.FechaModificacion = DateTime.UtcNow;
+        _mostrarRechazo = false;
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task VolverABorradorAsync()
+    {
+        if (_informe is null) return;
+        _informe.Estado = EstadoInforme.Borrador;
+        _informe.MotivoRechazo = null;
+        _informe.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
+    private static string WbsSortKey(string codigo) =>
+        string.Join(".", codigo.Split('.').Select(p => p.PadLeft(4, '0')));
+
+    private static string BadgeEstado(EstadoInforme e) => e switch
+    {
+        EstadoInforme.Borrador   => "bg-secondary",
+        EstadoInforme.EnRevision => "bg-warning text-dark",
+        EstadoInforme.Aprobado   => "bg-success",
+        EstadoInforme.Rechazado  => "bg-danger",
+        _                        => "bg-secondary"
+    };
+
+    private static string BadgeEstadoAvance(EstadoAvance e) => e switch
+    {
+        EstadoAvance.Adelantado => "bg-primary",
+        EstadoAvance.EnTiempo   => "bg-success",
+        EstadoAvance.Atrasado   => "bg-warning text-dark",
+        EstadoAvance.Critico    => "bg-danger",
+        _                       => "bg-secondary"
+    };
+}

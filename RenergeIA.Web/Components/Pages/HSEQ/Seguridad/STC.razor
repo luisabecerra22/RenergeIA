@@ -1,0 +1,284 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/stc"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+
+<PageTitle>STC — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-house-check me-2" style="color:#183963"></i>STC — Seguridad en Trabajo en Casa</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Nueva STC</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_inspecciones.Count</div>
+                <div class="text-muted small">Total STC</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_inspecciones.Sum(i => i.ActosInseguros)</div>
+                <div class="text-muted small">Actos Inseguros</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_inspecciones.Sum(i => i.CondicionesInseguras)</div>
+                <div class="text-muted small">Cond. Inseguras</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_inspecciones.Count(i => i.Estado == EstadoInspeccionHSEQ.Realizada)</div>
+                <div class="text-muted small">Realizadas</div>
+            </div>
+        </div>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>@(_editandoId.HasValue ? "Editar STC" : "Nueva STC")</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Código *</label>
+                            <InputText class="form-control" @bind-Value="_form.Codigo" />
+                            <ValidationMessage For="() => _form.Codigo" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Área</label>
+                            <InputText class="form-control" @bind-Value="_form.Area" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.Frente" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Inspector *</label>
+                            <InputText class="form-control" @bind-Value="_form.Inspector" />
+                            <ValidationMessage For="() => _form.Inspector" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha</label>
+                            <InputDate class="form-control" @bind-Value="_form.FechaInspeccion" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Estado</label>
+                            <InputSelect class="form-select" @bind-Value="_form.Estado">
+                                @foreach (var e in Enum.GetValues<EstadoInspeccionHSEQ>())
+                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Hallazgos</label>
+                            <InputNumber class="form-control" @bind-Value="_form.HallazgosEncontrados" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cerrados</label>
+                            <InputNumber class="form-control" @bind-Value="_form.HallazgosCerrados" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Actos Inseguros</label>
+                            <InputNumber class="form-control" @bind-Value="_form.ActosInseguros" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cond. Inseguras</label>
+                            <InputNumber class="form-control" @bind-Value="_form.CondicionesInseguras" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Acciones Generadas</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.AccionesGeneradas" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th><th>Área</th><th>Inspector</th><th>Fecha</th>
+                        <th class="text-center">Actos</th><th class="text-center">Cond.</th>
+                        <th class="text-center">Hallazgos</th><th class="text-center">Estado</th>
+                        <th class="text-center">Acc.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_inspecciones.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">No hay STC registradas.</td></tr>
+                    }
+                    @foreach (var i in _inspecciones)
+                    {
+                        <tr>
+                            <td class="font-monospace text-muted">@i.Codigo</td>
+                            <td>@i.Area</td>
+                            <td class="text-muted">@i.Inspector</td>
+                            <td>@i.FechaInspeccion.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center @(i.ActosInseguros > 0 ? "text-warning fw-bold" : "text-muted")">@i.ActosInseguros</td>
+                            <td class="text-center @(i.CondicionesInseguras > 0 ? "text-warning fw-bold" : "text-muted")">@i.CondicionesInseguras</td>
+                            <td class="text-center">
+                                @if (i.HallazgosEncontrados > 0)
+                                {
+                                    <span class="badge bg-danger">@(i.HallazgosEncontrados - i.HallazgosCerrados) ab.</span>
+                                }
+                                else { <span class="text-muted">0</span> }
+                            </td>
+                            <td class="text-center"><span class="badge @BadgeInsp(i.Estado)">@EnumDisplay.Mostrar(i.Estado)</span></td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == i.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(i.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(i)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = i.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private List<InspeccionSST> _inspecciones = [];
+    private bool _mostrarFormulario;
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private FormModel _form = new();
+
+    private const string TipoFijo = "STC";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _inspecciones = await Db.InspeccionesSST
+            .Where(i => i.ProyectoId == ProyectoId && i.Tipo == TipoFijo)
+            .OrderByDescending(i => i.FechaInspeccion).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { FechaInspeccion = DateTime.Today }; _editandoId = null; _mostrarFormulario = true; }
+    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+
+    private void EditarItem(InspeccionSST i)
+    {
+        _form = new FormModel
+        {
+            Codigo = i.Codigo, Area = i.Area, Frente = i.Frente, Responsable = i.Responsable,
+            Inspector = i.Inspector, FechaInspeccion = i.FechaInspeccion, Estado = i.Estado,
+            HallazgosEncontrados = i.HallazgosEncontrados, HallazgosCerrados = i.HallazgosCerrados,
+            ActosInseguros = i.ActosInseguros, CondicionesInseguras = i.CondicionesInseguras,
+            AccionesGeneradas = i.AccionesGeneradas, Observaciones = i.Observaciones
+        };
+        _editandoId = i.Id; _mostrarFormulario = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_editandoId.HasValue)
+        {
+            var e = await Db.InspeccionesSST.FindAsync(_editandoId.Value);
+            if (e is not null) MapearForm(e);
+        }
+        else
+        {
+            var e = new InspeccionSST { ProyectoId = ProyectoId, Tipo = TipoFijo };
+            MapearForm(e);
+            Db.InspeccionesSST.Add(e);
+        }
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private void MapearForm(InspeccionSST i)
+    {
+        i.Codigo = _form.Codigo; i.Area = _form.Area; i.Frente = _form.Frente;
+        i.Responsable = _form.Responsable; i.Inspector = _form.Inspector;
+        i.FechaInspeccion = _form.FechaInspeccion; i.Estado = _form.Estado;
+        i.HallazgosEncontrados = _form.HallazgosEncontrados; i.HallazgosCerrados = _form.HallazgosCerrados;
+        i.ActosInseguros = _form.ActosInseguros; i.CondicionesInseguras = _form.CondicionesInseguras;
+        i.AccionesGeneradas = _form.AccionesGeneradas; i.Observaciones = _form.Observaciones;
+        i.FechaModificacion = DateTime.UtcNow;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var e = await Db.InspeccionesSST.FindAsync(id);
+        if (e is not null) { Db.InspeccionesSST.Remove(e); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static string BadgeInsp(EstadoInspeccionHSEQ e) => e switch
+    {
+        EstadoInspeccionHSEQ.Realizada  => "bg-success",
+        EstadoInspeccionHSEQ.Programada => "bg-primary",
+        EstadoInspeccionHSEQ.Vencida    => "bg-danger",
+        EstadoInspeccionHSEQ.Cancelada  => "bg-secondary",
+        _                               => "bg-secondary"
+    };
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Codigo { get; set; } = "";
+        public string Area { get; set; } = "";
+        public string Frente { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Inspector { get; set; } = "";
+        public DateTime FechaInspeccion { get; set; } = DateTime.Today;
+        public EstadoInspeccionHSEQ Estado { get; set; } = EstadoInspeccionHSEQ.Programada;
+        public int HallazgosEncontrados { get; set; }
+        public int HallazgosCerrados { get; set; }
+        public int ActosInseguros { get; set; }
+        public int CondicionesInseguras { get; set; }
+        public string? AccionesGeneradas { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}

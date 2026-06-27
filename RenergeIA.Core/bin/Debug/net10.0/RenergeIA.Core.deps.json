@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "RenergeIA.Core/1.0.0": {
+        "runtime": {
+          "RenergeIA.Core.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "RenergeIA.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

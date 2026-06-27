@@ -1,0 +1,204 @@
+@page "/proyectos/{Id:int}/editar"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject HistogramaService HistSvc
+
+<PageTitle>Editar Proyecto — RenergeIA</PageTitle>
+
+@if (_form is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <a href="/proyectos/@Id" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
+        <h1 class="h3 mb-0">Editar Proyecto</h1>
+    </div>
+
+    <div class="card shadow-sm" style="max-width: 700px;">
+        <div class="card-body">
+            <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                <DataAnnotationsValidator />
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Código *</label>
+                        <InputText class="form-control" @bind-Value="_form.Codigo" />
+                        <ValidationMessage For="() => _form.Codigo" class="text-danger small" />
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Nombre del proyecto *</label>
+                        <InputText class="form-control" @bind-Value="_form.Nombre" />
+                        <ValidationMessage For="() => _form.Nombre" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Cliente *</label>
+                        <InputText class="form-control" @bind-Value="_form.Cliente" />
+                        <ValidationMessage For="() => _form.Cliente" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Estado</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Estado">
+                            @foreach (var e in Enum.GetValues<EstadoProyecto>())
+                            {
+                                <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Ubicación *</label>
+                        <InputText class="form-control" @bind-Value="_form.Ubicacion" />
+                        <ValidationMessage For="() => _form.Ubicacion" class="text-danger small" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">País *</label>
+                        <InputText class="form-control" @bind-Value="_form.Pais" />
+                        <ValidationMessage For="() => _form.Pais" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Capacidad (kWp) *</label>
+                        <InputNumber class="form-control" @bind-Value="_form.CapacidadKWp" min="0.01" />
+                        <ValidationMessage For="() => _form.CapacidadKWp" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Presupuesto contractual (USD) *</label>
+                        <InputNumber class="form-control" @bind-Value="_form.PresupuestoContractual" min="0.01" />
+                        <ValidationMessage For="() => _form.PresupuestoContractual" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha inicio planeada *</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaInicioPlaneada" />
+                        <ValidationMessage For="() => _form.FechaInicioPlaneada" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha fin planeada *</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaFinPlaneada" />
+                        <ValidationMessage For="() => _form.FechaFinPlaneada" class="text-danger small" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha inicio real</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaInicioReal" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Fecha fin real</label>
+                        <InputDate class="form-control" @bind-Value="_form.FechaFinReal" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Descripción</label>
+                        <InputTextArea class="form-control" @bind-Value="_form.Descripcion" rows="3" />
+                    </div>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                    <a href="/proyectos/@Id" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private FormModel? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var p = await Db.Proyectos.FindAsync(Id);
+        if (p is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        _form = new FormModel
+        {
+            Codigo = p.Codigo,
+            Nombre = p.Nombre,
+            Cliente = p.Cliente,
+            Ubicacion = p.Ubicacion,
+            Pais = p.Pais,
+            CapacidadKWp = p.CapacidadKWp,
+            PresupuestoContractual = p.PresupuestoContractual,
+            FechaInicioPlaneada = p.FechaInicioPlaneada,
+            FechaFinPlaneada = p.FechaFinPlaneada,
+            FechaInicioReal = p.FechaInicioReal,
+            FechaFinReal = p.FechaFinReal,
+            Estado = p.Estado,
+            Descripcion = p.Descripcion
+        };
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_form is null) return;
+        var p = await Db.Proyectos.FindAsync(Id);
+        if (p is null) return;
+
+        var plantillaAnterior = HistogramaService.NombrePlantilla(p.CapacidadKWp);
+
+        p.Codigo = _form.Codigo;
+        p.Nombre = _form.Nombre;
+        p.Cliente = _form.Cliente;
+        p.Ubicacion = _form.Ubicacion;
+        p.Pais = _form.Pais;
+        p.CapacidadKWp = _form.CapacidadKWp;
+        p.PresupuestoContractual = _form.PresupuestoContractual;
+        p.FechaInicioPlaneada = _form.FechaInicioPlaneada;
+        p.FechaFinPlaneada = _form.FechaFinPlaneada;
+        p.FechaInicioReal = _form.FechaInicioReal;
+        p.FechaFinReal = _form.FechaFinReal;
+        p.Estado = _form.Estado;
+        p.Descripcion = _form.Descripcion;
+        p.FechaModificacion = DateTime.UtcNow;
+
+        await Db.SaveChangesAsync();
+
+        if (plantillaAnterior != HistogramaService.NombrePlantilla(p.CapacidadKWp))
+        {
+            await HistSvc.CrearOActualizarAsync(Id, TipoHistograma.Personal,
+                HistogramaService.PlantillaPersonalPorCapacidad(p.CapacidadKWp));
+            await HistSvc.CrearOActualizarAsync(Id, TipoHistograma.Equipos,
+                HistogramaService.PlantillaEquiposPorCapacidad(p.CapacidadKWp));
+        }
+
+        Navigation.NavigateTo($"/proyectos/{Id}");
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "El código es obligatorio")]
+        [MaxLength(20, ErrorMessage = "Máximo 20 caracteres")]
+        public string Codigo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El nombre es obligatorio")]
+        [MaxLength(200, ErrorMessage = "Máximo 200 caracteres")]
+        public string Nombre { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El cliente es obligatorio")]
+        public string Cliente { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La ubicación es obligatoria")]
+        public string Ubicacion { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El país es obligatorio")]
+        public string Pais { get; set; } = string.Empty;
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "La capacidad debe ser mayor a 0")]
+        public decimal CapacidadKWp { get; set; }
+
+        [Range(0.01, double.MaxValue, ErrorMessage = "El presupuesto debe ser mayor a 0")]
+        public decimal PresupuestoContractual { get; set; }
+
+        [Required]
+        public DateTime FechaInicioPlaneada { get; set; }
+
+        [Required]
+        public DateTime FechaFinPlaneada { get; set; }
+
+        public DateTime? FechaInicioReal { get; set; }
+        public DateTime? FechaFinReal { get; set; }
+        public EstadoProyecto Estado { get; set; }
+        public string? Descripcion { get; set; }
+    }
+}

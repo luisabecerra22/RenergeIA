@@ -1,0 +1,225 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/ats"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>ATS / AST — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-secondary">&larr; Seguridad</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0"><i class="bi-clipboard2-check me-2" style="color:#183963"></i>Análisis de Trabajo Seguro (ATS/AST)</h1>
+            <small class="text-muted">@_proyecto.Nombre</small>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+            <i class="bi-plus-lg me-1"></i>Nuevo ATS
+        </button>
+    </div>
+
+    @if (_mostrarFormulario)
+    {
+        <div class="card shadow-sm mb-4 border-primary">
+            <div class="card-header bg-primary text-white d-flex justify-content-between">
+                <strong>Nuevo Análisis de Trabajo Seguro</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Código *</label>
+                            <InputText class="form-control" @bind-Value="_form.Codigo" />
+                            <ValidationMessage For="() => _form.Codigo" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Actividad *</label>
+                            <InputText class="form-control" @bind-Value="_form.Actividad" />
+                            <ValidationMessage For="() => _form.Actividad" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Frente de Trabajo</label>
+                            <InputText class="form-control" @bind-Value="_form.FrenteTrabajo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_form.Responsable" />
+                            <ValidationMessage For="() => _form.Responsable" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Fecha</label>
+                            <InputDate class="form-control" @bind-Value="_form.Fecha" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">N° Trabajadores</label>
+                            <InputNumber class="form-control" @bind-Value="_form.NumeroTrabajadores" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Riesgos Identificados</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.RiesgosIdentificados" placeholder="Liste los riesgos identificados..." />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Medidas de Control</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.MedidasControl" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Observaciones</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:2rem;color:#183963">@_registros.Count</div>
+                <div class="text-muted small">ATS/AST realizados este proyecto</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:2rem;color:#6ABF4B">@_registros.Sum(r => r.NumeroTrabajadores)</div>
+                <div class="text-muted small">Total trabajadores acumulados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.3rem;color:#183963">
+                    @(_registros.Any() ? _registros.Max(r => r.Fecha).ToString("dd/MM/yyyy") : "—")
+                </div>
+                <div class="text-muted small">Último ATS registrado</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 mb-3">
+        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar actividad o responsable..."
+               @bind="_busqueda" @bind:event="oninput" />
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Actividad</th>
+                        <th>Frente</th>
+                        <th>Responsable</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Trabajadores</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!RegistrosFiltrados.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No hay análisis ATS/AST registrados.</td></tr>
+                    }
+                    @foreach (var r in RegistrosFiltrados)
+                    {
+                        <tr>
+                            <td class="font-monospace small text-muted">@r.Codigo</td>
+                            <td>@r.Actividad</td>
+                            <td class="small text-muted">@r.FrenteTrabajo</td>
+                            <td class="small">@r.Responsable</td>
+                            <td class="small">@r.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center fw-semibold">@r.NumeroTrabajadores</td>
+                            <td class="text-center">
+                                @if (_confirmandoEliminar == r.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<AnalisisTrabajoSeguro> _registros = [];
+    private bool _mostrarFormulario;
+    private int? _confirmandoEliminar;
+    private string _busqueda = "";
+    private FormModel _form = new();
+
+    private IEnumerable<AnalisisTrabajoSeguro> RegistrosFiltrados => _registros
+        .Where(r => string.IsNullOrEmpty(_busqueda) || r.Actividad.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || r.Responsable.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync() =>
+        _registros = await Db.AnalisisTrabajoSeguro.Where(r => r.ProyectoId == ProyectoId).OrderByDescending(r => r.Fecha).ToListAsync();
+
+    private void MostrarFormulario() { _form = new FormModel { Fecha = DateTime.Today }; _mostrarFormulario = true; }
+    private void CancelarFormulario() => _mostrarFormulario = false;
+
+    private async Task GuardarAsync()
+    {
+        Db.AnalisisTrabajoSeguro.Add(new AnalisisTrabajoSeguro
+        {
+            ProyectoId          = ProyectoId,
+            Codigo              = _form.Codigo,
+            Actividad           = _form.Actividad,
+            FrenteTrabajo       = _form.FrenteTrabajo ?? "",
+            Responsable         = _form.Responsable,
+            Fecha               = _form.Fecha,
+            NumeroTrabajadores  = _form.NumeroTrabajadores,
+            RiesgosIdentificados = _form.RiesgosIdentificados,
+            MedidasControl      = _form.MedidasControl,
+            Observaciones       = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        CancelarFormulario();
+        await CargarAsync();
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var r = await Db.AnalisisTrabajoSeguro.FindAsync(id);
+        if (r is not null) { Db.AnalisisTrabajoSeguro.Remove(r); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required] public string Codigo { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required] public string Actividad { get; set; } = "";
+        public string? FrenteTrabajo { get; set; }
+        [System.ComponentModel.DataAnnotations.Required] public string Responsable { get; set; } = "";
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        public int NumeroTrabajadores { get; set; } = 1;
+        public string? RiesgosIdentificados { get; set; }
+        public string? MedidasControl { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}
