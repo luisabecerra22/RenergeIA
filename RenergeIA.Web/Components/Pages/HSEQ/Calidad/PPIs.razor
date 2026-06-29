@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-clipboard-check-fill me-2" style="color:#183963"></i>PPIs — Programa de Puntos de Inspección</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo PPI
-        </button>
-    </div>
+    <PageHeader Titulo="PPIs — Programa de Puntos de Inspección"
+                Icono="bi-clipboard-check-fill"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/calidad")"
+                TextoVolver="Calidad">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo PPI
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -87,10 +88,7 @@ else
         </div>
     }
 
-    <!-- Filtros -->
-    <div class="d-flex gap-2 mb-3 flex-wrap">
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar..."
-               @bind="_busqueda" @bind:event="oninput" />
+    <FilterBar>
         <select class="form-select form-select-sm" style="max-width:180px" @bind="_filtroEstado">
             <option value="">Todos los estados</option>
             @foreach (var e in Enum.GetValues<EstadoPPI>())
@@ -98,58 +96,55 @@ else
                 <option value="@e">@EnumDisplay.Mostrar(e)</option>
             }
         </select>
-    </div>
+    </FilterBar>
 
-    <!-- Tabla -->
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Código</th>
-                        <th>Descripción</th>
-                        <th>Disciplina</th>
-                        <th>Responsable</th>
-                        <th>Fecha Planeada</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!PPIsFiltrados.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay PPIs registrados.</td></tr>
-                    }
-                    @foreach (var p in PPIsFiltrados)
-                    {
-                        <tr>
-                            <td class="font-monospace small text-muted">@p.Codigo</td>
-                            <td>@p.Descripcion</td>
-                            <td class="text-muted small">@(p.Disciplina ?? "—")</td>
-                            <td class="small">@p.Responsable</td>
-                            <td class="small">@p.FechaPlaneada.ToString("dd/MM/yyyy")</td>
-                            <td class="text-center">
-                                <span class="badge @BadgePPI(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span>
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == p.Id)
-                                {
-                                    <span class="me-1 text-danger small">¿Eliminar?</span>
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar código o descripción..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!PPIsFiltrados.Any()"
+                MensajeVacio="No hay PPIs registrados.">
+        <Encabezados>
+            <tr>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Disciplina</th>
+                <th>Responsable</th>
+                <th>Fecha Planeada</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var p in PPIsFiltrados)
+            {
+                <tr>
+                    <td class="font-monospace small text-muted">@p.Codigo</td>
+                    <td>@p.Descripcion</td>
+                    <td class="text-muted small">@(p.Disciplina ?? "—")</td>
+                    <td class="small">@p.Responsable</td>
+                    <td class="small">@p.FechaPlaneada.ToString("dd/MM/yyyy")</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(p.Estado == EstadoPPI.Aprobado ? "Saludable" : p.Estado == EstadoPPI.Rechazado ? "Crítico" : p.Estado == EstadoPPI.RequiereCorreccion ? "En Riesgo" : p.Estado == EstadoPPI.EnProceso ? "Informativo" : "Sin datos")"
+                                    Texto="@EnumDisplay.Mostrar(p.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == p.Id)
+                        {
+                            <span class="me-1 text-danger small">¿Eliminar?</span>
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -246,6 +241,8 @@ else
         _confirmandoEliminar = null;
         await CargarAsync();
     }
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private static string BadgePPI(EstadoPPI estado) => estado switch
     {

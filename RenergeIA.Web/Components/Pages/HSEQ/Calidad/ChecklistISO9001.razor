@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-list-check me-2" style="color:#183963"></i>Checklist ISO 9001</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nueva Auditoría
-        </button>
-    </div>
+    <PageHeader Titulo="Checklist ISO 9001"
+                Icono="bi-list-check"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/calidad")"
+                TextoVolver="Calidad">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nueva Auditoría
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -60,85 +61,74 @@ else
         </div>
     }
 
-    <!-- Resumen -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO ACTUAL</div>
-                <div class="fw-bold" style="font-size:2rem;color:#6ABF4B">87%</div>
-                <div class="progress mt-2" style="height:10px;border-radius:5px">
-                    <div class="progress-bar bg-success" style="width:87%"></div>
-                </div>
-            </div>
+        <div class="col-6 col-md-4">
+            <ExecutiveCard Titulo="Cumplimiento Actual"
+                           Valor="@(PctCumplimientoActual > 0 ? PctCumplimientoActual.ToString() + "%" : "—")"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="última auditoría registrada"
+                           Estado="@EstadoCumplimiento" />
         </div>
-        <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="text-muted small fw-semibold mb-1">TOTAL AUDITORÍAS</div>
-                <div class="fw-bold" style="font-size:2rem;color:#183963">@_checklists.Count</div>
-                <div class="text-muted small">registradas en el sistema</div>
-            </div>
+        <div class="col-6 col-md-4">
+            <ExecutiveCard Titulo="Total Auditorías"
+                           Valor="@_checklists.Count.ToString()"
+                           Icono="bi-clipboard-check"
+                           SubTexto="registradas en el sistema"
+                           Estado="Informativo" />
         </div>
-        <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="text-muted small fw-semibold mb-1">ÚLTIMA AUDITORÍA</div>
-                <div class="fw-bold" style="font-size:1.4rem;color:#fd7e14">
-                    @(_checklists.Any() ? _checklists.Max(c => c.FechaAuditoria).ToString("dd/MM/yyyy") : "—")
-                </div>
-                <div class="text-muted small">fecha más reciente</div>
-            </div>
+        <div class="col-6 col-md-4">
+            <ExecutiveCard Titulo="Última Auditoría"
+                           Valor="@(_checklists.Any() ? _checklists.First().FechaAuditoria.ToString("dd/MM/yy") : "—")"
+                           Icono="bi-calendar-check"
+                           SubTexto="fecha más reciente"
+                           Estado="Informativo" />
         </div>
     </div>
 
-    <!-- Tabla -->
-    <div class="card shadow-sm">
-        <div class="card-header"><strong>Auditorías ISO 9001 — @_proyecto.Nombre</strong></div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Auditor</th>
-                        <th class="text-center">Cumplimiento</th>
-                        <th>Observaciones</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_checklists.Any())
-                    {
-                        <tr><td colspan="5" class="text-center text-muted py-4">No hay auditorías registradas. Cree la primera.</td></tr>
-                    }
-                    @foreach (var c in _checklists.OrderByDescending(x => x.FechaAuditoria))
-                    {
-                        <tr>
-                            <td>@c.FechaAuditoria.ToString("dd/MM/yyyy")</td>
-                            <td>@c.Auditor</td>
-                            <td class="text-center">
-                                <span class="badge @BadgePct((int)c.PorcentajeCumplimiento)">
-                                    @c.PorcentajeCumplimiento.ToString("F0")%
-                                </span>
-                            </td>
-                            <td class="text-muted small" style="max-width:250px">@(c.Observaciones ?? "—")</td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == c.Id)
-                                {
-                                    <span class="me-1 text-danger small">¿Eliminar?</span>
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id">
-                                        <i class="bi-trash"></i>
-                                    </button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="5"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar auditor u observaciones..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!ChecklistsFiltrados.Any()"
+                MensajeVacio="No hay auditorías registradas. Cree la primera.">
+        <Encabezados>
+            <tr>
+                <th>Fecha</th>
+                <th>Auditor</th>
+                <th class="text-center">Cumplimiento</th>
+                <th>Observaciones</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var c in ChecklistsFiltrados.OrderByDescending(x => x.FechaAuditoria))
+            {
+                <tr>
+                    <td>@c.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                    <td>@c.Auditor</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(c.PorcentajeCumplimiento >= 85 ? "Saludable" : c.PorcentajeCumplimiento >= 70 ? "En Riesgo" : "Crítico")"
+                                    Texto="@(c.PorcentajeCumplimiento.ToString("F0") + "%")" />
+                    </td>
+                    <td class="text-muted small" style="max-width:250px">@(c.Observaciones ?? "—")</td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == c.Id)
+                        {
+                            <span class="me-1 text-danger small">¿Eliminar?</span>
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id">
+                                <i class="bi-trash"></i>
+                            </button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -149,6 +139,12 @@ else
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
     private FormModel _form = new();
+    private string _busqueda = "";
+    private int PctCumplimientoActual => _checklists.Any() ? (int)_checklists.First().PorcentajeCumplimiento : 0;
+    private string EstadoCumplimiento => PctCumplimientoActual >= 85 ? "Saludable" : PctCumplimientoActual >= 70 ? "En Riesgo" : PctCumplimientoActual > 0 ? "Crítico" : "Sin datos";
+    private IEnumerable<ChecklistAuditoria> ChecklistsFiltrados => _checklists
+        .Where(c => string.IsNullOrEmpty(_busqueda) || c.Auditor.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || (c.Observaciones?.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ?? false));
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

@@ -1,0 +1,58 @@
+<div class="rn-ia-card">
+    <div class="rn-ia-header">
+        <i class="bi bi-cpu rn-ia-icon"></i>
+        <div>
+            <div class="rn-ia-title">@Titulo</div>
+            <div class="rn-ia-sub">@Subtitulo</div>
+        </div>
+        @if (EsSimulado)
+        {
+            <span class="badge bg-warning text-dark ms-auto" style="font-size:.62rem">Simulado</span>
+        }
+    </div>
+    <div class="rn-ia-body">
+        @if (!string.IsNullOrEmpty(EstadoGeneral))
+        {
+            <div class="rn-ia-section">
+                <strong>Estado general:</strong>
+                <span class="ms-1">@EstadoGeneral</span>
+            </div>
+        }
+        @if (Hallazgos is not null)
+        {
+            <div class="rn-ia-section">
+                <div class="rn-ia-section-label">Hallazgos principales</div>
+                <div class="rn-ia-section-content">@Hallazgos</div>
+            </div>
+        }
+        @if (Alertas is not null)
+        {
+            <div class="rn-ia-section">
+                <div class="rn-ia-section-label">Alertas</div>
+                <div class="rn-ia-section-content">@Alertas</div>
+            </div>
+        }
+        @if (Recomendaciones is not null)
+        {
+            <div class="rn-ia-section">
+                <div class="rn-ia-section-label">Recomendaciones</div>
+                <div class="rn-ia-section-content">@Recomendaciones</div>
+            </div>
+        }
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string           Titulo          { get; set; } = "Análisis Inteligente";
+    [Parameter] public string           Subtitulo       { get; set; } = "Generado por RenergeIA";
+    [Parameter] public string           EstadoGeneral   { get; set; } = "";
+    [Parameter] public bool             EsSimulado      { get; set; } = true;
+    [Parameter] public RenderFragment?  Hallazgos       { get; set; }
+    [Parameter] public RenderFragment?  Alertas         { get; set; }
+    [Parameter] public RenderFragment?  Recomendaciones { get; set; }
+    [Parameter] public RenderFragment?  ChildContent    { get; set; }
+}

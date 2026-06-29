@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-chat-right-text me-2" style="color:#183963"></i>PQR — Peticiones, Quejas y Reclamos</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nueva PQR
-        </button>
-    </div>
+    <PageHeader Titulo="PQR — Peticiones, Quejas y Reclamos"
+                Icono="bi-chat-right-text"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nueva PQR
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -114,64 +115,62 @@ else
         </div>
     </div>
 
-    <div class="d-flex gap-2 mb-3 flex-wrap">
-        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Buscar número o radicante..."
-               @bind="_busqueda" @bind:event="oninput" />
+    <FilterBar>
         <select class="form-select form-select-sm" style="max-width:150px" @bind="_filtroEstado">
             <option value="">Todos los estados</option>
             @foreach (var e in Enum.GetValues<EstadoPQR>())
             { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
         </select>
-    </div>
+    </FilterBar>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Número</th>
-                        <th class="text-center">Tipo</th>
-                        <th>Solicitante</th>
-                        <th>F. Radicación</th>
-                        <th>F. Límite</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!PQRsFiltrados.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay PQRs registradas.</td></tr>
-                    }
-                    @foreach (var p in PQRsFiltrados)
-                    {
-                        var vencida = p.FechaLimiteRespuesta < DateTime.Today && p.Estado != EstadoPQR.Cerrada;
-                        <tr class="@(vencida ? "table-warning" : "")">
-                            <td class="font-monospace small">@p.Numero</td>
-                            <td class="text-center"><span class="badge bg-primary-subtle text-primary-emphasis">@EnumDisplay.Mostrar(p.Tipo)</span></td>
-                            <td>@p.Solicitante</td>
-                            <td class="small">@p.FechaRecepcion.ToString("dd/MM/yyyy")</td>
-                            <td class="small @(vencida ? "text-danger fw-bold" : "")">
-                                @p.FechaLimiteRespuesta.ToString("dd/MM/yyyy")
-                            </td>
-                            <td class="text-center"><span class="badge @BadgePQR(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span></td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == p.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar número o solicitante..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!PQRsFiltrados.Any()"
+                MensajeVacio="No hay PQRs registradas.">
+        <Encabezados>
+            <tr>
+                <th>Número</th>
+                <th class="text-center">Tipo</th>
+                <th>Solicitante</th>
+                <th>F. Radicación</th>
+                <th>F. Límite</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var p in PQRsFiltrados)
+            {
+                var vencida = p.FechaLimiteRespuesta < DateTime.Today && p.Estado != EstadoPQR.Cerrada;
+                <tr class="@(vencida ? "table-warning" : "")">
+                    <td class="font-monospace small">@p.Numero</td>
+                    <td class="text-center"><span class="badge bg-primary-subtle text-primary-emphasis">@EnumDisplay.Mostrar(p.Tipo)</span></td>
+                    <td>@p.Solicitante</td>
+                    <td class="small">@p.FechaRecepcion.ToString("dd/MM/yyyy")</td>
+                    <td class="small @(vencida ? "text-danger fw-bold" : "")">
+                        @p.FechaLimiteRespuesta.ToString("dd/MM/yyyy")
+                    </td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(p.Estado == EstadoPQR.Cerrada ? "Saludable" : p.Estado == EstadoPQR.Vencida ? "Crítico" : p.Estado == EstadoPQR.EnGestion ? "En Riesgo" : "Informativo")"
+                                    Texto="@EnumDisplay.Mostrar(p.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == p.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -232,6 +231,8 @@ else
         _confirmandoEliminar = null;
         await CargarAsync();
     }
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private static string BadgePQR(EstadoPQR e) => e switch
     {

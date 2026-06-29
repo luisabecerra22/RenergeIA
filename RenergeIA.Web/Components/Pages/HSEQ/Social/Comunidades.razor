@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-people-fill me-2" style="color:#183963"></i>Comunidades de Influencia</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nueva Comunidad
-        </button>
-    </div>
+    <PageHeader Titulo="Comunidades de Influencia"
+                Icono="bi-people-fill"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nueva Comunidad
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {

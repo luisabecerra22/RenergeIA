@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-folder2-open me-2" style="color:#183963"></i>Control Documental HSEQ</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo Documento
-        </button>
-    </div>
+    <PageHeader Titulo="Control Documental HSEQ"
+                Icono="bi-folder2-open"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/calidad")"
+                TextoVolver="Calidad">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo Documento
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -96,10 +97,7 @@ else
         </div>
     }
 
-    <!-- Filtros -->
-    <div class="d-flex gap-2 mb-3 flex-wrap">
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar..."
-               @bind="_busqueda" @bind:event="oninput" />
+    <FilterBar>
         <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroTipo">
             <option value="">Todos los tipos</option>
             @foreach (var t in Enum.GetValues<TipoDocumentoHSEQ>())
@@ -110,61 +108,59 @@ else
             @foreach (var e in Enum.GetValues<EstadoDocumentoHSEQ>())
             { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
         </select>
-    </div>
+    </FilterBar>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Código</th>
-                        <th>Nombre</th>
-                        <th>Tipo</th>
-                        <th class="text-center">Ver.</th>
-                        <th>Responsable</th>
-                        <th>Vencimiento</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!DocumentosFiltrados.Any())
-                    {
-                        <tr><td colspan="8" class="text-center text-muted py-4">No hay documentos registrados.</td></tr>
-                    }
-                    @foreach (var d in DocumentosFiltrados)
-                    {
-                        <tr>
-                            <td class="font-monospace small text-muted">@d.Codigo</td>
-                            <td>@d.Nombre</td>
-                            <td class="text-muted small">@EnumDisplay.Mostrar(d.Tipo)</td>
-                            <td class="text-center text-muted small">@d.Version</td>
-                            <td class="small">@d.Responsable</td>
-                            <td class="small @(d.FechaVencimiento < DateTime.Today ? "text-danger fw-bold" : "")">
-                                @(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
-                            </td>
-                            <td class="text-center">
-                                <span class="badge @BadgeDoc(d.Estado)">@EnumDisplay.Mostrar(d.Estado)</span>
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == d.Id)
-                                {
-                                    <span class="me-1 text-danger small">¿Eliminar?</span>
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(d.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(d)"><i class="bi-pencil"></i></button>
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = d.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="8"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar código o nombre..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!DocumentosFiltrados.Any()"
+                MensajeVacio="No hay documentos registrados.">
+        <Encabezados>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th class="text-center">Ver.</th>
+                <th>Responsable</th>
+                <th>Vencimiento</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var d in DocumentosFiltrados)
+            {
+                <tr>
+                    <td class="font-monospace small text-muted">@d.Codigo</td>
+                    <td>@d.Nombre</td>
+                    <td class="text-muted small">@EnumDisplay.Mostrar(d.Tipo)</td>
+                    <td class="text-center text-muted small">@d.Version</td>
+                    <td class="small">@d.Responsable</td>
+                    <td class="small @(d.FechaVencimiento < DateTime.Today ? "text-danger fw-bold" : "")">
+                        @(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                    </td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(d.Estado == EstadoDocumentoHSEQ.Vigente ? "Saludable" : d.Estado == EstadoDocumentoHSEQ.Vencido ? "Crítico" : d.Estado == EstadoDocumentoHSEQ.EnRevision ? "Riesgo" : "Sin datos")"
+                                    Texto="@EnumDisplay.Mostrar(d.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == d.Id)
+                        {
+                            <span class="me-1 text-danger small">¿Eliminar?</span>
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(d.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(d)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = d.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -260,6 +256,8 @@ else
         _confirmandoEliminar = null;
         await CargarAsync();
     }
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private static string BadgeDoc(EstadoDocumentoHSEQ estado) => estado switch
     {

@@ -1,0 +1,54 @@
+<div class="rn-smart-table">
+    @if (MostrarBusqueda)
+    {
+        <div class="rn-smart-search">
+            <input type="search"
+                   class="form-control form-control-sm"
+                   placeholder="@PlaceholderBusqueda"
+                   @oninput="OnInput" />
+        </div>
+    }
+    <div class="table-responsive">
+        <table class="table table-hover align-middle rn-table mb-0">
+            <thead class="table-dark">
+                @Encabezados
+            </thead>
+            <tbody>
+                @if (Vacio)
+                {
+                    <tr>
+                        <td colspan="@Columnas" class="rn-smart-empty">
+                            <i class="bi bi-inbox rn-smart-empty-icon"></i>
+                            @MensajeVacio
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @Filas
+                }
+            </tbody>
+            @if (Pie is not null)
+            {
+                <tfoot class="table-light fw-semibold">
+                    @Pie
+                </tfoot>
+            }
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment?       Encabezados         { get; set; }
+    [Parameter] public RenderFragment?       Filas               { get; set; }
+    [Parameter] public RenderFragment?       Pie                 { get; set; }
+    [Parameter] public bool                  Vacio               { get; set; }
+    [Parameter] public string                MensajeVacio        { get; set; } = "No hay registros.";
+    [Parameter] public int                   Columnas            { get; set; } = 5;
+    [Parameter] public bool                  MostrarBusqueda     { get; set; }
+    [Parameter] public string                PlaceholderBusqueda { get; set; } = "Buscar...";
+    [Parameter] public EventCallback<string> BusquedaCambiada    { get; set; }
+
+    private async Task OnInput(ChangeEventArgs e) =>
+        await BusquedaCambiada.InvokeAsync(e.Value?.ToString() ?? "");
+}

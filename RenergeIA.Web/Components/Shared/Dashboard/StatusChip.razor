@@ -1,0 +1,19 @@
+<span class="rn-badge rn-badge-@_slug @(Grande ? "rn-badge-lg" : "")">@_texto</span>
+
+@code {
+    [Parameter] public string  Estado { get; set; } = "Informativo";
+    [Parameter] public string? Texto  { get; set; }
+    [Parameter] public bool    Grande { get; set; }
+
+    private string _slug => Estado switch
+    {
+        "Saludable" => "saludable",
+        "En Riesgo" => "en-riesgo",
+        "Riesgo"    => "riesgo",
+        "Crítico"   => "critico",
+        "Sin datos" => "sin-datos",
+        _           => "informativo"
+    };
+
+    private string _texto => Texto ?? Estado;
+}

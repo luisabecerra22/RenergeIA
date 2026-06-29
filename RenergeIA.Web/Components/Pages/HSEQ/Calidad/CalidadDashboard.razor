@@ -13,17 +13,15 @@
 }
 else
 {
-    <!-- Encabezado -->
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
-        <div class="flex-grow-1">
-            <h1 class="h3 mb-0">
-                <i class="bi-patch-check-fill me-2" style="color:#183963"></i>Calidad — ISO 9001
-            </h1>
-            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy")</small>
-        </div>
-        <span class="badge bg-success fs-6">Saludable</span>
-    </div>
+    <PageHeader Titulo="Calidad — ISO 9001"
+                Icono="bi-patch-check-fill"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq")"
+                TextoVolver="HSEQ">
+        <Acciones>
+            <StatusChip Estado="Saludable" Grande="true" />
+        </Acciones>
+    </PageHeader>
 
     <!-- Navegación sub-módulos -->
     <div class="d-flex gap-2 flex-wrap mb-4">
@@ -39,84 +37,60 @@ else
     <!-- KPIs -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO ISO 9001</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-patch-check-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">87%</div>
-                </div>
-                <div class="text-muted small">de requisitos verificados</div>
-            </div>
+            <ExecutiveCard Titulo="Cumplimiento ISO 9001"
+                           Valor="87%"
+                           Icono="bi-patch-check-fill"
+                           SubTexto="de requisitos verificados"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
-                <div class="text-muted small fw-semibold mb-1">PPIs EJECUTADOS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-clipboard-check" style="font-size:1.6rem;color:#183963"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">16</div>
-                </div>
-                <div class="text-muted small">de 23 planeados</div>
-            </div>
+            <ExecutiveCard Titulo="PPIs Ejecutados"
+                           Valor="16"
+                           Icono="bi-clipboard-check"
+                           SubTexto="de 23 planeados"
+                           Estado="Informativo" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
-                <div class="text-muted small fw-semibold mb-1">PPIs PENDIENTES</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-clipboard" style="font-size:1.6rem;color:#ffc107"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">7</div>
-                </div>
-                <div class="text-muted small">requieren ejecución</div>
-            </div>
+            <ExecutiveCard Titulo="PPIs Pendientes"
+                           Valor="7"
+                           Icono="bi-clipboard"
+                           SubTexto="requieren ejecución"
+                           Estado="En Riesgo" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">LIBERACIONES APROBADAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-check-circle-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">12</div>
-                </div>
-                <div class="text-muted small">este período</div>
-            </div>
+            <ExecutiveCard Titulo="Liberaciones Aprobadas"
+                           Valor="12"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="este período"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                <div class="text-muted small fw-semibold mb-1">LIBERACIONES RECHAZADAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-x-circle-fill" style="font-size:1.6rem;color:#dc3545"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">2</div>
-                </div>
-                <div class="text-muted small">requieren corrección</div>
-            </div>
+            <ExecutiveCard Titulo="Liberaciones Rechazadas"
+                           Valor="2"
+                           Icono="bi-x-circle-fill"
+                           SubTexto="requieren corrección"
+                           Estado="Crítico" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">EQUIPOS VIGENTES</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-tools" style="font-size:1.6rem;color:#6ABF4B"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">14</div>
-                </div>
-                <div class="text-muted small">de 18 equipos registrados</div>
-            </div>
+            <ExecutiveCard Titulo="Equipos Vigentes"
+                           Valor="14"
+                           Icono="bi-tools"
+                           SubTexto="de 18 registrados"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                <div class="text-muted small fw-semibold mb-1">CALIBRACIÓN VENCIDA</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-exclamation-triangle-fill" style="font-size:1.6rem;color:#dc3545"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">2</div>
-                </div>
-                <div class="text-muted small">equipos fuera de vigencia</div>
-            </div>
+            <ExecutiveCard Titulo="Calibración Vencida"
+                           Valor="2"
+                           Icono="bi-exclamation-triangle-fill"
+                           SubTexto="fuera de vigencia"
+                           Estado="Crítico" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
-                <div class="text-muted small fw-semibold mb-1">NO CONFORMIDADES</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-exclamation-octagon" style="font-size:1.6rem;color:#fd7e14"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">3</div>
-                </div>
-                <div class="text-muted small">abiertas pendientes</div>
-            </div>
+            <ExecutiveCard Titulo="No Conformidades"
+                           Valor="3"
+                           Icono="bi-exclamation-octagon"
+                           SubTexto="abiertas pendientes"
+                           Estado="Riesgo" />
         </div>
     </div>
 
@@ -258,20 +232,25 @@ else
         </div>
     </div>
 
-    <!-- IA -->
-    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963,#1e4d8c)">
-        <div class="card-body p-4 text-white">
-            <div class="d-flex align-items-center gap-2 mb-3">
-                <i class="bi-robot" style="font-size:1.4rem"></i>
-                <h6 class="mb-0 fw-bold">Análisis Inteligente — Calidad</h6>
-                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
-            </div>
-            <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
-                <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
-                <p class="mb-0 small">Calidad presenta riesgo por 2 equipos de medición próximos a vencer y 4 documentos con vigencia superada. Se recomienda priorizar calibraciones antes del cierre del mes.</p>
-            </div>
-        </div>
-    </div>
+    <AIPanel Titulo="Análisis Inteligente — Calidad"
+             Subtitulo="@("Calidad · " + DateTime.Now.ToString("MMMM yyyy"))"
+             EstadoGeneral="Desempeño de calidad SALUDABLE con alertas menores."
+             EsSimulado="true">
+        <Hallazgos>
+            <ul>
+                <li>87% de cumplimiento ISO 9001 — por encima del umbral mínimo del 85%.</li>
+                <li>2 equipos de medición con calibración vencida requieren atención urgente.</li>
+                <li>4 documentos HSEQ con vigencia superada — riesgo de incumplimiento normativo.</li>
+            </ul>
+        </Hallazgos>
+        <Recomendaciones>
+            <ul>
+                <li>Priorizar recalibración de equipos vencidos antes del cierre del mes.</li>
+                <li>Actualizar y re-aprobar los 4 documentos vencidos en control documental.</li>
+                <li>Cerrar las 3 NCRs abiertas con acciones correctivas pendientes.</li>
+            </ul>
+        </Recomendaciones>
+    </AIPanel>
 }
 
 @code {

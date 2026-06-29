@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-binoculars me-2" style="color:#6ABF4B"></i>Inspecciones Ambientales</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nueva Inspección
-        </button>
-    </div>
+    <PageHeader Titulo="Inspecciones Ambientales"
+                Icono="bi-binoculars"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental")"
+                TextoVolver="Ambiental">
+        <Acciones>
+            <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nueva Inspección
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -87,81 +88,79 @@ else
 
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_inspecciones.Count</div>
-                <div class="text-muted small">Total inspecciones</div>
-            </div>
+            <ExecutiveCard Titulo="Total Inspecciones"
+                           Valor="@_inspecciones.Count.ToString()"
+                           Icono="bi-binoculars"
+                           Estado="Informativo" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_inspecciones.Count(i => i.Estado == EstadoInspeccionHSEQ.Realizada)</div>
-                <div class="text-muted small">Realizadas</div>
-            </div>
+            <ExecutiveCard Titulo="Realizadas"
+                           Valor="@_inspecciones.Count(i => i.Estado == EstadoInspeccionHSEQ.Realizada).ToString()"
+                           Icono="bi-check-circle"
+                           Estado="Saludable" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_inspecciones.Sum(i => i.HallazgosEncontrados)</div>
-                <div class="text-muted small">Total hallazgos</div>
-            </div>
+            <ExecutiveCard Titulo="Total Hallazgos"
+                           Valor="@_inspecciones.Sum(i => i.HallazgosEncontrados).ToString()"
+                           Icono="bi-flag"
+                           Estado="@(_inspecciones.Sum(i => i.HallazgosEncontrados) > 0 ? "En Riesgo" : "Saludable")" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@(_inspecciones.Sum(i => i.HallazgosEncontrados) - _inspecciones.Sum(i => i.HallazgosCerrados))</div>
-                <div class="text-muted small">Hallazgos abiertos</div>
-            </div>
+            @{ var abiertos = _inspecciones.Sum(i => i.HallazgosEncontrados) - _inspecciones.Sum(i => i.HallazgosCerrados); }
+            <ExecutiveCard Titulo="Hallazgos Abiertos"
+                           Valor="@abiertos.ToString()"
+                           Icono="bi-exclamation-triangle"
+                           Estado="@(abiertos > 0 ? "Crítico" : "Saludable")" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Código</th>
-                        <th>Tipo</th>
-                        <th>Inspector</th>
-                        <th>Fecha</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Hallazgos</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_inspecciones.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay inspecciones ambientales registradas.</td></tr>
-                    }
-                    @foreach (var i in _inspecciones.OrderByDescending(x => x.FechaInspeccion))
-                    {
-                        <tr>
-                            <td class="font-monospace small text-muted">@i.Codigo</td>
-                            <td>@i.Tipo</td>
-                            <td class="small">@i.Inspector</td>
-                            <td class="small">@i.FechaInspeccion.ToString("dd/MM/yyyy")</td>
-                            <td class="text-center">
-                                <span class="badge @BadgeEst(i.Estado)">@EnumDisplay.Mostrar(i.Estado)</span>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge bg-danger me-1">@i.HallazgosEncontrados total</span>
-                                <span class="badge bg-success">@i.HallazgosCerrados cerrados</span>
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == i.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(i.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = i.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar por tipo o inspector..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!InspeccionesFiltradas.Any()"
+                MensajeVacio="No hay inspecciones ambientales registradas.">
+        <Encabezados>
+            <tr>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Inspector</th>
+                <th>Fecha</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Hallazgos</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var i in InspeccionesFiltradas)
+            {
+                <tr>
+                    <td class="font-monospace small text-muted">@i.Codigo</td>
+                    <td>@i.Tipo</td>
+                    <td class="small">@i.Inspector</td>
+                    <td class="small">@i.FechaInspeccion.ToString("dd/MM/yyyy")</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@EstadoChip(i.Estado)" Texto="@EnumDisplay.Mostrar(i.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-secondary me-1">@i.HallazgosEncontrados total</span>
+                        <span class="badge bg-success">@i.HallazgosCerrados cerrados</span>
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == i.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(i.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = i.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -171,7 +170,16 @@ else
     private List<InspeccionAmbiental> _inspecciones = [];
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
+    private string _busqueda = "";
     private FormModel _form = new();
+
+    private IEnumerable<InspeccionAmbiental> InspeccionesFiltradas => _inspecciones
+        .Where(i => string.IsNullOrEmpty(_busqueda) ||
+                    i.Tipo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                    i.Inspector.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(i => i.FechaInspeccion);
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {
@@ -214,13 +222,13 @@ else
         await CargarAsync();
     }
 
-    private static string BadgeEst(EstadoInspeccionHSEQ e) => e switch
+    private static string EstadoChip(EstadoInspeccionHSEQ e) => e switch
     {
-        EstadoInspeccionHSEQ.Realizada   => "bg-success",
-        EstadoInspeccionHSEQ.Programada  => "bg-primary",
-        EstadoInspeccionHSEQ.Cancelada   => "bg-secondary",
-        EstadoInspeccionHSEQ.Vencida     => "bg-danger",
-        _                                => "bg-secondary"
+        EstadoInspeccionHSEQ.Realizada  => "Saludable",
+        EstadoInspeccionHSEQ.Programada => "Informativo",
+        EstadoInspeccionHSEQ.Cancelada  => "Sin datos",
+        EstadoInspeccionHSEQ.Vencida    => "Crítico",
+        _                               => "Sin datos"
     };
 
     private sealed class FormModel

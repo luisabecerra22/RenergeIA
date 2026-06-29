@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-bug me-2" style="color:#6ABF4B"></i>Fauna y Flora</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo Registro
-        </button>
-    </div>
+    <PageHeader Titulo="Fauna y Flora"
+                Icono="bi-bug"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental")"
+                TextoVolver="Ambiental">
+        <Acciones>
+            <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo Registro
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -82,100 +83,95 @@ else
         </div>
     }
 
-    <div class="d-flex gap-2 mb-3">
-        <select class="form-select form-select-sm" style="max-width:150px" @bind="_filtroTipo">
+    <FilterBar>
+        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroTipo">
             <option value="">Fauna + Flora</option>
             <option value="Fauna">Solo Fauna</option>
             <option value="Flora">Solo Flora</option>
         </select>
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar especie..."
-               @bind="_busqueda" @bind:event="oninput" />
-    </div>
+    </FilterBar>
 
     <div class="row g-3 mb-4">
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_registros.Count</div>
-                <div class="text-muted small">Total registros</div>
-            </div>
+            <ExecutiveCard Titulo="Total Registros"
+                           Valor="@_registros.Count.ToString()"
+                           Icono="bi-bug"
+                           Estado="Informativo" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_registros.Count(r => r.Tipo == "Fauna")</div>
-                <div class="text-muted small">Fauna</div>
-            </div>
+            <ExecutiveCard Titulo="Fauna"
+                           Valor="@_registros.Count(r => r.Tipo == "Fauna").ToString()"
+                           Icono="bi-bug"
+                           Estado="Informativo" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_registros.Count(r => r.Tipo == "Flora")</div>
-                <div class="text-muted small">Flora</div>
-            </div>
+            <ExecutiveCard Titulo="Flora"
+                           Valor="@_registros.Count(r => r.Tipo == "Flora").ToString()"
+                           Icono="bi-tree"
+                           Estado="Saludable" />
         </div>
         <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_registros.Count(r => !string.IsNullOrEmpty(r.Estado) && r.Estado != "LC")</div>
-                <div class="text-muted small">Con estado especial</div>
-            </div>
+            <ExecutiveCard Titulo="Con Estado Especial"
+                           Valor="@_registros.Count(r => !string.IsNullOrEmpty(r.Estado) && r.Estado != "LC").ToString()"
+                           Icono="bi-exclamation-circle"
+                           Estado="@(_registros.Any(r => !string.IsNullOrEmpty(r.Estado) && r.Estado != "LC") ? "En Riesgo" : "Saludable")" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Especie</th>
-                        <th>Estado conservación</th>
-                        <th>Ubicación</th>
-                        <th>Registrado Por</th>
-                        <th>Fecha</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!RegistrosFiltrados.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay registros de fauna y flora.</td></tr>
-                    }
-                    @foreach (var r in RegistrosFiltrados)
-                    {
-                        <tr>
-                            <td>
-                                <span class="badge @(r.Tipo == "Fauna" ? "bg-primary" : "bg-success")">
-                                    <i class="bi-@(r.Tipo == "Fauna" ? "bug" : "tree") me-1"></i>@r.Tipo
-                                </span>
-                            </td>
-                            <td class="fw-semibold">@r.Especie</td>
-                            <td class="text-center">
-                                @if (!string.IsNullOrEmpty(r.Estado))
-                                {
-                                    <span class="badge @(r.Estado == "LC" ? "bg-success" : r.Estado == "VU" ? "bg-warning text-dark" : "bg-danger")">
-                                        @r.Estado
-                                    </span>
-                                }
-                                else { <span class="text-muted">—</span> }
-                            </td>
-                            <td class="small text-muted">@(string.IsNullOrEmpty(r.Ubicacion) ? "—" : r.Ubicacion)</td>
-                            <td class="small">@(string.IsNullOrEmpty(r.RegistradoPor) ? "—" : r.RegistradoPor)</td>
-                            <td class="small">@r.FechaRegistro.ToString("dd/MM/yyyy")</td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == r.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar especie..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!RegistrosFiltrados.Any()"
+                MensajeVacio="No hay registros de fauna y flora.">
+        <Encabezados>
+            <tr>
+                <th>Tipo</th>
+                <th>Especie</th>
+                <th>Estado Conservación</th>
+                <th>Ubicación</th>
+                <th>Registrado Por</th>
+                <th>Fecha</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var r in RegistrosFiltrados)
+            {
+                <tr>
+                    <td>
+                        <span class="badge @(r.Tipo == "Fauna" ? "bg-primary" : "bg-success")">
+                            <i class="bi-@(r.Tipo == "Fauna" ? "bug" : "tree") me-1"></i>@r.Tipo
+                        </span>
+                    </td>
+                    <td class="fw-semibold">@r.Especie</td>
+                    <td class="text-center">
+                        @if (!string.IsNullOrEmpty(r.Estado))
+                        {
+                            <span class="badge @(r.Estado == "LC" ? "bg-success" : r.Estado == "VU" ? "bg-warning text-dark" : "bg-danger")">
+                                @r.Estado
+                            </span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </td>
+                    <td class="small text-muted">@(string.IsNullOrEmpty(r.Ubicacion) ? "—" : r.Ubicacion)</td>
+                    <td class="small">@(string.IsNullOrEmpty(r.RegistradoPor) ? "—" : r.RegistradoPor)</td>
+                    <td class="small">@r.FechaRegistro.ToString("dd/MM/yyyy")</td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == r.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -193,6 +189,8 @@ else
         .Where(r =>
             (string.IsNullOrEmpty(_filtroTipo) || r.Tipo == _filtroTipo)
             && (string.IsNullOrEmpty(_busqueda) || r.Especie.Contains(_busqueda, StringComparison.OrdinalIgnoreCase)));
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

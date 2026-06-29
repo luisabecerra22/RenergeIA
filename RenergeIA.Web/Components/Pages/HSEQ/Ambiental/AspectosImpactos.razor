@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-globe me-2" style="color:#6ABF4B"></i>Aspectos e Impactos Ambientales</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo Aspecto
-        </button>
-    </div>
+    <PageHeader Titulo="Aspectos e Impactos Ambientales"
+                Icono="bi-globe"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental")"
+                TextoVolver="Ambiental">
+        <Acciones>
+            <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo Aspecto
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -82,76 +83,72 @@ else
 
     <div class="row g-3 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_aspectos.Count</div>
-                <div class="text-muted small">Aspectos identificados</div>
-            </div>
+            <ExecutiveCard Titulo="Aspectos Identificados"
+                           Valor="@_aspectos.Count.ToString()"
+                           Icono="bi-globe"
+                           Estado="Informativo" />
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_aspectos.Count(a => a.NivelSignificancia >= 12)</div>
-                <div class="text-muted small">Significativos (≥ 12)</div>
-            </div>
+            <ExecutiveCard Titulo="Significativos (≥ 12)"
+                           Valor="@_aspectos.Count(a => a.NivelSignificancia >= 12).ToString()"
+                           Icono="bi-exclamation-triangle"
+                           Estado="@(_aspectos.Any(a => a.NivelSignificancia >= 12) ? "Crítico" : "Saludable")" />
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_aspectos.Count(a => a.NivelSignificancia >= 8 && a.NivelSignificancia < 12)</div>
-                <div class="text-muted small">Moderados (8-11)</div>
-            </div>
+            <ExecutiveCard Titulo="Moderados (8–11)"
+                           Valor="@_aspectos.Count(a => a.NivelSignificancia >= 8 && a.NivelSignificancia < 12).ToString()"
+                           Icono="bi-exclamation-circle"
+                           Estado="@(_aspectos.Any(a => a.NivelSignificancia >= 8 && a.NivelSignificancia < 12) ? "En Riesgo" : "Saludable")" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Aspecto</th>
-                        <th>Impacto</th>
-                        <th>Medio Afectado</th>
-                        <th class="text-center">Mag</th>
-                        <th class="text-center">Frec</th>
-                        <th class="text-center">Dur</th>
-                        <th class="text-center">Nivel</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_aspectos.Any())
-                    {
-                        <tr><td colspan="8" class="text-center text-muted py-4">No hay aspectos e impactos registrados.</td></tr>
-                    }
-                    @foreach (var a in _aspectos.OrderByDescending(x => x.NivelSignificancia))
-                    {
-                        <tr>
-                            <td>@a.Aspecto</td>
-                            <td class="small">@a.Impacto</td>
-                            <td class="small text-muted">@(string.IsNullOrEmpty(a.MedioAfectado) ? "—" : a.MedioAfectado)</td>
-                            <td class="text-center">@a.Magnitud</td>
-                            <td class="text-center">@a.Frecuencia</td>
-                            <td class="text-center">@a.Duracion</td>
-                            <td class="text-center">
-                                <span class="badge @(a.NivelSignificancia >= 12 ? "bg-danger" : a.NivelSignificancia >= 8 ? "bg-warning text-dark" : "bg-success")">
-                                    @a.NivelSignificancia
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == a.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(a.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = a.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="8"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar aspecto o impacto..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!AspectosFiltrados.Any()"
+                MensajeVacio="No hay aspectos e impactos registrados.">
+        <Encabezados>
+            <tr>
+                <th>Aspecto</th>
+                <th>Impacto</th>
+                <th>Medio Afectado</th>
+                <th class="text-center">Mag</th>
+                <th class="text-center">Frec</th>
+                <th class="text-center">Dur</th>
+                <th class="text-center">Nivel</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var a in AspectosFiltrados)
+            {
+                <tr>
+                    <td>@a.Aspecto</td>
+                    <td class="small">@a.Impacto</td>
+                    <td class="small text-muted">@(string.IsNullOrEmpty(a.MedioAfectado) ? "—" : a.MedioAfectado)</td>
+                    <td class="text-center">@a.Magnitud</td>
+                    <td class="text-center">@a.Frecuencia</td>
+                    <td class="text-center">@a.Duracion</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(a.NivelSignificancia >= 12 ? "Crítico" : a.NivelSignificancia >= 8 ? "En Riesgo" : "Saludable")"
+                                    Texto="@a.NivelSignificancia.ToString()" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == a.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(a.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = a.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -161,7 +158,16 @@ else
     private List<AspectoImpacto> _aspectos = [];
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
+    private string _busqueda = "";
     private FormModel _form = new();
+
+    private IEnumerable<AspectoImpacto> AspectosFiltrados => _aspectos
+        .Where(a => string.IsNullOrEmpty(_busqueda) ||
+                    a.Aspecto.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                    a.Impacto.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(a => a.NivelSignificancia);
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

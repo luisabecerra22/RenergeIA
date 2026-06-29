@@ -11,13 +11,12 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-arrow-repeat me-2" style="color:#183963"></i>Acciones Correctivas — Calidad</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-    </div>
+    <PageHeader Titulo="Acciones Correctivas — Calidad"
+                Icono="bi-arrow-repeat"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/calidad")"
+                TextoVolver="Calidad">
+    </PageHeader>
 
     @if (!_acciones.Any())
     {
@@ -34,70 +33,76 @@ else
     {
         <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                    <div class="fw-bold" style="font-size:1.6rem;color:#dc3545">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta && a.FechaCompromiso < DateTime.Today)</div>
-                    <div class="text-muted small">Vencidas</div>
-                </div>
+                <ExecutiveCard Titulo="Vencidas"
+                               Valor="@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta && a.FechaCompromiso < DateTime.Today).ToString()"
+                               Icono="bi-calendar-x-fill"
+                               SubTexto="superaron fecha compromiso"
+                               Estado="@(_acciones.Any(a => a.Estado == EstadoNoConformidad.Abierta && a.FechaCompromiso < DateTime.Today) ? "Crítico" : "Saludable")" />
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                    <div class="fw-bold" style="font-size:1.6rem;color:#183963">@_acciones.Count(a => a.Estado == EstadoNoConformidad.EnImplementacion)</div>
-                    <div class="text-muted small">En Proceso</div>
-                </div>
+                <ExecutiveCard Titulo="En Proceso"
+                               Valor="@_acciones.Count(a => a.Estado == EstadoNoConformidad.EnImplementacion).ToString()"
+                               Icono="bi-arrow-repeat"
+                               SubTexto="en implementación"
+                               Estado="En Riesgo" />
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                    <div class="fw-bold" style="font-size:1.6rem;color:#6ABF4B">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Cerrada)</div>
-                    <div class="text-muted small">Cerradas</div>
-                </div>
+                <ExecutiveCard Titulo="Cerradas"
+                               Valor="@_acciones.Count(a => a.Estado == EstadoNoConformidad.Cerrada).ToString()"
+                               Icono="bi-check-circle-fill"
+                               SubTexto="completadas exitosamente"
+                               Estado="Saludable" />
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                    <div class="fw-bold" style="font-size:1.6rem;color:#fd7e14">@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta)</div>
-                    <div class="text-muted small">Abiertas</div>
-                </div>
+                <ExecutiveCard Titulo="Abiertas"
+                               Valor="@_acciones.Count(a => a.Estado == EstadoNoConformidad.Abierta).ToString()"
+                               Icono="bi-circle"
+                               SubTexto="pendientes de iniciar"
+                               Estado="Riesgo" />
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Descripción</th>
-                            <th>Responsable</th>
-                            <th class="text-center">Avance</th>
-                            <th>F. Compromiso</th>
-                            <th class="text-center">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var a in _acciones.OrderBy(x => x.FechaCompromiso))
-                        {
-                            <tr>
-                                <td>@a.Descripcion</td>
-                                <td class="small">@a.Responsable</td>
-                                <td class="text-center">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="progress flex-grow-1" style="height:8px">
-                                            <div class="progress-bar @(a.AvancePorcentaje >= 100 ? "bg-success" : a.AvancePorcentaje >= 50 ? "bg-primary" : "bg-warning")"
-                                                 style="width:@a.AvancePorcentaje%"></div>
-                                        </div>
-                                        <small>@a.AvancePorcentaje%</small>
-                                    </div>
-                                </td>
-                                <td class="small @(a.FechaCompromiso < DateTime.Today && a.Estado != EstadoNoConformidad.Cerrada ? "text-danger fw-bold" : "")">
-                                    @a.FechaCompromiso.ToString("dd/MM/yyyy")
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge @BadgeAcc(a.Estado)">@EnumDisplay.Mostrar(a.Estado)</span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <SmartTable Columnas="5"
+                    MostrarBusqueda="true"
+                    PlaceholderBusqueda="Buscar descripción o responsable..."
+                    BusquedaCambiada="OnBusquedaAcc"
+                    Vacio="!AccionesFiltradas.Any()"
+                    MensajeVacio="No hay acciones correctivas registradas.">
+            <Encabezados>
+                <tr>
+                    <th>Descripción</th>
+                    <th>Responsable</th>
+                    <th class="text-center">Avance</th>
+                    <th>F. Compromiso</th>
+                    <th class="text-center">Estado</th>
+                </tr>
+            </Encabezados>
+            <Filas>
+                @foreach (var a in AccionesFiltradas.OrderBy(x => x.FechaCompromiso))
+                {
+                    <tr>
+                        <td>@a.Descripcion</td>
+                        <td class="small">@a.Responsable</td>
+                        <td class="text-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:8px">
+                                    <div class="progress-bar @(a.AvancePorcentaje >= 100 ? "bg-success" : a.AvancePorcentaje >= 50 ? "bg-primary" : "bg-warning")"
+                                         style="width:@a.AvancePorcentaje%"></div>
+                                </div>
+                                <small>@a.AvancePorcentaje%</small>
+                            </div>
+                        </td>
+                        <td class="small @(a.FechaCompromiso < DateTime.Today && a.Estado != EstadoNoConformidad.Cerrada ? "text-danger fw-bold" : "")">
+                            @a.FechaCompromiso.ToString("dd/MM/yyyy")
+                        </td>
+                        <td class="text-center">
+                            <StatusChip Estado="@(a.Estado == EstadoNoConformidad.Cerrada ? "Saludable" : a.Estado == EstadoNoConformidad.EnImplementacion ? "En Riesgo" : "Riesgo")"
+                                        Texto="@EnumDisplay.Mostrar(a.Estado)" />
+                        </td>
+                    </tr>
+                }
+            </Filas>
+        </SmartTable>
     }
 }
 
@@ -118,6 +123,11 @@ else
             .OrderBy(a => a.FechaCompromiso)
             .ToListAsync();
     }
+
+    private string _busqueda = "";
+    private IEnumerable<AccionHSEQ> AccionesFiltradas => _acciones
+        .Where(a => string.IsNullOrEmpty(_busqueda) || a.Descripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || a.Responsable.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+    private void OnBusquedaAcc(string v) => _busqueda = v;
 
     private static string BadgeAcc(EstadoNoConformidad e) => e switch
     {

@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-file-earmark-text me-2" style="color:#183963"></i>Actas y Evidencias Sociales</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nueva Acta
-        </button>
-    </div>
+    <PageHeader Titulo="Actas y Evidencias Sociales"
+                Icono="bi-file-earmark-text"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nueva Acta
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -83,9 +84,7 @@ else
         </div>
     }
 
-    <div class="d-flex gap-2 mb-3">
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar título..."
-               @bind="_busqueda" @bind:event="oninput" />
+    <FilterBar>
         <select class="form-select form-select-sm" style="max-width:180px" @bind="_filtroTipo">
             <option value="">Todos los tipos</option>
             <option value="Acta de Reunión">Acta de Reunión</option>
@@ -95,58 +94,55 @@ else
             <option value="Certificación">Certificación</option>
             <option value="Otro">Otro</option>
         </select>
-    </div>
+    </FilterBar>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Título</th>
-                        <th>Comunidad / Parte</th>
-                        <th>Fecha</th>
-                        <th>Elaborado Por</th>
-                        <th class="text-center">Archivo</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!ActasFiltradas.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay actas ni evidencias registradas.</td></tr>
-                    }
-                    @foreach (var a in ActasFiltradas)
-                    {
-                        <tr>
-                            <td><span class="badge bg-secondary">@a.Tipo</span></td>
-                            <td>@a.Titulo</td>
-                            <td class="small text-muted">@(a.ComunidadOParte ?? "—")</td>
-                            <td class="small">@a.Fecha.ToString("dd/MM/yyyy")</td>
-                            <td class="small">@(a.ResponsableElaboracion ?? "—")</td>
-                            <td class="text-center">
-                                @if (!string.IsNullOrEmpty(a.ArchivoUrl))
-                                { <a href="@a.ArchivoUrl" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi-link-45deg"></i></a> }
-                                else
-                                { <span class="text-muted">—</span> }
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == a.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(a.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = a.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar título o comunidad..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!ActasFiltradas.Any()"
+                MensajeVacio="No hay actas ni evidencias registradas.">
+        <Encabezados>
+            <tr>
+                <th>Tipo</th>
+                <th>Título</th>
+                <th>Comunidad / Parte</th>
+                <th>Fecha</th>
+                <th>Elaborado Por</th>
+                <th class="text-center">Archivo</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var a in ActasFiltradas)
+            {
+                <tr>
+                    <td><span class="badge bg-secondary">@a.Tipo</span></td>
+                    <td>@a.Titulo</td>
+                    <td class="small text-muted">@(a.ComunidadOParte ?? "—")</td>
+                    <td class="small">@a.Fecha.ToString("dd/MM/yyyy")</td>
+                    <td class="small">@(a.ResponsableElaboracion ?? "—")</td>
+                    <td class="text-center">
+                        @if (!string.IsNullOrEmpty(a.ArchivoUrl))
+                        { <a href="@a.ArchivoUrl" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi-link-45deg"></i></a> }
+                        else
+                        { <span class="text-muted">—</span> }
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == a.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(a.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = a.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -159,6 +155,8 @@ else
     private string _busqueda = "";
     private string _filtroTipo = "";
     private FormModel _form = new();
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private IEnumerable<ActaEvidencia> ActasFiltradas => _actas
         .Where(a =>

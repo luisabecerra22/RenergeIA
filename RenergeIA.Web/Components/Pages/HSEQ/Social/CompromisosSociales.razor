@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-patch-check me-2" style="color:#183963"></i>Compromisos Sociales</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo Compromiso
-        </button>
-    </div>
+    <PageHeader Titulo="Compromisos Sociales"
+                Icono="bi-patch-check"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo Compromiso
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -85,76 +86,79 @@ else
     }
 
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_compromisos.Count</div>
-                <div class="text-muted small">Total compromisos</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Total Compromisos"
+                           Valor="@_compromisos.Count.ToString()"
+                           Icono="bi-patch-check"
+                           SubTexto="adquiridos con comunidades"
+                           Estado="Informativo" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Cumplido)</div>
-                <div class="text-muted small">Cumplidos</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Cumplidos"
+                           Valor="@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Cumplido).ToString()"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="finalizados satisfactoriamente"
+                           Estado="Saludable" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.EnCumplimiento)</div>
-                <div class="text-muted small">En cumplimiento</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="En Cumplimiento"
+                           Valor="@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.EnCumplimiento).ToString()"
+                           Icono="bi-hourglass-split"
+                           SubTexto="en proceso de cumplimiento"
+                           Estado="En Riesgo" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Vencido)</div>
-                <div class="text-muted small">Vencidos</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Vencidos"
+                           Valor="@_compromisos.Count(c => c.Estado == EstadoCompromisoSocial.Vencido).ToString()"
+                           Icono="bi-calendar-x-fill"
+                           SubTexto="superaron fecha compromiso"
+                           Estado="@(_compromisos.Any(c => c.Estado == EstadoCompromisoSocial.Vencido) ? "Crítico" : "Saludable")" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Descripción</th>
-                        <th>Responsable</th>
-                        <th>F. Cumplimiento</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_compromisos.Any())
-                    {
-                        <tr><td colspan="6" class="text-center text-muted py-4">No hay compromisos sociales registrados.</td></tr>
-                    }
-                    @foreach (var c in _compromisos.OrderBy(x => x.FechaCompromiso))
-                    {
-                        var vencido = c.Estado == EstadoCompromisoSocial.Vencido;
-                        <tr class="@(vencido ? "table-warning" : "")">
-                            <td>@c.Descripcion</td>
-                            <td class="small">@c.Responsable</td>
-                            <td class="small @(c.FechaCumplimiento < DateTime.Today && c.Estado != EstadoCompromisoSocial.Cumplido ? "text-danger fw-bold" : "")">
-                                @(c.FechaCumplimiento?.ToString("dd/MM/yyyy") ?? "—")
-                            </td>
-                            <td class="text-center"><span class="badge @BadgeComp(c.Estado)">@EnumDisplay.Mostrar(c.Estado)</span></td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == c.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="5"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar descripción o responsable..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!CompromisosFiltraados.Any()"
+                MensajeVacio="No hay compromisos sociales registrados.">
+        <Encabezados>
+            <tr>
+                <th>Descripción</th>
+                <th>Responsable</th>
+                <th>F. Cumplimiento</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var c in CompromisosFiltraados.OrderBy(x => x.FechaCompromiso))
+            {
+                <tr>
+                    <td>@c.Descripcion</td>
+                    <td class="small">@c.Responsable</td>
+                    <td class="small @(c.FechaCumplimiento < DateTime.Today && c.Estado != EstadoCompromisoSocial.Cumplido ? "text-danger fw-bold" : "")">
+                        @(c.FechaCumplimiento?.ToString("dd/MM/yyyy") ?? "—")
+                    </td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(c.Estado == EstadoCompromisoSocial.Cumplido ? "Saludable" : c.Estado == EstadoCompromisoSocial.Vencido ? "Crítico" : c.Estado == EstadoCompromisoSocial.EnCumplimiento ? "En Riesgo" : "Sin datos")"
+                                    Texto="@EnumDisplay.Mostrar(c.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == c.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -208,6 +212,11 @@ else
         _confirmandoEliminar = null;
         await CargarAsync();
     }
+
+    private string _busqueda = "";
+    private IEnumerable<CompromisoSocial> CompromisosFiltraados => _compromisos
+        .Where(c => string.IsNullOrEmpty(_busqueda) || c.Descripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || c.Responsable.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private static string BadgeComp(EstadoCompromisoSocial e) => e switch
     {

@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **27 de junio de 2026 — Sistema de diseño + Dashboards HSEQ**
+> Última actualización: **28 de junio de 2026 — Módulos HSEQ Calidad, Ambiental y Social + nuevos componentes del Sistema de Diseño**
 
 ---
 
@@ -34,7 +34,10 @@
 24. [Fases de desarrollo](#fases-de-desarrollo)
 25. [Sistema de Diseño RenergeIA](#25-sistema-de-diseño-renergeia)
 26. [Módulo HSEQ — Dashboards analíticos](#26-módulo-hseq--dashboards-analíticos)
-27. [Glosario](#glosario)
+27. [Módulo HSEQ — Calidad ISO 9001](#27-módulo-hseq--calidad-iso-9001)
+28. [Módulo HSEQ — Ambiental ISO 14001](#28-módulo-hseq--ambiental-iso-14001)
+29. [Módulo HSEQ — Social](#29-módulo-hseq--social)
+30. [Glosario](#glosario)
 
 ---
 
@@ -245,11 +248,20 @@ Proyecto Agente/
     │   ├── RedirectToLogin.razor
     │   ├── Shared/
     │   │   └── Dashboard/                ← Sistema de Diseño — componentes reutilizables
-    │   │       ├── GaugeCircular.razor   ← Indicador circular SVG animado
-    │   │       ├── TarjetaKPI.razor      ← KPI ejecutivo con icono y valor grande
+    │   │       ├── GaugeCircular.razor   ← Gauge SVG animado (original, compatible)
+    │   │       ├── GaugeKPI.razor        ← Gauge SVG v2 con tendencia
+    │   │       ├── TarjetaKPI.razor      ← KPI con icono y valor grande (original)
+    │   │       ├── ExecutiveCard.razor   ← Tarjeta ejecutiva v2 con tendencia
+    │   │       ├── DonutKPI.razor        ← Donut CSS con valor central
     │   │       ├── SeccionDash.razor     ← Encabezado de sección con línea azul
     │   │       ├── ChartCard.razor       ← Tarjeta contenedora de gráficos Chart.js
-    │   │       └── AnalisisIA.razor      ← Panel de análisis con gradiente azul corporativo
+    │   │       ├── AnalisisIA.razor      ← Panel IA (original, compatible)
+    │   │       ├── AIPanel.razor         ← Panel IA v2 con slots Hallazgos/Alertas/Recomendaciones
+    │   │       ├── DashboardLayout.razor ← Contenedor principal de módulo
+    │   │       ├── PageHeader.razor      ← Cabecera de página con volver + acciones
+    │   │       ├── FilterBar.razor       ← Barra de filtros / navegación de sub-módulos
+    │   │       ├── StatusChip.razor      ← Badge semántico de estado (Saludable/Riesgo/Crítico)
+    │   │       └── SmartTable.razor      ← Tabla con búsqueda, vacío y pie configurables
     │   ├── Layout/
     │   │   ├── MainLayout.razor
     │   │   ├── LoginLayout.razor
@@ -290,8 +302,37 @@ Proyecto Agente/
     │       │   └── NoConformidades.razor
     │       ├── Restricciones/
     │       │   └── Restricciones.razor
-    │       └── Dashboard/
-    │           └── DashboardProyecto.razor
+    │       ├── Dashboard/
+    │       │   └── DashboardProyecto.razor
+    │       └── HSEQ/
+    │           ├── HSEQDashboard.razor           ← Hub central HSEQ (4 divisiones)
+    │           ├── Seguridad/                    ← (ver sección 26)
+    │           ├── Calidad/
+    │           │   ├── CalidadDashboard.razor
+    │           │   ├── ChecklistISO9001.razor
+    │           │   ├── PPIs.razor
+    │           │   ├── ControlCalibracion.razor
+    │           │   ├── ControlDocumental.razor
+    │           │   ├── NoConformidadesHSEQ.razor
+    │           │   └── AccionesCorrectivasHSEQ.razor
+    │           ├── Ambiental/
+    │           │   ├── AmbientalDashboard.razor
+    │           │   ├── ChecklistISO14001.razor
+    │           │   ├── InspeccionesAmbientales.razor
+    │           │   ├── GestionResiduos.razor
+    │           │   ├── AspectosImpactos.razor
+    │           │   ├── Derrames.razor
+    │           │   ├── FaunaFlora.razor
+    │           │   └── AccionesAmbientales.razor
+    │           └── Social/
+    │               ├── SocialDashboard.razor
+    │               ├── Comunidades.razor
+    │               ├── ReunionesComunitarias.razor
+    │               ├── PQRModule.razor
+    │               ├── CompromisosSociales.razor
+    │               ├── ContratacionLocal.razor
+    │               ├── ComprasLocales.razor
+    │               └── ActasEvidencias.razor
     ├── Services/
     │   ├── InformeDiarioService.cs       ← KPIs, Curva S, Dashboard, filtrado por versión
     │   ├── DocumentoService.cs
@@ -1277,13 +1318,49 @@ git diff HEAD~1              # Qué cambió en el último commit
   - [x] Incidentes y Accidentes
   - [x] ISO 45001 (Checklist de auditoría)
   - [x] Acciones Correctivas HSEQ
+- [x] **Módulo HSEQ — sub-módulo Calidad** (ISO 9001):
+  - [x] `HSEQDashboard.razor` — Hub central HSEQ con 4 tarjetas de división (Calidad, Seguridad, Ambiental, Social) y KPIs globales
+  - [x] `CalidadDashboard.razor` — dashboard con ExecutiveCard KPIs y sub-navegación
+  - [x] `ChecklistISO9001.razor` — auditoría de cumplimiento ISO 9001
+  - [x] `PPIs.razor` — Puntos de Parada e Inspección
+  - [x] `ControlCalibracion.razor` — calibración de equipos de medición
+  - [x] `ControlDocumental.razor` — documentos de calidad
+  - [x] `NoConformidadesHSEQ.razor` — no conformidades de calidad
+  - [x] `AccionesCorrectivasHSEQ.razor` — acciones correctivas de calidad
+- [x] **Módulo HSEQ — sub-módulo Ambiental** (ISO 14001):
+  - [x] `AmbientalDashboard.razor` — dashboard con GaugeKPI y DashboardLayout
+  - [x] `ChecklistISO14001.razor` — auditoría de cumplimiento ISO 14001
+  - [x] `InspeccionesAmbientales.razor` — inspecciones de campo ambiental
+  - [x] `GestionResiduos.razor` — registro y control de residuos
+  - [x] `AspectosImpactos.razor` — matriz de aspectos e impactos ambientales
+  - [x] `Derrames.razor` — registro de derrames y contingencias
+  - [x] `FaunaFlora.razor` — monitoreo de biodiversidad
+  - [x] `AccionesAmbientales.razor` — acciones correctivas ambientales
+- [x] **Módulo HSEQ — sub-módulo Social**:
+  - [x] `SocialDashboard.razor` — dashboard de gestión social del proyecto
+  - [x] `Comunidades.razor` — registro de comunidades de área de influencia
+  - [x] `ReunionesComunitarias.razor` — actas de reuniones con comunidades
+  - [x] `PQRModule.razor` — Peticiones, Quejas y Reclamos
+  - [x] `CompromisosSociales.razor` — seguimiento de compromisos sociales
+  - [x] `ContratacionLocal.razor` — registro de mano de obra local
+  - [x] `ComprasLocales.razor` — registro de compras a proveedores locales
+  - [x] `ActasEvidencias.razor` — actas y evidencias de gestión social
 - [x] **Sistema de Diseño RenergeIA** — identidad visual corporativa completa:
   - [x] CSS corporativo en `app.css`: variables, animación gauge (`rn-gauge-in`), badges semánticos, sección, chart card, panel IA, tabla
-  - [x] `GaugeCircular.razor` — gauge SVG parametrizado con animación de entrada
-  - [x] `TarjetaKPI.razor` — KPI ejecutivo con icono y valor grande
+  - [x] `GaugeCircular.razor` — gauge SVG parametrizado con animación de entrada (v1)
+  - [x] `GaugeKPI.razor` — gauge SVG v2 con soporte de tendencia (flecha arriba/abajo)
+  - [x] `TarjetaKPI.razor` — KPI ejecutivo con icono y valor grande (v1)
+  - [x] `ExecutiveCard.razor` — tarjeta ejecutiva v2 con icono, valor, tendencia y StatusChip
+  - [x] `DonutKPI.razor` — donut CSS puro con valor central y badge
   - [x] `SeccionDash.razor` — encabezado de sección con decoración corporativa
   - [x] `ChartCard.razor` — tarjeta contenedora de gráficos con slot de filtros
-  - [x] `AnalisisIA.razor` — panel de análisis con gradiente azul y slots de insights
+  - [x] `AnalisisIA.razor` — panel de análisis con gradiente azul y slots de insights (v1)
+  - [x] `AIPanel.razor` — panel IA v2 con slots independientes: Hallazgos, Alertas, Recomendaciones
+  - [x] `DashboardLayout.razor` — contenedor principal `.rn-module-layout` para módulos
+  - [x] `PageHeader.razor` — cabecera de página con botón volver, título, subtítulo y slot acciones
+  - [x] `FilterBar.razor` — barra de navegación / filtros para sub-módulos
+  - [x] `StatusChip.razor` — badge semántico de estado reutilizable (Saludable/En Riesgo/Riesgo/Crítico)
+  - [x] `SmartTable.razor` — tabla con búsqueda integrada, estado vacío y pie configurables
   - [x] `_Imports.razor` actualizado con `@using RenergeIA.Web.Components.Shared.Dashboard`
   - [x] `SeguridadDashboard.razor` migrado a los nuevos componentes (eliminado RenderFragment local)
 - [x] Control de versiones con GitHub (repositorio remoto configurado)
@@ -1404,6 +1481,143 @@ Crea el `<canvas id="...">` dentro de un `<div style="position:relative;height:N
         <span>Texto del insight.</span>
     </div>
 </AnalisisIA>
+```
+
+#### `GaugeKPI.razor` (v2)
+
+Versión mejorada de `GaugeCircular` con soporte de tendencia:
+
+```razor
+<GaugeKPI Titulo="Cumplimiento ISO 14001"
+          ValorCentral="93%"
+          SubTexto="de requisitos"
+          Porcentaje="93"
+          Estado="Saludable"
+          Tendencia="+5% vs mes anterior"
+          TendenciaPositiva="true" />
+```
+
+#### `ExecutiveCard.razor` (v2)
+
+Reemplaza a `TarjetaKPI` con soporte de tendencia y `StatusChip` integrado:
+
+```razor
+<ExecutiveCard Titulo="PPIs Ejecutados"
+               Valor="16"
+               Icono="bi-clipboard-check"
+               SubTexto="de 23 planeados"
+               Estado="En Riesgo"
+               Tendencia="-2 esta semana"
+               TendenciaPositiva="false" />
+```
+
+#### `DonutKPI.razor`
+
+Donut implementado en CSS puro (sin SVG ni JS), con valor central:
+
+```razor
+<DonutKPI Titulo="Residuos Gestionados"
+          ValorCentral="4.2t"
+          SubTextoInterno="este mes"
+          Porcentaje="72"
+          Estado="Saludable" />
+```
+
+#### `DashboardLayout.razor`
+
+Contenedor principal que aplica `.rn-module-layout`. Debe envolver todo el contenido de un módulo:
+
+```razor
+<DashboardLayout>
+    <PageHeader ... />
+    <FilterBar>...</FilterBar>
+    <SeccionDash Titulo="KPIs">...</SeccionDash>
+</DashboardLayout>
+```
+
+#### `PageHeader.razor`
+
+Cabecera estándar de página con botón volver, título e icono, subtítulo y slot de acciones:
+
+```razor
+<PageHeader Titulo="Ambiental — ISO 14001"
+            Icono="bi-tree-fill"
+            Subtitulo="@(_proyecto.Nombre + " · " + DateTime.Now.ToString("dd/MM/yyyy"))"
+            UrlVolver="@($"/proyectos/{ProyectoId}/hseq")"
+            TextoVolver="HSEQ">
+    <Acciones>
+        <StatusChip Estado="Saludable" Grande="true" />
+    </Acciones>
+</PageHeader>
+```
+
+#### `FilterBar.razor`
+
+Barra de navegación entre sub-módulos dentro de un módulo HSEQ:
+
+```razor
+<FilterBar>
+    <span class="btn btn-success btn-sm">Dashboard</span>
+    <a href="/...checklist" class="btn btn-outline-secondary btn-sm">Checklist ISO 14001</a>
+    <a href="/...residuos"  class="btn btn-outline-secondary btn-sm">Residuos</a>
+</FilterBar>
+```
+
+#### `StatusChip.razor`
+
+Badge semántico reutilizable, acepta `Grande="true"` para versión más visible:
+
+```razor
+<StatusChip Estado="Saludable" />          <!-- badge pequeño -->
+<StatusChip Estado="Crítico" Grande="true" />  <!-- badge grande en PageHeader -->
+<StatusChip Estado="Informativo" Texto="Simulado" />  <!-- texto personalizado -->
+```
+
+Estados soportados: `"Saludable"`, `"En Riesgo"`, `"Riesgo"`, `"Crítico"`, `"Sin datos"`, `"Informativo"` (default).
+
+#### `SmartTable.razor`
+
+Tabla corporativa con búsqueda integrada, estado vacío y pie opcionales:
+
+```razor
+<SmartTable MostrarBusqueda="true"
+            PlaceholderBusqueda="Buscar por comunidad..."
+            Columnas="5"
+            Vacio="@(!_items.Any())"
+            MensajeVacio="No hay comunidades registradas."
+            BusquedaCambiada="@(t => { _busqueda = t; StateHasChanged(); })">
+    <Encabezados>
+        <tr><th>Nombre</th><th>Municipio</th>...</tr>
+    </Encabezados>
+    <Filas>
+        @foreach (var item in _itemsFiltrados)
+        {
+            <tr><td>@item.Nombre</td>...</tr>
+        }
+    </Filas>
+</SmartTable>
+```
+
+#### `AIPanel.razor` (v2)
+
+Panel IA con slots independientes para máxima flexibilidad:
+
+```razor
+<AIPanel Titulo="Análisis Ambiental" Subtitulo="Generado por RenergeIA" EsSimulado="true"
+         EstadoGeneral="Cumplimiento ambiental en zona saludable.">
+    <Hallazgos>
+        <div class="rn-ia-item"><i class="bi-exclamation-triangle-fill" style="color:#ffc107"></i>
+            <span>Residuos peligrosos superan límite del trimestre anterior.</span></div>
+    </Hallazgos>
+    <Alertas>
+        <div class="rn-ia-item"><i class="bi-x-circle-fill" style="color:#dc3545"></i>
+            <span>2 inspecciones programadas sin ejecutar este mes.</span></div>
+    </Alertas>
+    <Recomendaciones>
+        <div class="rn-ia-item"><i class="bi-check-circle-fill" style="color:#6ABF4B"></i>
+            <span>Priorizar disposición de aceites usados antes del cierre del período.</span></div>
+    </Recomendaciones>
+</AIPanel>
 ```
 
 ### Cómo agregar el namespace a una nueva página
@@ -1534,6 +1748,88 @@ Insights automáticos desde datos reales: cumplimiento global, HH, área mejor/p
 
 ---
 
+## 27. Módulo HSEQ — Calidad ISO 9001
+
+**Ruta:** `/proyectos/{id}/hseq/calidad` → `CalidadDashboard.razor`
+
+### Sub-módulos
+
+| Ruta | Archivo | Propósito |
+|------|---------|-----------|
+| `/hseq/calidad` | `CalidadDashboard.razor` | Dashboard con KPIs ejecutivos y navegación |
+| `/hseq/calidad/checklist` | `ChecklistISO9001.razor` | Auditoría de requisitos ISO 9001 |
+| `/hseq/calidad/ppis` | `PPIs.razor` | Puntos de Parada e Inspección del contrato |
+| `/hseq/calidad/calibracion` | `ControlCalibracion.razor` | Registro y vencimiento de calibración de equipos |
+| `/hseq/calidad/documentos` | `ControlDocumental.razor` | Documentos de calidad del proyecto |
+| `/hseq/calidad/no-conformidades` | `NoConformidadesHSEQ.razor` | No Conformidades de calidad |
+| `/hseq/calidad/acciones` | `AccionesCorrectivasHSEQ.razor` | Acciones correctivas de calidad |
+
+### Dashboard de Calidad
+
+Usa `PageHeader` + `ExecutiveCard` para KPIs:
+- Cumplimiento ISO 9001 (%)
+- PPIs Ejecutados / Planeados
+- No Conformidades Abiertas
+- Acciones Correctivas Pendientes
+
+---
+
+## 28. Módulo HSEQ — Ambiental ISO 14001
+
+**Ruta:** `/proyectos/{id}/hseq/ambiental` → `AmbientalDashboard.razor`
+
+### Sub-módulos
+
+| Ruta | Archivo | Propósito |
+|------|---------|-----------|
+| `/hseq/ambiental` | `AmbientalDashboard.razor` | Dashboard con GaugeKPI y navegación |
+| `/hseq/ambiental/checklist` | `ChecklistISO14001.razor` | Auditoría de requisitos ISO 14001 |
+| `/hseq/ambiental/inspecciones` | `InspeccionesAmbientales.razor` | Inspecciones ambientales de campo |
+| `/hseq/ambiental/residuos` | `GestionResiduos.razor` | Registro de residuos sólidos, líquidos y peligrosos |
+| `/hseq/ambiental/aspectos` | `AspectosImpactos.razor` | Matriz de aspectos e impactos ambientales |
+| `/hseq/ambiental/derrames` | `Derrames.razor` | Registro de derrames y contingencias |
+| `/hseq/ambiental/fauna-flora` | `FaunaFlora.razor` | Monitoreo de biodiversidad del entorno |
+| `/hseq/ambiental/acciones` | `AccionesAmbientales.razor` | Acciones correctivas ambientales |
+
+### Dashboard Ambiental
+
+Usa `DashboardLayout` + `PageHeader` + `FilterBar` (navegación) + `GaugeKPI` para KPIs:
+- Cumplimiento ISO 14001 (%)
+- Inspecciones Realizadas
+- Derrames del período
+- Residuos gestionados (ton)
+
+La arquitectura sigue el **patrón de 5 niveles** del Sistema de Diseño (ver sección 25).
+
+---
+
+## 29. Módulo HSEQ — Social
+
+**Ruta:** `/proyectos/{id}/hseq/social` → `SocialDashboard.razor`
+
+### Sub-módulos
+
+| Ruta | Archivo | Propósito |
+|------|---------|-----------|
+| `/hseq/social` | `SocialDashboard.razor` | Dashboard de gestión social |
+| `/hseq/social/comunidades` | `Comunidades.razor` | Registro de comunidades del área de influencia |
+| `/hseq/social/reuniones` | `ReunionesComunitarias.razor` | Actas de reuniones con comunidades |
+| `/hseq/social/pqr` | `PQRModule.razor` | Peticiones, Quejas y Reclamos |
+| `/hseq/social/compromisos` | `CompromisosSociales.razor` | Seguimiento de compromisos sociales del contrato |
+| `/hseq/social/contratacion-local` | `ContratacionLocal.razor` | Registro de mano de obra local contratada |
+| `/hseq/social/compras-locales` | `ComprasLocales.razor` | Compras a proveedores locales |
+| `/hseq/social/actas` | `ActasEvidencias.razor` | Actas y evidencias de gestión social |
+
+### Dashboard Social
+
+Usa `PageHeader` + `ExecutiveCard` para KPIs:
+- Cumplimiento Social (%) — puede estar en estado Crítico si hay compromisos vencidos
+- Reuniones Comunitarias realizadas
+- PQR Abiertas
+- Compromisos cumplidos / total
+
+---
+
 ## Glosario
 
 | Término | Definición |
@@ -1565,4 +1861,4 @@ Insights automáticos desde datos reales: cumplimiento global, HH, área mejor/p
 
 ---
 
-*Guía actualizada el 27 de junio de 2026 — RenergeIA v1.0 en desarrollo activo. Sistema de Diseño implementado. Dashboards HSEQ Seguridad e Inspecciones rediseñados. Dashboard Capacitaciones completo 5 niveles.*
+*Guía actualizada el 28 de junio de 2026 — RenergeIA v1.0 en desarrollo activo. Módulos HSEQ Calidad (ISO 9001), Ambiental (ISO 14001) y Social implementados. Nuevos componentes del Sistema de Diseño: GaugeKPI, ExecutiveCard, DonutKPI, DashboardLayout, PageHeader, FilterBar, StatusChip, SmartTable, AIPanel.*

@@ -13,16 +13,15 @@
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
-        <div class="flex-grow-1">
-            <h1 class="h3 mb-0">
-                <i class="bi-people-fill me-2" style="color:#fd7e14"></i>Social
-            </h1>
-            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy")</small>
-        </div>
-        <span class="badge bg-danger fs-6">Crítico</span>
-    </div>
+    <PageHeader Titulo="Social"
+                Icono="bi-people-fill"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq")"
+                TextoVolver="HSEQ">
+        <Acciones>
+            <StatusChip Estado="Crítico" Grande="true" />
+        </Acciones>
+    </PageHeader>
 
     <!-- Navegación -->
     <div class="d-flex gap-2 flex-wrap mb-4">
@@ -39,84 +38,60 @@ else
     <!-- KPIs -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                <div class="text-muted small fw-semibold mb-1">CUMPLIMIENTO SOCIAL</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-people-fill" style="font-size:1.6rem;color:#dc3545"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">61%</div>
-                </div>
-                <div class="text-muted small">general del período</div>
-            </div>
+            <ExecutiveCard Titulo="Cumplimiento Social"
+                           Valor="61%"
+                           Icono="bi-people-fill"
+                           SubTexto="general del período"
+                           Estado="Crítico" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
-                <div class="text-muted small fw-semibold mb-1">REUNIONES COMUNITARIAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-chat-square-text-fill" style="font-size:1.6rem;color:#183963"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">8</div>
-                </div>
-                <div class="text-muted small">realizadas este período</div>
-            </div>
+            <ExecutiveCard Titulo="Reuniones Comunitarias"
+                           Valor="8"
+                           Icono="bi-chat-square-text-fill"
+                           SubTexto="realizadas este período"
+                           Estado="Informativo" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
-                <div class="text-muted small fw-semibold mb-1">PQRs RECIBIDAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-envelope-exclamation" style="font-size:1.6rem;color:#fd7e14"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">11</div>
-                </div>
-                <div class="text-muted small">total acumulado</div>
-            </div>
+            <ExecutiveCard Titulo="PQRs Recibidas"
+                           Valor="11"
+                           Icono="bi-envelope-exclamation"
+                           SubTexto="total acumulado"
+                           Estado="Riesgo" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">PQRs CERRADAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-envelope-check" style="font-size:1.6rem;color:#6ABF4B"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">7</div>
-                </div>
-                <div class="text-muted small">con respuesta definitiva</div>
-            </div>
+            <ExecutiveCard Titulo="PQRs Cerradas"
+                           Valor="7"
+                           Icono="bi-envelope-check"
+                           SubTexto="con respuesta definitiva"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                <div class="text-muted small fw-semibold mb-1">PQRs ABIERTAS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-envelope-open" style="font-size:1.6rem;color:#dc3545"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">4</div>
-                </div>
-                <div class="text-muted small">pendientes de respuesta</div>
-            </div>
+            <ExecutiveCard Titulo="PQRs Abiertas"
+                           Valor="4"
+                           Icono="bi-envelope-open"
+                           SubTexto="pendientes de respuesta"
+                           Estado="Crítico" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                <div class="text-muted small fw-semibold mb-1">COMPROMISOS CUMPLIDOS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-check-circle-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">9</div>
-                </div>
-                <div class="text-muted small">de 15 compromisos totales</div>
-            </div>
+            <ExecutiveCard Titulo="Compromisos Cumplidos"
+                           Valor="9"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="de 15 totales"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                <div class="text-muted small fw-semibold mb-1">COMPROMISOS VENCIDOS</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-exclamation-circle-fill" style="font-size:1.6rem;color:#dc3545"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">3</div>
-                </div>
-                <div class="text-muted small">superaron fecha compromiso</div>
-            </div>
+            <ExecutiveCard Titulo="Compromisos Vencidos"
+                           Valor="3"
+                           Icono="bi-exclamation-circle-fill"
+                           SubTexto="superaron fecha compromiso"
+                           Estado="Crítico" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
-                <div class="text-muted small fw-semibold mb-1">CONTRATACIÓN LOCAL</div>
-                <div class="d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi-person-fill-check" style="font-size:1.6rem;color:#183963"></i>
-                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">28</div>
-                </div>
-                <div class="text-muted small">trabajadores locales activos</div>
-            </div>
+            <ExecutiveCard Titulo="Contratación Local"
+                           Valor="28"
+                           Icono="bi-person-fill-check"
+                           SubTexto="trabajadores locales activos"
+                           Estado="Saludable" />
         </div>
     </div>
 
@@ -220,20 +195,31 @@ else
         </div>
     </div>
 
-    <!-- IA -->
-    <div class="card shadow-sm mb-4 border-0" style="background:linear-gradient(135deg,#183963,#1e4d8c)">
-        <div class="card-body p-4 text-white">
-            <div class="d-flex align-items-center gap-2 mb-3">
-                <i class="bi-robot" style="font-size:1.4rem"></i>
-                <h6 class="mb-0 fw-bold">Análisis Inteligente — Social</h6>
-                <span class="badge bg-warning text-dark ms-auto">Próximamente</span>
-            </div>
-            <div class="d-flex align-items-start gap-2 p-3 rounded" style="background:rgba(255,255,255,0.1)">
-                <i class="bi-lightbulb-fill mt-1" style="color:#ffc107;flex-shrink:0"></i>
-                <p class="mb-0 small">Social presenta 3 compromisos vencidos con comunidades del área de influencia y 4 PQRs sin respuesta definitiva. Se requiere gestión urgente para evitar escalamiento de conflictos con comunidades.</p>
-            </div>
-        </div>
-    </div>
+    <AIPanel Titulo="Análisis Inteligente — Social"
+             Subtitulo="@("Social · " + DateTime.Now.ToString("MMMM yyyy"))"
+             EstadoGeneral="Desempeño social CRÍTICO — requiere acción urgente."
+             EsSimulado="true">
+        <Hallazgos>
+            <ul>
+                <li>61% de cumplimiento social — por debajo del umbral aceptable del 75%.</li>
+                <li>3 compromisos sociales vencidos con comunidades del área de influencia.</li>
+                <li>4 PQRs abiertas sin respuesta definitiva, riesgo de escalamiento comunitario.</li>
+            </ul>
+        </Hallazgos>
+        <Alertas>
+            <ul>
+                <li>Compromisos vencidos pueden generar bloqueos o conflictos con comunidades afectadas.</li>
+                <li>Las PQRs sin respuesta superan el tiempo máximo recomendado de 15 días hábiles.</li>
+            </ul>
+        </Alertas>
+        <Recomendaciones>
+            <ul>
+                <li>Convocar reunión urgente con comunidades afectadas para gestionar compromisos vencidos.</li>
+                <li>Cerrar las 4 PQRs abiertas con respuesta formal documentada esta semana.</li>
+                <li>Revisar el plan de gestión social y actualizar el cronograma de compromisos.</li>
+            </ul>
+        </Recomendaciones>
+    </AIPanel>
 }
 
 @code {

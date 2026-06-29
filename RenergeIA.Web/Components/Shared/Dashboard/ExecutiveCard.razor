@@ -1,0 +1,49 @@
+<div class="rn-exec-card h-100">
+    <div class="rn-exec-header">
+        @if (!string.IsNullOrEmpty(Icono))
+        {
+            <div class="rn-exec-icon" style="color:@_color">
+                <i class="bi @Icono"></i>
+            </div>
+        }
+        <StatusChip Estado="@Estado" />
+    </div>
+    <div class="rn-exec-value" style="color:@_color">@Valor</div>
+    <div class="rn-exec-title">@Titulo</div>
+    @if (!string.IsNullOrEmpty(SubTexto))
+    {
+        <div class="rn-exec-sub">@SubTexto</div>
+    }
+    @if (!string.IsNullOrEmpty(Tendencia))
+    {
+        <div class="rn-exec-trend @(TendenciaPositiva ? "rn-trend-up" : "rn-trend-down")">
+            <i class="bi @(TendenciaPositiva ? "bi-arrow-up-short" : "bi-arrow-down-short")"></i>
+            <span>@Tendencia</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string  Titulo            { get; set; } = "";
+    [Parameter] public string  Valor             { get; set; } = "0";
+    [Parameter] public string  Icono             { get; set; } = "";
+    [Parameter] public string  SubTexto          { get; set; } = "";
+    [Parameter] public string  Estado            { get; set; } = "Informativo";
+    [Parameter] public string? Color             { get; set; }
+    [Parameter] public string  Tendencia         { get; set; } = "";
+    [Parameter] public bool    TendenciaPositiva { get; set; } = true;
+
+    private string _color = "#183963";
+
+    protected override void OnParametersSet()
+    {
+        _color = Color ?? Estado switch
+        {
+            "Saludable" => "#6ABF4B",
+            "En Riesgo" => "#ffc107",
+            "Riesgo"    => "#fd7e14",
+            "Crítico"   => "#dc3545",
+            _           => "#183963"
+        };
+    }
+}

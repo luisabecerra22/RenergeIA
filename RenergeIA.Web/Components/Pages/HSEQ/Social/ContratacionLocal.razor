@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-person-badge me-2" style="color:#183963"></i>Contratación Local</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Registrar Contratación
-        </button>
-    </div>
+    <PageHeader Titulo="Contratación Local"
+                Icono="bi-person-badge"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Registrar Contratación
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -80,84 +81,81 @@ else
     }
 
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_contrataciones.Count</div>
-                <div class="text-muted small">Total contrataciones</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Total Contrataciones"
+                           Valor="@_contrataciones.Count.ToString()"
+                           Icono="bi-person-badge"
+                           SubTexto="registradas en el proyecto"
+                           Estado="Informativo" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_contrataciones.Count(c => c.EsLocal)</div>
-                <div class="text-muted small">Mano de obra local</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Mano de Obra Local"
+                           Valor="@_contrataciones.Count(c => c.EsLocal).ToString()"
+                           Icono="bi-person-fill-check"
+                           SubTexto="trabajadores del municipio"
+                           Estado="Saludable" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.6rem;color:#6ABF4B">
-                    @(_contrataciones.Any() ? (_contrataciones.Count(c => c.EsLocal) * 100.0 / _contrataciones.Count).ToString("F0") + "%" : "—")
-                </div>
-                <div class="text-muted small">% Local</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="% Contratación Local"
+                           Valor="@(_contrataciones.Any() ? (_contrataciones.Count(c => c.EsLocal) * 100.0 / _contrataciones.Count).ToString("F0") + "%" : "—")"
+                           Icono="bi-pie-chart-fill"
+                           SubTexto="sobre total de contratados"
+                           Estado="@(_contrataciones.Any() && _contrataciones.Count(c => c.EsLocal) * 100.0 / _contrataciones.Count >= 60 ? "Saludable" : "En Riesgo")" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_contrataciones.Count(c => !c.FechaRetiro.HasValue)</div>
-                <div class="text-muted small">Activos actualmente</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Activos Actualmente"
+                           Valor="@_contrataciones.Count(c => !c.FechaRetiro.HasValue).ToString()"
+                           Icono="bi-person-fill"
+                           SubTexto="sin fecha de retiro"
+                           Estado="Informativo" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Nombre</th>
-                        <th>Cargo / Servicio</th>
-                        <th>Municipio</th>
-                        <th>F. Ingreso</th>
-                        <th>F. Retiro</th>
-                        <th class="text-center">Tipo</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_contrataciones.Any())
-                    {
-                        <tr><td colspan="7" class="text-center text-muted py-4">No hay contrataciones registradas.</td></tr>
-                    }
-                    @foreach (var c in _contrataciones.OrderByDescending(x => x.FechaIngreso))
-                    {
-                        <tr>
-                            <td class="fw-semibold">@c.NombrePersona</td>
-                            <td class="small">@c.Cargo</td>
-                            <td class="small text-muted">@c.Municipio</td>
-                            <td class="small">@c.FechaIngreso.ToString("dd/MM/yyyy")</td>
-                            <td class="small">@(c.FechaRetiro?.ToString("dd/MM/yyyy") ?? "Activo")</td>
-                            <td class="text-center">
-                                @if (c.EsLocal)
-                                { <span class="badge bg-success">Local</span> }
-                                else
-                                { <span class="badge bg-secondary">Foráneo</span> }
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == c.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="7"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar nombre, cargo o municipio..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!ContratacionesFiltradas.Any()"
+                MensajeVacio="No hay contrataciones registradas.">
+        <Encabezados>
+            <tr>
+                <th>Nombre</th>
+                <th>Cargo / Servicio</th>
+                <th>Municipio</th>
+                <th>F. Ingreso</th>
+                <th>F. Retiro</th>
+                <th class="text-center">Tipo</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var c in ContratacionesFiltradas.OrderByDescending(x => x.FechaIngreso))
+            {
+                <tr>
+                    <td class="fw-semibold">@c.NombrePersona</td>
+                    <td class="small">@c.Cargo</td>
+                    <td class="small text-muted">@c.Municipio</td>
+                    <td class="small">@c.FechaIngreso.ToString("dd/MM/yyyy")</td>
+                    <td class="small">@(c.FechaRetiro?.ToString("dd/MM/yyyy") ?? "Activo")</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(c.EsLocal ? "Saludable" : "Sin datos")"
+                                    Texto="@(c.EsLocal ? "Local" : "Foráneo")" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == c.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -167,7 +165,11 @@ else
     private List<RenergeIA.Core.Entities.HSEQ.ContratacionLocal> _contrataciones = [];
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
+    private string _busqueda = "";
     private FormModel _form = new();
+    private IEnumerable<RenergeIA.Core.Entities.HSEQ.ContratacionLocal> ContratacionesFiltradas => _contrataciones
+        .Where(c => string.IsNullOrEmpty(_busqueda) || c.NombrePersona.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || c.Cargo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || c.Municipio.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

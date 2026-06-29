@@ -1,0 +1,36 @@
+<div class="rn-page-header">
+    @if (!string.IsNullOrEmpty(UrlVolver))
+    {
+        <a href="@UrlVolver" class="btn btn-sm btn-outline-secondary rn-page-back">
+            <i class="bi-arrow-left-short"></i>@TextoVolver
+        </a>
+    }
+    <div class="rn-page-title-group">
+        <h1 class="rn-page-h1">
+            @if (!string.IsNullOrEmpty(Icono))
+            {
+                <i class="bi @Icono rn-page-icon"></i>
+            }
+            @Titulo
+        </h1>
+        @if (!string.IsNullOrEmpty(Subtitulo))
+        {
+            <small class="text-muted">@Subtitulo</small>
+        }
+    </div>
+    @if (Acciones is not null)
+    {
+        <div class="rn-page-actions">
+            @Acciones
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string           Titulo      { get; set; } = "";
+    [Parameter] public string           Icono       { get; set; } = "";
+    [Parameter] public string           Subtitulo   { get; set; } = "";
+    [Parameter] public string           UrlVolver   { get; set; } = "";
+    [Parameter] public string           TextoVolver { get; set; } = "Volver";
+    [Parameter] public RenderFragment?  Acciones    { get; set; }
+}

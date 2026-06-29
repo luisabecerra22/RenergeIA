@@ -10,16 +10,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/social" class="btn btn-sm btn-outline-secondary">&larr; Social</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-cart-check me-2" style="color:#183963"></i>Compras Locales</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Registrar Compra
-        </button>
-    </div>
+    <PageHeader Titulo="Compras Locales"
+                Icono="bi-cart-check"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/social")"
+                TextoVolver="Social">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Registrar Compra
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -80,84 +81,83 @@ else
     }
 
     <div class="row g-3 mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_compras.Count</div>
-                <div class="text-muted small">Total compras</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Total Compras"
+                           Valor="@_compras.Count.ToString()"
+                           Icono="bi-cart-fill"
+                           SubTexto="transacciones registradas"
+                           Estado="Informativo" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_compras.Count(c => c.EsLocal)</div>
-                <div class="text-muted small">A proveedores locales</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="A Proveedores Locales"
+                           Valor="@_compras.Count(c => c.EsLocal).ToString()"
+                           Icono="bi-shop"
+                           SubTexto="proveedores del municipio"
+                           Estado="Saludable" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
-                <div class="fw-bold" style="font-size:1.3rem;color:#183963">$@_compras.Sum(c => c.ValorCOP).ToString("N0")</div>
-                <div class="text-muted small">Total compras</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Valor Total"
+                           Valor="@("$" + _compras.Sum(c => c.ValorCOP).ToString("N0"))"
+                           Icono="bi-currency-dollar"
+                           SubTexto="COP total invertido"
+                           Estado="Informativo" />
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div class="fw-bold" style="font-size:1.3rem;color:#6ABF4B">$@_compras.Where(c => c.EsLocal).Sum(c => c.ValorCOP).ToString("N0")</div>
-                <div class="text-muted small">Total compras locales</div>
-            </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Valor Local"
+                           Valor="@("$" + _compras.Where(c => c.EsLocal).Sum(c => c.ValorCOP).ToString("N0"))"
+                           Icono="bi-cash-coin"
+                           SubTexto="COP a proveedores locales"
+                           Estado="Saludable" />
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Proveedor</th>
-                        <th>Descripción</th>
-                        <th>Municipio</th>
-                        <th class="text-center">Valor COP</th>
-                        <th>Fecha</th>
-                        <th>Factura</th>
-                        <th class="text-center">Tipo</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_compras.Any())
-                    {
-                        <tr><td colspan="8" class="text-center text-muted py-4">No hay compras locales registradas.</td></tr>
-                    }
-                    @foreach (var c in _compras.OrderByDescending(x => x.Fecha))
-                    {
-                        <tr>
-                            <td class="fw-semibold">@c.Proveedor</td>
-                            <td class="small">@c.Descripcion</td>
-                            <td class="small text-muted">@c.Municipio</td>
-                            <td class="text-center fw-semibold">$@c.ValorCOP.ToString("N0")</td>
-                            <td class="small">@c.Fecha.ToString("dd/MM/yyyy")</td>
-                            <td class="small text-muted">@(c.NumeroFactura ?? "—")</td>
-                            <td class="text-center">
-                                @if (c.EsLocal)
-                                { <span class="badge bg-success">Local</span> }
-                                else
-                                { <span class="badge bg-secondary">Foráneo</span> }
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == c.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="8"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar proveedor, descripción o municipio..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!ComprasFiltradas.Any()"
+                MensajeVacio="No hay compras locales registradas.">
+        <Encabezados>
+            <tr>
+                <th>Proveedor</th>
+                <th>Descripción</th>
+                <th>Municipio</th>
+                <th class="text-center">Valor COP</th>
+                <th>Fecha</th>
+                <th>Factura</th>
+                <th class="text-center">Tipo</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var c in ComprasFiltradas.OrderByDescending(x => x.Fecha))
+            {
+                <tr>
+                    <td class="fw-semibold">@c.Proveedor</td>
+                    <td class="small">@c.Descripcion</td>
+                    <td class="small text-muted">@c.Municipio</td>
+                    <td class="text-center fw-semibold">$@c.ValorCOP.ToString("N0")</td>
+                    <td class="small">@c.Fecha.ToString("dd/MM/yyyy")</td>
+                    <td class="small text-muted">@(c.NumeroFactura ?? "—")</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(c.EsLocal ? "Saludable" : "Sin datos")"
+                                    Texto="@(c.EsLocal ? "Local" : "Foráneo")" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == c.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -167,7 +167,11 @@ else
     private List<CompraLocal> _compras = [];
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
+    private string _busqueda = "";
     private FormModel _form = new();
+    private IEnumerable<CompraLocal> ComprasFiltradas => _compras
+        .Where(c => string.IsNullOrEmpty(_busqueda) || c.Proveedor.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || c.Descripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) || c.Municipio.Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

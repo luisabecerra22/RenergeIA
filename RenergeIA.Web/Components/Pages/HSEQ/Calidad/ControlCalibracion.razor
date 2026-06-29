@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-secondary">&larr; Calidad</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-tools me-2" style="color:#183963"></i>Control de Calibración de Equipos</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Nuevo Equipo
-        </button>
-    </div>
+    <PageHeader Titulo="Control de Calibración de Equipos"
+                Icono="bi-tools"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/calidad")"
+                TextoVolver="Calidad">
+        <Acciones>
+            <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Nuevo Equipo
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -90,97 +91,89 @@ else
         </div>
     }
 
-    <!-- Semáforo visual -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                <div style="font-size:2rem;color:#6ABF4B"><i class="bi-circle-fill"></i></div>
-                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vigente)</div>
-                <div class="text-muted small">Vigentes</div>
-            </div>
+            <ExecutiveCard Titulo="Vigentes"
+                           Valor="@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vigente).ToString()"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="calibración al día"
+                           Estado="Saludable" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div style="font-size:2rem;color:#fd7e14"><i class="bi-circle-fill"></i></div>
-                <div class="fw-bold" style="font-size:1.8rem;color:#fd7e14">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.ProximoAVencer)</div>
-                <div class="text-muted small">Próximos a Vencer</div>
-            </div>
+            <ExecutiveCard Titulo="Próximos a Vencer"
+                           Valor="@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.ProximoAVencer).ToString()"
+                           Icono="bi-exclamation-circle"
+                           SubTexto="vencen en 30 días"
+                           Estado="@(_equipos.Any(e => EstadoCalib(e) == EstadoCalibracion.ProximoAVencer) ? "En Riesgo" : "Saludable")" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                <div style="font-size:2rem;color:#dc3545"><i class="bi-circle-fill"></i></div>
-                <div class="fw-bold" style="font-size:1.8rem;color:#dc3545">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vencido)</div>
-                <div class="text-muted small">Vencidos</div>
-            </div>
+            <ExecutiveCard Titulo="Vencidos"
+                           Valor="@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.Vencido).ToString()"
+                           Icono="bi-x-circle-fill"
+                           SubTexto="requieren re-calibración"
+                           Estado="@(_equipos.Any(e => EstadoCalib(e) == EstadoCalibracion.Vencido) ? "Crítico" : "Saludable")" />
         </div>
         <div class="col-6 col-md-3">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-secondary">
-                <div style="font-size:2rem;color:#6c757d"><i class="bi-circle-fill"></i></div>
-                <div class="fw-bold" style="font-size:1.8rem;color:#6c757d">@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.SinCertificado)</div>
-                <div class="text-muted small">Sin Certificado</div>
-            </div>
+            <ExecutiveCard Titulo="Sin Certificado"
+                           Valor="@_equipos.Count(e => EstadoCalib(e) == EstadoCalibracion.SinCertificado).ToString()"
+                           Icono="bi-slash-circle"
+                           SubTexto="sin certificación registrada"
+                           Estado="Sin datos" />
         </div>
     </div>
 
-    <div class="d-flex gap-2 mb-3">
-        <input class="form-control form-control-sm" style="max-width:250px" placeholder="Buscar equipo..."
-               @bind="_busqueda" @bind:event="oninput" />
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Código</th>
-                        <th>Equipo</th>
-                        <th>Marca / Modelo</th>
-                        <th>Serial</th>
-                        <th>Vencimiento</th>
-                        <th class="text-center">Estado</th>
-                        <th>Responsable</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!EquiposFiltrados.Any())
-                    {
-                        <tr><td colspan="8" class="text-center text-muted py-4">No hay equipos registrados.</td></tr>
-                    }
-                    @foreach (var e in EquiposFiltrados)
-                    {
-                        var estado = EstadoCalib(e);
-                        <tr>
-                            <td class="font-monospace small text-muted">@e.Codigo</td>
-                            <td class="fw-semibold">@e.Nombre</td>
-                            <td class="text-muted small">@e.Marca @e.Modelo</td>
-                            <td class="text-muted small">@(e.Serial ?? "—")</td>
-                            <td class="small @(estado == EstadoCalibracion.Vencido ? "text-danger fw-bold" : estado == EstadoCalibracion.ProximoAVencer ? "text-warning fw-semibold" : "")">
-                                @(e.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
-                            </td>
-                            <td class="text-center">
-                                <span class="badge @BadgeCalib(estado)">@EnumDisplay.Mostrar(estado)</span>
-                            </td>
-                            <td class="small">@e.Responsable</td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == e.Id)
-                                {
-                                    <span class="me-1 text-danger small">¿Eliminar?</span>
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(e.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(e)"><i class="bi-pencil"></i></button>
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = e.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="8"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar código o equipo..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!EquiposFiltrados.Any()"
+                MensajeVacio="No hay equipos registrados.">
+        <Encabezados>
+            <tr>
+                <th>Código</th>
+                <th>Equipo</th>
+                <th>Marca / Modelo</th>
+                <th>Serial</th>
+                <th>Vencimiento</th>
+                <th class="text-center">Estado</th>
+                <th>Responsable</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var e in EquiposFiltrados)
+            {
+                var estado = EstadoCalib(e);
+                <tr>
+                    <td class="font-monospace small text-muted">@e.Codigo</td>
+                    <td class="fw-semibold">@e.Nombre</td>
+                    <td class="text-muted small">@e.Marca @e.Modelo</td>
+                    <td class="text-muted small">@(e.Serial ?? "—")</td>
+                    <td class="small @(estado == EstadoCalibracion.Vencido ? "text-danger fw-bold" : estado == EstadoCalibracion.ProximoAVencer ? "text-warning fw-semibold" : "")">
+                        @(e.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")
+                    </td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(estado == EstadoCalibracion.Vigente ? "Saludable" : estado == EstadoCalibracion.ProximoAVencer ? "En Riesgo" : estado == EstadoCalibracion.Vencido ? "Crítico" : "Sin datos")"
+                                    Texto="@EnumDisplay.Mostrar(estado)" />
+                    </td>
+                    <td class="small">@e.Responsable</td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == e.Id)
+                        {
+                            <span class="me-1 text-danger small">¿Eliminar?</span>
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(e.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(e)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = e.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -271,6 +264,8 @@ else
         _confirmandoEliminar = null;
         await CargarAsync();
     }
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     private static EstadoCalibracion EstadoCalib(EquipoCalibracion e) =>
         e.FechaVencimiento is null ? EstadoCalibracion.SinCertificado :

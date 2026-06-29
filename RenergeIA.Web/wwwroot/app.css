@@ -402,3 +402,209 @@ h1:focus {
 .rn-table tbody tr:hover { background-color: rgba(24, 57, 99, .04); }
 .rn-table .sortable { cursor: pointer; user-select: none; }
 .rn-table .sortable:hover { background-color: #122d4e !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPONENTES v2 — PageHeader · FilterBar · ExecutiveCard
+   GaugeKPI · DonutKPI · StatusChip · SmartTable · AIPanel
+   DashboardLayout
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── DashboardLayout ── */
+.rn-module-layout { max-width: 1600px; }
+
+/* ── PageHeader ── */
+.rn-page-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+.rn-page-back { white-space: nowrap; }
+.rn-page-title-group { flex: 1; min-width: 0; }
+.rn-page-icon {
+    font-size: 1.4rem;
+    color: #6ABF4B;
+    margin-right: .35rem;
+    vertical-align: middle;
+}
+.rn-page-h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #183963;
+    margin: 0;
+    line-height: 1.2;
+}
+.rn-page-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
+/* ── FilterBar (navegación de módulo / filtros nivel 1) ── */
+.rn-filter-bar {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: .625rem .875rem;
+    background: #f8f9fa;
+    border-radius: .5rem;
+    border: 1px solid #dee2e6;
+    margin-bottom: 1.5rem;
+}
+
+/* ── ExecutiveCard ── */
+.rn-exec-card {
+    background: #fff;
+    border-radius: .5rem;
+    padding: 1rem .875rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+.rn-exec-card:hover {
+    box-shadow: 0 6px 18px rgba(24, 57, 99, .14);
+    transform: translateY(-2px);
+}
+.rn-exec-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: .25rem;
+}
+.rn-exec-icon { font-size: 1.4rem; line-height: 1; }
+.rn-exec-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #183963;
+}
+.rn-exec-title {
+    font-size: .76rem;
+    font-weight: 600;
+    color: #183963;
+    line-height: 1.3;
+}
+.rn-exec-sub { font-size: .68rem; color: #6c757d; }
+.rn-exec-trend {
+    font-size: .7rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: .2rem;
+}
+.rn-trend-up   { color: #6ABF4B; }
+.rn-trend-down { color: #dc3545; }
+
+/* ── GaugeKPI (trend extension del gauge) ── */
+.rn-gauge-trend {
+    font-size: .68rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: .2rem;
+}
+
+/* ── DonutKPI (conic-gradient) ── */
+.rn-donut-card {
+    background: #fff;
+    border-radius: .5rem;
+    padding: .875rem .75rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: .4rem;
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+.rn-donut-card:hover {
+    box-shadow: 0 6px 18px rgba(24, 57, 99, .14);
+    transform: translateY(-2px);
+}
+.rn-donut-ring {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: conic-gradient(
+        var(--rn-donut-clr, #183963) calc(var(--rn-donut-pct, 0) * 1%),
+        #e9ecef 0
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rn-donut-inner {
+    width: 68px;
+    height: 68px;
+    background: #fff;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+}
+.rn-donut-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.rn-donut-sub-inner {
+    font-size: .5rem;
+    color: #6c757d;
+    text-align: center;
+    max-width: 54px;
+    line-height: 1.2;
+}
+.rn-donut-title {
+    font-size: .76rem;
+    font-weight: 600;
+    color: #183963;
+    line-height: 1.2;
+}
+
+/* ── StatusChip (extensión de rn-badge) ── */
+.rn-badge-lg    { font-size: .75rem; padding: 4px 14px; }
+.rn-badge-sin-datos { background: #e9ecef; color: #495057; }
+
+/* ── SmartTable ── */
+.rn-smart-table {
+    background: #fff;
+    border-radius: .5rem;
+    box-shadow: 0 2px 8px rgba(24, 57, 99, .08);
+    overflow: hidden;
+}
+.rn-smart-search {
+    padding: .625rem .875rem;
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+}
+.rn-smart-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: #6c757d;
+    font-size: .85rem;
+}
+.rn-smart-empty-icon {
+    font-size: 2.2rem;
+    display: block;
+    margin-bottom: .625rem;
+    color: #dee2e6;
+}
+
+/* ── AIPanel (secciones estructuradas del análisis IA) ── */
+.rn-ia-section { margin-bottom: .875rem; }
+.rn-ia-section:last-child { margin-bottom: 0; }
+.rn-ia-section-label {
+    font-size: .63rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: rgba(255, 255, 255, .55);
+    margin-bottom: .3rem;
+}
+.rn-ia-section-content { font-size: .83rem; line-height: 1.5; }
+.rn-ia-section-content ul { margin: 0; padding-left: 1.1rem; }
+.rn-ia-section-content li { margin-bottom: .15rem; }

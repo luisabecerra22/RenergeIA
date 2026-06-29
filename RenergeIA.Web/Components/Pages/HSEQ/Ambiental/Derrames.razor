@@ -11,16 +11,17 @@
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-secondary">&larr; Ambiental</a>
-        <div class="flex-grow-1">
-            <h1 class="h4 mb-0"><i class="bi-droplet-half me-2" style="color:#dc3545"></i>Registro de Derrames</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
-        <button class="btn btn-danger btn-sm" @onclick="MostrarFormulario">
-            <i class="bi-plus-lg me-1"></i>Registrar Derrame
-        </button>
-    </div>
+    <PageHeader Titulo="Registro de Derrames"
+                Icono="bi-droplet-half"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental")"
+                TextoVolver="Ambiental">
+        <Acciones>
+            <button class="btn btn-danger btn-sm" @onclick="MostrarFormulario">
+                <i class="bi-plus-lg me-1"></i>Registrar Derrame
+            </button>
+        </Acciones>
+    </PageHeader>
 
     @if (_mostrarFormulario)
     {
@@ -87,91 +88,82 @@ else
 
     <div class="row g-3 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 @(_derrames.Any() ? "border-danger" : "border-success")">
-                <div class="fw-bold" style="font-size:2rem;color:@(_derrames.Any() ? "#dc3545" : "#6ABF4B")">@_derrames.Count</div>
-                <div class="text-muted small">Derrames registrados</div>
-            </div>
+            <ExecutiveCard Titulo="Derrames Registrados"
+                           Valor="@_derrames.Count.ToString()"
+                           Icono="bi-droplet-half"
+                           Estado="@(_derrames.Any() ? "Crítico" : "Saludable")" />
         </div>
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
-                <div class="fw-bold" style="font-size:2rem;color:#ffc107">@_derrames.Sum(d => d.VolumenLitros).ToString("N1")</div>
-                <div class="text-muted small">Total litros derramados</div>
-            </div>
+            <ExecutiveCard Titulo="Total Litros Derramados"
+                           Valor="@_derrames.Sum(d => d.VolumenLitros).ToString("N1")"
+                           Icono="bi-droplet"
+                           Estado="@(_derrames.Sum(d => d.VolumenLitros) > 0 ? "En Riesgo" : "Saludable")" />
         </div>
         <div class="col-md-4">
-            @if (!_derrames.Any())
+            @if (_derrames.Any())
             {
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
-                    <i class="bi-check-circle-fill text-success d-block mb-1" style="font-size:2rem"></i>
-                    <div class="text-muted small">Sin derrames. ¡Excelente!</div>
-                </div>
+                <ExecutiveCard Titulo="Último Derrame"
+                               Valor="@_derrames.Max(d => d.FechaEvento).ToString("dd/MM/yyyy")"
+                               Icono="bi-calendar-x"
+                               Estado="Crítico" />
             }
             else
             {
-                <div class="card shadow-sm p-3 text-center border-start border-4 border-danger">
-                    <div class="fw-bold" style="font-size:1.2rem;color:#dc3545">
-                        @(_derrames.Max(d => d.FechaEvento).ToString("dd/MM/yyyy"))
-                    </div>
-                    <div class="text-muted small">Fecha último derrame</div>
-                </div>
+                <ExecutiveCard Titulo="Estado Ambiental"
+                               Valor="Sin derrames"
+                               Icono="bi-check-circle"
+                               Estado="Saludable" />
             }
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Número</th>
-                        <th>Sustancia</th>
-                        <th class="text-center">Litros</th>
-                        <th>Frente</th>
-                        <th>Reportado Por</th>
-                        <th>Fecha</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (!_derrames.Any())
-                    {
-                        <tr><td colspan="8" class="text-center py-4">
-                            <i class="bi-check-circle text-success d-block mb-2" style="font-size:2rem"></i>
-                            <span class="text-muted">Sin derrames registrados. ¡Excelente desempeño ambiental!</span>
-                        </td></tr>
-                    }
-                    @foreach (var d in _derrames.OrderByDescending(x => x.FechaEvento))
-                    {
-                        <tr>
-                            <td class="font-monospace small text-muted">@d.Numero</td>
-                            <td>@d.Sustancia</td>
-                            <td class="text-center fw-semibold">@d.VolumenLitros.ToString("N1")</td>
-                            <td class="small text-muted">@d.FrenteTrabajo</td>
-                            <td class="small">@d.ReportadoPor</td>
-                            <td class="small">@d.FechaEvento.ToString("dd/MM/yyyy")</td>
-                            <td class="text-center">
-                                <span class="badge @(d.Estado == EstadoNoConformidad.Cerrada ? "bg-success" : "bg-danger")">
-                                    @EnumDisplay.Mostrar(d.Estado)
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                @if (_confirmandoEliminar == d.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(d.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = d.Id"><i class="bi-trash"></i></button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <SmartTable Columnas="8"
+                MostrarBusqueda="true"
+                PlaceholderBusqueda="Buscar por sustancia o reportado por..."
+                BusquedaCambiada="OnBusqueda"
+                Vacio="!DerramasFiltrados.Any()"
+                MensajeVacio="Sin derrames registrados. ¡Excelente desempeño ambiental!">
+        <Encabezados>
+            <tr>
+                <th>Número</th>
+                <th>Sustancia</th>
+                <th class="text-center">Litros</th>
+                <th>Frente</th>
+                <th>Reportado Por</th>
+                <th>Fecha</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center">Acciones</th>
+            </tr>
+        </Encabezados>
+        <Filas>
+            @foreach (var d in DerramasFiltrados)
+            {
+                <tr>
+                    <td class="font-monospace small text-muted">@d.Numero</td>
+                    <td>@d.Sustancia</td>
+                    <td class="text-center fw-semibold">@d.VolumenLitros.ToString("N1")</td>
+                    <td class="small text-muted">@d.FrenteTrabajo</td>
+                    <td class="small">@d.ReportadoPor</td>
+                    <td class="small">@d.FechaEvento.ToString("dd/MM/yyyy")</td>
+                    <td class="text-center">
+                        <StatusChip Estado="@(d.Estado == EstadoNoConformidad.Cerrada ? "Saludable" : d.Estado == EstadoNoConformidad.EnImplementacion ? "En Riesgo" : "Crítico")"
+                                    Texto="@EnumDisplay.Mostrar(d.Estado)" />
+                    </td>
+                    <td class="text-center">
+                        @if (_confirmandoEliminar == d.Id)
+                        {
+                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(d.Id)">Sí</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = d.Id"><i class="bi-trash"></i></button>
+                        }
+                    </td>
+                </tr>
+            }
+        </Filas>
+    </SmartTable>
 }
 
 @code {
@@ -181,7 +173,16 @@ else
     private List<Derrame> _derrames = [];
     private bool _mostrarFormulario;
     private int? _confirmandoEliminar;
+    private string _busqueda = "";
     private FormModel _form = new();
+
+    private IEnumerable<Derrame> DerramasFiltrados => _derrames
+        .Where(d => string.IsNullOrEmpty(_busqueda) ||
+                    d.Sustancia.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                    d.ReportadoPor.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(d => d.FechaEvento);
+
+    private void OnBusqueda(string v) => _busqueda = v;
 
     protected override async Task OnInitializedAsync()
     {

@@ -1,0 +1,62 @@
+<div class="rn-gauge-card h-100">
+    <div class="rn-gauge-ring" style="--rn-size:@(SizePx)px">
+        <svg viewBox="0 0 36 36" width="@SizePx" height="@SizePx" aria-hidden="true">
+            <circle class="rn-gauge-track" cx="18" cy="18" r="15.9155" />
+            <circle class="rn-gauge-arc"
+                    cx="18" cy="18" r="15.9155"
+                    stroke="@_color"
+                    stroke-dasharray="@_pct 100"
+                    transform="rotate(-90 18 18)" />
+        </svg>
+        <div class="rn-gauge-center">
+            <div class="rn-gauge-value" style="color:@_color">@ValorCentral</div>
+            <div class="rn-gauge-sub">@SubTexto</div>
+        </div>
+    </div>
+    <div class="rn-gauge-title">@Titulo</div>
+    <span class="rn-badge rn-badge-@_slug">@Estado</span>
+    @if (!string.IsNullOrEmpty(Tendencia))
+    {
+        <div class="rn-gauge-trend @(TendenciaPositiva ? "rn-trend-up" : "rn-trend-down")">
+            <i class="bi @(TendenciaPositiva ? "bi-arrow-up-short" : "bi-arrow-down-short")"></i>
+            <span>@Tendencia</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string  Titulo            { get; set; } = "";
+    [Parameter] public string  ValorCentral      { get; set; } = "0";
+    [Parameter] public string  SubTexto          { get; set; } = "";
+    [Parameter] public int     Porcentaje        { get; set; }
+    [Parameter] public string  Estado            { get; set; } = "Informativo";
+    [Parameter] public string? Color             { get; set; }
+    [Parameter] public int     SizePx            { get; set; } = 118;
+    [Parameter] public string  Tendencia         { get; set; } = "";
+    [Parameter] public bool    TendenciaPositiva { get; set; } = true;
+
+    private int    _pct   = 0;
+    private string _color = "#183963";
+    private string _slug  = "informativo";
+
+    protected override void OnParametersSet()
+    {
+        _pct = Math.Clamp(Porcentaje, 0, 100);
+        _color = Color ?? Estado switch
+        {
+            "Saludable" => "#6ABF4B",
+            "En Riesgo" => "#ffc107",
+            "Riesgo"    => "#fd7e14",
+            "Crítico"   => "#dc3545",
+            _           => "#183963"
+        };
+        _slug = Estado switch
+        {
+            "Saludable" => "saludable",
+            "En Riesgo" => "en-riesgo",
+            "Riesgo"    => "riesgo",
+            "Crítico"   => "critico",
+            _           => "informativo"
+        };
+    }
+}
