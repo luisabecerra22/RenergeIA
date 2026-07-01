@@ -1,0 +1,255 @@
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+@implements IAsyncDisposable
+
+@if (_cargando)
+{
+    <div class="text-center py-5">
+        <span class="spinner-border" style="color:#183963"></span>
+        <p class="mt-2 text-muted small">Calculando métricas...</p>
+    </div>
+}
+else
+{
+    <!-- 8 KPIs -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
+                <i class="bi-currency-dollar mb-1" style="color:#183963;font-size:1.4rem"></i>
+                <div class="small text-muted">Presupuesto Total</div>
+                <div class="fw-bold" style="color:#183963">@FormatCOP(_presupuestoTotal)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #6ABF4B">
+                <i class="bi-receipt mb-1" style="color:#6ABF4B;font-size:1.4rem"></i>
+                <div class="small text-muted">Total Ejecutado</div>
+                <div class="fw-bold" style="color:#6ABF4B">@FormatCOP(_ejecutadoTotal)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #fd7e14">
+                <i class="bi-file-earmark-text mb-1" style="color:#fd7e14;font-size:1.4rem"></i>
+                <div class="small text-muted">Compromisos Activos</div>
+                <div class="fw-bold" style="color:#fd7e14">@FormatCOP(_compromisosActivos)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid @(_exposicion > _presupuestoTotal ? "#dc3545" : "#D9D9D6")">
+                <i class="bi-graph-up-arrow mb-1" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963");font-size:1.4rem"></i>
+                <div class="small text-muted">Exposición Total</div>
+                <div class="fw-bold" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")">@FormatCOP(_exposicion)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
+                <i class="bi-percent mb-1" style="color:#183963;font-size:1.4rem"></i>
+                <div class="small text-muted">% Ejecución</div>
+                <div class="fw-bold" style="color:@(_pctEjecucion > 100 ? "#dc3545" : "#183963")">@_pctEjecucion.ToString("F1")%</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid @(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">
+                <i class="bi-wallet2 mb-1" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B");font-size:1.4rem"></i>
+                <div class="small text-muted">Saldo Disponible</div>
+                <div class="fw-bold" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">@FormatCOP(_saldoDisponible)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
+                <i class="bi-receipt-cutoff mb-1" style="color:#183963;font-size:1.4rem"></i>
+                <div class="small text-muted">Registros de Costo</div>
+                <div class="fw-bold" style="color:#183963">@_numRegistros</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center" style="border:1px solid #dc3545">
+                <i class="bi-exclamation-triangle mb-1" style="color:#dc3545;font-size:1.4rem"></i>
+                <div class="small text-muted">Compromisos Vencidos</div>
+                <div class="fw-bold" style="color:#dc3545">@_compromisosVencidos</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4 gráficas -->
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="fw-semibold mb-2 small" style="color:#183963">
+                    <i class="bi-bar-chart me-1"></i>Presupuesto vs Ejecutado vs Compromisos (por categoría)
+                </div>
+                <canvas id="chart-comparativo-@ProyectoId" style="max-height:260px"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="fw-semibold mb-2 small" style="color:#183963">
+                    <i class="bi-pie-chart me-1"></i>Distribución por tipo de costo
+                </div>
+                <canvas id="chart-tipos-@ProyectoId" style="max-height:260px"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="fw-semibold mb-2 small" style="color:#183963">
+                    <i class="bi-graph-up me-1"></i>Evolución mensual de costos reales
+                </div>
+                <canvas id="chart-mensual-@ProyectoId" style="max-height:260px"></canvas>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm p-3">
+                <div class="fw-semibold mb-2 small" style="color:#183963">
+                    <i class="bi-pie-chart-fill me-1"></i>Estado de compromisos
+                </div>
+                <canvas id="chart-compromisos-@ProyectoId" style="max-height:260px"></canvas>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private bool _cargando = true;
+
+    private decimal _presupuestoTotal;
+    private decimal _ejecutadoTotal;
+    private decimal _compromisosActivos;
+    private decimal _exposicion;
+    private decimal _pctEjecucion;
+    private decimal _saldoDisponible;
+    private int     _numRegistros;
+    private int     _compromisosVencidos;
+
+    // datos para gráficas
+    private string[] _categoriaLabels = [];
+    private decimal[] _presupCat      = [];
+    private decimal[] _ejecutadoCat   = [];
+    private decimal[] _compromisosCat = [];
+    private string[] _tipoLabels      = [];
+    private decimal[] _tipoValores    = [];
+    private string[] _mesesLabels     = [];
+    private decimal[] _mesesValores   = [];
+    private string[] _estadoLabels    = [];
+    private int[]    _estadoConteo    = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var partidas = await Db.Partidas.AsNoTracking()
+            .Include(p => p.CostosReales)
+            .Include(p => p.SubPartidas).ThenInclude(s => s.CostosReales)
+            .Where(p => p.ProyectoId == ProyectoId && p.EsPrincipal)
+            .ToListAsync();
+
+        var subPartidas = await Db.Partidas.AsNoTracking()
+            .Include(p => p.CostosReales)
+            .Where(p => p.ProyectoId == ProyectoId && !p.EsPrincipal)
+            .ToListAsync();
+
+        var compromisos = await Db.CompromisoCostos.AsNoTracking()
+            .Where(c => c.ProyectoId == ProyectoId)
+            .ToListAsync();
+
+        var todosLosReales = subPartidas.SelectMany(p => p.CostosReales).ToList();
+
+        _presupuestoTotal    = subPartidas.Sum(p => p.MontoPresupuestado);
+        _ejecutadoTotal      = subPartidas.Sum(p => p.ValorEjecutado);
+        _compromisosActivos  = compromisos
+            .Where(c => c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado
+                     && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Pagado)
+            .Sum(c => c.Valor);
+        _exposicion          = _ejecutadoTotal + _compromisosActivos;
+        _pctEjecucion        = _presupuestoTotal > 0 ? _ejecutadoTotal / _presupuestoTotal * 100 : 0;
+        _saldoDisponible     = _presupuestoTotal - _exposicion;
+        _numRegistros        = todosLosReales.Count;
+        _compromisosVencidos = compromisos.Count(c =>
+            c.FechaVencimiento.HasValue && c.FechaVencimiento.Value < DateTime.Today
+            && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Pagado
+            && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado);
+
+        // Datos gráfica 1: por categoría
+        _categoriaLabels = partidas.Select(p => p.Codigo).ToArray();
+        _presupCat = partidas.Select(p =>
+            subPartidas.Where(s => s.PadreId == p.Id).Sum(s => s.MontoPresupuestado)).ToArray();
+        _ejecutadoCat = partidas.Select(p =>
+            subPartidas.Where(s => s.PadreId == p.Id).Sum(s => s.ValorEjecutado)).ToArray();
+        _compromisosCat = partidas.Select(p =>
+        {
+            var subIds = subPartidas.Where(s => s.PadreId == p.Id).Select(s => s.Id).ToHashSet();
+            return compromisos.Where(c => c.PartidaId.HasValue && subIds.Contains(c.PartidaId.Value)
+                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado
+                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Pagado)
+                              .Sum(c => c.Valor);
+        }).ToArray();
+
+        // Datos gráfica 2: por tipo
+        var porTipo = todosLosReales.GroupBy(c => c.TipoCosto)
+            .Select(g => (Tipo: g.Key, Valor: g.Sum(c => c.Cantidad * c.PrecioUnitario)))
+            .OrderByDescending(x => x.Valor).ToList();
+        _tipoLabels  = porTipo.Select(x => x.Tipo).ToArray();
+        _tipoValores = porTipo.Select(x => x.Valor).ToArray();
+
+        // Datos gráfica 3: mensual
+        var porMes = todosLosReales
+            .Where(c => c.Fecha.Year >= DateTime.Today.Year - 1)
+            .GroupBy(c => new { c.Fecha.Year, c.Fecha.Month })
+            .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+            .Select(g => (
+                Label: $"{g.Key.Month:D2}/{g.Key.Year}",
+                Valor: g.Sum(c => c.Cantidad * c.PrecioUnitario)))
+            .ToList();
+        _mesesLabels  = porMes.Select(x => x.Label).ToArray();
+        _mesesValores = porMes.Select(x => x.Valor).ToArray();
+
+        // Datos gráfica 4: estado compromisos
+        var porEstado = Enum.GetValues<RenergeIA.Core.Enums.EstadoCompromiso>()
+            .Select(e => (Label: LabelEstado(e), Count: compromisos.Count(c => c.Estado == e)))
+            .Where(x => x.Count > 0).ToList();
+        _estadoLabels = porEstado.Select(x => x.Label).ToArray();
+        _estadoConteo = porEstado.Select(x => x.Count).ToArray();
+
+        _cargando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _cargando) return;
+
+        await JS.InvokeVoidAsync("renderCostosCharts", ProyectoId,
+            new
+            {
+                categoriaLabels  = _categoriaLabels,
+                presupCat        = _presupCat.Select(v => (double)v).ToArray(),
+                ejecutadoCat     = _ejecutadoCat.Select(v => (double)v).ToArray(),
+                compromisosCat   = _compromisosCat.Select(v => (double)v).ToArray(),
+                tipoLabels       = _tipoLabels,
+                tipoValores      = _tipoValores.Select(v => (double)v).ToArray(),
+                mesesLabels      = _mesesLabels,
+                mesesValores     = _mesesValores.Select(v => (double)v).ToArray(),
+                estadoLabels     = _estadoLabels,
+                estadoConteo     = _estadoConteo
+            });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("destroyCostosCharts", ProyectoId); } catch { }
+    }
+
+    private static string LabelEstado(RenergeIA.Core.Enums.EstadoCompromiso e) => e switch
+    {
+        RenergeIA.Core.Enums.EstadoCompromiso.Pendiente  => "Pendiente",
+        RenergeIA.Core.Enums.EstadoCompromiso.Aprobado   => "Aprobado",
+        RenergeIA.Core.Enums.EstadoCompromiso.EnProceso  => "En Proceso",
+        RenergeIA.Core.Enums.EstadoCompromiso.Pagado     => "Pagado",
+        RenergeIA.Core.Enums.EstadoCompromiso.Vencido    => "Vencido",
+        RenergeIA.Core.Enums.EstadoCompromiso.Cancelado  => "Cancelado",
+        _                                                 => e.ToString()
+    };
+
+    private static readonly System.Globalization.CultureInfo _co = new("es-CO");
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+}

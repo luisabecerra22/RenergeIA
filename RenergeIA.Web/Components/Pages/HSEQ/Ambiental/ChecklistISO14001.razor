@@ -1,125 +1,199 @@
 @page "/proyectos/{ProyectoId:int}/hseq/ambiental/checklist"
+@page "/proyectos/{ProyectoId:int}/hseq/ambiental/checklist/{AuditoriaId:int}"
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ChecklistISO9001Service ChecklistSvc
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
 
-<PageTitle>Checklist ISO 14001 — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+<PageTitle>
+    @if (_modoDetalle)
+    { @($"Auditoría ISO 14001 — {_auditoria?.Auditor ?? ""}") }
+    else
+    { @($"Checklist ISO 14001 — {_proyecto?.Nombre ?? ""}") }
+</PageTitle>
 
-@if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
-else
+@if (_proyecto is null)
 {
-    <PageHeader Titulo="Checklist ISO 14001"
+    <p class="text-muted p-4">Cargando...</p>
+}
+else if (!_modoDetalle)
+{
+    <!-- ══════════════════════════════════════════════════════════
+         VISTA LISTADO DE AUDITORÍAS
+    ══════════════════════════════════════════════════════════ -->
+    <PageHeader Titulo="Auditorías ISO 14001:2015"
                 Icono="bi-tree"
                 Subtitulo="@_proyecto.Nombre"
                 UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental")"
                 TextoVolver="Ambiental">
         <Acciones>
-            <button class="btn btn-success btn-sm" @onclick="MostrarFormulario">
+            <button type="button" class="btn btn-success btn-sm" @onclick="MostrarFormNueva">
                 <i class="bi-plus-lg me-1"></i>Nueva Auditoría
             </button>
         </Acciones>
     </PageHeader>
 
-    @if (_mostrarFormulario)
+    @if (_mensajeListado is not null)
     {
-        <div class="card shadow-sm mb-4 border-success">
-            <div class="card-header text-white d-flex justify-content-between" style="background:#6ABF4B">
-                <strong>Nueva Auditoría ISO 14001</strong>
-                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi-exclamation-triangle-fill me-2"></i>@_mensajeListado
+            <button type="button" class="btn-close" @onclick="() => _mensajeListado = null"></button>
+        </div>
+    }
+
+    @if (_mostrarFormNueva)
+    {
+        <div class="card shadow-sm mb-4 border-0" style="border-left: 4px solid #2E7D32 !important;">
+            <div class="card-header text-white d-flex justify-content-between align-items-center"
+                 style="background-color:#2E7D32">
+                <strong><i class="bi-clipboard-plus me-2"></i>Nueva Auditoría ISO 14001:2015</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormNueva"></button>
             </div>
             <div class="card-body">
-                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                <EditForm Model="_formNueva" OnValidSubmit="CrearAuditoriaAsync" FormName="NuevaAuditoria14001Form">
                     <DataAnnotationsValidator />
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Auditor *</label>
-                            <InputText class="form-control" @bind-Value="_form.Auditor" />
-                            <ValidationMessage For="() => _form.Auditor" />
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">Auditor / Responsable *</label>
+                            <InputText class="form-control" @bind-Value="_formNueva.Auditor"
+                                       placeholder="Nombre del auditor..." />
+                            <ValidationMessage For="() => _formNueva.Auditor" />
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Fecha Auditoría</label>
-                            <InputDate class="form-control" @bind-Value="_form.FechaAuditoria" />
+                            <label class="form-label fw-semibold">Fecha de Auditoría *</label>
+                            <InputDate class="form-control" @bind-Value="_formNueva.FechaAuditoria" />
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">% Cumplimiento</label>
-                            <InputNumber class="form-control" @bind-Value="_form.PorcentajeCumplimiento" />
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold">Estado inicial</label>
+                            <InputSelect class="form-select" @bind-Value="_formNueva.Estado">
+                                <option value="@EstadoAuditoria.Borrador">Borrador</option>
+                                <option value="@EstadoAuditoria.EnProceso">En Proceso</option>
+                            </InputSelect>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Observaciones</label>
-                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
+                            <label class="form-label fw-semibold">Observaciones generales</label>
+                            <InputTextArea class="form-control" rows="2"
+                                           @bind-Value="_formNueva.Observaciones"
+                                           placeholder="Contexto de la auditoría ambiental..." />
                         </div>
                     </div>
                     <div class="mt-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-success btn-sm">Guardar</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
+                        <button type="submit" class="btn btn-success btn-sm" disabled="@_guardando">
+                            @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="bi-check-lg me-1"></i>Crear y Diligenciar Checklist
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm"
+                                @onclick="CancelarFormNueva">
+                            Cancelar
+                        </button>
                     </div>
                 </EditForm>
             </div>
         </div>
     }
 
-    var ultimo = _checklists.Any() ? _checklists.OrderByDescending(c => c.FechaAuditoria).First() : null;
-    var pctActual = ultimo?.PorcentajeCumplimiento ?? 0;
-    var estadoPct = pctActual >= 85 ? "Saludable" : pctActual >= 70 ? "En Riesgo" : pctActual > 0 ? "Crítico" : "Sin datos";
+    <!-- KPIs del listado -->
     <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <ExecutiveCard Titulo="Cumplimiento Actual (ISO 14001)"
-                           Valor="@(ultimo is not null ? pctActual.ToString("F0") + "%" : "—")"
-                           Icono="bi-patch-check"
-                           Estado="@estadoPct" />
-        </div>
-        <div class="col-md-4">
-            <ExecutiveCard Titulo="Auditorías Realizadas"
-                           Valor="@_checklists.Count.ToString()"
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Total Auditorías"
+                           Valor="@_auditorias.Count.ToString()"
                            Icono="bi-clipboard-check"
+                           SubTexto="registradas en el sistema"
                            Estado="Informativo" />
         </div>
-        <div class="col-md-4">
+        <div class="col-6 col-md-3">
             <ExecutiveCard Titulo="Última Auditoría"
-                           Valor="@(_checklists.Any() ? _checklists.Max(c => c.FechaAuditoria).ToString("dd/MM/yyyy") : "—")"
-                           Icono="bi-calendar-event"
+                           Valor="@(_auditorias.Any() ? _auditorias[0].FechaAuditoria.ToString("dd/MM/yy") : "—")"
+                           Icono="bi-calendar-check"
+                           SubTexto="fecha más reciente"
+                           Estado="Informativo" />
+        </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Cumplimiento Actual"
+                           Valor="@(_auditorias.Any() ? _auditorias[0].PorcentajeCumplimiento.ToString("F0") + "%" : "—")"
+                           Icono="bi-check-circle-fill"
+                           SubTexto="última auditoría"
+                           Estado="@EstadoUltimaAuditoria" />
+        </div>
+        <div class="col-6 col-md-3">
+            <ExecutiveCard Titulo="Finalizadas"
+                           Valor="@_auditorias.Count(a => a.EstadoAuditoria == EstadoAuditoria.Finalizada).ToString()"
+                           Icono="bi-award"
+                           SubTexto="auditorías completadas"
                            Estado="Informativo" />
         </div>
     </div>
 
-    <SmartTable Columnas="5"
+    <!-- Tabla de auditorías -->
+    <SmartTable Columnas="6"
                 MostrarBusqueda="true"
-                PlaceholderBusqueda="Buscar por auditor..."
-                BusquedaCambiada="OnBusqueda"
-                Vacio="!ChecklistsFiltrados.Any()"
-                MensajeVacio="No hay auditorías ISO 14001 registradas.">
+                PlaceholderBusqueda="Buscar por auditor u observaciones..."
+                BusquedaCambiada="OnBusquedaListado"
+                Vacio="!AuditoriasFiltradas.Any()"
+                MensajeVacio="No hay auditorías ISO 14001 registradas. Cree la primera con el botón 'Nueva Auditoría'.">
         <Encabezados>
             <tr>
                 <th>Fecha</th>
                 <th>Auditor</th>
-                <th class="text-center">Cumplimiento</th>
+                <th class="text-center">% Cumplimiento</th>
+                <th class="text-center">Estado</th>
                 <th>Observaciones</th>
                 <th class="text-center">Acciones</th>
             </tr>
         </Encabezados>
         <Filas>
-            @foreach (var c in ChecklistsFiltrados)
+            @foreach (var a in AuditoriasFiltradas)
             {
                 <tr>
-                    <td>@c.FechaAuditoria.ToString("dd/MM/yyyy")</td>
-                    <td>@c.Auditor</td>
+                    <td class="text-nowrap">@a.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                    <td>@a.Auditor</td>
                     <td class="text-center">
-                        <StatusChip Estado="@(c.PorcentajeCumplimiento >= 85 ? "Saludable" : c.PorcentajeCumplimiento >= 70 ? "En Riesgo" : "Crítico")"
-                                    Texto="@(c.PorcentajeCumplimiento.ToString("F0") + "%")" />
+                        <StatusChip Estado="@BadgeEstadoPct((int)a.PorcentajeCumplimiento)"
+                                    Texto="@(a.PorcentajeCumplimiento.ToString("F0") + "%")" />
                     </td>
-                    <td class="text-muted small">@(c.Observaciones ?? "—")</td>
                     <td class="text-center">
-                        @if (_confirmandoEliminar == c.Id)
+                        <span class="badge rounded-pill @BadgeEstadoAuditoria(a.EstadoAuditoria)">
+                            @LabelEstadoAuditoria(a.EstadoAuditoria)
+                        </span>
+                    </td>
+                    <td class="text-muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                        @(a.Observaciones ?? "—")
+                    </td>
+                    <td class="text-center text-nowrap">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-success me-1"
+                                title="Ver / Editar checklist"
+                                @onclick="@(() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/ambiental/checklist/{a.Id}"))">
+                            <i class="bi-pencil-square"></i>
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-success me-1"
+                                title="Exportar Excel"
+                                @onclick="() => ExportarExcelListadoAsync(a.Id)">
+                            <i class="bi-file-earmark-spreadsheet"></i>
+                        </button>
+                        @if (_confirmandoEliminar == a.Id)
                         {
-                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(c.Id)">Sí</button>
-                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                            <span class="text-danger small me-1">¿Eliminar?</span>
+                            <button type="button" class="btn btn-sm btn-danger me-1"
+                                    @onclick="() => EliminarAsync(a.Id)">Sí</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => _confirmandoEliminar = null">No</button>
                         }
                         else
                         {
-                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = c.Id"><i class="bi-trash"></i></button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger"
+                                    title="Eliminar auditoría"
+                                    @onclick="() => _confirmandoEliminar = a.Id">
+                                <i class="bi-trash"></i>
+                            </button>
                         }
                     </td>
                 </tr>
@@ -127,70 +201,847 @@ else
         </Filas>
     </SmartTable>
 }
+else
+{
+    <!-- ══════════════════════════════════════════════════════════
+         VISTA DETALLE / DILIGENCIAMIENTO DE AUDITORÍA
+    ══════════════════════════════════════════════════════════ -->
+
+    <!-- ── Modal de interpretación / documentos ── -->
+    @if (_modalVisible)
+    {
+        <div class="iso-modal-bg" @onclick="CerrarModal">
+            <div class="iso-modal" @onclick:stopPropagation>
+                <div class="d-flex justify-content-between align-items-start">
+                    <p class="iso-modal-title">@_modalTitle</p>
+                    <button class="btn-close ms-3 flex-shrink-0" @onclick="CerrarModal" type="button"></button>
+                </div>
+                <hr class="iso-modal-sep" />
+                @if (_modalEsDocs)
+                {
+                    @if (_modalDocs is { Length: > 0 })
+                    {
+                        <ul class="mb-0 ps-3">
+                            @foreach (var doc in _modalDocs)
+                            {
+                                <li class="mb-1">@doc</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="mb-0 text-muted fst-italic">@_modalBodyText</p>
+                    }
+                }
+                else
+                {
+                    <p class="mb-0" style="line-height:1.6">@_modalBodyText</p>
+                }
+            </div>
+        </div>
+    }
+
+    <PageHeader Titulo="ISO 14001:2015"
+                Icono="bi-tree-fill"
+                Subtitulo="@($"{_proyecto.Nombre} — {_auditoria?.Auditor} — {_auditoria?.FechaAuditoria.ToString("dd/MM/yyyy")}")"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/ambiental/checklist")"
+                TextoVolver="Listado Auditorías">
+        <Acciones>
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-success btn-sm"
+                        @onclick="() => GuardarAsync(EstadoAuditoria.EnProceso)"
+                        disabled="@_guardando">
+                    @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi-save me-1"></i>Guardar cambios
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        @onclick="() => GuardarAsync(EstadoAuditoria.Borrador)"
+                        disabled="@_guardando">
+                    <i class="bi-pencil me-1"></i>Guardar borrador
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm"
+                        @onclick="FinalizarAsync"
+                        disabled="@_guardando">
+                    <i class="bi-check-circle me-1"></i>Finalizar auditoría
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        @onclick="ImprimirPdfAsync">
+                    <i class="bi-printer me-1"></i>Exportar PDF
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm"
+                        @onclick="() => ExportarExcelAsync(AuditoriaId)">
+                    <i class="bi-file-earmark-spreadsheet me-1"></i>Exportar Excel
+                </button>
+            </div>
+        </Acciones>
+    </PageHeader>
+
+    @if (_mensajeExito is not null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi-check-circle-fill me-2"></i>@_mensajeExito
+            <button type="button" class="btn-close" @onclick="() => _mensajeExito = null"></button>
+        </div>
+    }
+    @if (_mensajeError is not null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi-exclamation-triangle-fill me-2"></i>@_mensajeError
+            <button type="button" class="btn-close" @onclick="() => _mensajeError = null"></button>
+        </div>
+    }
+
+    <!-- ── Estado actual de la auditoría ── -->
+    <div class="card shadow-sm mb-4 border-0">
+        <div class="card-body py-2">
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+                <span class="badge fs-6 rounded-pill @BadgeEstadoAuditoria(_auditoria!.EstadoAuditoria)">
+                    <i class="bi-circle-fill me-1" style="font-size:.5rem;vertical-align:middle"></i>
+                    @LabelEstadoAuditoria(_auditoria.EstadoAuditoria)
+                </span>
+                <span class="text-muted small"><i class="bi-person me-1"></i>@_auditoria.Auditor</span>
+                <span class="text-muted small"><i class="bi-calendar me-1"></i>@_auditoria.FechaAuditoria.ToString("dd/MM/yyyy")</span>
+                <span class="text-muted small"><i class="bi-tree me-1"></i>ISO 14001:2015</span>
+                @if (_auditoria.Observaciones is not null)
+                {
+                    <span class="text-muted small fst-italic">@_auditoria.Observaciones</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── DASHBOARD ── -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center"
+             style="background-color:#2E7D32;color:#fff;cursor:pointer"
+             @onclick="() => _dashboardVisible = !_dashboardVisible">
+            <span><i class="bi-bar-chart-line-fill me-2"></i>Dashboard de Cumplimiento Ambiental</span>
+            <i class="@(_dashboardVisible ? "bi-chevron-up" : "bi-chevron-down")"></i>
+        </div>
+        @if (_dashboardVisible)
+        {
+            <div class="card-body px-3 py-3">
+
+                <!-- ── 1. BARRA SEMÁFORO PRINCIPAL ── -->
+                <div class="iso-dash-semaforo mb-3">
+                    <div class="d-flex align-items-baseline gap-3 mb-1">
+                        <span class="iso-kpi-pct" style="color:@ColorSemaforo">@_stats.PctGlobal.ToString("F0")%</span>
+                        <span class="iso-nivel-badge"
+                              style="background:@ColorSemaforoBg;color:@ColorSemaforo">
+                            @LabelNivel
+                        </span>
+                    </div>
+                    <div class="small text-muted mb-2" style="font-weight:500">Cumplimiento General ISO 14001:2015</div>
+
+                    <div class="iso-semaforo-track">
+                        <div class="iso-semaforo-fill"
+                             style="width:@BarraPct;background-color:@ColorSemaforo"></div>
+                    </div>
+                    <div class="iso-semaforo-marks">
+                        <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+                    </div>
+
+                    <div class="iso-legend-row">
+                        <span class="iso-legend-item">
+                            <span class="iso-legend-dot" style="background:#6ABF48"></span>
+                            Cumple (@_stats.TotalCumple)
+                        </span>
+                        <span class="iso-legend-item">
+                            <span class="iso-legend-dot" style="background:#F5B301"></span>
+                            En Proceso (@_stats.TotalEnProceso)
+                        </span>
+                        <span class="iso-legend-item">
+                            <span class="iso-legend-dot" style="background:#E53935"></span>
+                            No Cumple (@_stats.TotalNoCumple)
+                        </span>
+                        <span class="iso-legend-item">
+                            <span class="iso-legend-dot" style="background:#9CA3AF"></span>
+                            Sin Evaluar (@_stats.TotalSinEvaluar)
+                        </span>
+                    </div>
+                </div>
+
+                <!-- ── 2. TARJETAS KPI ── -->
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-3">
+                        <div class="iso-kpi-card" style="border-color:#6ABF48">
+                            <div class="iso-kpi-icon" style="background:#f0f7ea;color:#6ABF48">
+                                <i class="bi-check-circle-fill"></i>
+                            </div>
+                            <div>
+                                <div class="iso-kpi-val" style="color:#6ABF48">
+                                    @PctKpi(_stats.TotalCumple)
+                                </div>
+                                <div class="iso-kpi-lbl">Cumple</div>
+                                <div class="iso-kpi-sub">@_stats.TotalCumple requisitos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="iso-kpi-card" style="border-color:#F5B301">
+                            <div class="iso-kpi-icon" style="background:#fffbeb;color:#d97706">
+                                <i class="bi-clock-fill"></i>
+                            </div>
+                            <div>
+                                <div class="iso-kpi-val" style="color:#d97706">
+                                    @PctKpi(_stats.TotalEnProceso)
+                                </div>
+                                <div class="iso-kpi-lbl">En Proceso</div>
+                                <div class="iso-kpi-sub">@_stats.TotalEnProceso requisitos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="iso-kpi-card" style="border-color:#E53935">
+                            <div class="iso-kpi-icon" style="background:#fef2f2;color:#E53935">
+                                <i class="bi-x-circle-fill"></i>
+                            </div>
+                            <div>
+                                <div class="iso-kpi-val" style="color:#E53935">
+                                    @PctKpi(_stats.TotalNoCumple)
+                                </div>
+                                <div class="iso-kpi-lbl">No Cumple</div>
+                                <div class="iso-kpi-sub">@_stats.TotalNoCumple requisitos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="iso-kpi-card" style="border-color:#9CA3AF">
+                            <div class="iso-kpi-icon" style="background:#f9fafb;color:#9CA3AF">
+                                <i class="bi-question-circle-fill"></i>
+                            </div>
+                            <div>
+                                <div class="iso-kpi-val" style="color:#9CA3AF">
+                                    @PctKpi(_stats.TotalSinEvaluar)
+                                </div>
+                                <div class="iso-kpi-lbl">Sin Evaluar</div>
+                                <div class="iso-kpi-sub">@_stats.TotalSinEvaluar requisitos</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── 3. GRÁFICAS: Cláusula + Donut ── -->
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-7">
+                        <div class="iso-dash-card">
+                            <div class="iso-chart-title">Cumplimiento por Cláusula</div>
+                            <div class="position-relative" style="min-height:240px">
+                                <canvas id="chartClausula"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="iso-dash-card d-flex flex-column">
+                            <div class="iso-chart-title">Distribución de Estados</div>
+                            <div class="position-relative flex-grow-1" style="min-height:300px">
+                                <canvas id="chartEstados"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── 4. SEGUIMIENTO DE ACCIONES ── -->
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="iso-dash-card">
+                            <div class="iso-chart-title">Seguimiento de Acciones</div>
+                            <div class="position-relative" style="height:200px;max-width:520px;margin:0 auto">
+                                <canvas id="chartSeguimiento"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        }
+    </div>
+
+    <!-- ── TABLA DE REQUISITOS ── -->
+    <div class="card shadow-sm border-0 iso-checklist-print">
+        <div class="card-header" style="background-color:#2E7D32;color:#fff">
+            <i class="bi-table me-2"></i>Requisitos ISO 14001:2015
+            <small class="ms-2 opacity-75">(@_items.Count requisitos | @_stats.TotalSinEvaluar sin evaluar)</small>
+        </div>
+        <div class="card-body p-0">
+            <div style="overflow-x:auto">
+                <table class="table table-sm table-bordered table-hover mb-0 align-middle" style="min-width:1400px;font-size:.82rem">
+                    <thead style="position:sticky;top:0;z-index:2">
+                        <tr>
+                            <th style="min-width:70px;background:#2E7D32;color:#fff">Cláusula</th>
+                            <th style="min-width:280px;background:#2E7D32;color:#fff">Requisito</th>
+                            <th style="min-width:130px;background:#2E7D32;color:#fff">Cumplimiento</th>
+                            <th style="min-width:80px;background:#2E7D32;color:#fff;text-align:center">Puntaje</th>
+                            <th style="min-width:160px;background:#2E7D32;color:#fff">Evidencia</th>
+                            <th style="min-width:180px;background:#2E7D32;color:#fff">Hallazgo</th>
+                            <th style="min-width:180px;background:#2E7D32;color:#fff">Oportunidad de Mejora</th>
+                            <th style="min-width:130px;background:#2E7D32;color:#fff">Responsable</th>
+                            <th style="min-width:120px;background:#2E7D32;color:#fff">Plazo</th>
+                            <th style="min-width:120px;background:#2E7D32;color:#fff">Seguimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            string? clausulaActual = null;
+                            string? subClausulaActual = null;
+                        }
+                        @foreach (var item in _items)
+                        {
+                            // ─ Fila de cláusula principal (fondo oscuro)
+                            if (item.Clausula != clausulaActual)
+                            {
+                                clausulaActual = item.Clausula;
+                                subClausulaActual = null;
+                                var tituloMain = _titulosMain.TryGetValue(item.Clausula, out var tm) ? tm : $"Cláusula {item.Clausula}";
+                                <tr class="iso-clausula-main">
+                                    <td colspan="10" class="py-2 px-3">@tituloMain</td>
+                                </tr>
+                            }
+                            // ─ Fila de sub-cláusula (fondo verde claro)
+                            if (item.TituloClausula != subClausulaActual)
+                            {
+                                subClausulaActual = item.TituloClausula;
+                                <tr class="iso-clausula-sub">
+                                    <td colspan="10" class="py-2 px-3">
+                                        <i class="bi-bookmark-fill me-2" style="color:#2E7D32"></i>@item.TituloClausula
+                                    </td>
+                                </tr>
+                            }
+                            // ─ Fila de requisito
+                            <tr class="@(item.Estado == EstadoCumplimiento.NoCumple ? "table-danger" : item.Estado == EstadoCumplimiento.EnProceso ? "table-warning" : "")">
+                                <td class="text-center fw-semibold text-muted">@item.NumeroRequisito</td>
+                                <td class="small">
+                                    <div class="d-flex align-items-start gap-1">
+                                        <button class="iso-foco flex-shrink-0 mt-1"
+                                                title="Ver interpretación del requisito"
+                                                @onclick="() => AbrirModalInterp(item)"
+                                                type="button">💡</button>
+                                        <span>@item.DescripcionRequisito</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm @ClaseBadgeSelect(item.Estado)"
+                                            value="@((int)item.Estado)"
+                                            @onchange="e => OnEstadoChanged(item, e)">
+                                        <option value="5">Sin evaluar</option>
+                                        <option value="0">✅ Cumple</option>
+                                        <option value="4">🔄 En proceso</option>
+                                        <option value="1">❌ No cumple</option>
+                                        <option value="3">⬜ No aplica</option>
+                                    </select>
+                                </td>
+                                <td class="text-center">
+                                    <input type="number" class="form-control form-control-sm text-center"
+                                           style="width:65px;margin:0 auto"
+                                           min="0" max="2" step="1"
+                                           value="@item.Puntaje"
+                                           @onchange="e => OnPuntajeChanged(item, e)" />
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1 mb-1">
+                                        <button class="iso-foco"
+                                                title="Ver documentos auditables"
+                                                @onclick="() => AbrirModalDocs(item)"
+                                                type="button">💡</button>
+                                        @if (!string.IsNullOrEmpty(item.EvidenciaUrl))
+                                        {
+                                            <a href="@item.EvidenciaUrl" target="_blank"
+                                               class="btn btn-xs btn-outline-success"
+                                               style="font-size:.7rem;padding:1px 6px">
+                                                <i class="bi-file-earmark-arrow-down me-1"></i>Ver
+                                            </a>
+                                            <button class="btn btn-xs btn-outline-danger"
+                                                    style="font-size:.7rem;padding:1px 6px"
+                                                    @onclick="() => EliminarEvidenciaItem(item)"
+                                                    type="button">
+                                                <i class="bi-x"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                    <InputFile OnChange="@(async e => await SubirEvidenciaAsync(item, e))"
+                                               class="form-control form-control-sm"
+                                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                                               style="font-size:.7rem" />
+                                </td>
+                                <td>
+                                    <textarea class="form-control form-control-sm" rows="2"
+                                              style="resize:vertical;min-height:40px"
+                                              placeholder="Hallazgo encontrado..."
+                                              value="@item.Hallazgo"
+                                              @onchange="e => item.Hallazgo = e.Value?.ToString()">
+                                    </textarea>
+                                </td>
+                                <td>
+                                    <textarea class="form-control form-control-sm" rows="2"
+                                              style="resize:vertical;min-height:40px"
+                                              placeholder="Oportunidad de mejora ambiental..."
+                                              value="@item.OportunidadMejora"
+                                              @onchange="e => item.OportunidadMejora = e.Value?.ToString()">
+                                    </textarea>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm"
+                                           placeholder="Responsable..."
+                                           value="@item.Responsable"
+                                           @onchange="e => item.Responsable = e.Value?.ToString()" />
+                                </td>
+                                <td>
+                                    <input type="date" class="form-control form-control-sm"
+                                           value="@(item.Plazo.HasValue ? item.Plazo.Value.ToString("yyyy-MM-dd") : "")"
+                                           @onchange="e => OnPlazoChanged(item, e)" />
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm"
+                                            value="@((int)item.Seguimiento)"
+                                            @onchange="e => OnSeguimientoChanged(item, e)">
+                                        <option value="0">⏳ Pendiente</option>
+                                        <option value="1">🔄 En proceso</option>
+                                        <option value="2">✅ Ejecutado</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center bg-light">
+            <small class="text-muted">
+                @_items.Count requisitos totales —
+                @_stats.TotalCumple cumple —
+                @_stats.TotalEnProceso en proceso —
+                @_stats.TotalNoCumple no cumple —
+                @_stats.TotalNoAplica no aplica —
+                @_stats.TotalSinEvaluar sin evaluar
+            </small>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-success btn-sm"
+                        @onclick="() => GuardarAsync(EstadoAuditoria.EnProceso)"
+                        disabled="@_guardando">
+                    <i class="bi-save me-1"></i>Guardar cambios
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int AuditoriaId { get; set; }
+
+    private bool _modoDetalle => AuditoriaId > 0;
 
     private Proyecto? _proyecto;
-    private List<ChecklistAuditoria> _checklists = [];
-    private bool _mostrarFormulario;
+
+    private List<ChecklistAuditoria> _auditorias = [];
+    private bool _mostrarFormNueva;
     private int? _confirmandoEliminar;
-    private string _busqueda = "";
-    private FormModel _form = new();
+    private string _busquedaListado = "";
+    private FormNuevaAuditoria _formNueva = new();
 
-    private IEnumerable<ChecklistAuditoria> ChecklistsFiltrados => _checklists
-        .Where(c => string.IsNullOrEmpty(_busqueda) ||
-                    c.Auditor.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(c => c.FechaAuditoria);
+    private ChecklistAuditoria? _auditoria;
+    private List<ItemChecklist> _items = [];
+    private DashboardStats _stats = new();
+    private bool _dashboardVisible = true;
+    private bool _graficosRenderizados;
 
-    private void OnBusqueda(string v) => _busqueda = v;
+    private bool _modalVisible;
+    private string _modalTitle = "";
+    private string _modalBodyText = "";
+    private string[]? _modalDocs;
+    private bool _modalEsDocs;
 
-    protected override async Task OnInitializedAsync()
+    private bool _guardando;
+    private string? _mensajeExito;
+    private string? _mensajeError;
+    private string? _mensajeListado;
+
+    private string ColorSemaforo    => _stats.PctGlobal >= 85 ? "#6ABF48" : _stats.PctGlobal >= 70 ? "#F5B301" : "#E53935";
+    private string ColorSemaforoBg  => _stats.PctGlobal >= 85 ? "#f0f7ea" : _stats.PctGlobal >= 70 ? "#fffbeb" : "#fef2f2";
+    private string LabelNivel       => _stats.PctGlobal >= 85 ? "🟢 Cumplimiento Alto" : _stats.PctGlobal >= 70 ? "🟡 Requiere Atención" : "🔴 Crítico";
+    private string BarraPct         => _stats.PctGlobal.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    private string PctKpi(int total) => _items.Count > 0 ? ((double)total / _items.Count * 100).ToString("F0") + "%" : "0%";
+
+    private static readonly Dictionary<string, string> _titulosMain =
+        Iso14001ChecklistData.Requisitos
+            .GroupBy(r => r.NumClausula)
+            .ToDictionary(g => g.Key, g => g.First().TituloMain);
+
+    private string EstadoUltimaAuditoria =>
+        _auditorias.Any()
+            ? BadgeEstadoPct((int)_auditorias[0].PorcentajeCumplimiento)
+            : "Sin datos";
+
+    private IEnumerable<ChecklistAuditoria> AuditoriasFiltradas =>
+        _auditorias.Where(a =>
+            string.IsNullOrEmpty(_busquedaListado) ||
+            a.Auditor.Contains(_busquedaListado, StringComparison.OrdinalIgnoreCase) ||
+            (a.Observaciones?.Contains(_busquedaListado, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnParametersSetAsync()
     {
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
-        _checklists = await Db.ChecklistsAuditoria
-            .Where(c => c.ProyectoId == ProyectoId && c.Division == DivisionHSEQ.Ambiental)
-            .OrderByDescending(c => c.FechaAuditoria).ToListAsync();
+
+        if (_modoDetalle)
+            await CargarDetalleAsync();
+        else
+            await CargarListadoAsync();
     }
 
-    private void MostrarFormulario() { _form = new FormModel { FechaAuditoria = DateTime.Today }; _mostrarFormulario = true; }
-    private void CancelarFormulario() => _mostrarFormulario = false;
-
-    private async Task GuardarAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Db.ChecklistsAuditoria.Add(new ChecklistAuditoria
+        if (_modoDetalle && _dashboardVisible && !_graficosRenderizados && _items.Count > 0)
         {
-            ProyectoId             = ProyectoId,
-            Division               = DivisionHSEQ.Ambiental,
-            NormaISO               = "ISO 14001:2015",
-            Auditor                = _form.Auditor,
-            FechaAuditoria         = _form.FechaAuditoria,
-            PorcentajeCumplimiento = _form.PorcentajeCumplimiento,
-            Observaciones          = _form.Observaciones
-        });
-        await Db.SaveChangesAsync();
-        CancelarFormulario();
-        _checklists = await Db.ChecklistsAuditoria
+            _graficosRenderizados = true;
+            await RenderizarGraficosAsync();
+        }
+    }
+
+    private async Task CargarListadoAsync()
+    {
+        _graficosRenderizados = false;
+        _mensajeListado = null;
+        _auditorias = await Db.ChecklistsAuditoria
             .Where(c => c.ProyectoId == ProyectoId && c.Division == DivisionHSEQ.Ambiental)
-            .OrderByDescending(c => c.FechaAuditoria).ToListAsync();
+            .OrderByDescending(c => c.FechaAuditoria)
+            .ToListAsync();
+    }
+
+    private async Task CargarDetalleAsync()
+    {
+        _graficosRenderizados = false;
+        _auditoria = await Db.ChecklistsAuditoria
+            .Include(a => a.Items.OrderBy(i => i.Id))
+            .FirstOrDefaultAsync(a => a.Id == AuditoriaId && a.ProyectoId == ProyectoId);
+
+        if (_auditoria is null)
+        {
+            Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/ambiental/checklist");
+            return;
+        }
+        _items = _auditoria.Items.ToList();
+        RecalcularEstadisticas();
+    }
+
+    private async Task ExportarExcelListadoAsync(int auditoriaId)
+    {
+        try
+        {
+            var aud = await Db.ChecklistsAuditoria
+                .Include(a => a.Items)
+                .FirstOrDefaultAsync(a => a.Id == auditoriaId);
+            if (aud is null) { _mensajeListado = "No se encontró la auditoría."; return; }
+
+            var bytes = ChecklistSvc.GenerarCsvExcel(aud);
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"ISO14001_{aud.FechaAuditoria:yyyyMMdd}_{aud.Auditor.Replace(" ", "_")}.csv";
+            await JS.InvokeVoidAsync("downloadFile", fileName, "text/csv;charset=utf-8;", base64);
+        }
+        catch (Exception ex)
+        {
+            _mensajeListado = $"Error al exportar: {ex.Message}";
+        }
+    }
+
+    private void MostrarFormNueva()
+    {
+        _formNueva = new FormNuevaAuditoria { FechaAuditoria = DateTime.Today };
+        _mostrarFormNueva = true;
+    }
+
+    private void CancelarFormNueva() => _mostrarFormNueva = false;
+
+    private void OnBusquedaListado(string v) => _busquedaListado = v;
+
+    private async Task CrearAuditoriaAsync()
+    {
+        _guardando = true;
+        try
+        {
+            var auditoria = new ChecklistAuditoria
+            {
+                ProyectoId      = ProyectoId,
+                Division        = DivisionHSEQ.Ambiental,
+                NormaISO        = "ISO 14001:2015",
+                Auditor         = _formNueva.Auditor,
+                FechaAuditoria  = _formNueva.FechaAuditoria,
+                EstadoAuditoria = _formNueva.Estado,
+                Observaciones   = _formNueva.Observaciones
+            };
+
+            foreach (var req in Iso14001ChecklistData.Requisitos)
+            {
+                auditoria.Items.Add(new ItemChecklist
+                {
+                    Clausula             = req.NumClausula,
+                    TituloClausula       = req.SubClausula,
+                    NumeroRequisito      = req.Id,
+                    DescripcionRequisito = req.Req,
+                    Estado               = EstadoCumplimiento.SinEvaluar,
+                    Puntaje              = 0
+                });
+            }
+
+            Db.ChecklistsAuditoria.Add(auditoria);
+            await Db.SaveChangesAsync();
+
+            Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/ambiental/checklist/{auditoria.Id}");
+        }
+        catch (Exception ex)
+        {
+            _mensajeError = $"Error al crear la auditoría: {ex.Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
     }
 
     private async Task EliminarAsync(int id)
     {
-        var e = await Db.ChecklistsAuditoria.FindAsync(id);
-        if (e is not null) { Db.ChecklistsAuditoria.Remove(e); await Db.SaveChangesAsync(); }
+        var ent = await Db.ChecklistsAuditoria.FindAsync(id);
+        if (ent is not null)
+        {
+            Db.ChecklistsAuditoria.Remove(ent);
+            await Db.SaveChangesAsync();
+        }
         _confirmandoEliminar = null;
-        _checklists = await Db.ChecklistsAuditoria
-            .Where(c => c.ProyectoId == ProyectoId && c.Division == DivisionHSEQ.Ambiental)
-            .OrderByDescending(c => c.FechaAuditoria).ToListAsync();
+        await CargarListadoAsync();
     }
 
-    private sealed class FormModel
+    private void AbrirModalInterp(ItemChecklist item)
     {
-        [System.ComponentModel.DataAnnotations.Required] public string Auditor { get; set; } = "";
+        var req = Iso14001ChecklistData.GetByIdFuzzy(item.NumeroRequisito);
+        _modalTitle = $"💡 Interpretación — {item.NumeroRequisito}";
+        _modalBodyText = req?.Interp ?? "No se encontró interpretación para este requisito en la base de conocimiento actual.";
+        _modalDocs = null;
+        _modalEsDocs = false;
+        _modalVisible = true;
+    }
+
+    private void AbrirModalDocs(ItemChecklist item)
+    {
+        var req = Iso14001ChecklistData.GetByIdFuzzy(item.NumeroRequisito);
+        _modalTitle = $"📄 Documentos auditables — {item.NumeroRequisito}";
+        _modalDocs = req?.Docs;
+        _modalBodyText = req is null ? "No se encontraron documentos auditables para este requisito." : "";
+        _modalEsDocs = true;
+        _modalVisible = true;
+    }
+
+    private void CerrarModal() => _modalVisible = false;
+
+    private void OnEstadoChanged(ItemChecklist item, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+        {
+            item.Estado = (EstadoCumplimiento)v;
+            item.Puntaje = item.Estado switch
+            {
+                EstadoCumplimiento.Cumple    => 2m,
+                EstadoCumplimiento.EnProceso => 1m,
+                EstadoCumplimiento.Parcial   => 1m,
+                _                            => 0m
+            };
+        }
+        RecalcularEstadisticas();
+        _graficosRenderizados = false;
+    }
+
+    private void OnPuntajeChanged(ItemChecklist item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+                             System.Globalization.CultureInfo.InvariantCulture, out var v))
+            item.Puntaje = Math.Clamp(v, 0, 2);
+        RecalcularEstadisticas();
+        _graficosRenderizados = false;
+    }
+
+    private void OnPlazoChanged(ItemChecklist item, ChangeEventArgs e)
+    {
+        item.Plazo = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null;
+    }
+
+    private void OnSeguimientoChanged(ItemChecklist item, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+            item.Seguimiento = (EstadoSeguimiento)v;
+        RecalcularEstadisticas();
+    }
+
+    private void EliminarEvidenciaItem(ItemChecklist item)
+    {
+        ChecklistSvc.EliminarEvidencia(item.EvidenciaUrl);
+        item.EvidenciaUrl = null;
+    }
+
+    private async Task SubirEvidenciaAsync(ItemChecklist item, InputFileChangeEventArgs e)
+    {
+        try
+        {
+            item.EvidenciaUrl = await ChecklistSvc.GuardarEvidenciaAsync(e.File, ProyectoId);
+            _mensajeExito = $"Evidencia '{e.File.Name}' subida correctamente.";
+        }
+        catch (Exception ex)
+        {
+            _mensajeError = $"Error al subir evidencia: {ex.Message}";
+        }
+    }
+
+    private async Task GuardarAsync(EstadoAuditoria nuevoEstado)
+    {
+        _guardando = true;
+        _mensajeExito = null;
+        _mensajeError = null;
+        try
+        {
+            _auditoria!.EstadoAuditoria = nuevoEstado;
+            _auditoria.PorcentajeCumplimiento = (decimal)_stats.PctGlobal;
+            _auditoria.FechaModificacion = DateTime.UtcNow;
+            await Db.SaveChangesAsync();
+            _mensajeExito = nuevoEstado == EstadoAuditoria.Borrador
+                ? "Borrador guardado correctamente."
+                : "Cambios guardados correctamente.";
+        }
+        catch (Exception ex)
+        {
+            _mensajeError = $"Error al guardar: {ex.Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task FinalizarAsync()
+    {
+        await GuardarAsync(EstadoAuditoria.Finalizada);
+        if (_mensajeError is null)
+            _mensajeExito = "Auditoría finalizada y guardada correctamente.";
+    }
+
+    private async Task ImprimirPdfAsync()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private async Task ExportarExcelAsync(int auditoriaId)
+    {
+        try
+        {
+            var aud = await Db.ChecklistsAuditoria
+                .Include(a => a.Items)
+                .FirstOrDefaultAsync(a => a.Id == auditoriaId);
+            if (aud is null) return;
+
+            var bytes = ChecklistSvc.GenerarCsvExcel(aud);
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = $"ISO14001_{aud.FechaAuditoria:yyyyMMdd}_{aud.Auditor.Replace(" ", "_")}.csv";
+            await JS.InvokeVoidAsync("downloadFile", fileName, "text/csv;charset=utf-8;", base64);
+        }
+        catch (Exception ex)
+        {
+            _mensajeError = $"Error al exportar: {ex.Message}";
+        }
+    }
+
+    private void RecalcularEstadisticas()
+    {
+        var evaluables = _items.Where(i => i.Estado != EstadoCumplimiento.NoAplica).ToList();
+        var conRespuesta = evaluables.Where(i => i.Estado != EstadoCumplimiento.SinEvaluar).ToList();
+
+        _stats.TotalCumple     = _items.Count(i => i.Estado == EstadoCumplimiento.Cumple);
+        _stats.TotalEnProceso  = _items.Count(i => i.Estado == EstadoCumplimiento.EnProceso || i.Estado == EstadoCumplimiento.Parcial);
+        _stats.TotalNoCumple   = _items.Count(i => i.Estado == EstadoCumplimiento.NoCumple);
+        _stats.TotalNoAplica   = _items.Count(i => i.Estado == EstadoCumplimiento.NoAplica);
+        _stats.TotalSinEvaluar = _items.Count(i => i.Estado == EstadoCumplimiento.SinEvaluar);
+
+        var sumPuntajes = conRespuesta.Sum(i => (double)i.Puntaje);
+        var maxPuntajes = conRespuesta.Count * 2.0;
+        _stats.PctGlobal = maxPuntajes > 0 ? (sumPuntajes / maxPuntajes) * 100.0 : 0.0;
+
+        _stats.PorClausula = _items
+            .GroupBy(i => i.Clausula)
+            .Select(g =>
+            {
+                var ev = g.Where(i => i.Estado != EstadoCumplimiento.NoAplica && i.Estado != EstadoCumplimiento.SinEvaluar).ToList();
+                var max = ev.Count * 2.0;
+                var pct = max > 0 ? (ev.Sum(i => (double)i.Puntaje) / max) * 100.0 : 0.0;
+                return (Clausula: g.Key, Pct: pct);
+            })
+            .OrderBy(x => x.Clausula)
+            .ToList();
+
+        _stats.SeguimientoEjecutado = _items.Count(i => i.Seguimiento == EstadoSeguimiento.Ejecutado);
+        _stats.SeguimientoEnProceso = _items.Count(i => i.Seguimiento == EstadoSeguimiento.EnProceso);
+        _stats.SeguimientoPendiente = _items.Count(i => i.Seguimiento == EstadoSeguimiento.Pendiente);
+    }
+
+    private async Task RenderizarGraficosAsync()
+    {
+        try
+        {
+            var clausulaLabels = _stats.PorClausula.Select(x => $"Cl.{x.Clausula}").ToArray();
+            var clausulaData   = _stats.PorClausula.Select(x => Math.Round(x.Pct, 1)).ToArray();
+
+            await JS.InvokeVoidAsync("renderISO9001Charts",
+                Math.Round(_stats.PctGlobal, 1),
+                clausulaLabels,
+                clausulaData,
+                new[] { _stats.TotalCumple, _stats.TotalEnProceso, _stats.TotalNoCumple, _stats.TotalSinEvaluar },
+                new[] { _stats.SeguimientoEjecutado, _stats.SeguimientoEnProceso, _stats.SeguimientoPendiente });
+        }
+        catch { /* JS interop puede fallar si el DOM aún no está listo */ }
+    }
+
+    private static string BadgeEstadoPct(int pct) =>
+        pct >= 85 ? "Saludable" : pct >= 70 ? "En Riesgo" : pct > 0 ? "Crítico" : "Sin datos";
+
+    private static string BadgeEstadoAuditoria(EstadoAuditoria e) => e switch
+    {
+        EstadoAuditoria.Finalizada => "bg-success",
+        EstadoAuditoria.EnProceso  => "bg-warning text-dark",
+        _                          => "bg-secondary"
+    };
+
+    private static string LabelEstadoAuditoria(EstadoAuditoria e) => e switch
+    {
+        EstadoAuditoria.Finalizada => "Finalizada",
+        EstadoAuditoria.EnProceso  => "En Proceso",
+        _                          => "Borrador"
+    };
+
+    private static string ClaseBadgeSelect(EstadoCumplimiento e) => e switch
+    {
+        EstadoCumplimiento.Cumple    => "border-success text-success",
+        EstadoCumplimiento.NoCumple  => "border-danger text-danger",
+        EstadoCumplimiento.EnProceso => "border-warning text-warning",
+        EstadoCumplimiento.Parcial   => "border-warning text-warning",
+        EstadoCumplimiento.NoAplica  => "border-secondary text-secondary",
+        _                            => ""
+    };
+
+    private sealed class FormNuevaAuditoria
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El auditor es obligatorio")]
+        public string Auditor { get; set; } = "";
         public DateTime FechaAuditoria { get; set; } = DateTime.Today;
-        public decimal PorcentajeCumplimiento { get; set; }
+        public EstadoAuditoria Estado { get; set; } = EstadoAuditoria.Borrador;
         public string? Observaciones { get; set; }
+    }
+
+    private sealed class DashboardStats
+    {
+        public double PctGlobal { get; set; }
+        public int TotalCumple { get; set; }
+        public int TotalEnProceso { get; set; }
+        public int TotalNoCumple { get; set; }
+        public int TotalNoAplica { get; set; }
+        public int TotalSinEvaluar { get; set; }
+        public int SeguimientoEjecutado { get; set; }
+        public int SeguimientoEnProceso { get; set; }
+        public int SeguimientoPendiente { get; set; }
+        public List<(string Clausula, double Pct)> PorClausula { get; set; } = [];
     }
 }

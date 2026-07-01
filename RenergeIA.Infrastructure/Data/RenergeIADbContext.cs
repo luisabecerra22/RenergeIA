@@ -21,6 +21,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VersionDocumento> VersionesDocumento => Set<VersionDocumento>();
     public DbSet<Partida> Partidas => Set<Partida>();
     public DbSet<CostoReal> CostosReales => Set<CostoReal>();
+    public DbSet<CompromisoCosto> CompromisoCostos => Set<CompromisoCosto>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -68,6 +69,11 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ContratacionLocal> ContratacionesLocales => Set<ContratacionLocal>();
     public DbSet<CompraLocal> ComprasLocales => Set<CompraLocal>();
     public DbSet<ActaEvidencia> ActasEvidencias => Set<ActaEvidencia>();
+
+    // Matriz de Riesgos IPERV
+    public DbSet<InspeccionIA> InspeccionesIA => Set<InspeccionIA>();
+    public DbSet<RiesgoIPERV> RiesgosIPERV => Set<RiesgoIPERV>();
+    public DbSet<BibliotecaPeligro> BibliotecaPeligros => Set<BibliotecaPeligro>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -145,7 +151,23 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.ToTable("CostosReales");
             e.Property(p => p.Cantidad).HasColumnType("decimal(18,4)");
             e.Property(p => p.PrecioUnitario).HasColumnType("decimal(18,2)");
+            e.Property(p => p.AdjuntoUrl).HasMaxLength(500);
             e.Ignore(p => p.Monto);
+        });
+
+        // CompromisoCosto
+        modelBuilder.Entity<CompromisoCosto>(e =>
+        {
+            e.ToTable("CompromisoCostos");
+            e.Property(c => c.Valor).HasColumnType("decimal(18,2)");
+            e.Property(c => c.Estado).HasConversion<int>();
+            e.Property(c => c.Codigo).HasMaxLength(50);
+            e.Property(c => c.Proveedor).HasMaxLength(200);
+            e.Property(c => c.Prioridad).HasMaxLength(20);
+            e.HasOne(c => c.Proyecto).WithMany()
+             .HasForeignKey(c => c.ProyectoId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(c => c.Partida).WithMany()
+             .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
         });
 
         // RegistroHorometro
@@ -327,10 +349,28 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         {
             e.ToTable("ChecklistsAuditoria");
             e.Property(c => c.PorcentajeCumplimiento).HasColumnType("decimal(5,2)");
+            e.Property(c => c.EstadoAuditoria).HasConversion<int>();
+            e.Property(c => c.UsuarioId).HasMaxLength(450);
+            e.Property(c => c.NormaISO).HasMaxLength(100);
+            e.Property(c => c.ProcesoArea).HasMaxLength(200);
+            e.Property(c => c.TipoNorma).HasConversion<int>();
+            e.Property(c => c.TipoAuditoria).HasConversion<int>();
+            e.HasOne(c => c.Proyecto).WithMany()
+             .HasForeignKey(c => c.ProyectoId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
             e.HasMany(c => c.Items).WithOne(i => i.ChecklistAuditoria)
              .HasForeignKey(i => i.ChecklistAuditoriaId).OnDelete(DeleteBehavior.Cascade);
         });
-        modelBuilder.Entity<ItemChecklist>().ToTable("ItemsChecklist");
+        modelBuilder.Entity<ItemChecklist>(e =>
+        {
+            e.ToTable("ItemsChecklist");
+            e.Property(i => i.Puntaje).HasColumnType("decimal(5,2)");
+            e.Property(i => i.Clausula).HasMaxLength(20);
+            e.Property(i => i.TituloClausula).HasMaxLength(200);
+            e.Property(i => i.EvidenciaUrl).HasMaxLength(500);
+            e.Property(i => i.Responsable).HasMaxLength(200);
+            e.Property(i => i.Seguimiento).HasConversion<int>();
+            e.Property(i => i.Estado).HasConversion<int>();
+        });
         modelBuilder.Entity<PPI>().ToTable("PPIs");
         modelBuilder.Entity<EquipoCalibracion>(e =>
         {

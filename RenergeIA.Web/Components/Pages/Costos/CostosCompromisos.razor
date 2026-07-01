@@ -1,0 +1,338 @@
+@inject RenergeIADbContext Db
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+@using System.ComponentModel.DataAnnotations
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Total</div>
+            <div class="fw-bold fs-6" style="color:#183963">@_compromisos.Count</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #ffc107">
+            <div class="small mb-1 text-muted">Pendientes</div>
+            <div class="fw-bold fs-6" style="color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pendiente)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #fd7e14">
+            <div class="small mb-1 text-muted">En Proceso</div>
+            <div class="fw-bold fs-6" style="color:#fd7e14">@_compromisos.Count(c => c.Estado == EstadoCompromiso.EnProceso)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #6ABF4B">
+            <div class="small mb-1 text-muted">Pagados</div>
+            <div class="fw-bold fs-6" style="color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pagado)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #dc3545">
+            <div class="small mb-1 text-muted">Vencidos</div>
+            <div class="fw-bold fs-6" style="color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Vencido)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="card text-center p-3" style="border:1px solid #183963">
+            <div class="small mb-1 text-muted">Valor Total</div>
+            <div class="fw-bold" style="color:#183963;font-size:.9rem">@FormatCOP(_compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => c.Valor))</div>
+        </div>
+    </div>
+</div>
+
+<!-- Botón nuevo compromiso -->
+<div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-sm fw-semibold"
+            style="background:#183963;color:#fff;border:none"
+            @onclick="() => _mostrarFormulario = !_mostrarFormulario">
+        <i class="bi-plus-lg me-1"></i>Nuevo Compromiso
+    </button>
+</div>
+
+<!-- Formulario nuevo -->
+@if (_mostrarFormulario)
+{
+    <div class="card mb-4" style="border:1px solid #183963">
+        <div class="card-header text-white fw-semibold" style="background:#183963">
+            Registrar nuevo compromiso / RQ
+        </div>
+        <div class="card-body">
+            <EditForm Model="_form" OnValidSubmit="GuardarAsync">
+                <DataAnnotationsValidator />
+                <div class="row g-2">
+                    <div class="col-md-2">
+                        <label class="form-label small">Código RQ *</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.Codigo" placeholder="RQ-001" />
+                        <ValidationMessage For="() => _form.Codigo" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Proveedor *</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.Proveedor" />
+                        <ValidationMessage For="() => _form.Proveedor" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Partida (opcional)</label>
+                        <select class="form-select form-select-sm" @bind="_form.PartidaId">
+                            <option value="">— Sin partida —</option>
+                            @foreach (var p in _partidas)
+                            {
+                                <option value="@p.Id">@p.Codigo — @p.Descripcion</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Valor COP *</label>
+                        <InputNumber class="form-control form-control-sm" @bind-Value="_form.Valor" />
+                        <ValidationMessage For="() => _form.Valor" />
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">Fecha</label>
+                        <InputDate class="form-control form-control-sm" @bind-Value="_form.Fecha" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">F. Vencimiento</label>
+                        <InputDate class="form-control form-control-sm" @bind-Value="_form.FechaVencimiento" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Prioridad</label>
+                        <InputSelect class="form-select form-select-sm" @bind-Value="_form.Prioridad">
+                            <option value="Baja">Baja</option>
+                            <option value="Normal">Normal</option>
+                            <option value="Alta">Alta</option>
+                            <option value="Urgente">Urgente</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Observaciones</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.Observaciones" />
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button type="submit" class="btn btn-sm"
+                                style="background:#6ABF4B;color:#fff;border:none">
+                            💾 Guardar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                @onclick="() => _mostrarFormulario = false">Cancelar</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<!-- Mensaje éxito -->
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert alert-success alert-dismissible py-2 mb-3">
+        @_mensaje
+        <button class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+<!-- Tabla compromisos -->
+@if (!_compromisos.Any())
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <i class="bi-file-earmark-text display-4 mb-3" style="color:#dde3ed"></i>
+        <p class="text-muted small">No hay compromisos registrados en este proyecto.</p>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead style="background:#183963;color:white;font-size:.72rem">
+                    <tr>
+                        <th class="ps-3">CÓDIGO</th>
+                        <th>PROVEEDOR</th>
+                        <th>PARTIDA</th>
+                        <th class="text-end">VALOR COP</th>
+                        <th>FECHA</th>
+                        <th>F. VENCIMIENTO</th>
+                        <th>PRIORIDAD</th>
+                        <th>ESTADO</th>
+                        <th>OBSERVACIONES</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _compromisos.OrderByDescending(c => c.Fecha))
+                    {
+                        var (eBg, eFg) = ColorEstado(c.Estado);
+                        var vencido = c.FechaVencimiento.HasValue && c.FechaVencimiento.Value < DateTime.Today
+                                        && c.Estado != EstadoCompromiso.Pagado && c.Estado != EstadoCompromiso.Cancelado;
+                        <tr style="border-bottom:1px solid #f0f3f8;@(vencido ? "background:#fff5f5" : "")">
+                            <td class="ps-3 fw-semibold" style="color:#183963">@c.Codigo</td>
+                            <td>@c.Proveedor</td>
+                            <td>
+                                @if (c.Partida is not null)
+                                {
+                                    <span class="badge" style="background:#D9D9D6;color:#111921;font-size:.65rem">@c.Partida.Codigo</span>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(c.Valor)</td>
+                            <td style="white-space:nowrap">@c.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td style="white-space:nowrap;color:@(vencido ? "#dc3545" : "inherit");font-weight:@(vencido ? "bold" : "normal")">
+                                @(c.FechaVencimiento.HasValue ? c.FechaVencimiento.Value.ToString("dd/MM/yyyy") : "—")
+                                @if (vencido) { <i class="bi-exclamation-triangle-fill ms-1"></i> }
+                            </td>
+                            <td>
+                                <span class="badge rounded-pill" style="background:@ColorPrioridad(c.Prioridad);color:#fff;font-size:.65rem">
+                                    @c.Prioridad
+                                </span>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm py-0"
+                                        style="font-size:.72rem;border-color:@eBg;color:@eBg;min-width:110px"
+                                        value="@((int)c.Estado)"
+                                        @onchange="e => CambiarEstadoAsync(c, e.Value?.ToString())">
+                                    @foreach (EstadoCompromiso est in Enum.GetValues<EstadoCompromiso>())
+                                    {
+                                        <option value="@((int)est)">@LabelEstado(est)</option>
+                                    }
+                                </select>
+                            </td>
+                            <td class="text-muted" style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                                title="@c.Observaciones">
+                                @(c.Observaciones ?? "—")
+                            </td>
+                            <td class="pe-2">
+                                @if (_confirmandoEliminar == c.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(c.Id)">✓</button>
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">×</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = c.Id">✕</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private List<CompromisoCosto> _compromisos = [];
+    private List<Partida> _partidas = [];
+    private bool _mostrarFormulario;
+    private string? _mensaje;
+    private int? _confirmandoEliminar;
+
+    private CompromisoForm _form = new();
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _compromisos = await Db.CompromisoCostos
+            .Include(c => c.Partida)
+            .Where(c => c.ProyectoId == ProyectoId)
+            .OrderByDescending(c => c.Fecha)
+            .ToListAsync();
+
+        _partidas = await Db.Partidas
+            .AsNoTracking()
+            .Where(p => p.ProyectoId == ProyectoId && !p.EsPrincipal)
+            .OrderBy(p => p.Codigo)
+            .ToListAsync();
+    }
+
+    private async Task GuardarAsync()
+    {
+        Db.CompromisoCostos.Add(new CompromisoCosto
+        {
+            ProyectoId      = ProyectoId,
+            Codigo          = _form.Codigo,
+            Proveedor       = _form.Proveedor,
+            PartidaId       = _form.PartidaId == 0 ? null : _form.PartidaId,
+            Valor           = _form.Valor,
+            Fecha           = _form.Fecha,
+            FechaVencimiento = _form.FechaVencimiento == default ? null : _form.FechaVencimiento,
+            Prioridad       = _form.Prioridad,
+            Observaciones   = _form.Observaciones
+        });
+        await Db.SaveChangesAsync();
+        _form = new CompromisoForm();
+        _mostrarFormulario = false;
+        _mensaje = "Compromiso registrado correctamente.";
+        await CargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(CompromisoCosto c, string? val)
+    {
+        if (int.TryParse(val, out var v))
+        {
+            c.Estado = (EstadoCompromiso)v;
+            Db.CompromisoCostos.Update(c);
+            await Db.SaveChangesAsync();
+        }
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var c = await Db.CompromisoCostos.FindAsync(id);
+        if (c is null) return;
+        Db.CompromisoCostos.Remove(c);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static (string Bg, string Fg) ColorEstado(EstadoCompromiso e) => e switch
+    {
+        EstadoCompromiso.Pendiente  => ("#ffc107", "#212529"),
+        EstadoCompromiso.Aprobado   => ("#0d6efd", "#fff"),
+        EstadoCompromiso.EnProceso  => ("#fd7e14", "#fff"),
+        EstadoCompromiso.Pagado     => ("#6ABF4B", "#fff"),
+        EstadoCompromiso.Vencido    => ("#dc3545", "#fff"),
+        EstadoCompromiso.Cancelado  => ("#6c757d", "#fff"),
+        _                           => ("#D9D9D6", "#111921")
+    };
+
+    private static string LabelEstado(EstadoCompromiso e) => e switch
+    {
+        EstadoCompromiso.Pendiente  => "Pendiente",
+        EstadoCompromiso.Aprobado   => "Aprobado",
+        EstadoCompromiso.EnProceso  => "En Proceso",
+        EstadoCompromiso.Pagado     => "Pagado",
+        EstadoCompromiso.Vencido    => "Vencido",
+        EstadoCompromiso.Cancelado  => "Cancelado",
+        _                           => e.ToString()
+    };
+
+    private static string ColorPrioridad(string p) => p switch
+    {
+        "Urgente" => "#dc3545",
+        "Alta"    => "#fd7e14",
+        "Normal"  => "#183963",
+        "Baja"    => "#6c757d",
+        _         => "#183963"
+    };
+
+    private static readonly System.Globalization.CultureInfo _co = new("es-CO");
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+
+    private sealed class CompromisoForm
+    {
+        [Required] public string Codigo    { get; set; } = string.Empty;
+        [Required] public string Proveedor { get; set; } = string.Empty;
+        public int? PartidaId { get; set; }
+        [Range(1, double.MaxValue, ErrorMessage = "El valor debe ser mayor que 0")]
+        public decimal Valor { get; set; }
+        public DateTime Fecha            { get; set; } = DateTime.Today;
+        public DateTime FechaVencimiento { get; set; }
+        public string Prioridad          { get; set; } = "Normal";
+        public string? Observaciones     { get; set; }
+    }
+}

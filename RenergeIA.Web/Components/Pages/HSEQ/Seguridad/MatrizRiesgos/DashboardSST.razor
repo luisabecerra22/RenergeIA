@@ -1,0 +1,230 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/matriz/dashboard"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Dashboard SST — @(_proyecto?.Nombre ?? "")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted p-4">Cargando...</p>
+}
+else
+{
+    <PageHeader Titulo="Dashboard SST"
+                Icono="bi-bar-chart-line-fill"
+                Subtitulo="@($"{_proyecto!.Nombre} — Indicadores de Seguridad y Salud en el Trabajo")"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/seguridad/matriz")"
+                TextoVolver="Matriz Riesgos" />
+
+    <NavMatrizRiesgos ProyectoId="@ProyectoId" TabActiva="dashboard" />
+
+    <!-- KPI Row 1 -->
+    <div class="row g-3 mb-4">
+        @foreach (var k in _kpis)
+        {
+            <div class="col-6 col-md-3">
+                <div class="card border-0 shadow-sm text-center p-3 h-100"
+                     style="border-left:4px solid @k.Color!important">
+                    <i class="@k.Icono fs-2 mb-1" style="color:@k.Color"></i>
+                    <div class="fw-bold" style="font-size:1.8rem;color:@k.Color">@k.Valor</div>
+                    <div class="small text-muted">@k.Label</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Charts row -->
+    <div class="row g-4 mb-4">
+        <!-- Distribución por nivel de riesgo (donut) -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header fw-bold small text-uppercase" style="color:#183963;background:#f0f3f8">
+                    <i class="bi-pie-chart-fill me-1"></i>Distribución NR
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center">
+                    <canvas id="chartNR" width="220" height="220"></canvas>
+                </div>
+                <div class="card-footer py-2">
+                    @foreach (var (label, color, count) in _distribucionNR)
+                    {
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span><span class="rounded-circle d-inline-block me-1" style="width:10px;height:10px;background:@color"></span>@label</span>
+                            <span class="fw-bold">@count</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Riesgos por área (barras) -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header fw-bold small text-uppercase" style="color:#183963;background:#f0f3f8">
+                    <i class="bi-bar-chart-fill me-1"></i>Riesgos por Área
+                </div>
+                <div class="card-body">
+                    <canvas id="chartAreas" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado de riesgos (barras apiladas) -->
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header fw-bold small text-uppercase" style="color:#183963;background:#f0f3f8">
+                    <i class="bi-bar-chart-steps me-1"></i>Estado de Control
+                </div>
+                <div class="card-body">
+                    <canvas id="chartEstados" height="200"></canvas>
+                </div>
+                <div class="card-footer py-2">
+                    @foreach (EstadoRiesgo e in Enum.GetValues<EstadoRiesgo>())
+                    {
+                        var cnt = _riesgos.Count(r => r.Estado == e);
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span><span class="rounded-circle d-inline-block me-1" style="width:10px;height:10px;background:@ColorEstado(e)"></span>@e</span>
+                            <span class="fw-bold">@cnt</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de riesgos críticos pendientes -->
+    @if (_criticos.Any())
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-header fw-bold text-white d-flex gap-2 align-items-center" style="background:#C0392B">
+                <i class="bi-exclamation-triangle-fill"></i>
+                Riesgos Críticos Activos — Requieren atención inmediata
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover small align-middle mb-0">
+                    <thead class="table-light" style="font-size:.72rem;text-transform:uppercase">
+                        <tr>
+                            <th>Área</th>
+                            <th>Peligro</th>
+                            <th class="text-center">NR</th>
+                            <th>Acción correctiva</th>
+                            <th>Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _criticos.Take(10))
+                        {
+                            <tr>
+                                <td class="fw-semibold">@r.Area</td>
+                                <td>@r.DescripcionPeligro</td>
+                                <td class="text-center">
+                                    <span class="badge fw-bold" style="background:@ColorNR(r.NR)">@r.NR</span>
+                                </td>
+                                <td class="text-muted" style="font-size:.7rem">@r.AccionCorrectiva</td>
+                                <td>@r.Responsable</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private List<RiesgoIPERV> _riesgos = [];
+    private List<RiesgoIPERV> _criticos = [];
+    private List<(string Label, string Color, int Count)> _distribucionNR = [];
+    private record KpiCard(string Icono, string Color, string Valor, string Label);
+    private List<KpiCard> _kpis = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        _riesgos = await Db.RiesgosIPERV
+            .Where(r => r.ProyectoId == ProyectoId)
+            .ToListAsync();
+
+        _criticos = _riesgos
+            .Where(r => r.NR >= 2000 && r.Estado == EstadoRiesgo.Activo)
+            .OrderByDescending(r => r.NR)
+            .ToList();
+
+        _distribucionNR =
+        [
+            ("I — Crítico",          "#C0392B", _riesgos.Count(r => r.NR >= 4000)),
+            ("II — No Aceptable",    "#E65100", _riesgos.Count(r => r.NR is >= 2000 and < 4000)),
+            ("III — Mejorable",      "#F39C12", _riesgos.Count(r => r.NR is >= 1000 and < 2000)),
+            ("IV — Aceptable c/ctrl","#F1C40F", _riesgos.Count(r => r.NR is >= 200  and < 1000)),
+            ("V — Aceptable",        "#27AE60", _riesgos.Count(r => r.NR < 200)),
+        ];
+
+        var totalIA  = await Db.InspeccionesIA.CountAsync(i => i.ProyectoId == ProyectoId);
+        var aprobIA  = await Db.InspeccionesIA.CountAsync(i => i.ProyectoId == ProyectoId && i.EstadoValidacion == EstadoValidacionIA.Aprobado);
+        var ctrl     = _riesgos.Count(r => r.Estado == EstadoRiesgo.Controlado || r.Estado == EstadoRiesgo.Eliminado);
+        var pct      = _riesgos.Count > 0 ? ctrl * 100 / _riesgos.Count : 0;
+
+        _kpis =
+        [
+            new("bi-cpu-fill",                 "#183963", totalIA.ToString(),         "Inspecciones IA"),
+            new("bi-check-circle-fill",        "#6ABF48", aprobIA.ToString(),         "Aprobadas por SST"),
+            new("bi-exclamation-triangle-fill","#C0392B", _criticos.Count.ToString(), "Críticos Activos"),
+            new("bi-shield-check",             "#27AE60", pct + "%",                  "Riesgos Controlados"),
+        ];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !_riesgos.Any()) return;
+        await RenderizarChartsAsync();
+    }
+
+    private async Task RenderizarChartsAsync()
+    {
+        // Donut NR
+        await JS.InvokeVoidAsync("renderDoughnutChart", "chartNR",
+            _distribucionNR.Select(d => d.Label).ToArray(),
+            _distribucionNR.Select(d => d.Count).ToArray(),
+            _distribucionNR.Select(d => d.Color).ToArray());
+
+        // Barras por área
+        var porArea = _riesgos.GroupBy(r => r.Area)
+            .OrderByDescending(g => g.Max(r => r.NR))
+            .Take(8).ToList();
+        await JS.InvokeVoidAsync("renderBarChartSingle", "chartAreas",
+            porArea.Select(g => g.Key).ToArray(),
+            porArea.Select(g => g.Count()).ToArray(),
+            "#183963");
+
+        // Barras estado
+        var estados = Enum.GetValues<EstadoRiesgo>();
+        await JS.InvokeVoidAsync("renderBarChartSingle", "chartEstados",
+            estados.Select(e => e.ToString()).ToArray(),
+            estados.Select(e => _riesgos.Count(r => r.Estado == e)).ToArray(),
+            "#6ABF48");
+    }
+
+    private static string ColorNR(int nr) => nr switch
+    {
+        >= 4000 => "#C0392B", >= 2000 => "#E65100",
+        >= 1000 => "#F39C12", >= 200  => "#F1C40F",
+        _       => "#27AE60"
+    };
+
+    private static string ColorEstado(EstadoRiesgo e) => e switch
+    {
+        EstadoRiesgo.Activo     => "#C0392B",
+        EstadoRiesgo.EnControl  => "#E65100",
+        EstadoRiesgo.Controlado => "#6ABF48",
+        _                       => "#9E9E9E"
+    };
+}

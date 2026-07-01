@@ -35,6 +35,9 @@ builder.Services.AddScoped<DocumentoService>();
 builder.Services.AddScoped<CostoService>();
 builder.Services.AddScoped<HistogramaService>();
 builder.Services.AddScoped<HomeDashboardService>();
+builder.Services.AddScoped<ChecklistISO9001Service>();
+builder.Services.AddScoped<NormaChecklistService>();
+builder.Services.AddScoped<IAInspeccionService>();
 builder.Services.AddHttpClient();
 
 builder.Services.AddRazorComponents()

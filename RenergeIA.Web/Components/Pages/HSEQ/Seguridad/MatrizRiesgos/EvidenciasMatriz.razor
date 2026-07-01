@@ -1,0 +1,212 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/matriz/evidencias"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Evidencias — @(_proyecto?.Nombre ?? "")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted p-4">Cargando...</p>
+}
+else
+{
+    <PageHeader Titulo="Evidencias de Inspección"
+                Icono="bi-folder2-open"
+                Subtitulo="@($"{_proyecto!.Nombre} — Fotografías y documentos del campo")"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/seguridad/matriz")"
+                TextoVolver="Matriz Riesgos" />
+
+    <NavMatrizRiesgos ProyectoId="@ProyectoId" TabActiva="evidencias" />
+
+    <!-- Filtros -->
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <input class="form-control form-control-sm" style="max-width:220px"
+               placeholder="Buscar área / actividad..."
+               @bind="_filtro" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroEstadoVal">
+            <option value="">Todos los estados IA</option>
+            @foreach (EstadoValidacionIA e in Enum.GetValues<EstadoValidacionIA>())
+            {
+                <option value="@e">@e</option>
+            }
+        </select>
+        <div class="ms-auto">
+            <div class="btn-group btn-group-sm">
+                <button class="btn @(_vistaGaleria ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick='() => _vistaGaleria = true'
+                        style="@(_vistaGaleria ? "background:#183963;border-color:#183963" : "")">
+                    <i class="bi-grid-3x3-gap-fill"></i>
+                </button>
+                <button class="btn @(!_vistaGaleria ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick='() => _vistaGaleria = false'
+                        style="@(!_vistaGaleria ? "background:#183963;border-color:#183963" : "")">
+                    <i class="bi-list-ul"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (!InspeccionesFiltradas().Any())
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="bi-folder2-open display-3 d-block mb-2"></i>
+            No hay inspecciones con evidencias fotográficas.
+        </div>
+    }
+    else if (_vistaGaleria)
+    {
+        <div class="row g-3">
+            @foreach (var insp in InspeccionesFiltradas())
+            {
+                <div class="col-6 col-md-4 col-xl-3">
+                    <div class="card border-0 shadow-sm h-100 overflow-hidden">
+                        @if (!string.IsNullOrEmpty(insp.EvidenciaUrl) && EsImagen(insp.EvidenciaUrl))
+                        {
+                            <img src="@insp.EvidenciaUrl" alt="Evidencia"
+                                 class="card-img-top" style="height:160px;object-fit:cover" />
+                        }
+                        else
+                        {
+                            <div class="d-flex align-items-center justify-content-center"
+                                 style="height:160px;background:#f0f3f8">
+                                <i class="bi-file-earmark-text display-4 text-muted"></i>
+                            </div>
+                        }
+                        <div class="card-body p-2">
+                            <div class="fw-semibold small text-truncate" style="color:#183963">@insp.Area</div>
+                            <div class="text-muted" style="font-size:.7rem">@insp.Actividad — @insp.Tarea</div>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <small class="text-muted">@insp.FechaInspeccion.ToString("dd/MM/yy")</small>
+                                <span class="badge" style="background:@ColorValidacion(insp.EstadoValidacion);font-size:.65rem">
+                                    @insp.EstadoValidacion
+                                </span>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(insp.EvidenciaUrl))
+                        {
+                            <div class="card-footer py-1 px-2">
+                                <a href="@insp.EvidenciaUrl" target="_blank"
+                                   class="btn btn-sm btn-outline-secondary w-100 py-0" style="font-size:.7rem">
+                                    <i class="bi-download me-1"></i>Descargar
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover small align-middle mb-0">
+                    <thead style="background:#183963;color:#fff;font-size:.72rem;text-transform:uppercase">
+                        <tr>
+                            <th>Miniatura</th>
+                            <th>Área / Actividad</th>
+                            <th>Inspector</th>
+                            <th>Fecha</th>
+                            <th>Peligros detectados</th>
+                            <th class="text-center">Validación IA</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var insp in InspeccionesFiltradas())
+                        {
+                            <tr>
+                                <td style="width:60px">
+                                    @if (!string.IsNullOrEmpty(insp.EvidenciaUrl) && EsImagen(insp.EvidenciaUrl))
+                                    {
+                                        <img src="@insp.EvidenciaUrl" alt="Ev."
+                                             style="width:48px;height:36px;object-fit:cover;border-radius:6px" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi-file-earmark-text fs-4 text-muted"></i>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">@insp.Area</div>
+                                    <div class="text-muted" style="font-size:.7rem">@insp.Actividad — @insp.Tarea</div>
+                                </td>
+                                <td>@insp.Inspector</td>
+                                <td>@insp.FechaInspeccion.ToString("dd/MM/yyyy")</td>
+                                <td style="max-width:180px;font-size:.7rem">@insp.PeligrosIdentificados</td>
+                                <td class="text-center">
+                                    <span class="badge" style="background:@ColorValidacion(insp.EstadoValidacion)">
+                                        @insp.EstadoValidacion
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    @if (!string.IsNullOrEmpty(insp.EvidenciaUrl))
+                                    {
+                                        <a href="@insp.EvidenciaUrl" target="_blank"
+                                           class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                            <i class="bi-download" style="font-size:.7rem"></i>
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer text-muted small py-1 px-3">
+                @InspeccionesFiltradas().Count() inspecciones
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private List<InspeccionIA> _inspecciones = [];
+    private string _filtro = "";
+    private string _filtroEstadoVal = "";
+    private bool _vistaGaleria = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        _inspecciones = await Db.InspeccionesIA
+            .Where(i => i.ProyectoId == ProyectoId)
+            .OrderByDescending(i => i.FechaInspeccion)
+            .ToListAsync();
+    }
+
+    private IEnumerable<InspeccionIA> InspeccionesFiltradas()
+    {
+        var q = _inspecciones.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_filtro))
+            q = q.Where(i => i.Area.Contains(_filtro, StringComparison.OrdinalIgnoreCase)
+                           || i.Actividad.Contains(_filtro, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(_filtroEstadoVal) && Enum.TryParse<EstadoValidacionIA>(_filtroEstadoVal, out var est))
+            q = q.Where(i => i.EstadoValidacion == est);
+        return q;
+    }
+
+    private static bool EsImagen(string url)
+    {
+        var ext = Path.GetExtension(url).ToLowerInvariant();
+        return ext is ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp";
+    }
+
+    private static string ColorValidacion(EstadoValidacionIA e) => e switch
+    {
+        EstadoValidacionIA.Aprobado            => "#6ABF48",
+        EstadoValidacionIA.PendienteValidacion => "#F39C12",
+        EstadoValidacionIA.EnRevision          => "#183963",
+        EstadoValidacionIA.Rechazado           => "#C0392B",
+        _                                      => "#9E9E9E"
+    };
+}

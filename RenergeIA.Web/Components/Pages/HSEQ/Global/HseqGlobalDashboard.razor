@@ -1,0 +1,239 @@
+@page "/hseq/dashboard"
+@page "/hseq"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Nav
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>HSEQ Corporativo — RenergeIA</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+
+    <!-- ── Header ─────────────────────────────────────────────────────── -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h4 class="fw-bold mb-0" style="color:#183963">
+                <i class="bi-shield-check me-2" style="color:#6ABF4B"></i>
+                HSEQ Corporativo
+            </h4>
+            <p class="text-muted small mb-0">Sistema de Gestión — Motor Universal de Auditorías</p>
+        </div>
+        <a href="hseq/auditorias/historial" class="btn btn-sm btn-outline-secondary">
+            <i class="bi-clock-history me-1"></i>Ver historial completo
+        </a>
+    </div>
+
+    <!-- ── KPIs ───────────────────────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_totalAuditorias</div>
+                    <div class="small text-muted">Auditorías totales</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fw-bold" style="font-size:1.8rem;color:#2E7D32">@_finalizadas</div>
+                    <div class="small text-muted">Finalizadas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fw-bold" style="font-size:1.8rem;color:#0277BD">@_enProceso</div>
+                    <div class="small text-muted">En proceso</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-3">
+                    <div class="fw-bold" style="font-size:1.8rem;color:#F39C12">
+                        @(_promedioCumplimiento > 0 ? $"{_promedioCumplimiento:F1}%" : "—")
+                    </div>
+                    <div class="small text-muted">% cumplimiento promedio</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tarjetas por norma ──────────────────────────────────────────── -->
+    <h6 class="fw-bold mb-3 text-uppercase" style="color:#183963;letter-spacing:.5px;font-size:.75rem">
+        <i class="bi-clipboard-check me-1"></i>Módulos de Auditoría
+    </h6>
+    <div class="row g-3 mb-4">
+        @foreach (var norma in _normas)
+        {
+            var (titulo, icono, color, version) = NormaChecklistService.Meta[norma];
+            var slug = NormaChecklistService.NormaASlug(norma);
+            var stats = _statsPorNorma.TryGetValue(norma, out var s) ? s : (0, 0, 0m);
+
+            <div class="col-sm-6 col-lg-4">
+                <div class="card border-0 shadow-sm h-100" style="border-left:4px solid @color !important;">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="width:40px;height:40px;background:@color+'18'">
+                                <i class="@icono" style="color:@color;font-size:1.1rem"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold" style="color:#183963;font-size:.9rem">@titulo</div>
+                                <div class="small text-muted" style="font-size:.7rem">@version</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-3 mb-3 small">
+                            <span class="text-muted"><strong style="color:#183963">@stats.Item1</strong> auditorías</span>
+                            <span class="text-muted"><strong style="color:#2E7D32">@stats.Item2</strong> finalizadas</span>
+                        </div>
+
+                        @if (stats.Item1 > 0)
+                        {
+                            <div class="progress mb-2" style="height:5px;border-radius:10px">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width:@stats.Item3%;background:@color"
+                                     aria-valuenow="@stats.Item3" aria-valuemin="0" aria-valuemax="100">
+                                </div>
+                            </div>
+                            <div class="small text-muted" style="font-size:.7rem">@stats.Item3.ToString("F1")% cumplimiento promedio</div>
+                        }
+                        else
+                        {
+                            <div class="small text-muted" style="font-size:.7rem">Sin auditorías registradas</div>
+                        }
+
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="hseq/auditorias/norma/@slug"
+                               class="btn btn-sm fw-semibold text-white flex-fill"
+                               style="background:@color;font-size:.72rem">
+                                <i class="bi-list-ul me-1"></i>Ver auditorías
+                            </a>
+                            <a href="hseq/auditorias/nueva?norma=@slug"
+                               class="btn btn-sm btn-outline-secondary flex-shrink-0"
+                               style="font-size:.72rem" title="Nueva auditoría">
+                                <i class="bi-plus-lg"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- ── Últimas auditorías ──────────────────────────────────────────── -->
+    @if (_recientes.Any())
+    {
+        <h6 class="fw-bold mb-3 text-uppercase" style="color:#183963;letter-spacing:.5px;font-size:.75rem">
+            <i class="bi-clock-history me-1"></i>Últimas auditorías
+        </h6>
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead style="background:#f0f3f8">
+                        <tr>
+                            <th class="ps-3" style="color:#183963;font-size:.72rem">NORMA</th>
+                            <th style="color:#183963;font-size:.72rem">AUDITOR</th>
+                            <th style="color:#183963;font-size:.72rem">PROCESO/ÁREA</th>
+                            <th style="color:#183963;font-size:.72rem">FECHA</th>
+                            <th style="color:#183963;font-size:.72rem">CUMPLIMIENTO</th>
+                            <th style="color:#183963;font-size:.72rem">ESTADO</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _recientes)
+                        {
+                            var normaKey = a.TipoNorma ?? TipoNormaHSEQ.ISO9001;
+                            var (tit, ico, col, _) = NormaChecklistService.Meta.TryGetValue(normaKey, out var m)
+                                ? m : ("—", "bi-file", "#9E9E9E", "");
+                            <tr>
+                                <td class="ps-3 align-middle">
+                                    <span class="badge" style="background:@col+'22';color:@col;font-size:.68rem">
+                                        <i class="@ico me-1"></i>@tit
+                                    </span>
+                                </td>
+                                <td class="align-middle">@a.Auditor</td>
+                                <td class="align-middle text-muted">@(a.ProcesoArea ?? "—")</td>
+                                <td class="align-middle text-muted">@a.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                                <td class="align-middle">
+                                    <span class="fw-bold" style="color:@ColorPorcentaje(a.PorcentajeCumplimiento)">
+                                        @a.PorcentajeCumplimiento.ToString("F1")%
+                                    </span>
+                                </td>
+                                <td class="align-middle">
+                                    <span class="badge rounded-pill"
+                                          style="background:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria)+'22';
+                                                 color:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria);
+                                                 font-size:.68rem">
+                                        @NormaChecklistService.LabelEstadoAuditoria(a.EstadoAuditoria)
+                                    </span>
+                                </td>
+                                <td class="align-middle text-end pe-3">
+                                    <a href="hseq/auditorias/@a.Id" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.7rem">
+                                        <i class="bi-arrow-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private static readonly TipoNormaHSEQ[] _normas =
+    [
+        TipoNormaHSEQ.ISO9001, TipoNormaHSEQ.ISO14001, TipoNormaHSEQ.ISO45001,
+        TipoNormaHSEQ.Decreto1072, TipoNormaHSEQ.Resolucion0312,
+        TipoNormaHSEQ.Cliente, TipoNormaHSEQ.Interventoria
+    ];
+
+    private int _totalAuditorias;
+    private int _finalizadas;
+    private int _enProceso;
+    private decimal _promedioCumplimiento;
+    private List<ChecklistAuditoria> _recientes = [];
+    private Dictionary<TipoNormaHSEQ, (int Total, int Fin, decimal Avg)> _statsPorNorma = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auditorias = await Db.ChecklistsAuditoria
+            .AsNoTracking()
+            .Where(a => a.TipoNorma != null)
+            .ToListAsync();
+
+        _totalAuditorias = auditorias.Count;
+        _finalizadas     = auditorias.Count(a => a.EstadoAuditoria == EstadoAuditoria.Finalizada);
+        _enProceso       = auditorias.Count(a => a.EstadoAuditoria == EstadoAuditoria.EnProceso);
+        _promedioCumplimiento = auditorias.Any() ? Math.Round(auditorias.Average(a => a.PorcentajeCumplimiento), 1) : 0;
+
+        _recientes = auditorias.OrderByDescending(a => a.FechaAuditoria).Take(6).ToList();
+
+        foreach (var norma in _normas)
+        {
+            var grupo = auditorias.Where(a => a.TipoNorma == norma).ToList();
+            var fin   = grupo.Count(a => a.EstadoAuditoria == EstadoAuditoria.Finalizada);
+            var avg   = grupo.Any() ? Math.Round(grupo.Average(a => a.PorcentajeCumplimiento), 1) : 0m;
+            _statsPorNorma[norma] = (grupo.Count, fin, avg);
+        }
+    }
+
+    private static string ColorPorcentaje(decimal p) => p switch
+    {
+        >= 80 => "#2E7D32",
+        >= 60 => "#F39C12",
+        >= 40 => "#E65100",
+        _     => "#C62828"
+    };
+}

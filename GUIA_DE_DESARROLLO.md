@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **28 de junio de 2026 — Módulos HSEQ Calidad, Ambiental y Social + nuevos componentes del Sistema de Diseño**
+> Última actualización: **1 de julio de 2026 — Motor de Auditoría HSEQ genérico multi-norma, Matriz de Riesgos IPERV con Inspecciones asistidas por IA, y módulo de Costos ampliado con Compromisos de Gasto**
 
 ---
 
@@ -37,7 +37,9 @@
 27. [Módulo HSEQ — Calidad ISO 9001](#27-módulo-hseq--calidad-iso-9001)
 28. [Módulo HSEQ — Ambiental ISO 14001](#28-módulo-hseq--ambiental-iso-14001)
 29. [Módulo HSEQ — Social](#29-módulo-hseq--social)
-30. [Glosario](#glosario)
+30. [Módulo HSEQ — Motor de Auditoría Genérico (Corporativo)](#30-módulo-hseq--motor-de-auditoría-genérico-corporativo)
+31. [Módulo HSEQ Seguridad — Matriz de Riesgos IPERV e Inspecciones con IA](#31-módulo-hseq-seguridad--matriz-de-riesgos-iperv-e-inspecciones-con-ia)
+32. [Glosario](#glosario)
 
 ---
 
@@ -594,11 +596,19 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
   },
   "AccuWeather": {
     "ApiKey": "TU_CLAVE_ACCUWEATHER_AQUI"
+  },
+  "Anthropic": {
+    "ApiKey": "TU_CLAVE_ANTHROPIC_AQUI",
+    "Model": "claude-sonnet-4-6"
   }
 }
 ```
 
 La clave `AccuWeather:ApiKey` es necesaria para el módulo de Clima. Se obtiene gratis (plan de desarrollo) en [developer.accuweather.com](https://developer.accuweather.com). Si no se configura, el módulo muestra un error descriptivo pero no rompe el resto de la aplicación.
+
+La clave `Anthropic:ApiKey` es necesaria para el análisis automático de inspecciones con IA del módulo HSEQ Seguridad — Matriz de Riesgos (ver sección 31). `IAInspeccionService` la usa para llamar a la API de Anthropic (`https://api.anthropic.com/v1/messages`) y generar la valoración GTC 45 de un peligro a partir de una foto y/o descripción de la inspección. Se obtiene en [console.anthropic.com](https://console.anthropic.com). Sin esta clave, el botón de análisis con IA falla mostrando un error, pero el resto del módulo (captura manual de riesgos) sigue funcionando.
+
+> **Pendiente:** actualizar `Model` a un identificador vigente (p. ej. `claude-sonnet-5`) — `claude-sonnet-4-6` es una versión anterior de Sonnet que sigue activa pero ya no es la más reciente en el momento de escribir esta guía.
 
 ---
 
@@ -780,6 +790,20 @@ Conteo de actividades: Atrasadas, Críticas, Finalizadas, Estado General.
 
 **Servicio:** `CostoService.cs`
 
+### Rediseño con pestañas (5 sub-vistas)
+
+`Costos.razor` pasó de ser una página monolítica a un **contenedor con pestañas** que delega en 5 componentes independientes. Esto redujo el archivo de ~674 a ~40 líneas propias:
+
+| Pestaña | Componente | Función |
+|---------|-----------|---------|
+| Presupuesto | `CostosPresupuesto.razor` | Gestión de partidas y presupuesto EPC por disciplina (jerarquía padre-hijo) |
+| Real / Ejecutado | `CostosEjecutado.razor` | Registro de costos reales incurridos, con adjunto de evidencia (factura, vale, recibo) |
+| Compromisos | `CostosCompromisos.razor` | CRUD de compromisos de gasto (órdenes de compra) — **nuevo** |
+| Dashboard | `CostosDashboard.razor` | Vista consolidada: presupuesto vs ejecutado vs compromisos |
+| Comparativo | `CostosComparativo.razor` | Análisis lado a lado de las tres magnitudes anteriores |
+
+`Costos.razor` solo mantiene el encabezado del proyecto, la barra de pestañas y un `switch` que renderiza el componente activo (`_tabActivo`), pasando `ProyectoId` como parámetro.
+
 ### Modelo de datos
 
 ```
@@ -791,7 +815,11 @@ Partida (jerarquía padre-hijo)
   └── 3. Construcción        → $500,000,000
 
 CostoReal (registros de costos incurridos)
-  → ProyectoId, PartidaId, Descripción, Cantidad, PrecioUnitario, Fecha
+  → ProyectoId, PartidaId, Descripción, Cantidad, PrecioUnitario, Fecha, AdjuntoUrl
+
+CompromisoCosto (compromisos de gasto — órdenes de compra) ← NUEVO
+  → ProyectoId, PartidaId?, Codigo, Proveedor, Valor, Fecha, FechaVencimiento,
+    Estado (EstadoCompromiso), Prioridad, Observaciones
 ```
 
 ### Campos de Partida
@@ -801,6 +829,34 @@ CostoReal (registros de costos incurridos)
 - `ValorEjecutado` (acumulado de `CostoReal` relacionados)
 - `PadreId` (jerarquía multinivel)
 - `SubPartidas` (colección de partidas hijas)
+
+### CostoReal — campo nuevo
+
+- `AdjuntoUrl` (`string?`, máx. 500 caracteres): ruta al comprobante digital (factura, vale, recibo) subido al registrar el costo real desde `CostosEjecutado.razor`.
+
+### CompromisoCosto ← NUEVO
+
+Representa un compromiso de compra (orden de compra, adquisición) vinculado al proyecto y, opcionalmente, a una partida específica. Permite ver el "pipeline" de gasto que aún no se ha ejecutado pero que ya está comprometido, complementando el presupuesto (planificado) y el `CostoReal` (ya incurrido):
+
+```csharp
+public class CompromisoCosto : EntidadBase
+{
+    public int ProyectoId { get; set; }
+    public int? PartidaId { get; set; }           // Opcional: partida asociada
+    public string Codigo { get; set; }
+    public string Proveedor { get; set; }
+    public decimal Valor { get; set; }             // Monto comprometido
+    public DateTime Fecha { get; set; }
+    public DateTime? FechaVencimiento { get; set; }
+    public EstadoCompromiso Estado { get; set; }
+    public string? Prioridad { get; set; }          // Normal, Alta, Urgente
+    public string? Observaciones { get; set; }
+}
+```
+
+`EstadoCompromiso`: `Pendiente` → `Aprobado` → `EnProceso` → `Pagado` | `Vencido` → `Cancelado`.
+
+Relaciones en `OnModelCreating`: FK a `Proyecto` con `DeleteBehavior.Restrict`, FK a `Partida` con `DeleteBehavior.SetNull` (si se borra la partida, el compromiso queda sin partida asociada en vez de borrarse).
 
 ### CostoService
 
@@ -1111,6 +1167,9 @@ Estados: Abierta → En Gestión → Resuelta / Aceptada.
 | `AgregarCronogramaVersion` | 2026-06-23 | Tabla `CronogramasVersion`; campo `CronogramaVersionId` en `ActividadesWBS` |
 | `AgregarUbicacionClimatica` | 2026-06-23 | Campos `Departamento`, `Municipio`, `Latitud`, `Longitud`, `AccuWeatherLocationKey` en `Proyectos` |
 | `AddSeguridadV2` | 2026-06-26 | Tablas nuevas: `PlanesTrabajoHSE`, `PausasActivas`, `CapacitacionesPlanificadas`. Columnas nuevas en `InspeccionesSST` (Area, Responsable, ActosInseguros, CondicionesInseguras, AccionesGeneradas, ResponsableCierre, FechaCompromiso), `Capacitaciones` (Responsable, Area, Estado), `EntregasEPP` (Documento, Area, TipoEntrega, Talla) |
+| `AddCamposISO9001` | 2026-06-29 | Renombra `Evidencia` → `OportunidadMejora` en `ItemsChecklist`; agrega `Clausula`, `EvidenciaUrl`, `Hallazgo`, `Plazo`, `Puntaje`, `Seguimiento`, `TituloClausula`; agrega `EstadoAuditoria`, `UsuarioId` en `ChecklistsAuditoria` |
+| `AddSeguridadIPERV` | 2026-06-30 | Tablas nuevas: `BibliotecaPeligros` (corporativa, sin FK), `InspeccionesIA` (FK a Proyectos), `RiesgosIPERV` (FK a Proyectos e InspeccionesIA) |
+| `AddCompromisoCosto` | 2026-06-30 | Tabla nueva `CompromisoCostos` (FK a Proyecto y Partida); agrega `AdjuntoUrl` en `CostosReales`; hace `ProyectoId` nullable (`SetNull`) en `ChecklistsAuditoria` para permitir auditorías corporativas sin proyecto |
 
 ### Comandos de migración
 
@@ -1364,8 +1423,15 @@ git diff HEAD~1              # Qué cambió en el último commit
   - [x] `_Imports.razor` actualizado con `@using RenergeIA.Web.Components.Shared.Dashboard`
   - [x] `SeguridadDashboard.razor` migrado a los nuevos componentes (eliminado RenderFragment local)
 - [x] Control de versiones con GitHub (repositorio remoto configurado)
+- [x] **Módulo de Costos ampliado**: rediseño en 5 pestañas (Presupuesto, Ejecutado, Compromisos, Dashboard, Comparativo); nueva entidad `CompromisoCosto` (órdenes de compra); `AdjuntoUrl` en `CostoReal` para evidencias digitales
+- [x] **Módulo HSEQ — Motor de Auditoría Genérico (corporativo)**: `NormaChecklistService` centraliza auditorías de ISO 9001, ISO 14001, ISO 45001, Decreto 1072/2015 y Resolución 0312/2019, sin requerir un proyecto asociado; hub `/hseq/dashboard`, auditorías por norma, historial
+- [x] **Módulo HSEQ Seguridad — Matriz de Riesgos IPERV**: metodología GTC 45 completa (ND/NE/NP/NC/NR, aceptabilidad I-V), biblioteca corporativa de peligros, dashboard SST, mapa de riesgos, acciones y evidencias
+- [x] **Inspecciones con IA**: `IAInspeccionService` integra la API de Anthropic (Claude) para sugerir automáticamente peligros, clasificación GTC 45 y acciones correctivas a partir de una foto y descripción de campo
+- [x] Checklist Resolución 0312/2019 (Estándares Mínimos SG-SST) en el sub-módulo Seguridad del proyecto
 
 **Pendiente Fase 1:**
+- [ ] Configurar `Anthropic:ApiKey` real en `appsettings.json` (actualmente placeholder; sin ella, el análisis con IA de la Matriz de Riesgos falla)
+- [ ] Aplicar las migraciones `AddCamposISO9001`, `AddSeguridadIPERV` y `AddCompromisoCosto` pendientes (`dotnet ef database update`)
 - [ ] Gestión de usuarios desde la UI (CRUD de cuentas)
 - [ ] Carga de archivos físicos de documentos
 - [ ] Generación de reportes PDF (QuestPDF)
@@ -1830,6 +1896,316 @@ Usa `PageHeader` + `ExecutiveCard` para KPIs:
 
 ---
 
+## 30. Módulo HSEQ — Motor de Auditoría Genérico (Corporativo)
+
+A diferencia de los checklists por norma implementados en las secciones 27-29 (que viven **dentro de un proyecto**: `/proyectos/{id}/hseq/...`), este módulo es **corporativo**: las auditorías no requieren estar asociadas a un proyecto específico. Sirve para auditorías internas de la compañía, auditorías de cliente o de interventoría que evalúan procesos transversales (Compras, Producción, etc.).
+
+**Ruta base:** `/hseq/...` (fuera del árbol `/proyectos/{id}/...`)
+
+### Propósito
+
+Antes existía un servicio (`ChecklistISO9001Service`) y una página por norma. Ahora `NormaChecklistService` centraliza la lógica para **cualquier norma soportada**, evitando duplicar código por cada nueva regulación que se agregue:
+
+- **ISO 9001** — Gestión de Calidad
+- **ISO 14001** — Gestión Ambiental
+- **ISO 45001** — Gestión de Seguridad y Salud en el Trabajo
+- **Decreto 1072/2015** — Sistema de Gestión de SST (normativa colombiana)
+- **Resolución 0312/2019** — Estándares Mínimos SG-SST (normativa colombiana)
+- **Cliente** / **Interventoría** — auditorías externas sobre el proyecto
+
+### Entidades (compartidas con los checklists de calidad/ambiental/seguridad)
+
+`ChecklistAuditoria` e `ItemChecklist` (ya existentes desde la sección 27) se ampliaron para soportar el modelo genérico:
+
+**`ChecklistAuditoria`** — campos nuevos:
+
+```csharp
+public TipoNormaHSEQ TipoNorma { get; set; }        // ISO9001, ISO14001, ISO45001, Decreto1072, Resolucion0312, Cliente, Interventoria
+public TipoAuditoriaHSEQ TipoAuditoria { get; set; } // Interna, Cliente, Interventoria
+public string? ProcesoArea { get; set; }             // Ej: "Compras", "Producción"
+public EstadoAuditoria EstadoAuditoria { get; set; } // Borrador, EnProceso, Finalizada
+public string? UsuarioId { get; set; }               // Auditor responsable
+public int? ProyectoId { get; set; }                 // NULLABLE — permite auditorías sin proyecto (SetNull)
+```
+
+**`ItemChecklist`** — campos nuevos (uno por cada requisito de la norma auditada):
+
+```csharp
+public string? Clausula { get; set; }              // Ej: "4.1"
+public string? TituloClausula { get; set; }
+public string? NumeroRequisito { get; set; }
+public string? DescripcionRequisito { get; set; }
+public decimal? Puntaje { get; set; }               // decimal(5,2)
+public string? EvidenciaUrl { get; set; }            // máx. 500 caracteres
+public string? Hallazgo { get; set; }
+public string? OportunidadMejora { get; set; }       // Renombrado desde "Evidencia"
+public string? Responsable { get; set; }
+public DateTime? Plazo { get; set; }
+public EstadoSeguimiento Seguimiento { get; set; }   // Pendiente, EnProceso, Ejecutado
+public EstadoCumplimiento Estado { get; set; }        // Cumple, NoCumple, Parcial, NoAplica, EnProceso, SinEvaluar
+```
+
+### Enums nuevos
+
+| Enum | Valores |
+|------|---------|
+| `TipoNormaHSEQ` | ISO9001, ISO14001, ISO45001, Decreto1072, Resolucion0312, Cliente, Interventoria |
+| `EstadoAuditoria` | Borrador, EnProceso, Finalizada |
+| `EstadoSeguimiento` | Pendiente, EnProceso, Ejecutado |
+| `EstadoCumplimiento` (ampliado) | Cumple, NoCumple, Parcial, NoAplica, **EnProceso**, **SinEvaluar** |
+
+### Servicio central: `NormaChecklistService`
+
+| Método | Función |
+|--------|---------|
+| `ObtenerRequisitos(TipoNormaHSEQ)` | Retorna el catálogo de requisitos de la norma (delega en las clases `*ChecklistData` de solo lectura) |
+| `GenerarItems(TipoNormaHSEQ)` | Crea los `ItemChecklist` completos listos para llenar, a partir del catálogo |
+| `CalcularPorcentaje(IEnumerable<ItemChecklist>)` | % de cumplimiento: Cumple=100%, Parcial=50%, EnProceso=25%, resto=0% |
+| `GuardarEvidenciaAsync(...)` | Sube evidencias a `/uploads/auditorias/{auditoriaId}/` |
+| `GenerarCsv(...)` | Exporta la auditoría completa a CSV |
+| `Meta` (diccionario estático) | Mapea `TipoNormaHSEQ` → (Título, ícono Bootstrap, color hex, versión del estándar) — usado para pintar la UI dinámicamente según la norma |
+
+`ChecklistISO9001Service` (el servicio anterior, específico de ISO 9001) se mantiene por compatibilidad, pero `NormaChecklistService` es el punto de entrada para páginas nuevas.
+
+### Catálogos de requisitos (`Web/Services/*ChecklistData.cs`)
+
+Clases estáticas de solo lectura, cada una con un `record` de requisito (`NumClausula`/`NumGrupo`, `Titulo`, `SubClausula`, `Id`, `Req` (descripción), `Interp` (cómo evidenciarlo), `Docs` (documentos sugeridos)):
+
+| Archivo | Norma | Requisitos aprox. |
+|---------|-------|-------------------|
+| `Iso9001ChecklistData.cs` | ISO 9001 (cláusulas 4-10) | 52+ |
+| `Iso14001ChecklistData.cs` | ISO 14001 (cláusulas 4-10, enfoque ambiental) | ~50 |
+| `Iso45001ChecklistData.cs` | ISO 45001 (cláusulas 4-10, enfoque SST) | ~50 |
+| `Decreto1072ChecklistData.cs` | Decreto 1072/2015 SG-SST | ~126 |
+| `Resolucion0312ChecklistData.cs` | Resolución 0312/2019 Estándares Mínimos | ~126 |
+
+Todos cubren el mismo ciclo PHVA: Planificación (política, evaluación inicial, objetivos) → Implementación (gestión de peligros/aspectos, capacitación, vigilancia) → Verificación (indicadores, auditoría interna, revisión por la dirección) → Mejora continua (investigación de incidentes/no conformidades, acciones correctivas).
+
+### Rutas y páginas (`Components/Pages/HSEQ/Global/`)
+
+| Ruta | Archivo | Función |
+|------|---------|---------|
+| `/hseq/dashboard` | `HseqGlobalDashboard.razor` | Resumen corporativo con indicadores agregados de todas las normas |
+| `/hseq/auditorias/norma/{normaSlug}` | `AuditoriasNorma.razor` | CRUD de auditorías para la norma seleccionada (iso9001, iso14001, iso45001, decreto1072, resolucion0312, cliente, interventoria) |
+| — (componente hijo, no tiene ruta propia) | `MotorAuditoria.razor` | Componente reutilizable que renderiza el formulario de un ítem de checklist (cumplimiento, evidencia, hallazgo, oportunidad, responsable, plazo, seguimiento) — usado por `AuditoriasNorma.razor` |
+| `/hseq/auditorias/historial` | `HistorialAuditorias.razor` | Historial de auditorías ejecutadas, con filtros y exportación |
+
+### Navegación
+
+`NavMenu.razor` agrega una sección de nivel superior **"HSEQ"** (corporativa, fuera del árbol de proyectos) con submenú expandible: Dashboard HSEQ y Auditorías (con una entrada por norma + Historial). El componente detecta la ruta activa (`EsRutaHseqGlobal`, `HseqSubActivo(...)`) y auto-expande el submenú correspondiente al navegar.
+
+---
+
+## 31. Módulo HSEQ Seguridad — Matriz de Riesgos IPERV e Inspecciones con IA
+
+**Ruta:** `/proyectos/{id}/hseq/seguridad/matriz` → `MatrizRiesgosIndex.razor` (dentro del proyecto, a diferencia de la sección 30)
+
+### Propósito
+
+Implementa la metodología **GTC 45** (Guía Técnica Colombiana del ICONTEC) de identificación de peligros, evaluación y valoración de riesgos (IPERV — Identificación de Peligros, Evaluación y Valoración de Riesgos), con un diferencial: permite generar el análisis de riesgo **automáticamente con IA** a partir de una foto y una breve descripción de la inspección, usando la API de Anthropic (Claude).
+
+Flujo completo:
+
+```
+1. Biblioteca de Peligros (catálogo corporativo, ~30 peligros típicos de proyectos FV)
+        ↓ (referencia)
+2. Nueva Inspección IA: el inspector sube foto + describe área/actividad/tarea
+        ↓ (IAInspeccionService llama a la API de Anthropic)
+3. Resultado IA: peligros identificados, clasificación GTC45, ND/NE/NC/NR, aceptabilidad, medidas sugeridas
+        ↓ (el inspector revisa y aprueba)
+4. Riesgo IPERV: queda registrado en la Matriz de Riesgos del proyecto, con trazabilidad a la inspección de origen
+        ↓
+5. Seguimiento: acciones correctivas, evidencias, mapa de riesgos (NP vs NC)
+```
+
+### Entidades
+
+#### `BibliotecaPeligro` — catálogo corporativo (sin FK, es tabla de referencia)
+
+```csharp
+public class BibliotecaPeligro : EntidadBase
+{
+    public string Area { get; set; }
+    public string Actividad { get; set; }
+    public string Tarea { get; set; }
+    public string Peligro { get; set; }
+    public string Clasificacion { get; set; }        // GTC45: Locativo, Mecánico, Eléctrico, Químico, Biológico, Biomecánico, Psicosocial, Físico, Fenómenos naturales, Público
+    public string EfectosPosibles { get; set; }
+    public string? ControlFuente { get; set; }
+    public string? ControlMedio { get; set; }
+    public string? ControlIndividuo { get; set; }
+    public string? MedidasIntervencion { get; set; }
+    public string? EPPRecomendado { get; set; }
+    public string? DocumentosAsociados { get; set; }
+    public string? PermisosRequeridos { get; set; }
+    public string? NivelRiesgoSugerido { get; set; }
+    public bool Activo { get; set; } = true;
+}
+```
+
+Poblada desde `BibliotecaPeligrosData.cs` — catálogo estático con ~30 peligros típicos de un proyecto EPC fotovoltaico, organizados por área: Obras Civiles, Estructuras, Módulos FV, Eléctricas AC, Salas Eléctricas, Subestación, Izajes, Trabajo en Alturas, Commissioning y O&M. Ejemplos: derrumbe en excavación (Locativo, NR sugerido 4000), atmósfera deficiente en espacio confinado (Químico, NR 6000), contacto eléctrico en AC (Eléctrico, NR 6000).
+
+#### `InspeccionIA` — registro de la inspección de campo
+
+```csharp
+public class InspeccionIA : EntidadBase
+{
+    public int ProyectoId { get; set; }
+    public string Area { get; set; }
+    public string Actividad { get; set; }
+    public string Tarea { get; set; }
+    public string? Responsable { get; set; }
+    public string? Ubicacion { get; set; }
+    public string? Inspector { get; set; }
+    public DateTime FechaInspeccion { get; set; }
+    public string? ObservacionManual { get; set; }     // Notas del inspector
+    public string? EvidenciaUrl { get; set; }           // Foto/video subido
+    public EstadoValidacionIA EstadoValidacion { get; set; }
+    public string? ValidadoPor { get; set; }
+    public DateTime? FechaValidacion { get; set; }
+    public string? ObservacionValidacion { get; set; }
+
+    // Cache del resultado de IA (para no volver a llamar la API al recargar la página)
+    public string? ResultadoIA { get; set; }            // JSON serializado de AnalisisIAResult
+    public string? PeligrosIdentificados { get; set; }
+    public string? NivelRiesgoSugerido { get; set; }
+    public string? HallazgoRedactado { get; set; }
+    public string? AccionCorrectivaSugerida { get; set; }
+
+    public ICollection<RiesgoIPERV> RiesgosGenerados { get; set; } = [];
+}
+```
+
+FK a `Proyecto` con `DeleteBehavior.Cascade`. Relación 1:N con `RiesgoIPERV` (una inspección puede generar varios riesgos aprobados).
+
+#### `RiesgoIPERV` — el riesgo valorado según GTC 45
+
+```csharp
+public class RiesgoIPERV : EntidadBase
+{
+    public int ProyectoId { get; set; }
+    public FuenteRiesgo FuenteOrigen { get; set; }      // InspeccionIA, InspeccionManual, Incidente, PermisoTrabajo, Capacitacion, AccionCorrectiva, Manual
+    public int? InspeccionIAId { get; set; }             // Referencia a la inspección de origen (si aplica)
+
+    // Identificación del peligro
+    public string Area { get; set; }
+    public string Actividad { get; set; }
+    public string Tarea { get; set; }
+    public bool EsRutinaria { get; set; }
+    public string DescripcionPeligro { get; set; }
+    public string ClasificacionPeligro { get; set; }
+    public string EfectosPosibles { get; set; }
+
+    // Controles existentes (jerarquía Fuente-Medio-Individuo)
+    public string? ControlFuente { get; set; }
+    public string? ControlMedio { get; set; }
+    public string? ControlIndividuo { get; set; }
+
+    // Valoración GTC 45
+    public int ND { get; set; }              // Nivel Deficiencia: 10=MA, 6=A, 2=M, 0=B
+    public int NE { get; set; }              // Nivel Exposición: 4=EC, 3=EF, 2=EO, 1=EEsp
+    public int NP => ND * NE;                // Nivel Probabilidad (calculado)
+    public int NC { get; set; }              // Nivel Consecuencia: 100=M, 60=MG, 25=G, 10=L
+    public int NR => NP * NC;                // Nivel Riesgo (calculado)
+    public string Aceptabilidad { get; set; } // I-V, derivado de NR
+
+    // Medidas de intervención (jerarquía de controles)
+    public string? Eliminacion { get; set; }
+    public string? Sustitucion { get; set; }
+    public string? ControlIngenieria { get; set; }
+    public string? ControlAdministrativo { get; set; }
+    public string? Senalizacion { get; set; }
+    public string? EPP { get; set; }
+
+    // Gestión
+    public string? Responsable { get; set; }
+    public DateTime? Plazo { get; set; }
+    public string? EvidenciaUrl { get; set; }
+    public string? Hallazgo { get; set; }
+    public string? AccionCorrectiva { get; set; }
+
+    public EstadoRiesgo Estado { get; set; }             // Activo, EnControl, Controlado, Eliminado
+    public EstadoValidacionIA EstadoValidacion { get; set; }
+}
+```
+
+FK a `Proyecto` (`Cascade`) y FK opcional a `InspeccionIA` (sin cascada, para no perder el riesgo si se elimina la inspección origen).
+
+### Escala GTC 45 (valoración del riesgo)
+
+| Variable | Significado | Valores |
+|----------|-------------|---------|
+| **ND** | Nivel de Deficiencia | 10=Muy Alto (MA), 6=Alto (A), 2=Medio (M), 0=Bajo (B) |
+| **NE** | Nivel de Exposición | 4=Continua (EC), 3=Frecuente (EF), 2=Ocasional (EO), 1=Esporádica (EEsp) |
+| **NP** | Nivel de Probabilidad | `ND × NE` |
+| **NC** | Nivel de Consecuencia | 100=Mortal (M), 60=Muy Grave (MG), 25=Grave (G), 10=Leve (L) |
+| **NR** | Nivel de Riesgo | `NP × NC` |
+
+**Aceptabilidad** (derivada de NR):
+
+| Nivel | Rango NR | Interpretación |
+|-------|----------|----------------|
+| I | ≥ 4000 | No Aceptable |
+| II | 2000-3999 | No Aceptable |
+| III | 1000-1999 | Mejorable |
+| IV | 200-999 | Aceptable con control |
+| V | < 200 | Aceptable |
+
+### Enums nuevos
+
+| Enum | Valores |
+|------|---------|
+| `EstadoRiesgo` | Activo, EnControl, Controlado, Eliminado |
+| `EstadoValidacionIA` | PendienteValidacion, EnRevision, Aprobado, Rechazado |
+| `FuenteRiesgo` | InspeccionIA, InspeccionManual, Incidente, PermisoTrabajo, Capacitacion, AccionCorrectiva, Manual |
+
+### Servicio: `IAInspeccionService`
+
+Integra la app con la **API de Anthropic (Claude)** para automatizar la valoración GTC 45 de una inspección:
+
+| Método | Función |
+|--------|---------|
+| `AnalizarAsync(evidenciaUrl?, area, actividad, tarea, observacion?)` | Arma un prompt con el contexto GTC 45 (escalas ND/NE/NC, jerarquía de controles), adjunta la foto en base64 si existe, y hace `POST` a `https://api.anthropic.com/v1/messages` con la clave y el modelo configurados en `appsettings.json` (`Anthropic:ApiKey`, `Anthropic:Model`) |
+| `ExtraerYParsearJSON(...)` | Busca el bloque JSON en la respuesta de texto de Claude (entre `{ }` o dentro de un bloque ` ```json `) |
+| `LeerImagenBase64Async(...)` | Lee la foto local (jpg/png/gif/webp) y la convierte a base64 para enviarla en el mensaje |
+| `SerializarResultado()` / `DeserializarResultado()` | Convierte el resultado a/desde JSON para guardarlo en caché en `InspeccionIA.ResultadoIA` |
+
+`AnalisisIAResult` es el objeto que mapea la respuesta JSON de la IA: peligros identificados, clasificación, efectos posibles, controles existentes/faltantes, ND/NE/NC/NR (como texto, ej. `"A"`, `"EC"`, `"G"`), aceptabilidad, medidas de intervención, responsable y plazo sugeridos, hallazgo redactado, acción correctiva y EPP requerido — con propiedades calculadas para convertir los textos a los valores numéricos de la escala GTC 45 y derivar un color (`ColorNR`) para la UI.
+
+Registrado en `Program.cs`:
+```csharp
+builder.Services.AddScoped<NormaChecklistService>();
+builder.Services.AddScoped<IAInspeccionService>();
+builder.Services.AddHttpClient(); // requerido por IAInspeccionService
+```
+
+> **Importante:** si `Anthropic:ApiKey` no está configurada, `AnalizarAsync` falla — el formulario de inspección debe seguir permitiendo captura 100% manual del riesgo (sin depender de la IA) para no bloquear el trabajo de campo.
+
+### Rutas y páginas (`Components/Pages/HSEQ/Seguridad/MatrizRiesgos/`)
+
+| Ruta (relativa a `/proyectos/{id}/hseq/seguridad/matriz`) | Archivo | Función |
+|------|---------|---------|
+| (raíz) | `MatrizRiesgosIndex.razor` | Contenedor/router del sub-módulo |
+| — | `NavMatrizRiesgos.razor` | Barra de navegación: Dashboard, IPERV, Inspecciones, Biblioteca, Acciones, Evidencias, Mapa |
+| `/dashboard` | `DashboardSST.razor` | KPIs de seguridad: riesgos activos, distribución por aceptabilidad, tendencias |
+| `/iperv` | `MatrizIPERV.razor` | Tabla de riesgos identificados — filtrable por estado/NR, editable, con acciones de editar/eliminar/ver detalle |
+| `/inspeccion-ia` | `NuevaInspeccionIA.razor` | Formulario de inspección + análisis IA: panel izquierdo con los datos de campo (área, actividad, tarea, responsable, inspector, fecha, observación, foto); panel derecho con el resultado de la IA en vivo (peligros, ND/NE/NC/NR, aceptabilidad, controles, medidas, hallazgo, acción) y un botón para generar/aprobar el riesgo IPERV a partir del análisis |
+| `/biblioteca` | `BibliotecaPeligros.razor` | Consulta del catálogo de peligros genéricos, filtrable por área/actividad/tarea |
+| `/acciones` | `AccionesMatriz.razor` | Gestión de acciones correctivas derivadas de riesgos activos |
+| `/evidencias` | `EvidenciasMatriz.razor` | Galería/historial de evidencias fotográficas vinculadas a riesgos e inspecciones |
+| `/mapa` | `MapaRiesgos.razor` | Mapa de riesgos: dispersión de NP (eje Y) vs NC (eje X), coloreado por nivel de aceptabilidad |
+
+### Integración con otros módulos
+
+- Las Inspecciones SST ya existentes (sección 26) pueden originar un `RiesgoIPERV` con `FuenteOrigen = InspeccionManual`.
+- Un Incidente/Accidente puede originar un `RiesgoIPERV` con `FuenteOrigen = Incidente`, cerrando el ciclo entre "algo pasó" y "qué riesgo lo explica".
+
+### Navegación
+
+`NavSeguridad.razor` agrega la pestaña **"Matriz Riesgos"** → `/proyectos/{id}/hseq/seguridad/matriz`, junto a la nueva pestaña **"Res. 0312"** → `/proyectos/{id}/hseq/seguridad/resolucion0312` (`ChecklistResolucion0312.razor`, análogo a `ChecklistISO45001.razor` pero usando `Resolucion0312ChecklistData`).
+
+---
+
 ## Glosario
 
 | Término | Definición |
@@ -1858,7 +2234,15 @@ Usa `PageHeader` + `ExecutiveCard` para KPIs:
 | **Open-Meteo** | API meteorológica REST completamente gratuita y sin clave; provee clima actual y pronóstico de hasta 16 días usando modelos GFS/ECMWF |
 | **WMO Code** | Código estándar de la Organización Meteorológica Mundial para describir condiciones climáticas (0=Despejado, 95=Tormenta, etc.) |
 | **No Conformidad (NC)** | Desviación detectada respecto a un requisito de calidad, seguridad o contrato; tiene severidad (Baja/Media/Alta/Crítica) y estados de resolución |
+| **GTC 45** | Guía Técnica Colombiana 45 del ICONTEC — metodología estándar para identificación de peligros, evaluación y valoración de riesgos laborales |
+| **IPERV** | Identificación de Peligros, Evaluación y Valoración de Riesgos — matriz de riesgos de seguridad industrial basada en GTC 45 |
+| **ND / NE / NP / NC / NR** | Variables de la valoración GTC 45: Nivel de Deficiencia, Nivel de Exposición, Nivel de Probabilidad (ND×NE), Nivel de Consecuencia, Nivel de Riesgo (NP×NC) |
+| **Aceptabilidad (I-V)** | Clasificación del riesgo según su NR: I y II No Aceptable, III Mejorable, IV Aceptable con control, V Aceptable |
+| **SG-SST** | Sistema de Gestión de Seguridad y Salud en el Trabajo — marco normativo colombiano (Decreto 1072/2015, Resolución 0312/2019) |
+| **Decreto 1072/2015** | Decreto Único Reglamentario del Sector Trabajo en Colombia; define el SG-SST obligatorio para empresas |
+| **Resolución 0312/2019** | Norma colombiana que define los Estándares Mínimos del SG-SST según el tamaño y riesgo de la empresa |
+| **Anthropic / Claude** | Proveedor de modelos de lenguaje (LLM) usado por `IAInspeccionService` para analizar fotos/descripciones de inspecciones y sugerir la valoración GTC 45 de un riesgo |
 
 ---
 
-*Guía actualizada el 28 de junio de 2026 — RenergeIA v1.0 en desarrollo activo. Módulos HSEQ Calidad (ISO 9001), Ambiental (ISO 14001) y Social implementados. Nuevos componentes del Sistema de Diseño: GaugeKPI, ExecutiveCard, DonutKPI, DashboardLayout, PageHeader, FilterBar, StatusChip, SmartTable, AIPanel.*
+*Guía actualizada el 1 de julio de 2026 — RenergeIA v1.0 en desarrollo activo. Motor de Auditoría HSEQ genérico (ISO 9001/14001/45001, Decreto 1072/2015, Resolución 0312/2019) a nivel corporativo. Matriz de Riesgos IPERV (GTC 45) con Inspecciones asistidas por IA (Anthropic/Claude). Módulo de Costos rediseñado en 5 pestañas con Compromisos de Gasto.*

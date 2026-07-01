@@ -1,0 +1,216 @@
+@page "/hseq/auditorias/historial"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Historial de Auditorías — HSEQ Corporativo</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+
+    <!-- ── Header ─────────────────────────────────────────────────────── -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3">
+            <a href="hseq/dashboard" class="btn btn-sm btn-outline-secondary">
+                <i class="bi-arrow-left me-1"></i>HSEQ
+            </a>
+            <div>
+                <h5 class="fw-bold mb-0" style="color:#183963">
+                    <i class="bi-clock-history me-2" style="color:#6ABF4B"></i>Historial de Auditorías
+                </h5>
+                <p class="text-muted small mb-0">Todas las auditorías del sistema — Motor Universal HSEQ</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Filtros ─────────────────────────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" @bind="_filtroNorma">
+                        <option value="">— Todas las normas —</option>
+                        @foreach (var n in _todasNormas)
+                        {
+                            <option value="@((int)n)">@NormaChecklistService.Meta[n].Titulo</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm" @bind="_filtroEstado">
+                        <option value="">— Todos los estados —</option>
+                        <option value="@((int)EstadoAuditoria.Borrador)">Borrador</option>
+                        <option value="@((int)EstadoAuditoria.EnProceso)">En Proceso</option>
+                        <option value="@((int)EstadoAuditoria.Finalizada)">Finalizada</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control form-control-sm" @bind="_filtroDesde" title="Desde" />
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control form-control-sm" @bind="_filtroHasta" title="Hasta" />
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control form-control-sm" placeholder="Buscar auditor, proceso..."
+                           @bind="_filtroBusqueda" @bind:event="oninput" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tabla ───────────────────────────────────────────────────────── -->
+    @{
+        var lista = Filtradas().ToList();
+    }
+
+    @if (!lista.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <i class="bi-search display-4 mb-3" style="color:#dde3ed"></i>
+            <p class="text-muted small mb-0">
+                @(_auditorias.Any() ? "No hay auditorías con los filtros seleccionados." : "Sin auditorías registradas en el sistema.")
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center py-2"
+                 style="background:#f0f3f8">
+                <span class="small fw-semibold" style="color:#183963">
+                    @lista.Count resultado@(lista.Count != 1 ? "s" : "")
+                </span>
+                <span class="small text-muted">
+                    Promedio: <strong>@(lista.Any() ? $"{lista.Average(a => a.PorcentajeCumplimiento):F1}%" : "—")</strong>
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead style="background:#f8fafc">
+                        <tr>
+                            <th class="ps-3" style="color:#183963;font-size:.7rem">#</th>
+                            <th style="color:#183963;font-size:.7rem">NORMA</th>
+                            <th style="color:#183963;font-size:.7rem">TIPO</th>
+                            <th style="color:#183963;font-size:.7rem">AUDITOR</th>
+                            <th style="color:#183963;font-size:.7rem">PROCESO / ÁREA</th>
+                            <th style="color:#183963;font-size:.7rem">PROYECTO</th>
+                            <th style="color:#183963;font-size:.7rem">FECHA</th>
+                            <th style="color:#183963;font-size:.7rem">ITEMS</th>
+                            <th style="color:#183963;font-size:.7rem">CUMPLIMIENTO</th>
+                            <th style="color:#183963;font-size:.7rem">ESTADO</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in lista)
+                        {
+                            var normaKey = a.TipoNorma ?? TipoNormaHSEQ.ISO9001;
+                            var hasMeta  = NormaChecklistService.Meta.TryGetValue(normaKey, out var meta);
+                            var tit  = hasMeta ? meta.Titulo  : a.NormaISO;
+                            var ico  = hasMeta ? meta.Icono   : "bi-file";
+                            var col  = hasMeta ? meta.Color   : "#9E9E9E";
+                            var slug = NormaChecklistService.NormaASlug(normaKey);
+
+                            <tr>
+                                <td class="ps-3 align-middle text-muted" style="font-size:.68rem">@a.Id</td>
+                                <td class="align-middle">
+                                    <span class="badge" style="background:@col+'1A';color:@col;font-size:.65rem">
+                                        <i class="@ico me-1"></i>@tit
+                                    </span>
+                                </td>
+                                <td class="align-middle text-muted" style="font-size:.7rem">
+                                    @(a.TipoAuditoria == TipoAuditoriaHSEQ.Interna ? "Interna"
+                                      : a.TipoAuditoria == TipoAuditoriaHSEQ.Cliente ? "Cliente"
+                                      : "Interventoría")
+                                </td>
+                                <td class="align-middle fw-semibold" style="font-size:.75rem">@a.Auditor</td>
+                                <td class="align-middle text-muted" style="font-size:.7rem">@(a.ProcesoArea ?? "—")</td>
+                                <td class="align-middle text-muted" style="font-size:.7rem">@(a.Proyecto?.Nombre ?? "—")</td>
+                                <td class="align-middle text-muted" style="font-size:.7rem">@a.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                                <td class="align-middle text-center text-muted" style="font-size:.7rem">@a.Items.Count</td>
+                                <td class="align-middle">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <div class="progress flex-fill" style="height:5px;min-width:40px">
+                                            <div class="progress-bar" style="width:@a.PorcentajeCumplimiento%;background:@col"></div>
+                                        </div>
+                                        <span style="font-size:.7rem;font-weight:600;color:@col;min-width:36px">
+                                            @a.PorcentajeCumplimiento.ToString("F1")%
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="align-middle">
+                                    <span class="badge rounded-pill"
+                                          style="background:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria)+'20';
+                                                 color:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria);
+                                                 font-size:.65rem">
+                                        @NormaChecklistService.LabelEstadoAuditoria(a.EstadoAuditoria)
+                                    </span>
+                                </td>
+                                <td class="align-middle text-end pe-3">
+                                    <a href="hseq/auditorias/@a.Id"
+                                       class="btn btn-sm py-0 px-2 fw-semibold text-white"
+                                       style="background:@col;font-size:.68rem">
+                                        <i class="bi-arrow-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly TipoNormaHSEQ[] _todasNormas = Enum.GetValues<TipoNormaHSEQ>();
+
+    private List<ChecklistAuditoria> _auditorias = [];
+
+    private string _filtroNorma    = "";
+    private string _filtroEstado   = "";
+    private string _filtroBusqueda = "";
+    private DateTime? _filtroDesde;
+    private DateTime? _filtroHasta;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _auditorias = await Db.ChecklistsAuditoria
+            .AsNoTracking()
+            .Include(a => a.Items)
+            .Include(a => a.Proyecto)
+            .Where(a => a.TipoNorma != null)
+            .OrderByDescending(a => a.FechaAuditoria)
+            .ToListAsync();
+    }
+
+    private IEnumerable<ChecklistAuditoria> Filtradas()
+    {
+        var q = _auditorias.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(_filtroNorma) && int.TryParse(_filtroNorma, out var normaInt))
+            q = q.Where(a => (int?)a.TipoNorma == normaInt);
+
+        if (!string.IsNullOrEmpty(_filtroEstado) && int.TryParse(_filtroEstado, out var estadoInt))
+            q = q.Where(a => (int)a.EstadoAuditoria == estadoInt);
+
+        if (_filtroDesde.HasValue)
+            q = q.Where(a => a.FechaAuditoria >= _filtroDesde.Value);
+
+        if (_filtroHasta.HasValue)
+            q = q.Where(a => a.FechaAuditoria <= _filtroHasta.Value);
+
+        if (!string.IsNullOrWhiteSpace(_filtroBusqueda))
+        {
+            var b = _filtroBusqueda.ToLower();
+            q = q.Where(a => a.Auditor.ToLower().Contains(b)
+                           || (a.ProcesoArea ?? "").ToLower().Contains(b)
+                           || (a.Proyecto?.Nombre ?? "").ToLower().Contains(b));
+        }
+
+        return q;
+    }
+}

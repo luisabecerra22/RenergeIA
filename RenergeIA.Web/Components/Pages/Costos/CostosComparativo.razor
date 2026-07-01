@@ -1,0 +1,196 @@
+@inject RenergeIADbContext Db
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+
+<!-- KPIs resumen -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Presupuesto Total</div>
+            <div class="fw-bold" style="color:#183963">@FormatCOP(_totalPresupuesto)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #6ABF4B">
+            <div class="small mb-1 text-muted">Total Ejecutado</div>
+            <div class="fw-bold" style="color:#6ABF4B">@FormatCOP(_totalEjecutado)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #fd7e14">
+            <div class="small mb-1 text-muted">Compromisos Activos</div>
+            <div class="fw-bold" style="color:#fd7e14">@FormatCOP(_totalCompromisos)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid @(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#D9D9D6")">
+            <div class="small mb-1 text-muted">Exposición Total</div>
+            <div class="fw-bold" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")">@FormatCOP(_totalExposicion)</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla comparativa por categoría -->
+@if (!_filas.Any())
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <i class="bi-arrows-angle-expand display-4 mb-3" style="color:#dde3ed"></i>
+        <p class="text-muted small">No hay datos de presupuesto para comparar.</p>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header fw-semibold py-2" style="background:#183963;color:#fff">
+            <i class="bi-arrows-angle-expand me-2"></i>Comparativo por Categoría
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 small">
+                <thead style="background:#f0f3f8;font-size:.72rem">
+                    <tr>
+                        <th class="ps-3" style="color:#183963">CATEGORÍA</th>
+                        <th class="text-end" style="color:#183963">PRESUPUESTO</th>
+                        <th class="text-end" style="color:#6ABF4B">EJECUTADO</th>
+                        <th class="text-end" style="color:#fd7e14">COMPROMISOS</th>
+                        <th class="text-end" style="color:#183963">EXPOSICIÓN TOTAL</th>
+                        <th style="min-width:120px;color:#183963">% EJECUCIÓN</th>
+                        <th style="min-width:120px;color:#fd7e14">% EXPOSICIÓN</th>
+                        <th class="text-center" style="color:#183963">SEMÁFORO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in _filas)
+                    {
+                        var pctEjec = f.Presupuesto > 0 ? f.Ejecutado / f.Presupuesto * 100 : 0m;
+                        var pctExpo = f.Presupuesto > 0 ? f.Exposicion / f.Presupuesto * 100 : 0m;
+                        var (sBg, sFg, sLabel) = Semaforo(pctExpo);
+
+                        <tr style="border-bottom:1px solid #f0f3f8">
+                            <td class="ps-3 fw-semibold" style="color:#183963">
+                                <span class="badge me-1" style="background:#183963;font-size:.65rem">@f.Codigo</span>
+                                @f.Nombre
+                            </td>
+                            <td class="text-end">@FormatCOP(f.Presupuesto)</td>
+                            <td class="text-end fw-semibold" style="color:@(f.Ejecutado > f.Presupuesto ? "#dc3545" : "#6ABF4B")">
+                                @FormatCOP(f.Ejecutado)
+                            </td>
+                            <td class="text-end" style="color:#fd7e14">@FormatCOP(f.Compromisos)</td>
+                            <td class="text-end fw-semibold" style="color:@(f.Exposicion > f.Presupuesto ? "#dc3545" : "#183963")">
+                                @FormatCOP(f.Exposicion)
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <div class="progress flex-fill" style="height:6px">
+                                        <div class="progress-bar" style="width:@(Math.Min(pctEjec,100m).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;background:#6ABF4B"></div>
+                                    </div>
+                                    <span style="font-size:.7rem;color:#6ABF4B;min-width:40px;text-align:right">@pctEjec.ToString("F1")%</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <div class="progress flex-fill" style="height:6px">
+                                        <div class="progress-bar" style="width:@(Math.Min(pctExpo,100m).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;background:@sBg"></div>
+                                    </div>
+                                    <span style="font-size:.7rem;color:@sBg;min-width:40px;text-align:right">@pctExpo.ToString("F1")%</span>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge" style="background:@sBg;color:@sFg;font-size:.65rem">@sLabel</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot style="background:#111921;color:white">
+                    <tr class="fw-bold">
+                        <td class="ps-3">TOTAL</td>
+                        <td class="text-end">@FormatCOP(_totalPresupuesto)</td>
+                        <td class="text-end" style="color:@(_totalEjecutado > _totalPresupuesto ? "#ff6b6b" : "#6ABF4B")">
+                            @FormatCOP(_totalEjecutado)
+                        </td>
+                        <td class="text-end" style="color:#ffc107">@FormatCOP(_totalCompromisos)</td>
+                        <td class="text-end" style="color:@(_totalExposicion > _totalPresupuesto ? "#ff6b6b" : "white")">
+                            @FormatCOP(_totalExposicion)
+                        </td>
+                        <td colspan="3">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-fill" style="height:6px;background:rgba(255,255,255,0.2)">
+                                    <div class="progress-bar" style="width:@(Math.Min(_pctEjecTotal,100m).ToString("F2", System.Globalization.CultureInfo.InvariantCulture))%;background:#6ABF4B"></div>
+                                </div>
+                                <span class="small">@_pctEjecTotal.ToString("F1")% ejec.</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Leyenda semáforo -->
+    <div class="d-flex gap-3 flex-wrap mb-2">
+        <span class="small text-muted">Semáforo de exposición:</span>
+        <span class="badge" style="background:#6ABF4B;color:#fff;font-size:.72rem">Controlado (&le;85%)</span>
+        <span class="badge" style="background:#ffc107;color:#212529;font-size:.72rem">Cercano (&le;95%)</span>
+        <span class="badge" style="background:#fd7e14;color:#fff;font-size:.72rem">En Riesgo (&le;100%)</span>
+        <span class="badge" style="background:#dc3545;color:#fff;font-size:.72rem">Sobrecosto (&gt;100%)</span>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private List<FilaComparativo> _filas = [];
+    private decimal _totalPresupuesto;
+    private decimal _totalEjecutado;
+    private decimal _totalCompromisos;
+    private decimal _totalExposicion;
+    private decimal _pctEjecTotal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var principales = await Db.Partidas.AsNoTracking()
+            .Where(p => p.ProyectoId == ProyectoId && p.EsPrincipal)
+            .ToListAsync();
+
+        var subPartidas = await Db.Partidas.AsNoTracking()
+            .Where(p => p.ProyectoId == ProyectoId && !p.EsPrincipal)
+            .ToListAsync();
+
+        var compromisos = await Db.CompromisoCostos.AsNoTracking()
+            .Where(c => c.ProyectoId == ProyectoId
+                     && c.Estado != EstadoCompromiso.Cancelado
+                     && c.Estado != EstadoCompromiso.Pagado)
+            .ToListAsync();
+
+        _filas = principales.Select(p =>
+        {
+            var subs   = subPartidas.Where(s => s.PadreId == p.Id).ToList();
+            var presup = subs.Sum(s => s.MontoPresupuestado);
+            var ejec   = subs.Sum(s => s.ValorEjecutado);
+            var subIds = subs.Select(s => s.Id).ToHashSet();
+            var comp   = compromisos.Where(c => c.PartidaId.HasValue && subIds.Contains(c.PartidaId.Value))
+                                    .Sum(c => c.Valor);
+            return new FilaComparativo(p.Codigo, p.Descripcion, presup, ejec, comp, ejec + comp);
+        }).Where(f => f.Presupuesto > 0 || f.Ejecutado > 0).ToList();
+
+        _totalPresupuesto = _filas.Sum(f => f.Presupuesto);
+        _totalEjecutado   = _filas.Sum(f => f.Ejecutado);
+        _totalCompromisos = _filas.Sum(f => f.Compromisos);
+        _totalExposicion  = _totalEjecutado + _totalCompromisos;
+        _pctEjecTotal     = _totalPresupuesto > 0 ? _totalEjecutado / _totalPresupuesto * 100 : 0;
+    }
+
+    private static (string Bg, string Fg, string Label) Semaforo(decimal pct) => pct switch
+    {
+        <= 85  => ("#6ABF4B", "#fff", "Controlado"),
+        <= 95  => ("#ffc107", "#212529", "Cercano"),
+        <= 100 => ("#fd7e14", "#fff", "En Riesgo"),
+        _      => ("#dc3545", "#fff", "Sobrecosto")
+    };
+
+    private static readonly System.Globalization.CultureInfo _co = new("es-CO");
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+
+    private record FilaComparativo(
+        string Codigo, string Nombre,
+        decimal Presupuesto, decimal Ejecutado, decimal Compromisos, decimal Exposicion);
+}

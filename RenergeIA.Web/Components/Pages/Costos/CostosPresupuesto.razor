@@ -1,0 +1,646 @@
+@inject RenergeIADbContext Db
+@inject CostoService CostoSvc
+@using System.ComponentModel.DataAnnotations
+
+@if (_proyecto is null)
+{
+    <p>Cargando...</p>
+}
+else
+{
+    <div class="d-flex justify-content-end gap-2 mb-3">
+        @if (_hayCAmbios)
+        {
+            <button class="btn btn-sm fw-semibold"
+                    style="background:#6ABF4B;color:#fff;border:none"
+                    @onclick="GuardarCambiosPartidasAsync">
+                💾 Guardar cambios
+            </button>
+        }
+        @if (_partidas.Any())
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ConfirmarPlantilla">↻ Recargar plantilla</button>
+        }
+        else
+        {
+            <button class="btn btn-sm"
+                    style="background:#6ABF4B;color:#fff;border:none"
+                    @onclick="CargarPlantillaAsync">📋 Cargar plantilla EPC</button>
+        }
+    </div>
+
+    @if (_confirmandoPlantilla)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-3 mb-4 py-2">
+            <span><strong>¡Atención!</strong> Esto reemplazará todas las partidas y sus costos.</span>
+            <button class="btn btn-warning btn-sm" @onclick="CargarPlantillaAsync">Confirmar</button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoPlantilla = false">Cancelar</button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_mensajeGuardado))
+    {
+        <div class="alert alert-success alert-dismissible py-2 mb-3">
+            @_mensajeGuardado
+            <button type="button" class="btn-close btn-sm" @onclick="() => _mensajeGuardado = null"></button>
+        </div>
+    }
+
+    @if (_cargando)
+    {
+        <div class="text-center py-5">
+            <span class="spinner-border" style="color:#183963"></span>
+            <p class="mt-2 text-muted">Cargando plantilla...</p>
+        </div>
+    }
+    else if (!_partidas.Any())
+    {
+        <div class="card text-center py-5" style="border:1px solid #D9D9D6">
+            <p class="text-muted mb-3">No hay partidas. Cargue la plantilla estándar EPC fotovoltaico.</p>
+            <div>
+                <button class="btn"
+                        style="background:#6ABF4B;color:#fff;border:none"
+                        @onclick="CargarPlantillaAsync">📋 Cargar plantilla estándar EPC</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+                    <div class="small mb-1" style="color:#111921">Total Presupuestado</div>
+                    <div class="fw-bold" style="color:#183963">@FormatCOP(_totalPresupuestado)</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+                    <div class="small mb-1" style="color:#111921">Total Ejecutado</div>
+                    <div class="fw-bold"
+                         style="color:@(_totalEjecutado > _totalPresupuestado ? "#dc3545" : "#6ABF4B")">
+                        @FormatCOP(_totalEjecutado)
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+                    <div class="small mb-1" style="color:#111921">Diferencia</div>
+                    <div class="fw-bold"
+                         style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")">@FormatCOP(_diferencia)</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+                    <div class="small mb-1" style="color:#111921">% Ejecutado</div>
+                    <div class="fw-bold" style="color:#183963">@_pctEjecucion.ToString("F1")%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4" style="border:1px solid #D9D9D6">
+            <div class="card-header text-white fw-semibold" style="background:#183963">
+                Costos por Categoría
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background:#183963;color:white">
+                        <tr>
+                            <th class="text-center">Categoría</th>
+                            <th class="text-center">Presupuestado COP</th>
+                            <th class="text-center">Ejecutado COP</th>
+                            <th class="text-center">Diferencia</th>
+                            <th class="text-center" style="min-width:200px">% Costo Ejecutado</th>
+                            <th class="text-center">Actividades</th>
+                            <th class="text-center">Alerta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cat in _resumenCategorias)
+                        {
+                            var dif = cat.Presupuestado - cat.Ejecutado;
+                            var (aTexto, aBg, aFg) = AlertaCosto(cat.Presupuestado, cat.Ejecutado);
+                            <tr style="border-bottom:1px solid #D9D9D6">
+                                <td class="text-center">
+                                    <span class="badge" style="background:#183963;font-size:0.78rem">@cat.Nombre</span>
+                                </td>
+                                <td class="text-center small" style="color:#183963">@FormatCOP(cat.Presupuestado)</td>
+                                <td class="text-center small"
+                                    style="color:@(cat.Ejecutado > cat.Presupuestado ? "#dc3545" : "#111921");
+                                           font-weight:@(cat.Ejecutado > cat.Presupuestado ? "bold" : "normal")">
+                                    @FormatCOP(cat.Ejecutado)
+                                </td>
+                                <td class="text-center small"
+                                    style="color:@(dif >= 0 ? "#6ABF4B" : "#dc3545");
+                                           font-weight:@(dif < 0 ? "bold" : "normal")">
+                                    @FormatCOP(dif)
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:7px;background:#D9D9D6">
+                                            <div class="progress-bar"
+                                                 style="width:@(Math.Min(cat.PctEjecucion, 100m).ToString("F6", System.Globalization.CultureInfo.InvariantCulture))%;background:#6ABF4B"></div>
+                                        </div>
+                                        <small style="width:60px;text-align:right;white-space:nowrap;color:#183963">@FormatPct(cat.PctEjecucion)</small>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge rounded-pill" style="background:#183963">@cat.NumPartidas</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge" style="background:@aBg;color:@aFg;font-size:0.72rem;white-space:nowrap">
+                                        @aTexto
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                        <tr class="fw-bold" style="background:#111921;color:white">
+                            <td class="text-center">TOTAL</td>
+                            <td class="text-center">@FormatCOP(_totalPresupuestado)</td>
+                            <td class="text-center"
+                                style="color:@(_totalEjecutado > _totalPresupuestado ? "#ff6b6b" : "white")">
+                                @FormatCOP(_totalEjecutado)
+                            </td>
+                            <td class="text-center"
+                                style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#ff6b6b")">
+                                @FormatCOP(_diferencia)
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="height:7px;background:rgba(255,255,255,0.2)">
+                                        <div class="progress-bar"
+                                             style="width:@(Math.Min(_pctEjecucion, 100m).ToString("F6", System.Globalization.CultureInfo.InvariantCulture))%;background:#6ABF4B"></div>
+                                    </div>
+                                    <small style="width:60px;text-align:right;white-space:nowrap">@FormatPct(_pctEjecucion)</small>
+                                </div>
+                            </td>
+                            <td class="text-center">@_subPartidas.Count</td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mb-4" style="border:1px solid #D9D9D6">
+            <div class="card-header text-white d-flex justify-content-between align-items-center"
+                 style="background:#183963">
+                <span class="fw-semibold">Actividades Presupuestadas</span>
+                @if (_hayCAmbios)
+                {
+                    <button class="btn btn-sm fw-semibold"
+                            style="background:#6ABF4B;color:#fff;border:none"
+                            @onclick="GuardarCambiosPartidasAsync">
+                        💾 Guardar cambios
+                    </button>
+                }
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" style="table-layout:fixed;width:100%">
+                    <colgroup>
+                        <col style="width:42px" />
+                        <col style="width:82px" />
+                        <col style="width:190px" />
+                        <col style="width:82px" />
+                        <col style="width:110px" />
+                        <col style="width:115px" />
+                        <col style="width:115px" />
+                        <col style="width:115px" />
+                        <col style="width:72px" />
+                        <col style="width:130px" />
+                        <col style="width:50px" />
+                    </colgroup>
+                    <thead style="background:#183963;color:white">
+                        <tr>
+                            <th class="text-center">#</th>
+                            <th class="text-center">Código</th>
+                            <th class="text-center">Descripción</th>
+                            <th class="text-center">Cantidad</th>
+                            <th class="text-center">Unidad</th>
+                            <th class="text-center">Precio Unitario</th>
+                            <th class="text-center">Presup. COP</th>
+                            <th class="text-center">Ejec. COP</th>
+                            <th class="text-center">% Ejec.</th>
+                            <th class="text-center">Alerta</th>
+                            <th class="text-center"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in PartidasOrdenadas())
+                        {
+                            if (p.EsPrincipal)
+                            {
+                                var hijos        = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
+                                var presupCap    = hijos.Sum(s => s.MontoPresupuestado);
+                                var ejecutadoCap = hijos.Sum(s => s.ValorEjecutado);
+                                var pctCap       = presupCap > 0 ? Math.Round(ejecutadoCap / presupCap * 100, 1) : 0m;
+                                var (aTexto, aBg, aFg) = AlertaCosto(presupCap, ejecutadoCap);
+
+                                <tr style="background:#D9D9D6">
+                                    <td class="text-center fw-bold" style="color:#111921">@p.Numero</td>
+                                    <td class="text-center">
+                                        <span class="badge" style="background:#183963;font-size:0.68rem">@p.Codigo</span>
+                                    </td>
+                                    <td class="fw-bold text-uppercase"
+                                        style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
+                                        title="@p.Descripcion">@p.Descripcion</td>
+                                    <td class="text-center" style="color:#6c757d">—</td>
+                                    <td class="text-center" style="color:#6c757d">—</td>
+                                    <td class="text-center" style="color:#6c757d">—</td>
+                                    <td class="text-center fw-bold" style="color:#183963">@FormatCOP(presupCap)</td>
+                                    <td class="text-center fw-bold"
+                                        style="color:@(ejecutadoCap > presupCap ? "#dc3545" : "#6ABF4B")">
+                                        @FormatCOP(ejecutadoCap)
+                                    </td>
+                                    <td class="text-center fw-bold" style="color:#183963">@pctCap.ToString("F0")%</td>
+                                    <td class="text-center">
+                                        <span class="badge" style="background:@aBg;color:@aFg;font-size:0.68rem;white-space:nowrap">@aTexto</span>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            }
+                            else
+                            {
+                                var presup         = p.MontoPresupuestado;
+                                var ejecutado      = p.ValorEjecutado;
+                                var pct            = presup > 0 ? Math.Round(ejecutado / presup * 100, 1) : 0m;
+                                var sobreEjecucion = ejecutado > presup && presup > 0;
+                                var (aTexto, aBg, aFg) = AlertaCosto(presup, ejecutado);
+
+                                <tr style="border-bottom:1px solid #D9D9D6">
+                                    <td class="text-center small" style="color:#6c757d">@p.Numero</td>
+                                    <td class="text-center">
+                                        <small class="fw-semibold" style="color:#183963">@p.Codigo</small>
+                                    </td>
+                                    <td class="ps-3"
+                                        style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
+                                        title="@p.Descripcion">@p.Descripcion</td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm text-center"
+                                               value="@p.CantidadPresupuestada"
+                                               @onchange="e => CambiarCantidad(p, e.Value?.ToString())"
+                                               min="0" step="0.01" />
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm"
+                                                style="text-align:center"
+                                                value="@p.Unidad"
+                                                @onchange="e => { p.Unidad = e.Value?.ToString() ?? p.Unidad; _hayCAmbios = true; }">
+                                            <option value="Un">Unidad</option>
+                                            <option value="Global">Global</option>
+                                            <option value="m">Metros</option>
+                                            <option value="ml">Metros lin.</option>
+                                            <option value="m²">Metros cuad.</option>
+                                            <option value="m³">Metros cúb.</option>
+                                            <option value="gal">Galón</option>
+                                            <option value="kg">Kilogramo</option>
+                                            <option value="ton">Tonelada</option>
+                                            <option value="mes">Mes</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm text-center"
+                                               value="@p.PrecioUnitario"
+                                               @onchange="e => CambiarPrecio(p, e.Value?.ToString())"
+                                               min="0" step="1" />
+                                    </td>
+                                    <td class="text-center small fw-semibold" style="color:#183963">@FormatCOP(presup)</td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm text-center @(sobreEjecucion ? "border-danger" : "")"
+                                               style="@(sobreEjecucion ? "color:#dc3545;font-weight:bold" : "")"
+                                               value="@p.ValorEjecutado"
+                                               @onchange="e => CambiarEjecutado(p, e.Value?.ToString())"
+                                               min="0" step="1" />
+                                    </td>
+                                    <td class="text-center small"
+                                        style="color:@(sobreEjecucion ? "#dc3545" : pct > 0 ? "#6ABF4B" : "#6c757d");
+                                               font-weight:@(sobreEjecucion ? "bold" : "normal")">
+                                        @pct.ToString("F0")%
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge"
+                                              style="background:@aBg;color:@aFg;font-size:0.68rem;white-space:nowrap">@aTexto</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn"
+                                                style="font-size:0.65rem;padding:2px 5px;line-height:1.2;border:1px solid #183963;color:#183963"
+                                                @onclick="() => AbrirCostos(p)"
+                                                title="Ver costos reales">💰</button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (_partidaSeleccionada is not null)
+        {
+            <div class="card mt-2" style="border:1px solid #183963">
+                <div class="card-header text-white d-flex justify-content-between align-items-center"
+                     style="background:#183963">
+                    <strong>Costos reales — @_partidaSeleccionada.Codigo: @_partidaSeleccionada.Descripcion</strong>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _partidaSeleccionada = null"></button>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3" style="color:#183963">Registrar nuevo costo</h6>
+                    <EditForm Model="_formCosto" OnValidSubmit="GuardarCostoAsync">
+                        <DataAnnotationsValidator />
+                        <div class="row g-2">
+                            <div class="col-md-2">
+                                <label class="form-label small">Fecha *</label>
+                                <InputDate class="form-control form-control-sm" @bind-Value="_formCosto.Fecha" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Descripción *</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formCosto.Descripcion" />
+                                <ValidationMessage For="() => _formCosto.Descripcion" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Tipo</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="_formCosto.TipoCosto">
+                                    <option value="Material">Material</option>
+                                    <option value="Mano de obra">Mano de obra</option>
+                                    <option value="Equipo">Equipo</option>
+                                    <option value="Subcontrato">Subcontrato</option>
+                                    <option value="Otro">Otro</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small">Cantidad</label>
+                                <InputNumber class="form-control form-control-sm" @bind-Value="_formCosto.Cantidad" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Precio Unitario COP</label>
+                                <InputNumber class="form-control form-control-sm" @bind-Value="_formCosto.PrecioUnitario" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Factura / Proveedor</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formCosto.NumeroFactura" placeholder="FAC-001" />
+                            </div>
+                            <div class="col-12 d-flex gap-2 align-items-center">
+                                <button type="submit" class="btn btn-sm"
+                                        style="background:#183963;color:white;border:none">+ Agregar</button>
+                                <span class="text-muted small">Monto: <strong>@FormatCOP(_formCosto.Cantidad * _formCosto.PrecioUnitario)</strong></span>
+                            </div>
+                        </div>
+                    </EditForm>
+
+                    @if (_partidaSeleccionada.CostosReales.Any())
+                    {
+                        <hr />
+                        <h6 class="mb-2" style="color:#183963">Historial de costos</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead style="background:#183963;color:white">
+                                    <tr>
+                                        <th>Fecha</th><th>Descripción</th><th>Tipo</th>
+                                        <th class="text-end">Cant.</th><th class="text-end">P. Unit.</th>
+                                        <th class="text-end">Monto COP</th><th>Factura</th><th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var c in _partidaSeleccionada.CostosReales.OrderByDescending(x => x.Fecha))
+                                    {
+                                        <tr style="border-bottom:1px solid #D9D9D6">
+                                            <td class="small">@c.Fecha.ToShortDateString()</td>
+                                            <td>@c.Descripcion</td>
+                                            <td><span class="badge" style="background:#D9D9D6;color:#111921">@c.TipoCosto</span></td>
+                                            <td class="text-end small">@c.Cantidad.ToString("N2")</td>
+                                            <td class="text-end small">@FormatCOP(c.PrecioUnitario)</td>
+                                            <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(c.Cantidad * c.PrecioUnitario)</td>
+                                            <td class="small text-muted">@(c.NumeroFactura ?? "—")</td>
+                                            <td>
+                                                @if (_confirmandoEliminarCosto == c.Id)
+                                                {
+                                                    <button class="btn btn-danger btn-sm" @onclick="() => EliminarCostoAsync(c.Id)">✓</button>
+                                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminarCosto = null">×</button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminarCosto = c.Id">✕</button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Partida> _partidas = [];
+    private List<Partida> _subPartidas = [];
+    private Dictionary<int, Partida> _padresDict = [];
+    private List<CategoriaResumen> _resumenCategorias = [];
+
+    private bool _cargando;
+    private bool _confirmandoPlantilla;
+    private bool _hayCAmbios;
+    private string? _mensajeGuardado;
+
+    private Partida? _partidaSeleccionada;
+    private int? _confirmandoEliminarCosto;
+
+    private decimal _totalPresupuestado;
+    private decimal _totalEjecutado;
+    private decimal _diferencia;
+    private decimal _pctEjecucion;
+
+    private CostoFormModel _formCosto = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _partidas    = await CostoSvc.ObtenerPartidasConCostosAsync(ProyectoId);
+        _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)).ToList();
+        _padresDict  = _partidas.Where(p => p.EsPrincipal).ToDictionary(p => p.Id);
+        CalcularTotales();
+        CalcularResumenCategorias();
+        _hayCAmbios = false;
+    }
+
+    private void CalcularTotales()
+    {
+        _totalPresupuestado = _subPartidas.Sum(p => p.MontoPresupuestado);
+        _totalEjecutado     = _subPartidas.Sum(p => p.ValorEjecutado);
+        _diferencia         = _totalPresupuestado - _totalEjecutado;
+        _pctEjecucion       = _totalPresupuestado > 0
+            ? _totalEjecutado / _totalPresupuestado * 100 : 0;
+    }
+
+    private void CalcularResumenCategorias()
+    {
+        _resumenCategorias = _partidas
+            .Where(p => p.EsPrincipal)
+            .OrderBy(p => ParseNumero(p.Numero))
+            .Select(principal =>
+            {
+                var hijos  = _subPartidas.Where(p => p.PadreId == principal.Id).ToList();
+                var presup = hijos.Sum(p => p.MontoPresupuestado);
+                var ejec   = hijos.Sum(p => p.ValorEjecutado);
+                var pct    = presup > 0 ? ejec / presup * 100 : 0m;
+                return new CategoriaResumen(
+                    principal.Descripcion, principal.Codigo,
+                    "#183963", presup, ejec, pct, hijos.Count);
+            })
+            .ToList();
+    }
+
+    private IEnumerable<Partida> PartidasOrdenadas()
+    {
+        foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)))
+        {
+            yield return principal;
+            foreach (var hijo in _subPartidas.Where(p => p.PadreId == principal.Id))
+                yield return hijo;
+        }
+    }
+
+    private void CambiarCantidad(Partida p, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            p.CantidadPresupuestada = v;
+            CalcularTotales(); CalcularResumenCategorias();
+            _hayCAmbios = true;
+        }
+    }
+
+    private void CambiarPrecio(Partida p, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            p.PrecioUnitario = v;
+            CalcularTotales(); CalcularResumenCategorias();
+            _hayCAmbios = true;
+        }
+    }
+
+    private void CambiarEjecutado(Partida p, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            p.ValorEjecutado = Math.Max(v, 0);
+            CalcularTotales(); CalcularResumenCategorias();
+            _hayCAmbios = true;
+        }
+    }
+
+    private async Task GuardarCambiosPartidasAsync()
+    {
+        foreach (var p in _subPartidas)
+            Db.Partidas.Update(p);
+        await Db.SaveChangesAsync();
+        _mensajeGuardado = "Cambios guardados correctamente.";
+        await CargarAsync();
+    }
+
+    private void ConfirmarPlantilla() => _confirmandoPlantilla = true;
+
+    private async Task CargarPlantillaAsync()
+    {
+        _cargando = true; _confirmandoPlantilla = false;
+        StateHasChanged();
+        await CostoSvc.CargarPlantillaEstandarAsync(ProyectoId);
+        await CargarAsync();
+        _cargando = false;
+    }
+
+    private void AbrirCostos(Partida p)
+    {
+        _partidaSeleccionada      = p;
+        _formCosto                = new CostoFormModel { Fecha = DateTime.Today };
+        _confirmandoEliminarCosto = null;
+    }
+
+    private async Task GuardarCostoAsync()
+    {
+        if (_partidaSeleccionada is null) return;
+        Db.CostosReales.Add(new CostoReal
+        {
+            PartidaId      = _partidaSeleccionada.Id,
+            Fecha          = _formCosto.Fecha,
+            Descripcion    = _formCosto.Descripcion,
+            TipoCosto      = _formCosto.TipoCosto,
+            Cantidad       = _formCosto.Cantidad,
+            PrecioUnitario = _formCosto.PrecioUnitario,
+            NumeroFactura  = _formCosto.NumeroFactura,
+            RegistradoPor  = "Sistema"
+        });
+        await Db.SaveChangesAsync();
+        var idSel = _partidaSeleccionada.Id;
+        await CargarAsync();
+        _partidaSeleccionada = _subPartidas.FirstOrDefault(p => p.Id == idSel);
+        _formCosto = new CostoFormModel { Fecha = DateTime.Today };
+    }
+
+    private async Task EliminarCostoAsync(int id)
+    {
+        var c = await Db.CostosReales.FindAsync(id);
+        if (c is null) return;
+        Db.CostosReales.Remove(c);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminarCosto = null;
+        var idSel = _partidaSeleccionada?.Id;
+        await CargarAsync();
+        _partidaSeleccionada = idSel.HasValue ? _subPartidas.FirstOrDefault(p => p.Id == idSel) : null;
+    }
+
+    private static (string Texto, string Bg, string Fg) AlertaCosto(decimal presupuesto, decimal ejecutado)
+    {
+        if (presupuesto == 0) return ("Sin presupuesto", "#D9D9D6", "#111921");
+        if (ejecutado == 0)   return ("Sin ejecución",   "#D9D9D6", "#111921");
+        var pct = ejecutado / presupuesto * 100;
+        if (pct <= 85)  return ("Dentro del presupuesto", "#6ABF4B", "#fff");
+        if (pct <= 95)  return ("Cercano al límite",      "#ffc107", "#212529");
+        if (pct <= 100) return ("En riesgo",              "#fd7e14", "#fff");
+        return ("Sobrecosto", "#dc3545", "#fff");
+    }
+
+    private static readonly System.Globalization.CultureInfo _culturesCO =
+        new System.Globalization.CultureInfo("es-CO");
+
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _culturesCO);
+
+    private static string FormatPct(decimal pct) =>
+        pct < 1m ? pct.ToString("F4") + "%" : pct.ToString("F1") + "%";
+
+    private static double ParseNumero(string? num)
+    {
+        if (string.IsNullOrEmpty(num)) return 0;
+        return double.TryParse(num, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+    }
+
+    private record CategoriaResumen(
+        string Nombre, string Codigo, string Color,
+        decimal Presupuestado, decimal Ejecutado, decimal PctEjecucion, int NumPartidas);
+
+    private sealed class CostoFormModel
+    {
+        [Required(ErrorMessage = "La descripción es obligatoria")]
+        public string Descripcion { get; set; } = string.Empty;
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        public string TipoCosto { get; set; } = "Material";
+        public decimal Cantidad { get; set; } = 1;
+        public decimal PrecioUnitario { get; set; }
+        public string? NumeroFactura { get; set; }
+    }
+}

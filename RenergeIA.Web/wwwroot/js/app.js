@@ -790,3 +790,371 @@ window.wbsResize = {
         });
     }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Gráficos ISO 9001 — Dashboard Ejecutivo de Auditoría
+// ═══════════════════════════════════════════════════════════════
+window._iso9001Charts = {};
+
+window.renderISO9001Charts = function (globalPct, clausulaLabels, clausulaData, estadosData, seguimientoData) {
+    const C_AZUL  = '#102963';
+    const C_VERDE = '#6ABF48';
+    const C_AMBER = '#F5B301';
+    const C_ROJO  = '#E53935';
+    const C_GRIS  = '#D1D5DB';
+    const C_MUTED = '#9CA3AF';
+    const FONT    = 'Montserrat, sans-serif';
+
+    Object.values(window._iso9001Charts).forEach(c => { if (c) c.destroy(); });
+    window._iso9001Charts = {};
+
+    // ── 1. Barras horizontales gruesas — Cumplimiento por cláusula ──────────
+    const ctxC = document.getElementById('chartClausula');
+    if (ctxC) {
+        const colores = clausulaData.map(v => v >= 85 ? C_VERDE : v >= 70 ? C_AMBER : v > 0 ? C_ROJO : C_GRIS);
+        window._iso9001Charts.clausula = new Chart(ctxC, {
+            type: 'bar',
+            data: {
+                labels: clausulaLabels,
+                datasets: [{
+                    label: '% Cumplimiento',
+                    data: clausulaData,
+                    backgroundColor: colores,
+                    borderRadius: 6,
+                    maxBarThickness: 28
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { right: 44 } },
+                scales: {
+                    x: {
+                        min: 0, max: 100,
+                        ticks: { callback: v => v + '%', font: { size: 10 } },
+                        grid: { color: '#f3f4f6' }
+                    },
+                    y: {
+                        ticks: { font: { family: FONT, size: 11, weight: '600' }, color: '#374151' },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => '  ' + ctx.parsed.x.toFixed(1) + '%' } }
+                }
+            },
+            plugins: [{
+                id: 'clausulaLabels',
+                afterDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    chart.data.datasets.forEach((ds, di) => {
+                        chart.getDatasetMeta(di).data.forEach((bar, i) => {
+                            const val = ds.data[i];
+                            if (val == null) return;
+                            const pos = bar.tooltipPosition();
+                            ctx.font = 'bold 10px ' + FONT;
+                            ctx.fillStyle = '#374151';
+                            ctx.textAlign = 'left';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(val.toFixed(0) + '%', pos.x + 8, pos.y);
+                        });
+                    });
+                    ctx.restore();
+                }
+            }]
+        });
+    }
+
+    // ── 2. Donut ejecutivo — Distribución de estados ─────────────────────────
+    const ctxE = document.getElementById('chartEstados');
+    if (ctxE && estadosData && estadosData.length >= 4) {
+        const total = estadosData.reduce((a, b) => a + b, 0);
+        if (total > 0) {
+            window._iso9001Charts.estados = new Chart(ctxE, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Cumple', 'En Proceso', 'No Cumple', 'Sin Evaluar'],
+                    datasets: [{
+                        data: estadosData,
+                        backgroundColor: [C_VERDE, C_AMBER, C_ROJO, C_MUTED],
+                        borderWidth: 3,
+                        borderColor: '#fff',
+                        hoverBorderWidth: 4
+                    }]
+                },
+                options: {
+                    cutout: '68%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: FONT, size: 11, weight: '600' },
+                                boxWidth: 12, boxHeight: 12, padding: 14,
+                                generateLabels: chart => {
+                                    const ds = chart.data.datasets[0];
+                                    return chart.data.labels.map((lbl, i) => ({
+                                        text: lbl + '  ' + ds.data[i] + '  (' + (ds.data[i] / total * 100).toFixed(0) + '%)',
+                                        fillStyle: ds.backgroundColor[i],
+                                        strokeStyle: 'transparent',
+                                        lineWidth: 0,
+                                        hidden: false,
+                                        index: i
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => '  ' + ctx.label + ': ' + ctx.parsed +
+                                             '  (' + (ctx.parsed / total * 100).toFixed(1) + '%)'
+                            }
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'donutCenter',
+                    afterDraw(chart) {
+                        const { ctx, chartArea: { width, height, left, top } } = chart;
+                        ctx.save();
+                        const cx = left + width / 2, cy = top + height / 2;
+                        ctx.font = 'bold 30px ' + FONT;
+                        ctx.fillStyle = C_AZUL;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(total, cx, cy - 12);
+                        ctx.font = '500 11px ' + FONT;
+                        ctx.fillStyle = C_MUTED;
+                        ctx.fillText('requisitos', cx, cy + 14);
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+    }
+
+    // ── 3. Barras verticales — Seguimiento de acciones ───────────────────────
+    const ctxS = document.getElementById('chartSeguimiento');
+    if (ctxS && seguimientoData && seguimientoData.length >= 3) {
+        window._iso9001Charts.seguimiento = new Chart(ctxS, {
+            type: 'bar',
+            data: {
+                labels: ['Ejecutado', 'En Proceso', 'Pendiente'],
+                datasets: [{
+                    data: seguimientoData,
+                    backgroundColor: [C_VERDE, C_AMBER, C_ROJO],
+                    borderRadius: 10,
+                    maxBarThickness: 90
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 28 } },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: FONT, size: 12, weight: '700' }, color: '#374151' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { font: { family: FONT, size: 10 }, color: '#9CA3AF' },
+                        grid: { color: '#f3f4f6' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => '  ' + ctx.parsed.y + ' acciones' } }
+                }
+            },
+            plugins: [{
+                id: 'topValues',
+                afterDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    chart.data.datasets.forEach((ds, di) => {
+                        chart.getDatasetMeta(di).data.forEach((bar, i) => {
+                            const val = ds.data[i];
+                            if (!val) return;
+                            const pos = bar.tooltipPosition();
+                            ctx.font = 'bold 13px ' + FONT;
+                            ctx.fillStyle = '#374151';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillText(val, pos.x, bar.y - 4);
+                        });
+                    });
+                    ctx.restore();
+                }
+            }]
+        });
+    }
+};
+
+// Barra simple de un solo dataset (Dashboard SST, etc.)
+window.renderBarChartSingle = function (canvasId, labels, data, color) {
+    destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    _charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: color + 'bb',
+                borderColor: color,
+                borderWidth: 1,
+                borderRadius: 5,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1, color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } },
+                x: { ticks: { color: '#495057' }, grid: { display: false } }
+            }
+        }
+    });
+};
+
+// Descarga de archivos (reutilizable)
+window.downloadFile = window.downloadFile || function (fileName, contentType, base64) {
+    const link = document.createElement('a');
+    link.href = 'data:' + contentType + ';base64,' + base64;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Módulo de Costos — Dashboard Charts
+// ═══════════════════════════════════════════════════════════════
+const _costoCharts = {};
+
+window.renderCostosCharts = function (proyectoId, d) {
+    const pfx = proyectoId;
+    const fmt = v => '$' + Math.round(v).toLocaleString('es-CO');
+
+    function mk(id, config) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (_costoCharts[id]) { _costoCharts[id].destroy(); }
+        _costoCharts[id] = new Chart(el, config);
+    }
+
+    // 1. Barras agrupadas: Presupuesto vs Ejecutado vs Compromisos por categoría
+    mk('chart-comparativo-' + pfx, {
+        type: 'bar',
+        data: {
+            labels: d.categoriaLabels,
+            datasets: [
+                { label: 'Presupuesto',   data: d.presupCat,      backgroundColor: 'rgba(24,57,99,0.75)',  borderColor: '#183963', borderWidth: 1, borderRadius: 4 },
+                { label: 'Ejecutado',     data: d.ejecutadoCat,   backgroundColor: 'rgba(106,191,75,0.8)', borderColor: '#6ABF4B', borderWidth: 1, borderRadius: 4 },
+                { label: 'Compromisos',   data: d.compromisosCat, backgroundColor: 'rgba(253,126,20,0.7)', borderColor: '#fd7e14', borderWidth: 1, borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 10, font: { size: 11 } } },
+                tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmt(c.parsed.y) } }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => '$' + (v / 1e6).toFixed(0) + 'M', color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } },
+                x: { ticks: { color: '#495057', font: { weight: '600', size: 10 } }, grid: { display: false } }
+            }
+        }
+    });
+
+    // 2. Doughnut: distribución por tipo de costo
+    if (d.tipoLabels && d.tipoLabels.length > 0) {
+        const coloresTipo = ['#183963','#6ABF4B','#fd7e14','#ffc107','#dc3545','#0d6efd'];
+        mk('chart-tipos-' + pfx, {
+            type: 'doughnut',
+            data: {
+                labels: d.tipoLabels,
+                datasets: [{
+                    data: d.tipoValores,
+                    backgroundColor: d.tipoLabels.map((_, i) => coloresTipo[i % coloresTipo.length]),
+                    borderColor: '#fff', borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + fmt(c.parsed) } }
+                }
+            }
+        });
+    }
+
+    // 3. Línea: evolución mensual de costos reales
+    if (d.mesesLabels && d.mesesLabels.length > 0) {
+        mk('chart-mensual-' + pfx, {
+            type: 'line',
+            data: {
+                labels: d.mesesLabels,
+                datasets: [{
+                    label: 'Costo Real Mensual',
+                    data: d.mesesValores,
+                    borderColor: '#183963',
+                    backgroundColor: 'rgba(24,57,99,0.08)',
+                    tension: 0.4, fill: true,
+                    pointBackgroundColor: '#6ABF4B', pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => ' ' + fmt(c.parsed.y) } }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { callback: v => '$' + (v / 1e6).toFixed(1) + 'M', color: '#6c757d' }, grid: { color: 'rgba(0,0,0,.05)' } },
+                    x: { ticks: { color: '#6c757d', font: { size: 10 } }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // 4. Doughnut: estado de compromisos
+    if (d.estadoLabels && d.estadoLabels.length > 0) {
+        const coloresEstado = { 'Pendiente': '#ffc107', 'Aprobado': '#0d6efd', 'En Proceso': '#fd7e14', 'Pagado': '#6ABF4B', 'Vencido': '#dc3545', 'Cancelado': '#6c757d' };
+        mk('chart-compromisos-' + pfx, {
+            type: 'doughnut',
+            data: {
+                labels: d.estadoLabels,
+                datasets: [{
+                    data: d.estadoConteo,
+                    backgroundColor: d.estadoLabels.map(l => coloresEstado[l] || '#9E9E9E'),
+                    borderColor: '#fff', borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + c.parsed + ' compromisos' } }
+                }
+            }
+        });
+    }
+};
+
+window.destroyCostosCharts = function (proyectoId) {
+    const pfx = proyectoId;
+    ['chart-comparativo-','chart-tipos-','chart-mensual-','chart-compromisos-'].forEach(pre => {
+        const k = pre + pfx;
+        if (_costoCharts[k]) { _costoCharts[k].destroy(); delete _costoCharts[k]; }
+    });
+};

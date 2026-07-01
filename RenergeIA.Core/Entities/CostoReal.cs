@@ -13,6 +13,7 @@ public class CostoReal : EntidadBase
     public string? NumeroFactura { get; set; }
     public string? Proveedor { get; set; }
     public string RegistradoPor { get; set; } = string.Empty;
+    public string? AdjuntoUrl { get; set; }
 
     public decimal Monto => Cantidad * PrecioUnitario;
 }

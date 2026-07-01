@@ -1,0 +1,22 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Secretos y configuración local
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# Base de datos local (si se usa SQLite en desarrollo)
+*.db
+*.sqlite
+
+# Archivos subidos por usuarios (evidencias, fotos, adjuntos)
+RenergeIA.Web/wwwroot/uploads/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+
+# Archivos temporales de ngrok
+ngrok.exe

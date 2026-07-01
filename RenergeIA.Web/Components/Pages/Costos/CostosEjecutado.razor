@@ -1,0 +1,238 @@
+@inject RenergeIADbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Total Ejecutado</div>
+            <div class="fw-bold fs-6" style="color:#183963">@FormatCOP(_totalEjecutado)</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Registros</div>
+            <div class="fw-bold fs-6" style="color:#183963">@_costosReales.Count</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Promedio por registro</div>
+            <div class="fw-bold fs-6" style="color:#6ABF4B">
+                @(_costosReales.Count > 0 ? FormatCOP(_totalEjecutado / _costosReales.Count) : "$0")
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
+            <div class="small mb-1 text-muted">Tipos de costo</div>
+            <div class="fw-bold fs-6" style="color:#183963">@_costosReales.Select(c => c.TipoCosto).Distinct().Count()</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" @bind="_filtroTipo">
+                    <option value="">— Todos los tipos —</option>
+                    <option value="Material">Material</option>
+                    <option value="Mano de obra">Mano de obra</option>
+                    <option value="Equipo">Equipo</option>
+                    <option value="Subcontrato">Subcontrato</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control form-control-sm" @bind="_filtroDesde" title="Desde" />
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control form-control-sm" @bind="_filtroHasta" title="Hasta" />
+            </div>
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Buscar descripción, proveedor, factura..."
+                       @bind="_filtroBusqueda" @bind:event="oninput" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-sm w-100" style="border:1px solid #D9D9D6;color:#183963"
+                        @onclick="LimpiarFiltros">Limpiar filtros</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla -->
+@{
+    var lista = Filtrados().ToList();
+}
+
+@if (!lista.Any())
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <i class="bi-receipt display-4 mb-3" style="color:#dde3ed"></i>
+        <p class="text-muted small mb-0">
+            @(_costosReales.Any() ? "No hay registros con los filtros seleccionados." : "No hay costos reales registrados en este proyecto.")
+        </p>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center py-2" style="background:#f0f3f8">
+            <span class="small fw-semibold" style="color:#183963">@lista.Count registro@(lista.Count != 1 ? "s" : "")</span>
+            <span class="small text-muted">Total filtrado: <strong style="color:#183963">@FormatCOP(lista.Sum(c => c.Cantidad * c.PrecioUnitario))</strong></span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead style="background:#183963;color:white;font-size:.72rem">
+                    <tr>
+                        <th class="ps-3">FECHA</th>
+                        <th>PARTIDA</th>
+                        <th>DESCRIPCIÓN</th>
+                        <th>TIPO</th>
+                        <th class="text-end">CANT.</th>
+                        <th class="text-end">P. UNIT.</th>
+                        <th class="text-end">MONTO COP</th>
+                        <th>FACTURA</th>
+                        <th>PROVEEDOR</th>
+                        <th>ADJUNTO</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in lista)
+                    {
+                        <tr style="border-bottom:1px solid #f0f3f8">
+                            <td class="ps-3" style="white-space:nowrap">@c.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                @if (c.Partida is not null)
+                                {
+                                    <span class="badge" style="background:#183963;font-size:.65rem">@c.Partida.Codigo</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@c.Descripcion">
+                                @c.Descripcion
+                            </td>
+                            <td>
+                                <span class="badge rounded-pill" style="background:#D9D9D6;color:#111921;font-size:.68rem">@c.TipoCosto</span>
+                            </td>
+                            <td class="text-end">@c.Cantidad.ToString("N2")</td>
+                            <td class="text-end">@FormatCOP(c.PrecioUnitario)</td>
+                            <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(c.Cantidad * c.PrecioUnitario)</td>
+                            <td class="text-muted" style="font-size:.7rem">@(c.NumeroFactura ?? "—")</td>
+                            <td class="text-muted" style="font-size:.7rem">@(c.Proveedor ?? "—")</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(c.AdjuntoUrl))
+                                {
+                                    <a href="@c.AdjuntoUrl" target="_blank" class="btn btn-sm py-0 px-1" style="color:#6ABF4B">
+                                        <i class="bi-paperclip"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted" style="font-size:.7rem">—</span>
+                                }
+                            </td>
+                            <td class="pe-2">
+                                @if (_confirmandoEliminar == c.Id)
+                                {
+                                    <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(c.Id)">✓</button>
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">×</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = c.Id">✕</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot style="background:#f8fafc">
+                    <tr class="fw-bold">
+                        <td colspan="6" class="ps-3 text-end" style="color:#183963;font-size:.75rem">TOTAL FILTRADO</td>
+                        <td class="text-end" style="color:#183963">@FormatCOP(lista.Sum(c => c.Cantidad * c.PrecioUnitario))</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private List<CostoReal> _costosReales = [];
+    private decimal _totalEjecutado;
+
+    private string _filtroTipo      = "";
+    private string _filtroBusqueda  = "";
+    private DateTime? _filtroDesde;
+    private DateTime? _filtroHasta;
+    private int? _confirmandoEliminar;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _costosReales = await Db.CostosReales
+            .AsNoTracking()
+            .Include(c => c.Partida)
+            .Where(c => c.Partida.ProyectoId == ProyectoId)
+            .OrderByDescending(c => c.Fecha)
+            .ToListAsync();
+
+        _totalEjecutado = _costosReales.Sum(c => c.Cantidad * c.PrecioUnitario);
+    }
+
+    private IEnumerable<CostoReal> Filtrados()
+    {
+        var q = _costosReales.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(_filtroTipo))
+            q = q.Where(c => c.TipoCosto == _filtroTipo);
+
+        if (_filtroDesde.HasValue)
+            q = q.Where(c => c.Fecha >= _filtroDesde.Value);
+
+        if (_filtroHasta.HasValue)
+            q = q.Where(c => c.Fecha <= _filtroHasta.Value);
+
+        if (!string.IsNullOrWhiteSpace(_filtroBusqueda))
+        {
+            var b = _filtroBusqueda.ToLower();
+            q = q.Where(c => c.Descripcion.ToLower().Contains(b)
+                           || (c.Proveedor ?? "").ToLower().Contains(b)
+                           || (c.NumeroFactura ?? "").ToLower().Contains(b));
+        }
+
+        return q;
+    }
+
+    private void LimpiarFiltros()
+    {
+        _filtroTipo     = "";
+        _filtroBusqueda = "";
+        _filtroDesde    = null;
+        _filtroHasta    = null;
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var c = await Db.CostosReales.FindAsync(id);
+        if (c is null) return;
+        Db.CostosReales.Remove(c);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    private static readonly System.Globalization.CultureInfo _co = new("es-CO");
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+}

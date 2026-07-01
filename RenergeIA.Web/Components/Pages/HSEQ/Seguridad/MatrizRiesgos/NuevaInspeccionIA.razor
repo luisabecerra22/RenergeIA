@@ -1,0 +1,553 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/matriz/nueva-inspeccion"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject IAInspeccionService IASvc
+@inject ChecklistISO9001Service FileSvc
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.Json
+
+<PageTitle>Nueva Inspección con IA — @(_proyecto?.Nombre ?? "")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted p-4">Cargando...</p>
+}
+else
+{
+    <PageHeader Titulo="Nueva Inspección con IA"
+                Icono="bi-cpu"
+                Subtitulo="@($"{_proyecto!.Nombre} — Identificación inteligente de peligros")"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/seguridad/matriz")"
+                TextoVolver="Matriz Riesgos" />
+
+    <NavMatrizRiesgos ProyectoId="@ProyectoId" TabActiva="nueva" />
+
+    <div class="row g-4">
+
+        <!-- ══ PANEL IZQUIERDO: Formulario de campo ══ -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header text-white fw-bold d-flex align-items-center gap-2"
+                     style="background:#183963">
+                    <i class="bi-clipboard2-data-fill fs-5"></i>
+                    Datos de la Inspección
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Área *
+                            </label>
+                            <input class="form-control" @bind="_form.Area" placeholder="Ej: Obras Civiles, Montaje Estructuras..." />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Actividad *
+                            </label>
+                            <input class="form-control" @bind="_form.Actividad" placeholder="Ej: Excavación" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Tarea *
+                            </label>
+                            <input class="form-control" @bind="_form.Tarea" placeholder="Ej: Apertura de zanja" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Fecha *
+                            </label>
+                            <input type="date" class="form-control" @bind="_form.FechaInspeccion" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Inspector *
+                            </label>
+                            <input class="form-control" @bind="_form.Inspector" placeholder="Nombre del inspector" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Responsable del área
+                            </label>
+                            <input class="form-control" @bind="_form.Responsable" placeholder="Jefe de frente / Supervisor" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Ubicación / Frente de obra
+                            </label>
+                            <input class="form-control" @bind="_form.Ubicacion" placeholder="GPS / Descripción del lugar" />
+                        </div>
+
+                        <!-- Evidencia fotográfica -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                <i class="bi-camera-fill me-1"></i>Foto / Evidencia
+                            </label>
+                            @if (!string.IsNullOrEmpty(_evidenciaUrl))
+                            {
+                                <div class="mb-2 position-relative">
+                                    <img src="@_evidenciaUrl" alt="Evidencia"
+                                         class="img-fluid rounded-3 shadow-sm w-100"
+                                         style="max-height:200px;object-fit:cover" />
+                                    <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                            @onclick="EliminarEvidencia">
+                                        <i class="bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            }
+                            <InputFile OnChange="SubirEvidenciaAsync"
+                                       class="form-control"
+                                       accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.gif,.webp" />
+                            @if (_subiendoArchivo)
+                            {
+                                <div class="text-muted small mt-1">
+                                    <span class="spinner-border spinner-border-sm me-1"></span>Subiendo archivo...
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Observación manual -->
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small text-uppercase" style="color:#183963;letter-spacing:.5px">
+                                Observación del inspector
+                            </label>
+                            <textarea class="form-control" rows="4"
+                                      @bind="_form.ObservacionManual"
+                                      placeholder="Describa lo que observa en campo: condiciones inseguras, actos inseguros, estado de EPP, señalización, etc."></textarea>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorForm))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0 py-2 small">
+                            <i class="bi-exclamation-triangle-fill me-1"></i>@_errorForm
+                        </div>
+                    }
+
+                    <!-- Botón principal -->
+                    <div class="mt-4">
+                        <button type="button"
+                                class="btn w-100 fw-bold text-white py-3 rounded-3"
+                                style="background:linear-gradient(135deg,#183963,#2a5298);font-size:1rem;letter-spacing:.5px"
+                                @onclick="AnalizarConIAAsync"
+                                disabled="@(_analizando || _subiendoArchivo)">
+                            @if (_analizando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>Analizando con IA...</span>
+                            }
+                            else
+                            {
+                                <i class="bi-cpu-fill me-2 fs-5"></i>
+                                <span>Analizar con IA</span>
+                            }
+                        </button>
+                        @if (_analizando)
+                        {
+                            <p class="text-muted small text-center mt-2 mb-0">
+                                <i class="bi-hourglass-split me-1"></i>
+                                La IA está analizando la imagen e identificando peligros según GTC 45...
+                            </p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL DERECHO: Resultado de la IA ══ -->
+        <div class="col-lg-7">
+
+            @if (_resultado is null && !_analizando)
+            {
+                <!-- Estado vacío -->
+                <div class="card shadow-sm border-0 h-100 d-flex align-items-center justify-content-center text-center"
+                     style="min-height:400px;background:linear-gradient(135deg,#f0f3f8,#e8ecf5)">
+                    <div class="p-5">
+                        <i class="bi-cpu display-1" style="color:#dde3ed"></i>
+                        <h5 class="mt-3 fw-bold" style="color:#9ba8bb">Análisis IA en espera</h5>
+                        <p class="text-muted small mb-0">
+                            Complete los datos del formulario, adjunte una fotografía de campo<br>
+                            y presione <strong>Analizar con IA</strong> para iniciar el análisis automático<br>
+                            de peligros y valoración de riesgos según GTC 45.
+                        </p>
+                    </div>
+                </div>
+            }
+            else if (_resultado is not null)
+            {
+                <!-- Resultado del análisis -->
+                <div class="card shadow-sm border-0">
+                    <!-- Header con semáforo de riesgo -->
+                    <div class="card-header d-flex align-items-center justify-content-between"
+                         style="background:#183963;color:#fff">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi-cpu-fill fs-5"></i>
+                            <div>
+                                <div class="fw-bold">Análisis IA — Pendiente de validación SST</div>
+                                <small class="opacity-75 small">Propuesta generada por IA · No oficial hasta aprobación HSEQ</small>
+                            </div>
+                        </div>
+                        <div class="text-center" style="min-width:90px">
+                            <div class="fw-bold" style="font-size:1.6rem;color:@_resultado.ColorNR">
+                                @_resultado.NR
+                            </div>
+                            <div class="small opacity-75">NR (GTC 45)</div>
+                        </div>
+                    </div>
+
+                    <div class="card-body p-3">
+
+                        <!-- Nivel de riesgo visual -->
+                        <div class="rounded-3 p-3 mb-3 d-flex align-items-center gap-3"
+                             style="background:@_resultado.ColorNR+'22';border:2px solid @_resultado.ColorNR">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white"
+                                 style="width:56px;height:56px;background:@_resultado.ColorNR;font-size:1.1rem;flex-shrink:0">
+                                @_resultado.AceptabilidadCalculada.Split('—')[0].Trim()
+                            </div>
+                            <div>
+                                <div class="fw-bold" style="color:@_resultado.ColorNR;font-size:1.1rem">
+                                    @_resultado.AceptabilidadCalculada
+                                </div>
+                                <div class="small text-muted">
+                                    ND=@_resultado.ND × NE=@_resultado.NE → NP=@_resultado.NP × NC=@_resultado.NC → NR=@_resultado.NR
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Peligros identificados -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#E53935">
+                                    <div class="ia-result-title" style="color:#E53935">
+                                        <i class="bi-exclamation-triangle-fill me-1"></i>Peligros Identificados
+                                    </div>
+                                    @foreach (var p in _resultado.PeligrosIdentificados)
+                                    { <div class="ia-tag" style="background:#fef2f2;color:#E53935;border-color:#E53935">@p</div> }
+                                </div>
+                            </div>
+                            <!-- Clasificación -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#7B1FA2">
+                                    <div class="ia-result-title" style="color:#7B1FA2">
+                                        <i class="bi-tags-fill me-1"></i>Clasificación del Peligro
+                                    </div>
+                                    @foreach (var c in _resultado.ClasificacionPeligro)
+                                    { <div class="ia-tag" style="background:#f3e5f5;color:#7B1FA2;border-color:#7B1FA2">@c</div> }
+                                </div>
+                            </div>
+                            <!-- Efectos posibles -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#E65100">
+                                    <div class="ia-result-title" style="color:#E65100">
+                                        <i class="bi-person-fill-exclamation me-1"></i>Efectos Posibles
+                                    </div>
+                                    @foreach (var e in _resultado.EfectosPosibles)
+                                    { <div class="ia-tag" style="background:#fff3e0;color:#E65100;border-color:#E65100">@e</div> }
+                                </div>
+                            </div>
+                            <!-- Controles faltantes -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#F5B301">
+                                    <div class="ia-result-title" style="color:#d97706">
+                                        <i class="bi-exclamation-circle-fill me-1"></i>Controles Faltantes
+                                    </div>
+                                    @foreach (var cf in _resultado.ControlesFaltantes)
+                                    { <div class="ia-tag" style="background:#fffbeb;color:#d97706;border-color:#F5B301">@cf</div> }
+                                </div>
+                            </div>
+                            <!-- Medidas de intervención -->
+                            <div class="col-12">
+                                <div class="ia-result-card" style="border-color:#6ABF48">
+                                    <div class="ia-result-title" style="color:#4a8f34">
+                                        <i class="bi-shield-fill-check me-1"></i>Medidas de Intervención Propuestas
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">
+                                        @foreach (var m in _resultado.MedidasIntervencion)
+                                        { <div class="ia-tag" style="background:#f0f7ea;color:#4a8f34;border-color:#6ABF48">@m</div> }
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- EPP -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#183963">
+                                    <div class="ia-result-title" style="color:#183963">
+                                        <i class="bi-shield-fill me-1"></i>EPP Requerido
+                                    </div>
+                                    @foreach (var epp in _resultado.EPPRequerido)
+                                    { <div class="ia-tag" style="background:#e8ecf5;color:#183963;border-color:#183963">@epp</div> }
+                                </div>
+                            </div>
+                            <!-- Documentos -->
+                            <div class="col-md-6">
+                                <div class="ia-result-card" style="border-color:#546e7a">
+                                    <div class="ia-result-title" style="color:#546e7a">
+                                        <i class="bi-file-earmark-text-fill me-1"></i>Documentos Relacionados
+                                    </div>
+                                    @foreach (var d in _resultado.DocumentosRelacionados)
+                                    { <div class="ia-tag" style="background:#eceff1;color:#546e7a;border-color:#546e7a">@d</div> }
+                                </div>
+                            </div>
+                            <!-- Hallazgo -->
+                            <div class="col-12">
+                                <div class="ia-result-card" style="border-color:#183963">
+                                    <div class="ia-result-title" style="color:#183963">
+                                        <i class="bi-file-earmark-ruled-fill me-1"></i>Hallazgo Redactado
+                                    </div>
+                                    <p class="small mb-0" style="line-height:1.6">@_resultado.HallazgoRedactado</p>
+                                </div>
+                            </div>
+                            <!-- Acción correctiva -->
+                            <div class="col-12">
+                                <div class="ia-result-card" style="border-color:#6ABF48">
+                                    <div class="ia-result-title" style="color:#4a8f34">
+                                        <i class="bi-arrow-clockwise me-1"></i>Acción Correctiva Recomendada
+                                    </div>
+                                    <p class="small mb-0" style="line-height:1.6">@_resultado.AccionCorrectiva</p>
+                                    <div class="d-flex gap-3 mt-2 small text-muted">
+                                        <span><i class="bi-person me-1"></i>@_resultado.ResponsableSugerido</span>
+                                        <span><i class="bi-clock me-1"></i>@_resultado.PlazoSugerido</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de validación SST -->
+                        <div class="alert mt-3 mb-0 p-3 rounded-3" style="background:#fff8e1;border:1px solid #F5B301">
+                            <div class="fw-bold small mb-2" style="color:#d97706">
+                                <i class="bi-shield-lock-fill me-1"></i>
+                                Validación SST requerida — Este análisis es una propuesta de la IA
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button"
+                                        class="btn btn-sm fw-semibold text-white"
+                                        style="background:#6ABF48"
+                                        @onclick="AprobarYGuardarAsync"
+                                        disabled="@_guardando">
+                                    @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    <i class="bi-check-circle-fill me-1"></i>Aprobar y alimentar Matriz IPERV
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary fw-semibold"
+                                        @onclick="GuardarPendienteAsync"
+                                        disabled="@_guardando">
+                                    <i class="bi-hourglass-split me-1"></i>Guardar pendiente de revisión
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger fw-semibold"
+                                        @onclick="RechazarAsync"
+                                        disabled="@_guardando">
+                                    <i class="bi-x-circle me-1"></i>Rechazar
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<style>
+    .ia-result-card {
+        border: 1.5px solid;
+        border-radius: 10px;
+        padding: 10px 12px;
+        height: 100%;
+    }
+    .ia-result-title {
+        font-size: .75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        margin-bottom: 6px;
+    }
+    .ia-tag {
+        display: inline-block;
+        font-size: .72rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 20px;
+        border: 1px solid;
+        margin: 2px 2px 2px 0;
+    }
+</style>
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private InspeccionFormModel _form = new();
+    private string? _evidenciaUrl;
+    private bool _subiendoArchivo;
+    private bool _analizando;
+    private bool _guardando;
+    private string? _errorForm;
+    private AnalisisIAResult? _resultado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+    }
+
+    private async Task SubirEvidenciaAsync(InputFileChangeEventArgs e)
+    {
+        _subiendoArchivo = true;
+        _errorForm = null;
+        try
+        {
+            _evidenciaUrl = await FileSvc.GuardarEvidenciaAsync(e.File, ProyectoId);
+        }
+        catch (Exception ex) { _errorForm = $"Error al subir archivo: {ex.Message}"; }
+        finally { _subiendoArchivo = false; }
+    }
+
+    private void EliminarEvidencia()
+    {
+        FileSvc.EliminarEvidencia(_evidenciaUrl);
+        _evidenciaUrl = null;
+    }
+
+    private async Task AnalizarConIAAsync()
+    {
+        _errorForm = null;
+        if (string.IsNullOrWhiteSpace(_form.Area) ||
+            string.IsNullOrWhiteSpace(_form.Actividad) ||
+            string.IsNullOrWhiteSpace(_form.Tarea))
+        {
+            _errorForm = "Complete Área, Actividad y Tarea antes de analizar.";
+            return;
+        }
+
+        _analizando = true;
+        StateHasChanged();
+
+        var (resultado, error) = await IASvc.AnalizarAsync(
+            _evidenciaUrl,
+            _form.Area,
+            _form.Actividad,
+            _form.Tarea,
+            _form.ObservacionManual);
+
+        _analizando = false;
+
+        if (error is not null)
+        {
+            _errorForm = error;
+            return;
+        }
+
+        _resultado = resultado;
+    }
+
+    private async Task AprobarYGuardarAsync()
+    {
+        if (_resultado is null) return;
+        _guardando = true;
+        try
+        {
+            var inspeccion = await GuardarInspeccionAsync(EstadoValidacionIA.Aprobado);
+
+            // Crear entrada en Matriz IPERV
+            var riesgo = new RiesgoIPERV
+            {
+                ProyectoId        = ProyectoId,
+                FuenteOrigen      = FuenteRiesgo.InspeccionIA,
+                InspeccionIAId    = inspeccion.Id,
+                Area              = _form.Area,
+                Actividad         = _form.Actividad,
+                Tarea             = _form.Tarea,
+                DescripcionPeligro = string.Join("; ", _resultado.PeligrosIdentificados),
+                ClasificacionPeligro = string.Join(", ", _resultado.ClasificacionPeligro),
+                EfectosPosibles   = string.Join("; ", _resultado.EfectosPosibles),
+                ControlFuente     = string.Join("; ", _resultado.ControlesExistentes),
+                ND  = _resultado.ND,
+                NE  = _resultado.NE,
+                NP  = _resultado.NP,
+                NC  = _resultado.NC,
+                NR  = _resultado.NR,
+                Aceptabilidad     = _resultado.AceptabilidadCalculada,
+                ControlAdministrativo = string.Join("; ", _resultado.MedidasIntervencion),
+                EPP               = string.Join(", ", _resultado.EPPRequerido),
+                Responsable       = _resultado.ResponsableSugerido,
+                Hallazgo          = _resultado.HallazgoRedactado,
+                AccionCorrectiva  = _resultado.AccionCorrectiva,
+                EvidenciaUrl      = _evidenciaUrl,
+                EstadoValidacion  = EstadoValidacionIA.Aprobado,
+                Estado            = EstadoRiesgo.Activo
+            };
+            Db.RiesgosIPERV.Add(riesgo);
+            await Db.SaveChangesAsync();
+
+            Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/seguridad/matriz/iperv");
+        }
+        finally { _guardando = false; }
+    }
+
+    private async Task GuardarPendienteAsync()
+    {
+        if (_resultado is null) return;
+        _guardando = true;
+        try
+        {
+            await GuardarInspeccionAsync(EstadoValidacionIA.PendienteValidacion);
+            Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/seguridad/matriz/iperv");
+        }
+        finally { _guardando = false; }
+    }
+
+    private async Task RechazarAsync()
+    {
+        if (_resultado is null) return;
+        _guardando = true;
+        try
+        {
+            await GuardarInspeccionAsync(EstadoValidacionIA.Rechazado);
+            _resultado = null;
+        }
+        finally { _guardando = false; }
+    }
+
+    private async Task<InspeccionIA> GuardarInspeccionAsync(EstadoValidacionIA estado)
+    {
+        var inspeccion = new InspeccionIA
+        {
+            ProyectoId         = ProyectoId,
+            Area               = _form.Area,
+            Actividad          = _form.Actividad,
+            Tarea              = _form.Tarea,
+            Responsable        = _form.Responsable,
+            Ubicacion          = _form.Ubicacion,
+            Inspector          = _form.Inspector,
+            FechaInspeccion    = _form.FechaInspeccion,
+            ObservacionManual  = _form.ObservacionManual,
+            EvidenciaUrl       = _evidenciaUrl,
+            EstadoValidacion   = estado,
+            ResultadoIA        = _resultado is not null ? IASvc.SerializarResultado(_resultado) : null,
+            PeligrosIdentificados = _resultado is not null ? string.Join("; ", _resultado.PeligrosIdentificados) : null,
+            NivelRiesgoSugerido   = _resultado?.NivelRiesgo,
+            HallazgoRedactado     = _resultado?.HallazgoRedactado,
+            AccionCorrectivaSugerida = _resultado?.AccionCorrectiva
+        };
+        Db.InspeccionesIA.Add(inspeccion);
+        await Db.SaveChangesAsync();
+        return inspeccion;
+    }
+
+    private sealed class InspeccionFormModel
+    {
+        public string Area { get; set; } = "";
+        public string Actividad { get; set; } = "";
+        public string Tarea { get; set; } = "";
+        public string Responsable { get; set; } = "";
+        public string? Ubicacion { get; set; }
+        public string Inspector { get; set; } = "";
+        public DateTime FechaInspeccion { get; set; } = DateTime.Today;
+        public string? ObservacionManual { get; set; }
+    }
+}

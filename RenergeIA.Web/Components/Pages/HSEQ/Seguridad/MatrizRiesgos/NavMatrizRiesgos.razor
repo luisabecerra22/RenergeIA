@@ -1,0 +1,33 @@
+@* Barra de navegación interna del submódulo Matriz de Riesgos *@
+<div class="d-flex flex-wrap gap-1 mb-4 p-2 rounded-3" style="background:#f0f3f8;border:1px solid #dde3ed">
+    @NavItem("nueva",       "bi-cpu",                "Nueva Inspección IA",    $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/nueva-inspeccion",  "#183963")
+    @NavItem("iperv",       "bi-table",              "Matriz IPERV",           $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/iperv",            "#183963")
+    @NavItem("mapa",        "bi-geo-alt-fill",       "Mapa de Riesgos",        $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/mapa",             "#183963")
+    @NavItem("acciones",    "bi-list-check",         "Acciones Correctivas",   $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/acciones",         "#183963")
+    @NavItem("evidencias",  "bi-folder2-open",       "Evidencias",             $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/evidencias",       "#183963")
+    @NavItem("dashboard",   "bi-bar-chart-line-fill","Dashboard SST",          $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/dashboard",        "#183963")
+    @NavItem("biblioteca",  "bi-book-fill",          "Biblioteca Peligros",    $"/proyectos/{ProyectoId}/hseq/seguridad/matriz/biblioteca",       "#183963")
+</div>
+
+@code {
+    [Parameter] public int    ProyectoId { get; set; }
+    [Parameter] public string TabActiva  { get; set; } = "dashboard";
+
+    private RenderFragment NavItem(string id, string icono, string label, string href, string color) => __builder =>
+    {
+        bool activa = TabActiva == id;
+        string css   = activa
+            ? "btn btn-sm fw-semibold text-white shadow-sm"
+            : "btn btn-sm fw-normal text-secondary";
+        string style = activa
+            ? $"background:{color};border-color:{color}"
+            : "background:#fff;border-color:#dde3ed";
+
+        __builder.OpenElement(0, "a");
+        __builder.AddAttribute(1, "class", css);
+        __builder.AddAttribute(2, "style", style);
+        __builder.AddAttribute(3, "href", href);
+        __builder.AddMarkupContent(4, $"<i class=\"{icono} me-1\"></i>{label}");
+        __builder.CloseElement();
+    };
+}

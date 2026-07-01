@@ -274,6 +274,82 @@
     text-align: center;
 }
 
+/* ══════════════════════════════════════════════════
+   HSEQ Global — Niveles 1 y 2 del menú corporativo
+   ══════════════════════════════════════════════════ */
+
+.nav-hseq-container {
+    padding: 2px 8px 6px 8px;
+}
+
+/* Item nivel 1 (Dashboard HSEQ, grupo Auditorías) */
+.nav-hseq-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    color: rgba(215,215,215,0.75);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.73rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
+}
+
+.nav-hseq-item:hover {
+    background: rgba(106,191,75,0.14);
+    color: white;
+    text-decoration: none;
+}
+
+.nav-hseq-group {
+    justify-content: flex-start;
+}
+
+/* Estado activo compartido */
+.nav-hseq-active {
+    color: #6ABF4B !important;
+    background: rgba(106,191,75,0.13);
+    font-weight: 600;
+}
+
+/* Contenedor sub-items (nivel 2) con línea verde */
+.nav-hseq-sub {
+    padding: 3px 0 4px 14px;
+    margin-left: 16px;
+    border-left: 1px solid rgba(106,191,75,0.3);
+    margin-bottom: 2px;
+}
+
+/* Sub-item: ISO 9001, ISO 14001, etc. */
+.nav-hseq-subitem {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 6px;
+    color: rgba(215,215,215,0.6);
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.69rem;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s;
+}
+
+.nav-hseq-subitem:hover {
+    background: rgba(106,191,75,0.12);
+    color: rgba(215,215,215,0.95);
+    text-decoration: none;
+}
+
+/* Chevron pequeño del grupo Auditorías */
+.nav-chevron-small {
+    font-size: 0.58rem;
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
 /* Badge "pronto" */
 .nav-badge-pronto {
     font-size: 0.57rem;

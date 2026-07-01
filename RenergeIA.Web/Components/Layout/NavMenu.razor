@@ -100,6 +100,78 @@
             </div>
         }
 
+        <!-- ── HSEQ (Corporativo) ──────────────────────────────── -->
+        <div class="nav-section-item">
+            <div class="nav-top-link-row">
+                <a href="hseq/dashboard"
+                   class="nav-top-link @(EsRutaHseqGlobal ? "active" : "")">
+                    <i class="bi-shield-check nav-top-icon"></i>
+                    <span>HSEQ</span>
+                </a>
+                <button class="nav-chevron-btn"
+                        @onclick="ToggleHseq"
+                        @onclick:stopPropagation="true">
+                    <i class="@(_hseqExpandido ? "bi-chevron-down" : "bi-chevron-right")"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (_hseqExpandido)
+        {
+            <div class="nav-hseq-container">
+                <a href="hseq/dashboard"
+                   class="nav-hseq-item @(HseqSubActivo("dashboard") ? "nav-hseq-active" : "")">
+                    <i class="bi-speedometer2 nav-module-icon"></i>
+                    <span>Dashboard HSEQ</span>
+                </a>
+
+                <div class="nav-hseq-item nav-hseq-group @(_auditoriasExpandido ? "nav-hseq-active" : "")"
+                     @onclick="ToggleAuditorias">
+                    <i class="bi-clipboard-check nav-module-icon"></i>
+                    <span style="flex:1">Auditorías</span>
+                    <i class="@(_auditoriasExpandido ? "bi-chevron-down" : "bi-chevron-right") nav-chevron-small"></i>
+                </div>
+
+                @if (_auditoriasExpandido)
+                {
+                    <div class="nav-hseq-sub">
+                        <a href="hseq/auditorias/norma/iso9001"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/iso9001") ? "nav-hseq-active" : "")">
+                            <i class="bi-patch-check-fill nav-module-icon"></i><span>ISO 9001</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/iso14001"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/iso14001") ? "nav-hseq-active" : "")">
+                            <i class="bi-tree-fill nav-module-icon"></i><span>ISO 14001</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/iso45001"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/iso45001") ? "nav-hseq-active" : "")">
+                            <i class="bi-shield-fill-check nav-module-icon"></i><span>ISO 45001</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/decreto1072"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/decreto1072") ? "nav-hseq-active" : "")">
+                            <i class="bi-file-earmark-text-fill nav-module-icon"></i><span>Decreto 1072</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/resolucion0312"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/resolucion0312") ? "nav-hseq-active" : "")">
+                            <i class="bi-file-earmark-ruled-fill nav-module-icon"></i><span>Resolución 0312</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/cliente"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/cliente") ? "nav-hseq-active" : "")">
+                            <i class="bi-person-check-fill nav-module-icon"></i><span>Aud. Cliente</span>
+                        </a>
+                        <a href="hseq/auditorias/norma/interventoria"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/norma/interventoria") ? "nav-hseq-active" : "")">
+                            <i class="bi-building-check nav-module-icon"></i><span>Aud. Interventoría</span>
+                        </a>
+                        <a href="hseq/auditorias/historial"
+                           class="nav-hseq-subitem @(HseqSubActivo("auditorias/historial") ? "nav-hseq-active" : "")">
+                            <i class="bi-clock-history nav-module-icon"></i><span>Historial</span>
+                        </a>
+                    </div>
+                }
+            </div>
+        }
+
     </nav>
 </div>
 
@@ -127,9 +199,22 @@
     private List<ProyectoNavItem> _proyectos = [];
     private readonly HashSet<int>  _expandidos = [];
     private bool _proyectosExpandido = true;
+    private bool _hseqExpandido      = false;
+    private bool _auditoriasExpandido = false;
     private bool _error = false;
 
     // ── Detección de ruta activa ─────────────────────────────────────────────
+
+    private bool EsRutaHseqGlobal =>
+        new Uri(Nav.Uri).AbsolutePath.StartsWith("/hseq", StringComparison.OrdinalIgnoreCase);
+
+    private bool HseqSubActivo(string subPath)
+    {
+        var actual   = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+        var expected = $"/hseq/{subPath}";
+        return actual.Equals(expected, StringComparison.OrdinalIgnoreCase)
+            || actual.StartsWith(expected + "/", StringComparison.OrdinalIgnoreCase);
+    }
 
     private int? ProyectoActualId
     {
@@ -157,6 +242,18 @@
         await CargarProyectosAsync();
         var id = ProyectoActualId;
         if (id.HasValue) _expandidos.Add(id.Value);
+        AutoExpandirHseq();
+    }
+
+    private void AutoExpandirHseq()
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        if (path.StartsWith("/hseq", StringComparison.OrdinalIgnoreCase))
+        {
+            _hseqExpandido = true;
+            if (path.StartsWith("/hseq/auditorias", StringComparison.OrdinalIgnoreCase))
+                _auditoriasExpandido = true;
+        }
     }
 
     private async Task CargarProyectosAsync()
@@ -181,6 +278,7 @@
     {
         var id = ProyectoActualId;
         if (id.HasValue) _expandidos.Add(id.Value);
+        AutoExpandirHseq();
         InvokeAsync(StateHasChanged);
     }
 
@@ -188,6 +286,10 @@
 
     private void ToggleSeccionProyectos() =>
         _proyectosExpandido = !_proyectosExpandido;
+
+    private void ToggleHseq() => _hseqExpandido = !_hseqExpandido;
+
+    private void ToggleAuditorias() => _auditoriasExpandido = !_auditoriasExpandido;
 
     private void ToggleProyecto(int id)
     {

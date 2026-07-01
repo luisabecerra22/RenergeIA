@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RenergeIA.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260629130530_AddCamposISO9001")]
+    partial class AddCamposISO9001
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -338,65 +341,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("Alertas", (string)null);
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoCosto", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaVencimiento")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Observaciones")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("PartidaId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Prioridad")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Proveedor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PartidaId");
-
-                    b.HasIndex("ProyectoId");
-
-                    b.ToTable("CompromisoCostos", (string)null);
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.CostoReal", b =>
                 {
                     b.Property<int>("Id")
@@ -404,10 +348,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AdjuntoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("Cantidad")
                         .HasColumnType("decimal(18,4)");
@@ -918,76 +858,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("AspectosImpactos", (string)null);
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.BibliotecaPeligro", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Actividad")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Area")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Clasificacion")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlFuente")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlIndividuo")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlMedio")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DocumentosAsociados")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EPPRecomendado")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EfectosPosibles")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("MedidasIntervencion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NivelRiesgoSugerido")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Peligro")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PermisosRequeridos")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Tarea")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("BibliotecaPeligros");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.Capacitacion", b =>
                 {
                     b.Property<int>("Id")
@@ -1122,7 +992,7 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("Division")
+                    b.Property<int>("Division")
                         .HasColumnType("int");
 
                     b.Property<int>("EstadoAuditoria")
@@ -1139,8 +1009,7 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     b.Property<string>("NormaISO")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Observaciones")
                         .HasColumnType("nvarchar(max)");
@@ -1148,17 +1017,7 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<decimal>("PorcentajeCumplimiento")
                         .HasColumnType("decimal(5,2)");
 
-                    b.Property<string>("ProcesoArea")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TipoAuditoria")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TipoNorma")
+                    b.Property<int>("ProyectoId")
                         .HasColumnType("int");
 
                     b.Property<string>("UsuarioId")
@@ -1916,89 +1775,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("InspeccionesAmbientales", (string)null);
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionIA", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AccionCorrectivaSugerida")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Actividad")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Area")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("EstadoValidacion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EvidenciaUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("FechaInspeccion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaValidacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("HallazgoRedactado")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Inspector")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NivelRiesgoSugerido")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ObservacionManual")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ObservacionValidacion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("PeligrosIdentificados")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Responsable")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ResultadoIA")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Tarea")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Ubicacion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ValidadoPor")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProyectoId");
-
-                    b.ToTable("InspeccionesIA");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionSST", b =>
                 {
                     b.Property<int>("Id")
@@ -2587,132 +2363,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("ReunionesComunitarias", (string)null);
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.RiesgoIPERV", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AccionCorrectiva")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Aceptabilidad")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Actividad")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Area")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ClasificacionPeligro")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlAdministrativo")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlFuente")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlIndividuo")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlIngenieria")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ControlMedio")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("DescripcionPeligro")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EPP")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("EfectosPosibles")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Eliminacion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("EsRutinaria")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EstadoValidacion")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EvidenciaUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("FuenteOrigen")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Hallazgo")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("InspeccionIAId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("NC")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ND")
-                        .HasColumnType("int");
-
-                    b.Property<int>("NE")
-                        .HasColumnType("int");
-
-                    b.Property<int>("NP")
-                        .HasColumnType("int");
-
-                    b.Property<int>("NR")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("Plazo")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Responsable")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Senalizacion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Sustitucion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Tarea")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InspeccionIAId");
-
-                    b.HasIndex("ProyectoId");
-
-                    b.ToTable("RiesgosIPERV");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>
@@ -3794,24 +3444,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoCosto", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.Partida", "Partida")
-                        .WithMany()
-                        .HasForeignKey("PartidaId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Partida");
-
-                    b.Navigation("Proyecto");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.CostoReal", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Partida", "Partida")
@@ -3949,7 +3581,8 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
                         .WithMany()
                         .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Proyecto");
                 });
@@ -4092,17 +3725,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionIA", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Proyecto");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionSST", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -4212,23 +3834,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Comunidad");
-
-                    b.Navigation("Proyecto");
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.RiesgoIPERV", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.HSEQ.InspeccionIA", "InspeccionIA")
-                        .WithMany("RiesgosGenerados")
-                        .HasForeignKey("InspeccionIAId");
-
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InspeccionIA");
 
                     b.Navigation("Proyecto");
                 });
@@ -4526,11 +4131,6 @@ namespace RenergeIA.Infrastructure.Migrations
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.HallazgoHSEQ", b =>
                 {
                     b.Navigation("Acciones");
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionIA", b =>
-                {
-                    b.Navigation("RiesgosGenerados");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>

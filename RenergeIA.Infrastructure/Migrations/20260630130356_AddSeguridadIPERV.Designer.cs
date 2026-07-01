@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using RenergeIA.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260630130356_AddSeguridadIPERV")]
+    partial class AddSeguridadIPERV
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -338,65 +341,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("Alertas", (string)null);
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoCosto", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("Fecha")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("FechaVencimiento")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Observaciones")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("PartidaId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Prioridad")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Proveedor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PartidaId");
-
-                    b.HasIndex("ProyectoId");
-
-                    b.ToTable("CompromisoCostos", (string)null);
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.CostoReal", b =>
                 {
                     b.Property<int>("Id")
@@ -404,10 +348,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AdjuntoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("Cantidad")
                         .HasColumnType("decimal(18,4)");
@@ -1122,7 +1062,7 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("Division")
+                    b.Property<int>("Division")
                         .HasColumnType("int");
 
                     b.Property<int>("EstadoAuditoria")
@@ -1139,8 +1079,7 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     b.Property<string>("NormaISO")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Observaciones")
                         .HasColumnType("nvarchar(max)");
@@ -1148,17 +1087,7 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<decimal>("PorcentajeCumplimiento")
                         .HasColumnType("decimal(5,2)");
 
-                    b.Property<string>("ProcesoArea")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int?>("ProyectoId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TipoAuditoria")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("TipoNorma")
+                    b.Property<int>("ProyectoId")
                         .HasColumnType("int");
 
                     b.Property<string>("UsuarioId")
@@ -3794,24 +3723,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoCosto", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.Partida", "Partida")
-                        .WithMany()
-                        .HasForeignKey("PartidaId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Partida");
-
-                    b.Navigation("Proyecto");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.CostoReal", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Partida", "Partida")
@@ -3949,7 +3860,8 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
                         .WithMany()
                         .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Proyecto");
                 });

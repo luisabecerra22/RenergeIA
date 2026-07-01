@@ -1,0 +1,306 @@
+@page "/hseq/auditorias/norma/{Norma}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Nav
+@inject NormaChecklistService ChecklistSvc
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Auditorías @_titulo — HSEQ Corporativo</PageTitle>
+
+@if (_tipoNorma is null)
+{
+    <div class="alert alert-danger m-4">Norma no reconocida: "@Norma"</div>
+}
+else
+{
+    <div class="container-fluid px-4 py-3">
+
+        <!-- ── Header ──────────────────────────────────────────────────── -->
+        <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <a href="hseq/dashboard" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi-arrow-left me-1"></i>HSEQ
+                </a>
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width:42px;height:42px;background:@_color+'18';flex-shrink:0">
+                    <i class="@_icono" style="color:@_color;font-size:1.2rem"></i>
+                </div>
+                <div>
+                    <h5 class="fw-bold mb-0" style="color:#183963">@_titulo</h5>
+                    <p class="text-muted small mb-0">@_version · Módulo Corporativo HSEQ</p>
+                </div>
+            </div>
+            <button class="btn fw-semibold text-white"
+                    style="background:@_color"
+                    @onclick="() => _mostrarForm = true">
+                <i class="bi-plus-lg me-1"></i>Nueva Auditoría
+            </button>
+        </div>
+
+        <!-- ── Formulario nueva auditoría ─────────────────────────────── -->
+        @if (_mostrarForm)
+        {
+            <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid @_color !important">
+                <div class="card-header text-white fw-bold d-flex justify-content-between align-items-center"
+                     style="background:@_color">
+                    <span><i class="bi-clipboard-plus me-2"></i>Nueva Auditoría — @_titulo</span>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarForm = false"></button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">Auditor / Responsable *</label>
+                            <input class="form-control" @bind="_form.Auditor" placeholder="Nombre del auditor..." />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Proceso / Área *</label>
+                            <input class="form-control" @bind="_form.ProcesoArea" placeholder="Ej: Gestión de calidad, Obras civiles..." />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-semibold small">Fecha de Auditoría *</label>
+                            <input type="date" class="form-control" @bind="_form.FechaAuditoria" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">Proyecto (opcional)</label>
+                            <select class="form-select" @bind="_form.ProyectoId">
+                                <option value="">— Sin proyecto específico —</option>
+                                @foreach (var p in _proyectos)
+                                {
+                                    <option value="@p.Id">@p.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Tipo de Auditoría</label>
+                            <select class="form-select" @bind="_form.TipoAuditoria">
+                                <option value="@TipoAuditoriaHSEQ.Interna">Interna</option>
+                                <option value="@TipoAuditoriaHSEQ.Cliente">Cliente</option>
+                                <option value="@TipoAuditoriaHSEQ.Interventoria">Interventoría</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Observaciones generales</label>
+                            <textarea class="form-control" rows="2" @bind="_form.Observaciones"
+                                      placeholder="Alcance, objetivos o notas previas de la auditoría..."></textarea>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorForm))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0 py-2 small">
+                            <i class="bi-exclamation-triangle-fill me-1"></i>@_errorForm
+                        </div>
+                    }
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn fw-semibold text-white" style="background:@_color"
+                                @onclick="IniciarAuditoriaAsync" disabled="@_creando">
+                            @if (_creando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi-play-fill me-1"></i>Iniciar Auditoría
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="() => _mostrarForm = false">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- ── Lista de auditorías ─────────────────────────────────────── -->
+        @if (!_auditorias.Any())
+        {
+            <div class="card border-0 shadow-sm text-center py-5">
+                <i class="@_icono display-4 mb-3" style="color:#dde3ed"></i>
+                <h6 class="text-muted">Sin auditorías registradas</h6>
+                <p class="text-muted small mb-3">Inicia tu primera auditoría @_titulo presionando "Nueva Auditoría"</p>
+                <div>
+                    <button class="btn fw-semibold text-white" style="background:@_color"
+                            @onclick="() => _mostrarForm = true">
+                        <i class="bi-plus-lg me-1"></i>Nueva Auditoría
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- KPIs rápidos -->
+            <div class="row g-3 mb-3">
+                <div class="col-4">
+                    <div class="card border-0 shadow-sm text-center py-2">
+                        <div class="fw-bold fs-4" style="color:#183963">@_auditorias.Count</div>
+                        <div class="small text-muted">Total</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card border-0 shadow-sm text-center py-2">
+                        <div class="fw-bold fs-4" style="color:#2E7D32">
+                            @_auditorias.Count(a => a.EstadoAuditoria == EstadoAuditoria.Finalizada)
+                        </div>
+                        <div class="small text-muted">Finalizadas</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card border-0 shadow-sm text-center py-2">
+                        <div class="fw-bold fs-4" style="color:@_color">
+                            @(_auditorias.Any() ? $"{_auditorias.Average(a => a.PorcentajeCumplimiento):F1}%" : "—")
+                        </div>
+                        <div class="small text-muted">% Promedio</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 small">
+                        <thead style="background:#f0f3f8">
+                            <tr>
+                                <th class="ps-3" style="color:#183963;font-size:.72rem">AUDITOR</th>
+                                <th style="color:#183963;font-size:.72rem">PROCESO / ÁREA</th>
+                                <th style="color:#183963;font-size:.72rem">PROYECTO</th>
+                                <th style="color:#183963;font-size:.72rem">FECHA</th>
+                                <th style="color:#183963;font-size:.72rem">CUMPLIMIENTO</th>
+                                <th style="color:#183963;font-size:.72rem">ITEMS</th>
+                                <th style="color:#183963;font-size:.72rem">ESTADO</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in _auditorias.OrderByDescending(x => x.FechaAuditoria))
+                            {
+                                <tr>
+                                    <td class="ps-3 align-middle fw-semibold">@a.Auditor</td>
+                                    <td class="align-middle text-muted">@(a.ProcesoArea ?? "—")</td>
+                                    <td class="align-middle text-muted" style="font-size:.7rem">
+                                        @(a.Proyecto?.Nombre ?? "—")
+                                    </td>
+                                    <td class="align-middle text-muted">@a.FechaAuditoria.ToString("dd/MM/yyyy")</td>
+                                    <td class="align-middle">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-fill" style="height:6px;min-width:50px">
+                                                <div class="progress-bar" style="width:@a.PorcentajeCumplimiento%;background:@_color"></div>
+                                            </div>
+                                            <span class="fw-bold small" style="color:@_color;min-width:38px">
+                                                @a.PorcentajeCumplimiento.ToString("F1")%
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="align-middle text-center text-muted">@a.Items.Count</td>
+                                    <td class="align-middle">
+                                        <span class="badge rounded-pill small"
+                                              style="background:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria)+'22';
+                                                     color:@NormaChecklistService.ColorEstadoAuditoria(a.EstadoAuditoria)">
+                                            @NormaChecklistService.LabelEstadoAuditoria(a.EstadoAuditoria)
+                                        </span>
+                                    </td>
+                                    <td class="align-middle text-end pe-3">
+                                        <a href="hseq/auditorias/@a.Id"
+                                           class="btn btn-sm fw-semibold text-white py-1 px-2"
+                                           style="background:@_color;font-size:.7rem">
+                                            <i class="bi-arrow-right me-1"></i>Abrir
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Norma { get; set; } = "";
+
+    private TipoNormaHSEQ? _tipoNorma;
+    private string _titulo  = "";
+    private string _icono   = "bi-clipboard-check";
+    private string _color   = "#183963";
+    private string _version = "";
+    private bool _mostrarForm = false;
+    private bool _creando = false;
+    private string? _errorForm;
+    private List<ChecklistAuditoria> _auditorias = [];
+    private List<(int Id, string Nombre)> _proyectos = [];
+    private FormNuevaAuditoria _form = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _tipoNorma = NormaChecklistService.SlugANorma(Norma);
+        if (_tipoNorma is null) return;
+
+        var (t, i, c, v) = NormaChecklistService.Meta[_tipoNorma.Value];
+        _titulo = t; _icono = i; _color = c; _version = v;
+        _form = new FormNuevaAuditoria();
+
+        _auditorias = await Db.ChecklistsAuditoria
+            .AsNoTracking()
+            .Include(a => a.Items)
+            .Include(a => a.Proyecto)
+            .Where(a => a.TipoNorma == _tipoNorma)
+            .OrderByDescending(a => a.FechaAuditoria)
+            .ToListAsync();
+
+        _proyectos = await Db.Proyectos
+            .AsNoTracking()
+            .OrderBy(p => p.Nombre)
+            .Select(p => new { p.Id, p.Nombre })
+            .ToListAsync()
+            .ContinueWith(t2 => t2.Result.Select(x => (x.Id, x.Nombre)).ToList());
+    }
+
+    private async Task IniciarAuditoriaAsync()
+    {
+        _errorForm = null;
+        if (string.IsNullOrWhiteSpace(_form.Auditor))   { _errorForm = "Ingrese el nombre del auditor."; return; }
+        if (string.IsNullOrWhiteSpace(_form.ProcesoArea)) { _errorForm = "Ingrese el proceso o área a auditar."; return; }
+        if (_tipoNorma is null) return;
+
+        _creando = true;
+        try
+        {
+            var auditoria = new ChecklistAuditoria
+            {
+                TipoNorma            = _tipoNorma.Value,
+                NormaISO             = _version,
+                TipoAuditoria        = _form.TipoAuditoria,
+                ProyectoId           = _form.ProyectoId > 0 ? _form.ProyectoId : null,
+                Auditor              = _form.Auditor.Trim(),
+                ProcesoArea          = _form.ProcesoArea.Trim(),
+                FechaAuditoria       = _form.FechaAuditoria,
+                Observaciones        = _form.Observaciones?.Trim(),
+                EstadoAuditoria      = EstadoAuditoria.EnProceso,
+                PorcentajeCumplimiento = 0
+            };
+
+            auditoria.Items = ChecklistSvc.GenerarItems(_tipoNorma.Value);
+
+            Db.ChecklistsAuditoria.Add(auditoria);
+            await Db.SaveChangesAsync();
+
+            Nav.NavigateTo($"hseq/auditorias/{auditoria.Id}");
+        }
+        catch (Exception ex)
+        {
+            _errorForm = $"Error al crear la auditoría: {ex.Message}";
+            _creando = false;
+        }
+    }
+
+    private sealed class FormNuevaAuditoria
+    {
+        public string Auditor          { get; set; } = "";
+        public string ProcesoArea      { get; set; } = "";
+        public DateTime FechaAuditoria { get; set; } = DateTime.Today;
+        public int? ProyectoId         { get; set; }
+        public TipoAuditoriaHSEQ TipoAuditoria { get; set; } = TipoAuditoriaHSEQ.Interna;
+        public string? Observaciones   { get; set; }
+    }
+}

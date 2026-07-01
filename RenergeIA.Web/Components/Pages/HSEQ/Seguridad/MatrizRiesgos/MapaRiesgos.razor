@@ -1,0 +1,178 @@
+@page "/proyectos/{ProyectoId:int}/hseq/seguridad/matriz/mapa"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@using RenergeIA.Core.Entities.HSEQ
+@using RenergeIA.Core.Enums
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Mapa de Riesgos — @(_proyecto?.Nombre ?? "")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted p-4">Cargando...</p>
+}
+else
+{
+    <PageHeader Titulo="Mapa de Riesgos"
+                Icono="bi-geo-alt-fill"
+                Subtitulo="@($"{_proyecto!.Nombre} — Visualización por área · GTC 45")"
+                UrlVolver="@($"/proyectos/{ProyectoId}/hseq/seguridad/matriz")"
+                TextoVolver="Matriz Riesgos" />
+
+    <NavMatrizRiesgos ProyectoId="@ProyectoId" TabActiva="mapa" />
+
+    <!-- Leyenda GTC 45 -->
+    <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+        <small class="text-muted fw-semibold me-1">Nivel de Riesgo (NR):</small>
+        @foreach (var (label, color, rango) in _leyenda)
+        {
+            <span class="badge px-2 py-1 fw-semibold" style="background:@color;font-size:.75rem">
+                @label — @rango
+            </span>
+        }
+    </div>
+
+    @if (!_porArea.Any())
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="bi-geo-alt display-3 d-block mb-2"></i>
+            No hay riesgos registrados aún.
+            <a href="/proyectos/@ProyectoId/hseq/seguridad/matriz/nueva-inspeccion" style="color:#183963">
+                Crear primera inspección
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var (area, riesgos) in _porArea)
+            {
+                var maxNR   = riesgos.Max(r => r.NR);
+                var color   = ColorNR(maxNR);
+                var activos = riesgos.Count(r => r.Estado == EstadoRiesgo.Activo);
+                var ctrl    = riesgos.Count(r => r.Estado == EstadoRiesgo.Controlado || r.Estado == EstadoRiesgo.Eliminado);
+
+                <div class="col-md-6 col-xl-4">
+                    <div class="card border-0 shadow-sm h-100" style="border-top:4px solid @color!important">
+                        <!-- Cabecera del área -->
+                        <div class="card-header fw-bold d-flex align-items-center justify-content-between py-2 px-3"
+                             style="background:@color+'18'">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi-geo-alt-fill" style="color:@color"></i>
+                                <span style="color:@color">@area</span>
+                            </div>
+                            <span class="badge fw-bold" style="background:@color">NR @maxNR</span>
+                        </div>
+                        <div class="card-body p-3">
+                            <!-- Mini-stats -->
+                            <div class="d-flex gap-3 mb-3 small">
+                                <div class="text-center">
+                                    <div class="fw-bold" style="font-size:1.2rem;color:#C0392B">@activos</div>
+                                    <div class="text-muted" style="font-size:.7rem">Activos</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fw-bold" style="font-size:1.2rem;color:#6ABF48">@ctrl</div>
+                                    <div class="text-muted" style="font-size:.7rem">Controlados</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="fw-bold" style="font-size:1.2rem;color:#183963">@riesgos.Count</div>
+                                    <div class="text-muted" style="font-size:.7rem">Total</div>
+                                </div>
+                                <!-- Barra de control -->
+                                <div class="flex-fill d-flex flex-column justify-content-center">
+                                    <div class="progress" style="height:8px;border-radius:4px">
+                                        <div class="progress-bar" role="progressbar"
+                                             style="width:@(riesgos.Count > 0 ? ctrl * 100 / riesgos.Count : 0)%;background:#6ABF48">
+                                        </div>
+                                    </div>
+                                    <div class="small text-muted mt-1" style="font-size:.68rem">
+                                        @(riesgos.Count > 0 ? ctrl * 100 / riesgos.Count : 0)% controlado
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Top 4 peligros más críticos -->
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var r in riesgos.OrderByDescending(x => x.NR).Take(4))
+                                {
+                                    <div class="d-flex align-items-center gap-2 p-2 rounded-2"
+                                         style="background:@ColorNR(r.NR)+'14';border-left:3px solid @ColorNR(r.NR)">
+                                        <span class="badge fw-bold" style="background:@ColorNR(r.NR);min-width:38px">@r.NR</span>
+                                        <div class="flex-fill" style="font-size:.72rem">
+                                            <div class="fw-semibold text-truncate" style="max-width:180px">@r.DescripcionPeligro</div>
+                                            <div class="text-muted">@r.Actividad · @r.ClasificacionPeligro</div>
+                                        </div>
+                                        <span class="badge"
+                                              style="background:@ColorEstado(r.Estado);font-size:.62rem">
+                                            @r.Estado
+                                        </span>
+                                    </div>
+                                }
+                                @if (riesgos.Count > 4)
+                                {
+                                    <div class="text-center">
+                                        <small class="text-muted">y @(riesgos.Count - 4) más...</small>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-footer py-2 px-3 d-flex justify-content-end">
+                            <a href="/proyectos/@ProyectoId/hseq/seguridad/matriz/iperv"
+                               class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">
+                                <i class="bi-table me-1"></i>Ver en Matriz
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    private Proyecto? _proyecto;
+    private Dictionary<string, List<RiesgoIPERV>> _porArea = [];
+
+    private static readonly (string Label, string Color, string Rango)[] _leyenda =
+    [
+        ("I — Crítico",        "#C0392B", "≥4000"),
+        ("II — No Aceptable",  "#E65100", "2000-3999"),
+        ("III — Mejorable",    "#F39C12", "1000-1999"),
+        ("IV — Aceptable c/ctrl","#F1C40F","200-999"),
+        ("V — Aceptable",      "#27AE60", "<200"),
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+
+        var riesgos = await Db.RiesgosIPERV
+            .Where(r => r.ProyectoId == ProyectoId)
+            .OrderByDescending(r => r.NR)
+            .ToListAsync();
+
+        _porArea = riesgos
+            .GroupBy(r => r.Area)
+            .OrderByDescending(g => g.Max(r => r.NR))
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private static string ColorNR(int nr) => nr switch
+    {
+        >= 4000 => "#C0392B", >= 2000 => "#E65100",
+        >= 1000 => "#F39C12", >= 200  => "#F1C40F",
+        _       => "#27AE60"
+    };
+
+    private static string ColorEstado(EstadoRiesgo e) => e switch
+    {
+        EstadoRiesgo.Activo     => "#C0392B",
+        EstadoRiesgo.EnControl  => "#E65100",
+        EstadoRiesgo.Controlado => "#6ABF48",
+        _                       => "#9E9E9E"
+    };
+}
