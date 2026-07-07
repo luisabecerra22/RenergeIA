@@ -42,7 +42,7 @@ else
                     <h5 class="fw-bold mb-1">Calidad</h5>
                     <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_calidad)">@MostrarEstado(_calidad)</span></div>
                     <div class="display-6 fw-bold" style="color:#183963">87%</div>
-                    <small class="text-muted">Cumplimiento ISO 9001</small>
+                    <small class="text-muted">Cumplimiento Calidad</small>
                     <div class="mt-3">
                         <a href="/proyectos/@ProyectoId/hseq/calidad" class="btn btn-sm btn-outline-primary w-100">Ver Calidad &rarr;</a>
                     </div>
@@ -57,7 +57,7 @@ else
                     <h5 class="fw-bold mb-1">Seguridad</h5>
                     <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_seguridad)">@MostrarEstado(_seguridad)</span></div>
                     <div class="display-6 fw-bold" style="color:#dc3545">72%</div>
-                    <small class="text-muted">Cumplimiento ISO 45001</small>
+                    <small class="text-muted">Cumplimiento Seguridad</small>
                     <div class="mt-3">
                         <a href="/proyectos/@ProyectoId/hseq/seguridad" class="btn btn-sm btn-outline-danger w-100">Ver Seguridad &rarr;</a>
                     </div>
@@ -72,7 +72,7 @@ else
                     <h5 class="fw-bold mb-1">Ambiental</h5>
                     <div class="mb-2"><span class="badge @BadgeEstadoHSEQ(_ambiental)">@MostrarEstado(_ambiental)</span></div>
                     <div class="display-6 fw-bold" style="color:#6ABF4B">93%</div>
-                    <small class="text-muted">Cumplimiento ISO 14001</small>
+                    <small class="text-muted">Cumplimiento Ambiental</small>
                     <div class="mt-3">
                         <a href="/proyectos/@ProyectoId/hseq/ambiental" class="btn btn-sm btn-outline-success w-100">Ver Ambiental &rarr;</a>
                     </div>
@@ -96,19 +96,51 @@ else
         </div>
     </div>
 
-    <!-- KPIs General -->
-    <h5 class="fw-bold mb-3" style="color:#183963">Indicadores Generales HSEQ</h5>
+    <!-- Accidentalidad -->
+    <h5 class="fw-bold mb-3" style="color:#183963">
+        <i class="bi-heart-pulse me-2"></i>Accidentalidad del Proyecto
+    </h5>
     <div class="row g-3 mb-4">
-        @foreach (var kpi in _kpis)
-        {
-            <div class="col-6 col-md-4 col-lg-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @kpi.Clase">
-                    <div class="text-muted small fw-semibold mb-1">@kpi.Titulo.ToUpper()</div>
-                    <div class="fw-bold" style="font-size:1.8rem;color:@kpi.Color">@kpi.Valor</div>
-                    <div class="text-muted small">@kpi.Subtitulo</div>
+        <div class="col">
+            <div class="card shadow-sm border-0 p-4" style="background:linear-gradient(135deg,#f8f9fa,#ffffff)">
+                <div class="d-flex align-items-center justify-content-center gap-2 mb-3">
+                    <i class="bi-shield-fill-check" style="font-size:1.6rem;color:#6ABF4B"></i>
+                    <span class="fw-bold fs-5" style="color:#183963">Días sin accidentes: <span style="color:#6ABF4B">127</span></span>
+                </div>
+                <div class="row g-3 text-center">
+                    <div class="col-6 col-md">
+                        <div class="card h-100 border-0 shadow-sm p-3" style="background:#e8f5e9">
+                            <div class="fw-bold" style="font-size:2.2rem;color:#6ABF4B">0</div>
+                            <div class="fw-semibold small" style="color:#2e7d32">Primeros Auxilios</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
+                        <div class="card h-100 border-0 shadow-sm p-3" style="background:#f1f8e9">
+                            <div class="fw-bold" style="font-size:2.2rem;color:#689F38">0</div>
+                            <div class="fw-semibold small" style="color:#558b2f">Leves</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
+                        <div class="card h-100 border-0 shadow-sm p-3" style="background:#fff8e1">
+                            <div class="fw-bold" style="font-size:2.2rem;color:#f9a825">0</div>
+                            <div class="fw-semibold small" style="color:#f57f17">Graves</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
+                        <div class="card h-100 border-0 shadow-sm p-3" style="background:#fff3e0">
+                            <div class="fw-bold" style="font-size:2.2rem;color:#e65100">0</div>
+                            <div class="fw-semibold small" style="color:#e65100">Muy Graves</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md">
+                        <div class="card h-100 border-0 shadow-sm p-3" style="background:#fce4ec">
+                            <div class="fw-bold" style="font-size:2.2rem;color:#c62828">0</div>
+                            <div class="fw-semibold small" style="color:#c62828">Mortales</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        }
+        </div>
     </div>
 
     <!-- Gráficas -->
@@ -270,26 +302,9 @@ else
     private EstadoHSEQ _ambiental     = EstadoHSEQ.Saludable;
     private EstadoHSEQ _social        = EstadoHSEQ.Critico;
 
-    private record KpiCard(string Titulo, string Valor, string Subtitulo, string Color, string Clase);
     private record TendenciaMes(string Mes, int Calidad, int Seguridad, int Ambiental, int Social, int General);
     private record SemaforoDiv(string Division, string Estado, string Color, int Pct);
     private record MensajeIA(string Division, string Texto, string BadgeClass);
-
-    private readonly List<KpiCard> _kpis =
-    [
-        new("Cumplimiento General",           "78%",  "HSEQ consolidado",              "#183963", "border-primary"),
-        new("Hallazgos Abiertos",             "12",   "pendientes de cierre",          "#dc3545", "border-danger"),
-        new("Acciones Vencidas",              "5",    "superaron fecha compromiso",     "#dc3545", "border-danger"),
-        new("No Conformidades Abiertas",      "3",    "calidad + seguridad",            "#fd7e14", "border-warning"),
-        new("Incidentes (mes)",               "2",    "último mes registrado",          "#ffc107", "border-warning"),
-        new("Accidentes (mes)",               "0",    "sin accidentes registrados",     "#6ABF4B", "border-success"),
-        new("Documentos Vencidos",            "4",    "requieren actualización",        "#dc3545", "border-danger"),
-        new("Equipos Calibración Vencida",    "2",    "de 18 equipos registrados",     "#fd7e14", "border-warning"),
-        new("PPIs Pendientes",                "7",    "de 23 planeados",               "#fd7e14", "border-warning"),
-        new("Permisos Activos",               "5",    "en campo hoy",                  "#183963", "border-primary"),
-        new("Compromisos Sociales Vencidos",  "3",    "con comunidades",               "#dc3545", "border-danger"),
-        new("PQRs Abiertas",                  "4",    "sin respuesta definitiva",       "#fd7e14", "border-warning"),
-    ];
 
     private readonly List<TendenciaMes> _tendencia =
     [
@@ -303,7 +318,7 @@ else
 
     private readonly List<SemaforoDiv> _semaforos =
     [
-        new("Calidad",   "Saludable — ISO 9001 al 87%",  "#6ABF4B", 87),
+        new("Calidad",   "Saludable — Cumplimiento al 87%",  "#6ABF4B", 87),
         new("Seguridad", "En Riesgo — Hallazgos EPP",     "#ffc107", 72),
         new("Ambiental", "Saludable — Sin derrames",      "#6ABF4B", 93),
         new("Social",    "Crítico — Compromisos vencidos","#dc3545", 61),

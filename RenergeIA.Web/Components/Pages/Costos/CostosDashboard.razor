@@ -14,64 +14,66 @@
 else
 {
     <!-- 8 KPIs -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
-                <i class="bi-currency-dollar mb-1" style="color:#183963;font-size:1.4rem"></i>
-                <div class="small text-muted">Presupuesto Total</div>
-                <div class="fw-bold" style="color:#183963">@FormatCOP(_presupuestoTotal)</div>
+    <SeccionDash Titulo="Indicadores Financieros" Icono="bi-bar-chart-line">
+        <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                    <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                    <div class="fw-bold fs-6">@FormatCOP(_presupuestoTotal)</div>
+                    <div class="small" style="opacity:0.8">Presupuesto Total</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff;border-radius:14px">
+                    <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                    <div class="fw-bold fs-6">@FormatCOP(_ejecutadoTotal)</div>
+                    <div class="small" style="opacity:0.8">Total Ejecutado</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
+                    <i class="bi-file-earmark-text mb-1" style="font-size:1.5rem;color:#fd7e14"></i>
+                    <div class="fw-bold fs-6" style="color:#fd7e14">@FormatCOP(_compromisosActivos)</div>
+                    <div class="small text-muted">Compromisos Activos</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_exposicion > _presupuestoTotal ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)");border-radius:14px">
+                    <i class="bi-graph-up-arrow mb-1" style="font-size:1.5rem;color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")"></i>
+                    <div class="fw-bold fs-6" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")">@FormatCOP(_exposicion)</div>
+                    <div class="small text-muted">Exposición Total</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
+                    <i class="bi-percent mb-1" style="font-size:1.5rem;color:#183963"></i>
+                    <div class="fw-bold fs-5" style="color:@(_pctEjecucion > 100 ? "#dc3545" : "#183963")">@_pctEjecucion.ToString("F1")%</div>
+                    <div class="small text-muted">% Ejecución</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_saldoDisponible < 0 ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)");border-radius:14px">
+                    <i class="bi-safe mb-1" style="font-size:1.5rem;color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")"></i>
+                    <div class="fw-bold fs-6" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">@FormatCOP(_saldoDisponible)</div>
+                    <div class="small text-muted">Saldo Disponible</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%);border-radius:14px">
+                    <i class="bi-journal-text mb-1" style="font-size:1.5rem;color:#6ABF4B"></i>
+                    <div class="fw-bold fs-5" style="color:#183963">@_numRegistros</div>
+                    <div class="small text-muted">Registros de Costo</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_compromisosVencidos > 0 ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)");border-radius:14px">
+                    <i class="bi-exclamation-triangle mb-1" style="font-size:1.5rem;color:@(_compromisosVencidos > 0 ? "#dc3545" : "#6ABF4B")"></i>
+                    <div class="fw-bold fs-5" style="color:@(_compromisosVencidos > 0 ? "#dc3545" : "#6ABF4B")">@_compromisosVencidos</div>
+                    <div class="small text-muted">Compromisos Vencidos</div>
+                </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #6ABF4B">
-                <i class="bi-receipt mb-1" style="color:#6ABF4B;font-size:1.4rem"></i>
-                <div class="small text-muted">Total Ejecutado</div>
-                <div class="fw-bold" style="color:#6ABF4B">@FormatCOP(_ejecutadoTotal)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #fd7e14">
-                <i class="bi-file-earmark-text mb-1" style="color:#fd7e14;font-size:1.4rem"></i>
-                <div class="small text-muted">Compromisos Activos</div>
-                <div class="fw-bold" style="color:#fd7e14">@FormatCOP(_compromisosActivos)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid @(_exposicion > _presupuestoTotal ? "#dc3545" : "#D9D9D6")">
-                <i class="bi-graph-up-arrow mb-1" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963");font-size:1.4rem"></i>
-                <div class="small text-muted">Exposición Total</div>
-                <div class="fw-bold" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")">@FormatCOP(_exposicion)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
-                <i class="bi-percent mb-1" style="color:#183963;font-size:1.4rem"></i>
-                <div class="small text-muted">% Ejecución</div>
-                <div class="fw-bold" style="color:@(_pctEjecucion > 100 ? "#dc3545" : "#183963")">@_pctEjecucion.ToString("F1")%</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid @(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">
-                <i class="bi-wallet2 mb-1" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B");font-size:1.4rem"></i>
-                <div class="small text-muted">Saldo Disponible</div>
-                <div class="fw-bold" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">@FormatCOP(_saldoDisponible)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #D9D9D6">
-                <i class="bi-receipt-cutoff mb-1" style="color:#183963;font-size:1.4rem"></i>
-                <div class="small text-muted">Registros de Costo</div>
-                <div class="fw-bold" style="color:#183963">@_numRegistros</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card p-3 text-center" style="border:1px solid #dc3545">
-                <i class="bi-exclamation-triangle mb-1" style="color:#dc3545;font-size:1.4rem"></i>
-                <div class="small text-muted">Compromisos Vencidos</div>
-                <div class="fw-bold" style="color:#dc3545">@_compromisosVencidos</div>
-            </div>
-        </div>
-    </div>
+    </SeccionDash>
 
     <!-- 4 gráficas -->
     <div class="row g-3">

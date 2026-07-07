@@ -2,8 +2,8 @@ namespace RenergeIA.Core.Entities.HSEQ;
 
 public class PausaActiva : EntidadBase
 {
-    public int ProyectoId { get; set; }
-    public Proyecto Proyecto { get; set; } = null!;
+    public int? ProyectoId { get; set; }
+    public Proyecto? Proyecto { get; set; }
     public string Trabajador { get; set; } = string.Empty;
     public string Documento { get; set; } = string.Empty;
     public string Area { get; set; } = string.Empty;

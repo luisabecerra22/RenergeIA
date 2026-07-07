@@ -11,6 +11,7 @@ public static class EnumDisplay
         EstadoProyecto.Suspendido    => "Suspendido",
         EstadoProyecto.Completado    => "Completado",
         EstadoProyecto.Cancelado     => "Cancelado",
+        EstadoProyecto.OperacionYMantenimiento => "Operación y Mantenimiento",
         _                            => estado.ToString()
     };
 
@@ -74,30 +75,26 @@ public static class EnumDisplay
 
     public static string Mostrar(Disciplina disciplina) => disciplina switch
     {
-        Disciplina.InicioContrato     => "Inicio de Contrato",
-        Disciplina.EstudiosIngenieria => "Estudios de Ingeniería",
-        Disciplina.IngenieriaDetalle  => "Ingeniería de Detalle",
-        Disciplina.Suministro         => "Suministro",
-        Disciplina.ConstruccionCivil  => "Construcción Civil",
-        Disciplina.Mecanica           => "Mecánica",
-        Disciplina.Electrica          => "Eléctrica",
-        Disciplina.Pruebas            => "Pruebas",
-        Disciplina.CierreContrato     => "Cierre de Contrato",
-        _                             => disciplina.ToString()
+        Disciplina.Mecanica         => "Mecánica",
+        Disciplina.Civil            => "Civil",
+        Disciplina.Electrica        => "Eléctrica",
+        Disciplina.Contractual      => "Contractual",
+        Disciplina.HotCommissioning => "Hot Commissioning",
+        Disciplina.CierreProyecto   => "Cierre de Proyecto",
+        Disciplina.General          => "General",
+        _                           => disciplina.ToString()
     };
 
     public static string IconoDisciplina(Disciplina disciplina) => disciplina switch
     {
-        Disciplina.InicioContrato     => "📋",
-        Disciplina.EstudiosIngenieria => "🔬",
-        Disciplina.IngenieriaDetalle  => "📐",
-        Disciplina.Suministro         => "📦",
-        Disciplina.ConstruccionCivil  => "🏗️",
-        Disciplina.Mecanica           => "⚙️",
-        Disciplina.Electrica          => "⚡",
-        Disciplina.Pruebas            => "🔍",
-        Disciplina.CierreContrato     => "✅",
-        _                             => "📌"
+        Disciplina.Mecanica         => "⚙️",
+        Disciplina.Civil            => "🏗️",
+        Disciplina.Electrica        => "⚡",
+        Disciplina.Contractual      => "📋",
+        Disciplina.HotCommissioning => "🔥",
+        Disciplina.CierreProyecto   => "✅",
+        Disciplina.General          => "📌",
+        _                           => "📌"
     };
 
     public static string Mostrar(EstadoRestriccion estado) => estado switch

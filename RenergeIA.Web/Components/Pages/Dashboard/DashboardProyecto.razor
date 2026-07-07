@@ -8,27 +8,49 @@
 
 <PageTitle>Dashboard — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
+<style>
+    .kpi-card {
+        border: none;
+        border-radius: 14px;
+        overflow: hidden;
+        transition: transform .15s, box-shadow .15s;
+    }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,.1) !important; }
+    .kpi-icon {
+        width: 44px; height: 44px; border-radius: 10px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.2rem; color: white;
+    }
+    .kpi-value { font-size: 2rem; font-weight: 800; line-height: 1.1; }
+    .kpi-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #8892a0; }
+    .kpi-sub { font-size: .78rem; color: #a0a8b4; }
+    .kpi-bar { height: 4px; border-radius: 2px; background: #f0f2f5; margin-top: 12px; }
+    .kpi-bar-fill { height: 100%; border-radius: 2px; }
+    .dash-header { border-bottom: 2px solid #f0f2f5; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+    .estado-badge { padding: .4rem 1rem; border-radius: 8px; font-weight: 700; font-size: .85rem; }
+</style>
+
 @if (_proyecto is null)
 {
     <p>Cargando...</p>
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap dash-header">
         <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
         <div class="flex-grow-1">
-            <h1 class="h3 mb-0">Dashboard</h1>
+            <h1 class="h3 mb-0 fw-bold" style="color:#183963">Dashboard</h1>
             <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
         </div>
         @if (_dash.TieneDatos)
         {
-            <span class="badge fs-6 @BadgeEstado(_dash.EstadoGeneral)">@_dash.EstadoGeneral</span>
+            <span class="estado-badge" style="background:@(ColorSPI())22;color:@ColorSPI()">@_dash.EstadoGeneral</span>
         }
     </div>
 
     @if (!_dash.TieneDatos)
     {
-        <div class="card shadow-sm text-center py-5">
+        <div class="card shadow-sm text-center py-5 border-0" style="border-radius:14px">
             <p class="text-muted mb-3">No hay actividades WBS configuradas para este proyecto.</p>
             <a href="/proyectos/@ProyectoId/wbs" class="btn btn-primary">Ir a WBS</a>
         </div>
@@ -38,40 +60,64 @@ else
         <!-- KPIs fila 1: avance -->
         <div class="row g-3 mb-3">
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-primary">
-                    <div class="text-muted small fw-semibold mb-1">AVANCE PROGRAMADO</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:#183963">
-                        @_dash.AvanceProgramadoTotal.ToString("F1")%
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">AVANCE PROGRAMADO</span>
+                            <span class="kpi-icon" style="background:#183963"><i class="bi-calendar-check"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:#183963">
+                            @_dash.AvanceProgramadoTotal.ToString("F1")%
+                        </div>
+                        <div class="kpi-sub">al día de hoy</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min((double)_dash.AvanceProgramadoTotal,100))%;background:#183963"></div></div>
                     </div>
-                    <div class="text-muted small">al día de hoy</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeReal()">
-                    <div class="text-muted small fw-semibold mb-1">AVANCE REAL</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorDesv(_dash.DesviacionTotal)">
-                        @_dash.AvanceRealTotal.ToString("F1")%
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">AVANCE REAL</span>
+                            <span class="kpi-icon" style="background:@ColorDesv(_dash.DesviacionTotal)"><i class="bi-graph-up-arrow"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@ColorDesv(_dash.DesviacionTotal)">
+                            @_dash.AvanceRealTotal.ToString("F1")%
+                        </div>
+                        <div class="kpi-sub">acumulado</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min((double)_dash.AvanceRealTotal,100))%;background:@ColorDesv(_dash.DesviacionTotal)"></div></div>
                     </div>
-                    <div class="text-muted small">acumulado</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeDesv()">
-                    <div class="text-muted small fw-semibold mb-1">DESVIACIÓN</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorDesv(_dash.DesviacionTotal)">
-                        @(_dash.DesviacionTotal >= 0 ? "+" : "")@_dash.DesviacionTotal.ToString("F1")%
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">DESVIACIÓN</span>
+                            <span class="kpi-icon" style="background:@ColorDesv(_dash.DesviacionTotal)"><i class="bi-arrow-left-right"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@ColorDesv(_dash.DesviacionTotal)">
+                            @(_dash.DesviacionTotal >= 0 ? "+" : "")@_dash.DesviacionTotal.ToString("F1")%
+                        </div>
+                        <div class="kpi-sub">real vs programado</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min(Math.Abs((double)_dash.DesviacionTotal) * 3, 100))%;background:@ColorDesv(_dash.DesviacionTotal)"></div></div>
                     </div>
-                    <div class="text-muted small">real vs programado</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeSPI()">
-                    <div class="text-muted small fw-semibold mb-1">SPI GLOBAL</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:@ColorSPI()">
-                        @_dash.SPIGlobal.ToString("F2")
-                    </div>
-                    <div class="text-muted small">
-                        @(_dash.SPIGlobal >= 1m ? "Al día o adelantado" : _dash.SPIGlobal >= 0.9m ? "Leve atraso" : "Atraso significativo")
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">SPI GLOBAL</span>
+                            <span class="kpi-icon" style="background:@ColorSPI()"><i class="bi-speedometer2"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@ColorSPI()">
+                            @_dash.SPIGlobal.ToString("F2")
+                        </div>
+                        <div class="kpi-sub">
+                            @(_dash.SPIGlobal >= 1m ? "Al día o adelantado" : _dash.SPIGlobal >= 0.9m ? "Leve atraso" : "Atraso significativo")
+                        </div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min((double)_dash.SPIGlobal * 100, 100))%;background:@ColorSPI()"></div></div>
                     </div>
                 </div>
             </div>
@@ -80,37 +126,60 @@ else
         <!-- KPIs fila 2: actividades -->
         <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-warning">
-                    <div class="text-muted small fw-semibold mb-1">ACT. ATRASADAS</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:@(_dash.Atrasadas > 0 ? "#fd7e14" : "#6ABF4B")">
-                        @_dash.Atrasadas
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">ACT. ATRASADAS</span>
+                            <span class="kpi-icon" style="background:#fd7e14"><i class="bi-clock-history"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@(_dash.Atrasadas > 0 ? "#fd7e14" : "#6ABF4B")">
+                            @_dash.Atrasadas
+                        </div>
+                        <div class="kpi-sub">de @_dash.TotalActividades total</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(_dash.TotalActividades > 0 ? _dash.Atrasadas * 100 / _dash.TotalActividades : 0)%;background:#fd7e14"></div></div>
                     </div>
-                    <div class="text-muted small">de @_dash.TotalActividades total</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-danger">
-                    <div class="text-muted small fw-semibold mb-1">ACT. CRÍTICAS</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:@(_dash.Criticas > 0 ? "#dc3545" : "#6ABF4B")">
-                        @_dash.Criticas
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">ACT. CRÍTICAS</span>
+                            <span class="kpi-icon" style="background:#dc3545"><i class="bi-exclamation-triangle"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@(_dash.Criticas > 0 ? "#dc3545" : "#6ABF4B")">
+                            @_dash.Criticas
+                        </div>
+                        <div class="kpi-sub">desviación &lt; -15%</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(_dash.TotalActividades > 0 ? _dash.Criticas * 100 / _dash.TotalActividades : 0)%;background:#dc3545"></div></div>
                     </div>
-                    <div class="text-muted small">desviación &lt; -15%</div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 border-success">
-                    <div class="text-muted small fw-semibold mb-1">ACT. FINALIZADAS</div>
-                    <div class="fw-bold" style="font-size:1.9rem;color:#6ABF4B">@_dash.Finalizadas</div>
-                    <div class="text-muted small">avance &ge; 100%</div>
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">ACT. FINALIZADAS</span>
+                            <span class="kpi-icon" style="background:#6ABF4B"><i class="bi-check-circle"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:#6ABF4B">@_dash.Finalizadas</div>
+                        <div class="kpi-sub">avance &ge; 100%</div>
+                        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(_dash.TotalActividades > 0 ? _dash.Finalizadas * 100 / _dash.TotalActividades : 0)%;background:#6ABF4B"></div></div>
+                    </div>
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm p-3 h-100 text-center border-start border-4 @BordeSPI()">
-                    <div class="text-muted small fw-semibold mb-1">ESTADO GENERAL</div>
-                    <div class="fw-bold" style="font-size:1.6rem;color:@ColorSPI()">
-                        @_dash.EstadoGeneral
+                <div class="card kpi-card shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="kpi-label">ESTADO GENERAL</span>
+                            <span class="kpi-icon" style="background:@ColorSPI()"><i class="bi-activity"></i></span>
+                        </div>
+                        <div class="kpi-value" style="color:@ColorSPI();font-size:1.5rem">
+                            @_dash.EstadoGeneral
+                        </div>
+                        <div class="kpi-sub">@_dash.EnLinea en línea &bull; @_dash.NoIniciadas sin iniciar</div>
                     </div>
-                    <div class="text-muted small">@_dash.EnLinea en línea &bull; @_dash.NoIniciadas sin iniciar</div>
                 </div>
             </div>
         </div>
@@ -118,24 +187,73 @@ else
         <!-- Curva S -->
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <strong>Curva S — Avance real vs planificado</strong>
-                <small class="text-muted">Por fecha de informe diario</small>
+                <div class="d-flex align-items-center gap-2">
+                    <strong>Curva S — Avance real vs planificado</strong>
+                    <button class="btn btn-sm d-flex align-items-center gap-1"
+                            style="background:#183963;color:white;border:none;font-size:0.72rem;padding:3px 10px;border-radius:6px"
+                            disabled="@_actualizandoCurvaS"
+                            @onclick="ActualizarCurvaSAsync"
+                            title="Recalcular Curva S desde cronograma e informes">
+                        @if (_actualizandoCurvaS)
+                        {
+                            <span class="spinner-border spinner-border-sm" style="width:12px;height:12px"></span>
+                        }
+                        else
+                        {
+                            <i class="bi-arrow-clockwise"></i>
+                        }
+                        Actualizar
+                    </button>
+                    @if (_curvaActualizada)
+                    {
+                        <span style="color:#6ABF4B;font-size:0.72rem;font-weight:600">Actualizada</span>
+                    }
+                </div>
+                <small class="text-muted">Línea base del cronograma vs avance de informes diarios</small>
             </div>
             <div class="card-body">
-                @if (_dash.CurvaS.Fechas.Count < 2)
+                @if (_dash.CurvaS.Fechas.Count == 0)
                 {
                     <div class="text-center py-4">
-                        <p class="text-muted mb-2">
-                            Se necesitan al menos 2 informes con registros de avance para mostrar la Curva S.
-                        </p>
-                        <a href="/proyectos/@ProyectoId/informes/crear" class="btn btn-sm btn-outline-primary">
-                            Registrar informe
-                        </a>
+                        <p class="text-muted mb-2">No hay actividades con fechas programadas.</p>
                     </div>
                 }
                 else
                 {
-                    <canvas id="curvaSChart" style="max-height:320px"></canvas>
+                    <canvas id="curvaSChart" style="max-height:360px"></canvas>
+
+                    <!-- Barra comparativa: Ejecutado vs Planeado a corte de hoy -->
+                    <div class="mt-4 pt-3" style="border-top:1px solid #f0f2f5">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold" style="font-size:0.85rem;color:#183963">
+                                Corte a hoy — @DateTime.Now.ToString("dd/MM/yyyy")
+                            </span>
+                            <div class="d-flex gap-4" style="font-size:0.78rem">
+                                <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#6ABF4B;margin-right:4px"></span>
+                                    Avance Ejecutado</span>
+                                <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#183963;margin-right:4px"></span>
+                                    Avance Planeado</span>
+                            </div>
+                        </div>
+                        <!-- Barra Ejecutado -->
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <div style="flex:1;height:28px;background:#f0f2f5;border-radius:6px;position:relative;overflow:hidden">
+                                <div style="height:100%;background:#6ABF4B;border-radius:6px;width:@(_dash.CurvaS.EjecutadoHoy.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;transition:width 0.5s"></div>
+                            </div>
+                            <span class="fw-bold" style="color:#6ABF4B;font-size:0.95rem;min-width:60px;text-align:right">
+                                @_dash.CurvaS.EjecutadoHoy.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%
+                            </span>
+                        </div>
+                        <!-- Barra Planeado -->
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="flex:1;height:28px;background:#f0f2f5;border-radius:6px;position:relative;overflow:hidden">
+                                <div style="height:100%;background:#183963;border-radius:6px;width:@(_dash.CurvaS.PlanificadoHoy.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;transition:width 0.5s"></div>
+                            </div>
+                            <span class="fw-bold" style="color:#183963;font-size:0.95rem;min-width:60px;text-align:right">
+                                @_dash.CurvaS.PlanificadoHoy.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)%
+                            </span>
+                        </div>
+                    </div>
                 }
             </div>
         </div>
@@ -292,6 +410,8 @@ else
     private Proyecto? _proyecto;
     private DashboardCompleto _dash = new();
     private bool _chartsRendered;
+    private bool _actualizandoCurvaS;
+    private bool _curvaActualizada;
 
     protected override async Task OnInitializedAsync()
     {
@@ -305,13 +425,12 @@ else
         if (!firstRender || !_dash.TieneDatos || _chartsRendered) return;
         _chartsRendered = true;
 
-        if (_dash.CurvaS.Fechas.Count >= 2)
-            await JS.InvokeVoidAsync("renderLineChart",
+        if (_dash.CurvaS.Fechas.Count > 0)
+            await JS.InvokeVoidAsync("renderCurvaS",
                 "curvaSChart",
                 _dash.CurvaS.Fechas,
-                _dash.CurvaS.AvanceReal,
                 _dash.CurvaS.AvancePlanificado,
-                "Avance Real (%)", "Avance Planificado (%)");
+                _dash.CurvaS.AvanceReal);
 
         if (_dash.PorDisciplina.Any())
         {
@@ -336,6 +455,33 @@ else
             var data = _dash.TopAtrasadas.Select(a => (double)a.Desviacion).ToList();
             await JS.InvokeVoidAsync("renderHorizontalBarChart", "atrasadasChart", labels, data, "Desviación (%)");
         }
+    }
+
+    private async Task ActualizarCurvaSAsync()
+    {
+        _actualizandoCurvaS = true;
+        _curvaActualizada = false;
+        StateHasChanged();
+
+        _dash = await InformeSvc.ObtenerDashboardCompletoAsync(ProyectoId);
+
+        // Destroy existing chart and re-render
+        await JS.InvokeVoidAsync("destroyChart", "curvaSChart");
+
+        if (_dash.CurvaS.Fechas.Count > 0)
+            await JS.InvokeVoidAsync("renderCurvaS",
+                "curvaSChart",
+                _dash.CurvaS.Fechas,
+                _dash.CurvaS.AvancePlanificado,
+                _dash.CurvaS.AvanceReal);
+
+        _actualizandoCurvaS = false;
+        _curvaActualizada = true;
+        StateHasChanged();
+
+        await Task.Delay(3000);
+        _curvaActualizada = false;
+        StateHasChanged();
     }
 
     private string ColorDesv(decimal desv) =>

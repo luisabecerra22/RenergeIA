@@ -5,8 +5,6 @@
     @TabGrupo("inspecciones", "bi-clipboard2-check", "Inspecciones",   $"/proyectos/{ProyectoId}/hseq/seguridad/inspecciones")
     @Tab("indicadores",    "bi-graph-up",           "Indicadores",     $"/proyectos/{ProyectoId}/hseq/seguridad/indicadores")
     @Tab("epp",            "bi-shield-fill-check",  "EPP / Dotación",  $"/proyectos/{ProyectoId}/hseq/seguridad/epp")
-    @Tab("iso",            "bi-patch-check",        "ISO 45001",       $"/proyectos/{ProyectoId}/hseq/seguridad/checklist")
-    @Tab("res0312",        "bi-journal-check",      "Res. 0312",       $"/proyectos/{ProyectoId}/hseq/seguridad/resolucion0312")
     @Tab("matriz",         "bi-grid-3x3-gap-fill",  "Matriz Riesgos",  $"/proyectos/{ProyectoId}/hseq/seguridad/matriz")
     @Tab("incidentes",     "bi-bandaid",            "Incidentes",      $"/proyectos/{ProyectoId}/hseq/seguridad/incidentes")
     @Tab("capacitaciones", "bi-mortarboard",        "Capacitaciones",  $"/proyectos/{ProyectoId}/hseq/seguridad/capacitaciones")
@@ -18,7 +16,7 @@
     [Parameter] public string TabActiva  { get; set; } = "dashboard";
 
     // Grupo Inspecciones: activo cuando estás en cualquiera de sus sub-tabs
-    private static readonly HashSet<string> _grupoInspecciones = ["inspecciones", "ots", "stc", "pausas"];
+    private static readonly HashSet<string> _grupoInspecciones = ["inspecciones", "ots"];
 
     private RenderFragment Tab(string id, string icono, string label, string href) => __builder =>
     {

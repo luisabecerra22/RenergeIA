@@ -2,34 +2,40 @@
 @using Microsoft.EntityFrameworkCore
 
 <!-- KPIs -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Total Ejecutado</div>
-            <div class="fw-bold fs-6" style="color:#183963">@FormatCOP(_totalEjecutado)</div>
+<SeccionDash Titulo="Resumen Real / Ejecutado" Icono="bi-receipt">
+    <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                <i class="bi-cash-stack mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                <div class="fw-bold fs-5">@FormatCOP(_totalEjecutado)</div>
+                <div class="small" style="opacity:0.8">Total Ejecutado</div>
+            </div>
         </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Registros</div>
-            <div class="fw-bold fs-6" style="color:#183963">@_costosReales.Count</div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff;border-radius:14px">
+                <i class="bi-journal-text mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                <div class="fw-bold fs-5">@_costosReales.Count</div>
+                <div class="small" style="opacity:0.8">Registros</div>
+            </div>
         </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Promedio por registro</div>
-            <div class="fw-bold fs-6" style="color:#6ABF4B">
-                @(_costosReales.Count > 0 ? FormatCOP(_totalEjecutado / _costosReales.Count) : "$0")
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
+                <i class="bi-calculator mb-1" style="font-size:1.5rem;color:#183963"></i>
+                <div class="fw-bold fs-5" style="color:#183963">
+                    @(_costosReales.Count > 0 ? FormatCOP(_totalEjecutado / _costosReales.Count) : "$0")
+                </div>
+                <div class="small text-muted">Promedio por registro</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff8e1 0%,#ffecb3 100%);border-radius:14px">
+                <i class="bi-tags mb-1" style="font-size:1.5rem;color:#fd7e14"></i>
+                <div class="fw-bold fs-5" style="color:#fd7e14">@_costosReales.Select(c => c.TipoCosto).Distinct().Count()</div>
+                <div class="small text-muted">Tipos de costo</div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Tipos de costo</div>
-            <div class="fw-bold fs-6" style="color:#183963">@_costosReales.Select(c => c.TipoCosto).Distinct().Count()</div>
-        </div>
-    </div>
-</div>
+</SeccionDash>
 
 <!-- Filtros -->
 <div class="card border-0 shadow-sm mb-3">

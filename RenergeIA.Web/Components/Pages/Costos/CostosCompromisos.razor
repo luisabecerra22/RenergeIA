@@ -4,44 +4,52 @@
 @using System.ComponentModel.DataAnnotations
 
 <!-- KPIs -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Total</div>
-            <div class="fw-bold fs-6" style="color:#183963">@_compromisos.Count</div>
+<SeccionDash Titulo="Resumen de Compromisos" Icono="bi-file-earmark-text">
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-3">
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                <i class="bi-stack mb-1" style="font-size:1.4rem;opacity:0.8"></i>
+                <div class="fw-bold fs-4">@_compromisos.Count</div>
+                <div class="small" style="opacity:0.8">Total</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff8e1 0%,#ffecb3 100%);border-radius:14px">
+                <i class="bi-hourglass-split mb-1" style="font-size:1.4rem;color:#ffc107"></i>
+                <div class="fw-bold fs-4" style="color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pendiente)</div>
+                <div class="small text-muted">Pendientes</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
+                <i class="bi-arrow-repeat mb-1" style="font-size:1.4rem;color:#fd7e14"></i>
+                <div class="fw-bold fs-4" style="color:#fd7e14">@_compromisos.Count(c => c.Estado == EstadoCompromiso.EnProceso)</div>
+                <div class="small text-muted">En Proceso</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%);border-radius:14px">
+                <i class="bi-check-circle mb-1" style="font-size:1.4rem;color:#6ABF4B"></i>
+                <div class="fw-bold fs-4" style="color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pagado)</div>
+                <div class="small text-muted">Pagados</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%);border-radius:14px">
+                <i class="bi-exclamation-triangle mb-1" style="font-size:1.4rem;color:#dc3545"></i>
+                <div class="fw-bold fs-4" style="color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Vencido)</div>
+                <div class="small text-muted">Vencidos</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
+                <i class="bi-currency-dollar mb-1" style="font-size:1.4rem;color:#183963"></i>
+                <div class="fw-bold" style="color:#183963;font-size:1rem">@FormatCOP(_compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => c.Valor))</div>
+                <div class="small text-muted">Valor Total</div>
+            </div>
         </div>
     </div>
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #ffc107">
-            <div class="small mb-1 text-muted">Pendientes</div>
-            <div class="fw-bold fs-6" style="color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pendiente)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #fd7e14">
-            <div class="small mb-1 text-muted">En Proceso</div>
-            <div class="fw-bold fs-6" style="color:#fd7e14">@_compromisos.Count(c => c.Estado == EstadoCompromiso.EnProceso)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #6ABF4B">
-            <div class="small mb-1 text-muted">Pagados</div>
-            <div class="fw-bold fs-6" style="color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pagado)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #dc3545">
-            <div class="small mb-1 text-muted">Vencidos</div>
-            <div class="fw-bold fs-6" style="color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Vencido)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-2">
-        <div class="card text-center p-3" style="border:1px solid #183963">
-            <div class="small mb-1 text-muted">Valor Total</div>
-            <div class="fw-bold" style="color:#183963;font-size:.9rem">@FormatCOP(_compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => c.Valor))</div>
-        </div>
-    </div>
-</div>
+</SeccionDash>
 
 <!-- Botón nuevo compromiso -->
 <div class="d-flex justify-content-end mb-3">

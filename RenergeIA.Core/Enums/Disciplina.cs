@@ -2,13 +2,11 @@ namespace RenergeIA.Core.Enums;
 
 public enum Disciplina
 {
-    InicioContrato,
-    EstudiosIngenieria,
-    IngenieriaDetalle,
-    Suministro,
-    ConstruccionCivil,
     Mecanica,
+    Civil,
     Electrica,
-    Pruebas,
-    CierreContrato
+    Contractual,
+    HotCommissioning,
+    CierreProyecto,
+    General
 }

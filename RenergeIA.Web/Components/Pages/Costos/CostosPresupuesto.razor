@@ -66,36 +66,38 @@ else
     }
     else
     {
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-                    <div class="small mb-1" style="color:#111921">Total Presupuestado</div>
-                    <div class="fw-bold" style="color:#183963">@FormatCOP(_totalPresupuestado)</div>
+        <SeccionDash Titulo="Resumen de Presupuesto" Icono="bi-currency-dollar">
+            <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                        <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                        <div class="fw-bold fs-5">@FormatCOP(_totalPresupuestado)</div>
+                        <div class="small" style="opacity:0.8">Total Presupuestado</div>
+                    </div>
                 </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-                    <div class="small mb-1" style="color:#111921">Total Ejecutado</div>
-                    <div class="fw-bold"
-                         style="color:@(_totalEjecutado > _totalPresupuestado ? "#dc3545" : "#6ABF4B")">
-                        @FormatCOP(_totalEjecutado)
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_totalEjecutado > _totalPresupuestado ? "linear-gradient(135deg,#dc3545 0%,#c82333 100%)" : "linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%)");color:#fff;border-radius:14px">
+                        <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                        <div class="fw-bold fs-5">@FormatCOP(_totalEjecutado)</div>
+                        <div class="small" style="opacity:0.8">Total Ejecutado</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_diferencia >= 0 ? "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)" : "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)");border-radius:14px">
+                        <i class="bi-arrow-left-right mb-1" style="font-size:1.5rem;color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")"></i>
+                        <div class="fw-bold fs-5" style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")">@FormatCOP(_diferencia)</div>
+                        <div class="small text-muted">Diferencia</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
+                        <i class="bi-percent mb-1" style="font-size:1.5rem;color:#183963"></i>
+                        <div class="fw-bold fs-5" style="color:@(_pctEjecucion > 100 ? "#dc3545" : "#183963")">@_pctEjecucion.ToString("F1")%</div>
+                        <div class="small text-muted">% Ejecutado</div>
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-                    <div class="small mb-1" style="color:#111921">Diferencia</div>
-                    <div class="fw-bold"
-                         style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")">@FormatCOP(_diferencia)</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-                    <div class="small mb-1" style="color:#111921">% Ejecutado</div>
-                    <div class="fw-bold" style="color:#183963">@_pctEjecucion.ToString("F1")%</div>
-                </div>
-            </div>
-        </div>
+        </SeccionDash>
 
         <div class="card mb-4" style="border:1px solid #D9D9D6">
             <div class="card-header text-white fw-semibold" style="background:#183963">

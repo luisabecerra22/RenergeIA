@@ -6,8 +6,79 @@
 @inject NavigationManager Navigation
 @inject InformeDiarioService InformeSvc
 @inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
 
 <PageTitle>@(_esNuevo ? "Nuevo Informe" : "Editar Informe") — RenergeIA</PageTitle>
+
+<style>
+    .fila-padre { background: #f0f4f8 !important; }
+    .fila-padre td { font-weight: 700; color: #183963; }
+    .fila-nivel-1 td:first-child { padding-left: 8px !important; }
+    .fila-nivel-2 td:first-child { padding-left: 20px !important; }
+    .fila-nivel-3 td:first-child { padding-left: 36px !important; }
+    .fila-nivel-4 td:first-child { padding-left: 52px !important; }
+    .btn-top-bar { border-radius: 8px; font-weight: 600; font-size: .85rem; }
+    .print-header { display: none; }
+    .print-footer { display: none; }
+    .print-info-grid { display: none; }
+
+    @@media print {
+        @@page { size: landscape; margin: 10mm; }
+        .no-print, .navbar-toggler, .nav-scrollable, .sidebar, .top-row,
+        .alert-dismissible, EditForm > .d-flex.gap-2, textarea, .form-label,
+        .card-header strong:has(~ .d-flex) { display: block; }
+
+        .no-print { display: none !important; }
+        .print-header { display: flex !important; }
+        .print-footer { display: block !important; }
+        .print-info-grid { display: grid !important; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .print-info-item { padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 9pt; }
+        .print-info-item .label { color: #888; font-size: 8pt; text-transform: uppercase; }
+        .print-info-item .value { font-weight: 700; color: #183963; font-size: 10pt; }
+
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt; }
+        .page { padding: 0 !important; }
+        main { padding: 0 !important; }
+
+        /* Ocultar formulario de edición, mostrar solo datos */
+        .card:has(.card-header:first-child) { border: none !important; box-shadow: none !important; }
+        .card-header { background: white !important; border-bottom: 2px solid #183963 !important; padding: 6px 0 !important; }
+        .card-header strong { color: #183963; font-size: 10pt; }
+        .card-body { padding: 0 !important; }
+
+        /* Ocultar sección de información general del formulario en impresión */
+        #form-informe > .card:first-of-type { display: none !important; }
+
+        /* Tabla compacta y completa */
+        .table-responsive { overflow: visible !important; }
+        .table { font-size: 7.5pt !important; width: 100% !important; }
+        .table th { background: #183963 !important; color: white !important; font-size: 7pt !important;
+                    padding: 4px 3px !important; white-space: nowrap; }
+        .table td { padding: 3px 3px !important; border-color: #e0e0e0 !important; }
+        .table th, .table td { min-width: 0 !important; }
+
+        /* Inputs como texto plano */
+        input[type="number"] {
+            border: none !important; background: transparent !important;
+            text-align: center; font-size: 7.5pt !important; padding: 0 !important;
+            -moz-appearance: textfield; width: auto !important; max-width: none !important;
+        }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .input-group { border: none !important; }
+        .input-group-text { display: none !important; }
+
+        /* Badges y colores */
+        .badge { font-size: 7pt !important; padding: 2px 4px !important; }
+
+        /* Filas padre */
+        .fila-padre { background: #eef2f7 !important; }
+        .fila-padre td { font-size: 7.5pt !important; }
+
+        /* No cortar tablas entre páginas */
+        tr { page-break-inside: avoid; }
+        .card { break-inside: auto; box-shadow: none !important; border: none !important; }
+    }
+</style>
 
 @if (_proyecto is null)
 {
@@ -15,23 +86,62 @@
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-4">
+    <!-- Encabezado para impresión -->
+    <div class="print-header align-items-center justify-content-between mb-2 pb-2" style="border-bottom:3px solid #183963">
+        <div class="d-flex align-items-center gap-3">
+            <img src="images/logo-renergeia.png.png" alt="Renergeia" style="height:38px" />
+            <div>
+                <h4 class="mb-0 fw-bold" style="color:#183963;font-size:14pt">Informe Diario de Obra N° @_form.NumeroCertificado</h4>
+                <small style="color:#666">@_proyecto.Nombre</small>
+            </div>
+        </div>
+        <div class="text-end">
+            <div style="font-size:8pt;color:#888">Fecha del informe</div>
+            <div class="fw-bold" style="color:#183963;font-size:12pt">@_form.Fecha.ToString("dd/MM/yyyy")</div>
+        </div>
+    </div>
+
+    <!-- Datos del informe solo en impresión -->
+    <div class="print-info-grid">
+        <div class="print-info-item">
+            <div class="label">Personal en sitio</div>
+            <div class="value">@_form.PersonalTotal</div>
+        </div>
+        <div class="print-info-item">
+            <div class="label">Resumen de actividades</div>
+            <div class="value" style="font-size:8pt;font-weight:400">@(string.IsNullOrWhiteSpace(_form.ResumenActividades) ? "—" : _form.ResumenActividades)</div>
+        </div>
+        <div class="print-info-item">
+            <div class="label">Observaciones</div>
+            <div class="value" style="font-size:8pt;font-weight:400">@(string.IsNullOrWhiteSpace(_form.Observaciones) ? "—" : _form.Observaciones)</div>
+        </div>
+    </div>
+
+    <!-- Barra superior -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap no-print">
         <a href="/proyectos/@ProyectoId/informes" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
-        <div>
-            <h1 class="h3 mb-0">@(_esNuevo ? "Nuevo Informe Diario" : "Editar Informe Diario")</h1>
+        <div class="flex-grow-1">
+            <h1 class="h3 mb-0 fw-bold" style="color:#183963">@(_esNuevo ? "Nuevo Informe Diario" : "Editar Informe Diario")</h1>
             <small class="text-muted">@_proyecto.Nombre</small>
         </div>
+        <button type="button" class="btn btn-primary btn-top-bar" disabled="@_guardando"
+                @onclick="SubmitForm">
+            <i class="bi-floppy me-1"></i>@(_guardando ? "Guardando..." : "Guardar cambios")
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-top-bar" @onclick="ExportarPDF">
+            <i class="bi-file-earmark-pdf me-1"></i>Exportar PDF
+        </button>
     </div>
 
     @if (_error is not null)
     {
-        <div class="alert alert-danger alert-dismissible">
+        <div class="alert alert-danger alert-dismissible no-print">
             @_error
             <button type="button" class="btn-close" @onclick="() => _error = null"></button>
         </div>
     }
 
-    <EditForm Model="_form" OnValidSubmit="GuardarAsync" FormName="form-informe-diario">
+    <EditForm Model="_form" OnValidSubmit="GuardarAsync" FormName="form-informe-diario" id="form-informe">
         <DataAnnotationsValidator />
 
         <!-- INFORMACIÓN GENERAL -->
@@ -87,8 +197,8 @@ else
         <!-- AVANCE DE ACTIVIDADES -->
         <div class="card shadow-sm mb-4">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <strong>Avances del Día (@_filas.Count actividades)</strong>
-                <div class="d-flex gap-2 flex-wrap">
+                <strong>Avances del Día (@_filasHoja.Count actividades)</strong>
+                <div class="d-flex gap-2 flex-wrap no-print">
                     <span class="badge bg-success">@_conteoAdelantado Adelantados</span>
                     <span class="badge bg-primary">@_conteoAlDia Al Día</span>
                     <span class="badge bg-warning text-dark">@_conteoAtrasado Atrasados</span>
@@ -97,7 +207,7 @@ else
             </div>
             <div class="card-body p-2">
                 <!-- Filtro de búsqueda -->
-                <div class="mb-2 px-1">
+                <div class="mb-2 px-1 no-print">
                     <input type="text" class="form-control form-control-sm"
                            style="max-width:360px"
                            placeholder="Buscar por código o nombre..."
@@ -135,12 +245,17 @@ else
                             <tbody>
                                 @foreach (var fila in FilasFiltradas)
                                 {
+                                    var nivelClass = $"fila-nivel-{Math.Min(fila.Nivel, 4)}";
                                     <tr @key="fila.ActividadWBSId"
-                                        class="@(fila.TieneDatos ? "table-light" : "")">
-                                        <td class="font-monospace text-muted small">
+                                        class="@nivelClass @(fila.EsPadre ? "fila-padre" : "") @(!fila.EsPadre && fila.TieneDatos ? "table-light" : "")">
+                                        <td class="font-monospace small">
                                             @fila.CodigoWBS
                                         </td>
                                         <td>
+                                            @if (fila.EsPadre)
+                                            {
+                                                <i class="bi-folder2 me-1" style="color:#6ABF4B"></i>
+                                            }
                                             @fila.Nombre
                                             @if (fila.EsCritica)
                                             {
@@ -170,16 +285,25 @@ else
                                             </span>
                                         </td>
                                         <td class="text-center">
-                                            <div class="input-group input-group-sm justify-content-center"
-                                                 style="max-width:95px;margin:auto">
-                                                <input type="number"
-                                                       class="form-control form-control-sm text-end"
-                                                       min="0" max="100" step="1"
-                                                       value="@fila.PorcentajeAvance"
-                                                       @onchange="e => ActualizarAvance(fila, e.Value?.ToString())" />
-                                                <span class="input-group-text px-1"
-                                                      style="font-size:0.7rem">%</span>
-                                            </div>
+                                            @if (fila.EsPadre)
+                                            {
+                                                <span class="fw-bold" style="color:#183963">
+                                                    @fila.PorcentajeAvance.ToString("F2")%
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <div class="input-group input-group-sm justify-content-center"
+                                                     style="max-width:95px;margin:auto">
+                                                    <input type="number"
+                                                           class="form-control form-control-sm text-end"
+                                                           min="0" max="100" step="1"
+                                                           value="@fila.PorcentajeAvance"
+                                                           @onchange="e => ActualizarAvance(fila, e.Value?.ToString())" />
+                                                    <span class="input-group-text px-1"
+                                                          style="font-size:0.7rem">%</span>
+                                                </div>
+                                            }
                                         </td>
                                         <td class="text-center">
                                             <span class="badge @BadgeDesv(fila.Desviacion)"
@@ -188,20 +312,34 @@ else
                                             </span>
                                         </td>
                                         <td class="text-center">
-                                            <input type="number"
-                                                   class="form-control form-control-sm text-end"
-                                                   style="max-width:60px;margin:auto"
-                                                   min="0" placeholder="0"
-                                                   value="@fila.PersonalEnSitio"
-                                                   @onchange="e => fila.PersonalEnSitio = int.TryParse(e.Value?.ToString(), out var v) ? v : (int?)null" />
+                                            @if (fila.EsPadre)
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                            else
+                                            {
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       style="max-width:60px;margin:auto"
+                                                       min="0" placeholder="0"
+                                                       value="@fila.PersonalEnSitio"
+                                                       @onchange="e => fila.PersonalEnSitio = int.TryParse(e.Value?.ToString(), out var v) ? v : (int?)null" />
+                                            }
                                         </td>
                                         <td class="text-center">
-                                            <input type="number"
-                                                   class="form-control form-control-sm text-end"
-                                                   style="max-width:60px;margin:auto"
-                                                   min="0" step="0.5" placeholder="0"
-                                                   value="@fila.HorasTrabajadas"
-                                                   @onchange="e => fila.HorasTrabajadas = decimal.TryParse(e.Value?.ToString(), out var v) ? v : (decimal?)null" />
+                                            @if (fila.EsPadre)
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                            else
+                                            {
+                                                <input type="number"
+                                                       class="form-control form-control-sm text-end"
+                                                       style="max-width:60px;margin:auto"
+                                                       min="0" step="0.5" placeholder="0"
+                                                       value="@fila.HorasTrabajadas"
+                                                       @onchange="e => fila.HorasTrabajadas = decimal.TryParse(e.Value?.ToString(), out var v) ? v : (decimal?)null" />
+                                            }
                                         </td>
                                         <td class="text-center">
                                             <span style="font-size:1.1rem;color:@ColorEstado(fila.Desviacion)"
@@ -222,13 +360,18 @@ else
             </div>
         </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 no-print">
             <button type="submit" class="btn btn-primary" disabled="@_guardando">
                 @(_guardando ? "Guardando..." : (_esNuevo ? "Crear informe" : "Guardar cambios"))
             </button>
             <a href="/proyectos/@ProyectoId/informes" class="btn btn-outline-secondary">Cancelar</a>
         </div>
     </EditForm>
+
+    <!-- Footer para impresión -->
+    <div class="print-footer mt-3 pt-2 text-center" style="border-top:2px solid #e0e0e0">
+        <small style="color:#999;font-size:7pt">Renergeia LLC — Sistema de Gestión EPC &bull; Documento confidencial &bull; Generado el @DateTime.Today.ToString("dd/MM/yyyy")</small>
+    </div>
 }
 
 @code {
@@ -245,6 +388,8 @@ else
 
     private bool _esNuevo => InformeId is null;
 
+    private List<FilaRegistro> _filasHoja => _filas.Where(f => !f.EsPadre).ToList();
+
     private IEnumerable<FilaRegistro> FilasFiltradas =>
         string.IsNullOrWhiteSpace(_filtro)
             ? _filas
@@ -252,10 +397,10 @@ else
                 f.Nombre.Contains(_filtro, StringComparison.OrdinalIgnoreCase) ||
                 f.CodigoWBS.Contains(_filtro, StringComparison.OrdinalIgnoreCase));
 
-    private int _conteoAdelantado => _filas.Count(f => f.Desviacion >= 5);
-    private int _conteoAlDia      => _filas.Count(f => f.Desviacion is >= 0 and < 5);
-    private int _conteoAtrasado   => _filas.Count(f => f.Desviacion < 0 && f.Desviacion >= -15);
-    private int _conteoCritico    => _filas.Count(f => f.Desviacion < -15);
+    private int _conteoAdelantado => _filasHoja.Count(f => f.Desviacion >= 5);
+    private int _conteoAlDia      => _filasHoja.Count(f => f.Desviacion is >= 0 and < 5);
+    private int _conteoAtrasado   => _filasHoja.Count(f => f.Desviacion < 0 && f.Desviacion >= -15);
+    private int _conteoCritico    => _filasHoja.Count(f => f.Desviacion < -15);
 
     protected override async Task OnInitializedAsync()
     {
@@ -271,6 +416,8 @@ else
             .ToListAsync())
             .OrderBy(a => WbsSortKey(a.CodigoWBS))
             .ToList();
+
+        var codigosSet = _actividades.Select(a => a.CodigoWBS).ToHashSet();
 
         Dictionary<int, RegistroAvanceDiario> mapaRegistros = [];
 
@@ -299,9 +446,12 @@ else
             mapaRegistros = informe.RegistrosAvance.ToDictionary(r => r.ActividadWBSId);
         }
 
-        // Pre-populate ALL activities
         foreach (var act in _actividades)
         {
+            var esPadre = codigosSet.Any(c => c != act.CodigoWBS
+                && c.StartsWith(act.CodigoWBS + "."));
+            var nivel = act.CodigoWBS.Count(c => c == '.') + 1;
+
             var fila = new FilaRegistro
             {
                 ActividadWBSId   = act.Id,
@@ -311,6 +461,8 @@ else
                 FechaInicio      = act.FechaInicioPlaneada,
                 FechaFin         = act.FechaFinPlaneada,
                 EsCritica        = act.EsCritica,
+                EsPadre          = esPadre,
+                Nivel            = nivel,
                 AvanceProgramado = InformeSvc.CalcularAvanceEsperado(
                     act.FechaInicioPlaneada, act.FechaFinPlaneada, _form.Fecha)
             };
@@ -326,20 +478,48 @@ else
 
             _filas.Add(fila);
         }
+
+        RecalcularPadres();
+    }
+
+    private void RecalcularPadres()
+    {
+        foreach (var padre in _filas.Where(f => f.EsPadre).OrderByDescending(f => f.Nivel))
+        {
+            var hijos = _filas.Where(f =>
+                f.CodigoWBS != padre.CodigoWBS &&
+                f.CodigoWBS.StartsWith(padre.CodigoWBS + ".") &&
+                !f.EsPadre).ToList();
+
+            if (hijos.Any())
+            {
+                padre.PorcentajeAvance = Math.Round(hijos.Average(h => h.PorcentajeAvance), 2);
+                padre.AvanceProgramado = Math.Round(hijos.Average(h => h.AvanceProgramado), 2);
+            }
+        }
     }
 
     private void RecalcularAvanceProgramado()
     {
-        foreach (var fila in _filas)
+        foreach (var fila in _filas.Where(f => !f.EsPadre))
             fila.AvanceProgramado = InformeSvc.CalcularAvanceEsperado(
                 fila.FechaInicio, fila.FechaFin, _form.Fecha);
+        RecalcularPadres();
     }
 
-    private static void ActualizarAvance(FilaRegistro fila, string? valor)
+    private void ActualizarAvance(FilaRegistro fila, string? valor)
     {
         if (decimal.TryParse(valor, out var v))
             fila.PorcentajeAvance = Math.Min(100, Math.Max(0, v));
+        RecalcularPadres();
     }
+
+    private async Task SubmitForm()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('form-informe')?.requestSubmit()");
+    }
+
+    private async Task ExportarPDF() => await JS.InvokeVoidAsync("window.print");
 
     private async Task GuardarAsync()
     {
@@ -402,7 +582,7 @@ else
             Estado               = EstadoInforme.Borrador
         };
 
-        foreach (var fila in _filas)
+        foreach (var fila in _filasHoja)
         {
             var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
             var registro = new RegistroAvanceDiario
@@ -422,6 +602,7 @@ else
 
         Db.InformesDiarios.Add(informe);
         await Db.SaveChangesAsync();
+        await InformeSvc.RecalcularPadresWBSAsync(ProyectoId);
         Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes/{informe.Id}");
     }
 
@@ -442,13 +623,11 @@ else
         informe.ComentariosGenerales = _form.ComentariosGenerales;
         informe.FechaModificacion    = DateTime.UtcNow;
 
-        // Eliminar registros que ya no tienen actividad activa
-        var idsActivosFiolas = _filas.Where(f => f.RegistroId > 0).Select(f => f.RegistroId).ToHashSet();
+        var idsActivosFiolas = _filasHoja.Where(f => f.RegistroId > 0).Select(f => f.RegistroId).ToHashSet();
         var aEliminar = informe.RegistrosAvance.Where(r => !idsActivosFiolas.Contains(r.Id)).ToList();
         Db.RegistrosAvanceDiario.RemoveRange(aEliminar);
 
-        // Actualizar registros existentes
-        foreach (var fila in _filas.Where(f => f.RegistroId > 0))
+        foreach (var fila in _filasHoja.Where(f => f.RegistroId > 0))
         {
             var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
             var r = informe.RegistrosAvance.First(x => x.Id == fila.RegistroId);
@@ -462,8 +641,7 @@ else
             await InformeSvc.ActualizarCalculosAsync(r, actividad);
         }
 
-        // Crear registros para todas las actividades sin registro previo
-        foreach (var fila in _filas.Where(f => f.RegistroId == 0))
+        foreach (var fila in _filasHoja.Where(f => f.RegistroId == 0))
         {
             var actividad = _actividades.First(a => a.Id == fila.ActividadWBSId);
             var r = new RegistroAvanceDiario
@@ -482,6 +660,7 @@ else
         }
 
         await Db.SaveChangesAsync();
+        await InformeSvc.RecalcularPadresWBSAsync(ProyectoId);
         Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes/{informe.Id}");
     }
 
@@ -532,6 +711,8 @@ else
         public DateTime FechaInicio { get; set; }
         public DateTime FechaFin { get; set; }
         public bool EsCritica { get; set; }
+        public bool EsPadre { get; set; }
+        public int Nivel { get; set; } = 1;
         public decimal AvanceProgramado { get; set; }
         public int RegistroId { get; set; }
         public decimal PorcentajeAvance { get; set; }

@@ -71,6 +71,16 @@
                                @bind="_form.AvanceReal" @bind:event="oninput" />
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Disciplina</label>
+                        <InputSelect class="form-select" @bind-Value="_form.Disciplina">
+                            <option value="">— Sin disciplina —</option>
+                            @foreach (var d in Enum.GetValues<Disciplina>())
+                            {
+                                <option value="@d">@EnumDisplay.Mostrar(d)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label">Estado</label>
                         <InputSelect class="form-select" @bind-Value="_form.Estado">
                             @foreach (var e in Enum.GetValues<EstadoActividad>())
@@ -179,6 +189,7 @@
                 FechaFinPlaneada = actividad.FechaFinPlaneada,
                 AvancePlanificado = (int)actividad.AvancePlanificado,
                 AvanceReal = (int)actividad.AvanceReal,
+                Disciplina = actividad.Disciplina,
                 Estado = actividad.Estado,
                 Activo = actividad.Activo
             };
@@ -204,6 +215,7 @@
                 FechaFinPlaneada    = _form.FechaFinPlaneada,
                 AvancePlanificado   = _form.AvancePlanificado,
                 AvanceReal          = _form.AvanceReal,
+                Disciplina          = _form.Disciplina,
                 Estado              = _form.Estado,
                 Activo              = _form.Activo
             };
@@ -223,6 +235,7 @@
             actividad.FechaFinPlaneada = _form.FechaFinPlaneada;
             actividad.AvancePlanificado = _form.AvancePlanificado;
             actividad.AvanceReal = _form.AvanceReal;
+            actividad.Disciplina = _form.Disciplina;
             actividad.Estado = _form.Estado;
             actividad.Activo = _form.Activo;
             actividad.FechaModificacion = DateTime.UtcNow;
@@ -265,6 +278,7 @@
 
         public int AvancePlanificado { get; set; }
         public int AvanceReal { get; set; }
+        public Disciplina? Disciplina { get; set; }
         public EstadoActividad Estado { get; set; } = EstadoActividad.Pendiente;
         public bool Activo { get; set; } = true;
     }

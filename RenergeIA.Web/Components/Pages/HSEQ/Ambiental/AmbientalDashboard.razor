@@ -15,7 +15,7 @@ else
     <DashboardLayout>
 
         <!-- ── Nivel 0: Cabecera ── -->
-        <PageHeader Titulo="Ambiental — ISO 14001"
+        <PageHeader Titulo="Ambiental"
                     Icono="bi-tree-fill"
                     Subtitulo="@(_proyecto.Nombre + " · " + DateTime.Now.ToString("dd/MM/yyyy"))"
                     UrlVolver="@($"/proyectos/{ProyectoId}/hseq")"
@@ -28,7 +28,6 @@ else
         <!-- ── Nivel 1: Navegación / FilterBar ── -->
         <FilterBar>
             <span class="btn btn-success btn-sm">Dashboard</span>
-            <a href="/proyectos/@ProyectoId/hseq/ambiental/checklist"    class="btn btn-outline-secondary btn-sm">Checklist ISO 14001</a>
             <a href="/proyectos/@ProyectoId/hseq/ambiental/inspecciones" class="btn btn-outline-secondary btn-sm">Inspecciones</a>
             <a href="/proyectos/@ProyectoId/hseq/ambiental/residuos"     class="btn btn-outline-secondary btn-sm">Residuos</a>
             <a href="/proyectos/@ProyectoId/hseq/ambiental/aspectos"     class="btn btn-outline-secondary btn-sm">Aspectos e Impactos</a>
@@ -40,13 +39,6 @@ else
         <!-- ── Nivel 2: KPIs ejecutivos ── -->
         <SeccionDash Titulo="Resumen Ejecutivo" Icono="bi-speedometer2">
             <div class="row g-3">
-                <div class="col-xl-3 col-md-6">
-                    <GaugeKPI Titulo="Cumplimiento ISO 14001"
-                              ValorCentral="93%"
-                              SubTexto="de requisitos verificados"
-                              Porcentaje="93"
-                              Estado="Saludable" />
-                </div>
                 <div class="col-xl-3 col-md-6">
                     <DonutKPI Titulo="Residuos Aprovechables"
                               ValorCentral="75%"
@@ -109,15 +101,6 @@ else
         <SeccionDash Titulo="Gestión Ambiental" Icono="bi-grid-fill">
             <div class="row g-3">
                 <div class="col-6 col-md-4">
-                    <a href="/proyectos/@ProyectoId/hseq/ambiental/checklist" class="text-decoration-none">
-                        <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
-                            <i class="bi-list-check d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
-                            <div class="fw-semibold small">Checklist ISO 14001</div>
-                            <StatusChip Estado="Saludable" Texto="93%" />
-                        </div>
-                    </a>
-                </div>
-                <div class="col-6 col-md-4">
                     <a href="/proyectos/@ProyectoId/hseq/ambiental/inspecciones" class="text-decoration-none">
                         <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
                             <i class="bi-binoculars-fill d-block mb-2" style="font-size:2rem;color:#6ABF4B"></i>
@@ -172,7 +155,7 @@ else
                  EsSimulado="true">
             <Hallazgos>
                 <ul>
-                    <li>Cumplimiento ISO 14001 en 93%, por encima de la meta del 90%.</li>
+                    <li>Gestión ambiental en nivel saludable para el período analizado.</li>
                     <li>Sin derrames registrados en el período — indicador en cero consecutivo.</li>
                     <li>El 75% de los residuos generados fue aprovechado o reciclado.</li>
                     <li>1 aspecto ambiental pendiente de control en el frente civil.</li>
@@ -181,7 +164,7 @@ else
             <Recomendaciones>
                 <ul>
                     <li>Continuar seguimiento al aspecto ambiental sin controlar antes del cierre del período.</li>
-                    <li>Programar la próxima auditoría ISO 14001 antes del 20 de julio.</li>
+                    <li>Programar la próxima inspección ambiental antes del cierre del período.</li>
                     <li>Registrar el informe de residuos peligrosos con la empresa gestora certificada.</li>
                 </ul>
             </Recomendaciones>

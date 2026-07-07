@@ -1,0 +1,357 @@
+@page "/hseq/inspecciones/consolidado"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@using RenergeIA.Core.Entities.HSEQ
+
+<PageTitle>Informe Consolidado HSEQ — @_anio</PageTitle>
+
+<style>
+    .report-container { max-width: 1100px; margin: 0 auto; }
+    .report-header { background: white; color: #183963; padding: 2rem 2.5rem; border-radius: 12px 12px 0 0; border: 2px solid #183963; border-bottom: none; }
+    .report-header-bar { height: 5px; background: linear-gradient(90deg, #6ABF4B, #ffc107, #183963); border-radius: 0 0 12px 12px; }
+    .semaforo { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; font-weight: 800; font-size: 0.85rem; color: white; }
+    .semaforo-verde { background: linear-gradient(135deg, #28a745, #6ABF4B); }
+    .semaforo-amarillo { background: linear-gradient(135deg, #e6a800, #ffc107); color: #333 !important; }
+    .semaforo-rojo { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+    .gauge-card { border: none; border-radius: 12px; overflow: hidden; }
+    .gauge-header { padding: 0.6rem 1.2rem; color: white; font-weight: 600; font-size: 0.95rem; }
+    .gauge-body { padding: 1.5rem; text-align: center; }
+    .gauge-pct { font-size: 3rem; font-weight: 800; line-height: 1; }
+    .gauge-ring { width: 120px; height: 120px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+    .section-title { font-size: 1.1rem; font-weight: 700; color: #183963; border-left: 4px solid #6ABF4B; padding-left: 12px; margin: 1.5rem 0 1rem; }
+    .tbl-report th { background: #f1f3f5; color: #183963; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tbl-report td { font-size: 0.85rem; vertical-align: middle; }
+    .footer-report { text-align: center; color: #999; font-size: 0.75rem; padding: 1.5rem 0; border-top: 2px solid #f0f0f0; margin-top: 2rem; }
+
+    @@media print {
+        .no-print { display: none !important; }
+        .report-container { max-width: 100%; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .card { break-inside: avoid; }
+        .report-header { border-radius: 0; }
+    }
+</style>
+
+<!-- Controles (no se imprimen) -->
+<div class="container-fluid px-4 py-3 no-print">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="hseq/dashboard" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
+        <div class="flex-grow-1">
+            <h4 class="fw-bold mb-0" style="color:#183963">
+                <i class="bi-file-earmark-bar-graph me-2"></i>Informe Consolidado HSEQ
+            </h4>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <label class="form-label mb-0 fw-semibold">Año:</label>
+            <InputNumber class="form-control form-control-sm" style="max-width:90px" @bind-Value="_anio" />
+            <button class="btn btn-outline-secondary btn-sm" @onclick="CargarAsync">Aplicar</button>
+            <button class="btn btn-danger btn-sm" @onclick="ExportarPDF">
+                <i class="bi-file-earmark-pdf me-1"></i>Exportar PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Informe (se imprime) -->
+<div class="report-container px-4 pb-4">
+
+    <!-- Encabezado -->
+    <div class="report-header">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <img src="images/logo-renergeia.png.png" alt="Renergeia" style="height:50px" />
+                </div>
+                <h4 class="mt-3 mb-0 fw-bold" style="color:#183963">Informe Consolidado HSEQ — @_anio</h4>
+                <small style="color:#666">Cumplimiento acumulado de Pausas Activas, STC y OTS</small>
+            </div>
+            <div class="text-end">
+                <div style="color:#666;font-size:.85rem">Fecha de corte</div>
+                <div class="fw-bold fs-5" style="color:#183963">@DateTime.Today.ToString("dd/MM/yyyy")</div>
+                <div style="color:#666;font-size:.85rem" class="mt-1">Meses cargados: @_mesesConDatos de 12</div>
+            </div>
+        </div>
+    </div>
+    <div class="report-header-bar"></div>
+
+    <!-- Resumen ejecutivo -->
+    <div class="mt-4 mb-2">
+        <h5 class="section-title">Resumen Ejecutivo</h5>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card gauge-card shadow-sm h-100">
+                <div class="gauge-header" style="background:#183963">
+                    <i class="bi-stopwatch me-1"></i> Pausas Activas
+                    <span class="float-end" style="opacity:.7;font-size:.8rem">Meta: 480/año</span>
+                </div>
+                <div class="gauge-body">
+                    <div class="gauge-ring mb-2" style="border: 6px solid @SemaforoColor(_cumPausas);box-shadow:0 0 20px @SemaforoColor(_cumPausas)33">
+                        <span class="gauge-pct" style="color:@SemaforoColor(_cumPausas)">@_cumPausas%</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="semaforo @SemaforoClass(_cumPausas)">@SemaforoIcono(_cumPausas)</span>
+                    </div>
+                    <small class="text-muted d-block mt-2">40 pausas/persona/mes × 12 meses</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card gauge-card shadow-sm h-100">
+                <div class="gauge-header" style="background:#6ABF4B">
+                    <i class="bi-house-check me-1"></i> STC
+                    <span class="float-end" style="opacity:.7;font-size:.8rem">Meta: 60/año</span>
+                </div>
+                <div class="gauge-body">
+                    <div class="gauge-ring mb-2" style="border: 6px solid @SemaforoColor(_cumSTC);box-shadow:0 0 20px @SemaforoColor(_cumSTC)33">
+                        <span class="gauge-pct" style="color:@SemaforoColor(_cumSTC)">@_cumSTC%</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="semaforo @SemaforoClass(_cumSTC)">@SemaforoIcono(_cumSTC)</span>
+                    </div>
+                    <small class="text-muted d-block mt-2">5 inspecciones/persona/mes × 12 meses</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card gauge-card shadow-sm h-100">
+                <div class="gauge-header" style="background:#e6a800">
+                    <i class="bi-eye me-1"></i> OTS
+                    <span class="float-end" style="opacity:.7;font-size:.8rem">Meta: 120/año</span>
+                </div>
+                <div class="gauge-body">
+                    <div class="gauge-ring mb-2" style="border: 6px solid @SemaforoColor(_cumOTS);box-shadow:0 0 20px @SemaforoColor(_cumOTS)33">
+                        <span class="gauge-pct" style="color:@SemaforoColor(_cumOTS)">@_cumOTS%</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="semaforo @SemaforoClass(_cumOTS)">@SemaforoIcono(_cumOTS)</span>
+                    </div>
+                    <small class="text-muted d-block mt-2">10 inspecciones/persona/mes × 12 meses</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Convención semáforo -->
+    <div class="d-flex gap-4 justify-content-center mb-4 small">
+        <div class="d-flex align-items-center gap-1"><span class="semaforo semaforo-verde" style="width:24px;height:24px;font-size:.6rem">&#10003;</span> <span class="text-muted">&ge; 80% Cumple</span></div>
+        <div class="d-flex align-items-center gap-1"><span class="semaforo semaforo-amarillo" style="width:24px;height:24px;font-size:.6rem">!</span> <span class="text-muted">50-79% En proceso</span></div>
+        <div class="d-flex align-items-center gap-1"><span class="semaforo semaforo-rojo" style="width:24px;height:24px;font-size:.6rem">&#10007;</span> <span class="text-muted">&lt; 50% Crítico</span></div>
+    </div>
+
+    <!-- Pausas Activas -->
+    @if (_pausasAnual.Any())
+    {
+        <h5 class="section-title"><i class="bi-stopwatch me-2"></i>Pausas Activas — Cumplimiento por Departamento</h5>
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="table-responsive">
+                <table class="table tbl-report align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:30px"></th>
+                            <th>Departamento</th>
+                            <th class="text-center">Personas</th>
+                            <th class="text-center">Total pausas</th>
+                            <th class="text-center">Promedio / persona</th>
+                            <th class="text-center">Meta anual</th>
+                            <th class="text-center" style="min-width:170px">% Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _pausasAnual.OrderByDescending(d => d.Pct))
+                        {
+                            <tr>
+                                <td class="text-center"><span class="semaforo @SemaforoClass(d.Pct)" style="width:28px;height:28px;font-size:.65rem">@SemaforoIcono(d.Pct)</span></td>
+                                <td class="fw-semibold">@d.Depto</td>
+                                <td class="text-center">@d.Personas</td>
+                                <td class="text-center fw-bold">@d.Total</td>
+                                <td class="text-center">@d.Promedio</td>
+                                <td class="text-center text-muted">@d.MetaAcum</td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:14px;border-radius:7px;background:#e9ecef">
+                                            <div class="progress-bar" style="width:@(Math.Min(d.Pct,100))%;background:@SemaforoColor(d.Pct);border-radius:7px"></div>
+                                        </div>
+                                        <span class="fw-bold" style="color:@SemaforoColor(d.Pct);min-width:40px">@d.Pct%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- STC -->
+    @if (_stcAnual.Any())
+    {
+        <h5 class="section-title"><i class="bi-house-check me-2"></i>STC — Cumplimiento por Departamento</h5>
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="table-responsive">
+                <table class="table tbl-report align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:30px"></th>
+                            <th>Departamento</th>
+                            <th class="text-center">Personas</th>
+                            <th class="text-center">Total STC</th>
+                            <th class="text-center">Promedio / persona</th>
+                            <th class="text-center">Meta anual</th>
+                            <th class="text-center" style="min-width:170px">% Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _stcAnual.OrderByDescending(d => d.Pct))
+                        {
+                            <tr>
+                                <td class="text-center"><span class="semaforo @SemaforoClass(d.Pct)" style="width:28px;height:28px;font-size:.65rem">@SemaforoIcono(d.Pct)</span></td>
+                                <td class="fw-semibold">@d.Depto</td>
+                                <td class="text-center">@d.Personas</td>
+                                <td class="text-center fw-bold">@d.Total</td>
+                                <td class="text-center">@d.Promedio</td>
+                                <td class="text-center text-muted">@d.MetaAcum</td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:14px;border-radius:7px;background:#e9ecef">
+                                            <div class="progress-bar" style="width:@(Math.Min(d.Pct,100))%;background:@SemaforoColor(d.Pct);border-radius:7px"></div>
+                                        </div>
+                                        <span class="fw-bold" style="color:@SemaforoColor(d.Pct);min-width:40px">@d.Pct%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- OTS -->
+    @if (_otsAnual.Any())
+    {
+        <h5 class="section-title"><i class="bi-eye me-2"></i>OTS — Cumplimiento por Departamento</h5>
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="table-responsive">
+                <table class="table tbl-report align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:30px"></th>
+                            <th>Departamento</th>
+                            <th class="text-center">Personas</th>
+                            <th class="text-center">Total OTS</th>
+                            <th class="text-center">Promedio / persona</th>
+                            <th class="text-center">Meta anual</th>
+                            <th class="text-center" style="min-width:170px">% Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _otsAnual.OrderByDescending(d => d.Pct))
+                        {
+                            <tr>
+                                <td class="text-center"><span class="semaforo @SemaforoClass(d.Pct)" style="width:28px;height:28px;font-size:.65rem">@SemaforoIcono(d.Pct)</span></td>
+                                <td class="fw-semibold">@d.Depto</td>
+                                <td class="text-center">@d.Personas</td>
+                                <td class="text-center fw-bold">@d.Total</td>
+                                <td class="text-center">@d.Promedio</td>
+                                <td class="text-center text-muted">@d.MetaAcum</td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress flex-grow-1" style="height:14px;border-radius:7px;background:#e9ecef">
+                                            <div class="progress-bar" style="width:@(Math.Min(d.Pct,100))%;background:@SemaforoColor(d.Pct);border-radius:7px"></div>
+                                        </div>
+                                        <span class="fw-bold" style="color:@SemaforoColor(d.Pct);min-width:40px">@d.Pct%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (!_pausasAnual.Any() && !_stcAnual.Any() && !_otsAnual.Any())
+    {
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-body text-center text-muted py-5">
+                <i class="bi-file-earmark-bar-graph" style="font-size:3rem;opacity:.3"></i>
+                <p class="mt-2 mb-1">No hay datos para el año @_anio.</p>
+                <p class="small">Carga los reportes mensuales en STC, OTS y Pausas Activas para ver el consolidado.</p>
+            </div>
+        </div>
+    }
+
+    <!-- Footer -->
+    <div class="footer-report">
+        <strong>RenergeIA</strong> — Sistema de Gestión HSEQ &bull; Informe generado el @DateTime.Today.ToString("dd 'de' MMMM 'de' yyyy")
+        <br/>Documento confidencial — Renergeia LLC
+    </div>
+</div>
+
+@code {
+    private int _anio = DateTime.Today.Year;
+    private int _mesesConDatos;
+    private int _mesesConDatosPausas, _mesesConDatosSTC, _mesesConDatosOTS;
+    private int _cumPausas, _cumSTC, _cumOTS;
+    private List<DeptoResumen> _pausasAnual = [];
+    private List<DeptoResumen> _stcAnual = [];
+    private List<DeptoResumen> _otsAnual = [];
+
+    private static string SemaforoClass(int pct) => pct >= 80 ? "semaforo-verde" : pct >= 50 ? "semaforo-amarillo" : "semaforo-rojo";
+    private static string SemaforoColor(int pct) => pct >= 80 ? "#28a745" : pct >= 50 ? "#e6a800" : "#e74c3c";
+    private static string SemaforoIcono(int pct) => pct >= 80 ? "✓" : pct >= 50 ? "!" : "✗";
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        var pausas = await Db.PausasActivas.Where(p => p.Anio == _anio && p.ProyectoId == null).ToListAsync();
+        var stc = await Db.RegistrosSTC.Where(r => r.Anio == _anio).ToListAsync();
+        var ots = await Db.RegistrosOTS.Where(r => r.Anio == _anio).ToListAsync();
+
+        _mesesConDatosPausas = pausas.Select(p => p.Mes).Distinct().Count();
+        _mesesConDatosSTC = stc.Select(r => r.Mes).Distinct().Count();
+        _mesesConDatosOTS = ots.Select(r => r.Mes).Distinct().Count();
+        _mesesConDatos = new[] { _mesesConDatosPausas, _mesesConDatosSTC, _mesesConDatosOTS }.Max();
+
+        _pausasAnual = CalcularResumen(pausas.GroupBy(p => p.Area), p => p.Trabajador, p => p.CantidadPausas, 40, 12);
+        _stcAnual = CalcularResumen(stc.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 5, 12);
+        _otsAnual = CalcularResumen(ots.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 10, 12);
+
+        _cumPausas = CalcularCumplimientoGlobal(pausas.Select(p => (p.Trabajador, p.CantidadPausas, p.Mes)), 40, 12);
+        _cumSTC = CalcularCumplimientoGlobal(stc.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 5, 12);
+        _cumOTS = CalcularCumplimientoGlobal(ots.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 10, 12);
+    }
+
+    private int CalcularCumplimientoGlobal(IEnumerable<(string Persona, int Cantidad, int Mes)> datos, int metaMes, int meses)
+    {
+        if (!datos.Any() || meses == 0) return 0;
+        var porPersona = datos.GroupBy(d => d.Persona).Select(g => g.Sum(x => x.Cantidad));
+        var metaAcum = metaMes * meses;
+        return Math.Min(100, (int)Math.Round(porPersona.Average() * 100.0 / metaAcum));
+    }
+
+    private List<DeptoResumen> CalcularResumen<T>(
+        IEnumerable<IGrouping<string, T>> grupos, Func<T, string> getPersona,
+        Func<T, int> getCantidad, int metaMes, int meses)
+    {
+        if (meses == 0) return [];
+        var metaAcum = metaMes * meses;
+        return grupos.Select(g =>
+        {
+            var personas = g.Select(getPersona).Distinct().Count();
+            var total = g.Sum(getCantidad);
+            var porPersona = g.GroupBy(getPersona).Select(pg => pg.Sum(getCantidad));
+            var promedio = Math.Round(porPersona.Average(), 1);
+            var pct = Math.Min(100, (int)Math.Round(promedio * 100.0 / metaAcum));
+            return new DeptoResumen(g.Key, personas, total, promedio, metaAcum, pct);
+        }).ToList();
+    }
+
+    private async Task ExportarPDF() => await JS.InvokeVoidAsync("window.print");
+
+    private record DeptoResumen(string Depto, int Personas, int Total, double Promedio, int MetaAcum, int Pct);
+}

@@ -74,6 +74,10 @@ else
                                     <div class="d-flex gap-1 justify-content-end flex-wrap">
                                         <a href="/proyectos/@ProyectoId/informes/@inf.Id"
                                            class="btn btn-sm btn-outline-secondary">Ver</a>
+                                        <a href="/proyectos/@ProyectoId/informes/@inf.Id?print=1"
+                                           class="btn btn-sm btn-outline-danger" title="Exportar PDF">
+                                            <i class="bi-file-earmark-pdf"></i>
+                                        </a>
                                         @if (inf.Estado == EstadoInforme.Borrador)
                                         {
                                             <a href="/proyectos/@ProyectoId/informes/@inf.Id/editar"

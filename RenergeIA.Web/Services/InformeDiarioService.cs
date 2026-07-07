@@ -46,6 +46,42 @@ public class InformeDiarioService(RenergeIADbContext db)
             (int)Math.Round(Math.Abs((double)r.Desviacion / 100)
                 * (act.FechaFinPlaneada - act.FechaInicioPlaneada).TotalDays);
         r.Estado = DeterminarEstado(r.Desviacion);
+
+        // Sincronizar avance real en la actividad WBS
+        act.AvanceReal = r.AvanceAcumulado;
+        act.FechaModificacion = DateTime.UtcNow;
+    }
+
+    public async Task RecalcularPadresWBSAsync(int proyectoId)
+    {
+        var versionVigente = await db.CronogramasVersion
+            .FirstOrDefaultAsync(v => v.ProyectoId == proyectoId && v.EsVigente);
+
+        var actividades = await db.ActividadesWBS
+            .Where(a => a.ProyectoId == proyectoId && a.Activo
+                     && (versionVigente == null || a.CronogramaVersionId == versionVigente.Id))
+            .ToListAsync();
+
+        var codigosSet = actividades.Select(a => a.CodigoWBS).ToHashSet();
+        var padreIds = actividades
+            .Where(a => a.ActividadPadreId.HasValue)
+            .Select(a => a.ActividadPadreId!.Value)
+            .ToHashSet();
+
+        var padres = actividades
+            .Where(a => padreIds.Contains(a.Id))
+            .OrderByDescending(a => a.NivelWBS)
+            .ToList();
+
+        foreach (var padre in padres)
+        {
+            var hijos = actividades.Where(h => h.ActividadPadreId == padre.Id && h.Activo).ToList();
+            if (!hijos.Any()) continue;
+            padre.AvanceReal = Math.Round(hijos.Average(h => h.AvanceReal), 1);
+            padre.FechaModificacion = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
     }
 
     public async Task<List<ResumenDisciplina>> ResumenPorDisciplinaAsync(int proyectoId, DateTime fecha)
@@ -127,26 +163,149 @@ public class InformeDiarioService(RenergeIADbContext db)
         };
     }
 
-    // Datos para la Curva S: avance real vs planificado por fecha de informe.
+    // Datos para la Curva S: planificado desde cronograma WBS, real desde informes diarios.
     public async Task<CurvaSData> DatosCurvaSAsync(int proyectoId)
     {
-        var registrosPorFecha = await db.RegistrosAvanceDiario
-            .Where(r => r.ProyectoId == proyectoId)
-            .GroupBy(r => r.Fecha.Date)
-            .Select(g => new
-            {
-                Fecha            = g.Key,
-                AvanceReal       = Math.Round(g.Average(r => r.AvanceAcumulado), 1),
-                AvancePlanificado = Math.Round(g.Average(r => r.AvanceEsperado), 1)
-            })
-            .OrderBy(x => x.Fecha)
+        var versionVigente = await db.CronogramasVersion
+            .FirstOrDefaultAsync(v => v.ProyectoId == proyectoId && v.EsVigente);
+
+        var actividades = await db.ActividadesWBS
+            .Where(a => a.ProyectoId == proyectoId && a.Activo
+                     && (versionVigente == null || a.CronogramaVersionId == versionVigente.Id))
             .ToListAsync();
+
+        if (actividades.Count == 0)
+            return new CurvaSData();
+
+        var codigosSet = actividades.Select(a => a.CodigoWBS).ToHashSet();
+        var hojas = actividades
+            .Where(a => !codigosSet.Any(c => c != a.CodigoWBS && c.StartsWith(a.CodigoWBS + ".")))
+            .ToList();
+
+        if (hojas.Count == 0) hojas = actividades;
+
+        var inicioProyecto = hojas.Min(a => a.FechaInicioPlaneada).Date;
+        var finProyecto    = hojas.Max(a => a.FechaFinPlaneada).Date;
+        var hoy            = DateTime.UtcNow.Date;
+
+        // Generar puntos semanales para la línea planificada (todo el proyecto)
+        var puntosPlan = new List<(DateTime Fecha, double Avance)>();
+        for (var d = inicioProyecto; d <= finProyecto; d = d.AddDays(7))
+        {
+            var avg = hojas.Average(a => (double)CalcularAvanceEsperado(
+                a.FechaInicioPlaneada, a.FechaFinPlaneada, d));
+            puntosPlan.Add((d, Math.Round(avg, 2)));
+        }
+        if (puntosPlan.Last().Fecha < finProyecto)
+            puntosPlan.Add((finProyecto, Math.Round(
+                hojas.Average(a => (double)CalcularAvanceEsperado(
+                    a.FechaInicioPlaneada, a.FechaFinPlaneada, finProyecto)), 2)));
+
+        // Línea real: desde informes diarios, promedio acumulado por fecha
+        var todosRegistros = await db.RegistrosAvanceDiario
+            .Where(r => r.ProyectoId == proyectoId)
+            .ToListAsync();
+
+        var realPorFecha = todosRegistros
+            .GroupBy(r => r.Fecha.Date)
+            .Select(g => (Fecha: g.Key, Avance: Math.Round(g.Average(r => (double)r.AvanceAcumulado), 2)))
+            .OrderBy(x => x.Fecha)
+            .ToList();
+
+        // Usar solo las fechas semanales del planificado como eje X
+        var fechasStr    = new List<string>();
+        var planificado  = new List<double>();
+        var real         = new List<double?>();
+
+        // Avance real actual del WBS (promedio hojas) para el punto de "hoy"
+        var avanceRealHoy = Math.Round(hojas.Average(a => (double)a.AvanceReal), 2);
+
+        foreach (var punto in puntosPlan)
+        {
+            var fecha = punto.Fecha;
+            fechasStr.Add(fecha.ToString("dd-MMM-yy"));
+            planificado.Add(punto.Avance);
+
+            if (fecha > hoy)
+            {
+                // Futuro: no hay dato real
+                real.Add(null);
+            }
+            else if (!realPorFecha.Any())
+            {
+                // No hay informes: usar el avance real del WBS proporcional
+                // Antes del inicio = 0, desde inicio hasta hoy = proporcional al avance actual
+                if (fecha < inicioProyecto)
+                    real.Add(0);
+                else
+                {
+                    var diasDesdeInicio = (fecha - inicioProyecto).TotalDays;
+                    var diasHastaHoy = (hoy - inicioProyecto).TotalDays;
+                    if (diasHastaHoy <= 0)
+                        real.Add(avanceRealHoy);
+                    else
+                        real.Add(Math.Round(avanceRealHoy * diasDesdeInicio / diasHastaHoy, 2));
+                }
+            }
+            else
+            {
+                // Hay informes: buscar el valor real más cercano <= fecha
+                var registroPrevio = realPorFecha.LastOrDefault(r => r.Fecha <= fecha);
+                if (registroPrevio != default)
+                    real.Add(registroPrevio.Avance);
+                else if (fecha >= inicioProyecto)
+                    real.Add(0); // Antes del primer informe pero después del inicio
+                else
+                    real.Add(0);
+            }
+        }
+
+        // Asegurar que "hoy" esté como punto si no coincide con un punto semanal
+        if (hoy > inicioProyecto && hoy <= finProyecto && !puntosPlan.Any(p => p.Fecha == hoy))
+        {
+            // Encontrar posición de inserción
+            var idx = fechasStr.Count;
+            for (int i = 0; i < puntosPlan.Count; i++)
+            {
+                if (puntosPlan[i].Fecha > hoy) { idx = i; break; }
+            }
+
+            // Interpolar planificado para hoy
+            var antes = puntosPlan.LastOrDefault(p => p.Fecha <= hoy);
+            var desp  = puntosPlan.FirstOrDefault(p => p.Fecha >= hoy);
+            double planHoy = 0;
+            if (antes != default && desp != default && desp.Fecha != antes.Fecha)
+            {
+                var ratio = (hoy - antes.Fecha).TotalDays / (desp.Fecha - antes.Fecha).TotalDays;
+                planHoy = Math.Round(antes.Avance + (desp.Avance - antes.Avance) * ratio, 2);
+            }
+            else if (antes != default) planHoy = antes.Avance;
+
+            fechasStr.Insert(idx, hoy.ToString("dd-MMM-yy"));
+            planificado.Insert(idx, planHoy);
+            real.Insert(idx, avanceRealHoy);
+        }
+
+        // Avance planificado a corte de hoy
+        double planificadoHoy = 0;
+        {
+            var antes = puntosPlan.LastOrDefault(p => p.Fecha <= hoy);
+            var desp  = puntosPlan.FirstOrDefault(p => p.Fecha >= hoy);
+            if (antes != default && desp != default && desp.Fecha != antes.Fecha)
+            {
+                var ratio = (hoy - antes.Fecha).TotalDays / (desp.Fecha - antes.Fecha).TotalDays;
+                planificadoHoy = Math.Round(antes.Avance + (desp.Avance - antes.Avance) * ratio, 2);
+            }
+            else if (antes != default) planificadoHoy = antes.Avance;
+        }
 
         return new CurvaSData
         {
-            Fechas            = registrosPorFecha.Select(x => x.Fecha.ToString("dd/MM")).ToList(),
-            AvanceReal        = registrosPorFecha.Select(x => (double)x.AvanceReal).ToList(),
-            AvancePlanificado = registrosPorFecha.Select(x => (double)x.AvancePlanificado).ToList()
+            Fechas            = fechasStr,
+            AvancePlanificado = planificado,
+            AvanceReal        = real,
+            PlanificadoHoy    = planificadoHoy,
+            EjecutadoHoy      = avanceRealHoy
         };
     }
 
@@ -166,6 +325,13 @@ public class InformeDiarioService(RenergeIADbContext db)
         if (actividades.Count == 0)
             return new DashboardCompleto { TieneDatos = false };
 
+        // Filtrar solo hojas (sin hijos) para cálculos precisos
+        var codigosSet = actividades.Select(a => a.CodigoWBS).ToHashSet();
+        var hojas = actividades
+            .Where(a => !codigosSet.Any(c => c != a.CodigoWBS && c.StartsWith(a.CodigoWBS + ".")))
+            .ToList();
+        if (hojas.Count == 0) hojas = actividades;
+
         // Último avance registrado por actividad (en memoria para evitar GroupBy problemático)
         var todosRegistros = await db.RegistrosAvanceDiario
             .Where(r => r.ProyectoId == proyectoId)
@@ -176,7 +342,7 @@ public class InformeDiarioService(RenergeIADbContext db)
             .GroupBy(r => r.ActividadWBSId)
             .ToDictionary(g => g.Key, g => g.First().AvanceAcumulado);
 
-        var actsDash = actividades.Select(a =>
+        var actsDash = hojas.Select(a =>
         {
             var avanceReal = mapaAvances.TryGetValue(a.Id, out var ar) ? ar : a.AvanceReal;
             var avanceProg = CalcularAvanceEsperado(a.FechaInicioPlaneada, a.FechaFinPlaneada, hoy);
@@ -283,8 +449,10 @@ public class KPIsProyecto
 public class CurvaSData
 {
     public List<string> Fechas { get; set; } = [];
-    public List<double> AvanceReal { get; set; } = [];
+    public List<double?> AvanceReal { get; set; } = [];
     public List<double> AvancePlanificado { get; set; } = [];
+    public double PlanificadoHoy { get; set; }
+    public double EjecutadoHoy { get; set; }
 }
 
 public enum EstadoDashboard { EnLinea, Atrasada, Critica, Finalizada, NoIniciada }

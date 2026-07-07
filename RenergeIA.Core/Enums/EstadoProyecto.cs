@@ -6,5 +6,6 @@ public enum EstadoProyecto
     EnEjecucion,
     Suspendido,
     Completado,
-    Cancelado
+    Cancelado,
+    OperacionYMantenimiento
 }

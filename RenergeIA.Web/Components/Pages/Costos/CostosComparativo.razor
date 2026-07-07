@@ -3,32 +3,38 @@
 @using RenergeIA.Core.Enums
 
 <!-- KPIs resumen -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #D9D9D6">
-            <div class="small mb-1 text-muted">Presupuesto Total</div>
-            <div class="fw-bold" style="color:#183963">@FormatCOP(_totalPresupuesto)</div>
+<SeccionDash Titulo="Resumen Comparativo" Icono="bi-arrows-angle-expand">
+    <div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                <div class="fw-bold fs-6">@FormatCOP(_totalPresupuesto)</div>
+                <div class="small" style="opacity:0.8">Presupuesto Total</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff;border-radius:14px">
+                <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
+                <div class="fw-bold fs-6">@FormatCOP(_totalEjecutado)</div>
+                <div class="small" style="opacity:0.8">Total Ejecutado</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
+                <i class="bi-file-earmark-text mb-1" style="font-size:1.5rem;color:#fd7e14"></i>
+                <div class="fw-bold fs-6" style="color:#fd7e14">@FormatCOP(_totalCompromisos)</div>
+                <div class="small text-muted">Compromisos Activos</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_totalExposicion > _totalPresupuesto ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)");border-radius:14px">
+                <i class="bi-graph-up-arrow mb-1" style="font-size:1.5rem;color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")"></i>
+                <div class="fw-bold fs-6" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")">@FormatCOP(_totalExposicion)</div>
+                <div class="small text-muted">Exposición Total</div>
+            </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #6ABF4B">
-            <div class="small mb-1 text-muted">Total Ejecutado</div>
-            <div class="fw-bold" style="color:#6ABF4B">@FormatCOP(_totalEjecutado)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid #fd7e14">
-            <div class="small mb-1 text-muted">Compromisos Activos</div>
-            <div class="fw-bold" style="color:#fd7e14">@FormatCOP(_totalCompromisos)</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card text-center p-3" style="border:1px solid @(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#D9D9D6")">
-            <div class="small mb-1 text-muted">Exposición Total</div>
-            <div class="fw-bold" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")">@FormatCOP(_totalExposicion)</div>
-        </div>
-    </div>
-</div>
+</SeccionDash>
 
 <!-- Tabla comparativa por categoría -->
 @if (!_filas.Any())

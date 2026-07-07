@@ -1,0 +1,367 @@
+@page "/hseq/inspecciones/ots"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@using RenergeIA.Core.Entities.HSEQ
+@using ClosedXML.Excel
+
+<PageTitle>OTS — HSEQ Corporativo</PageTitle>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <a href="hseq/dashboard" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
+        <div class="flex-grow-1">
+            <h4 class="fw-bold mb-0" style="color:#183963">
+                <i class="bi-eye me-2"></i>Observaciones de Trabajo Seguro (OTS)
+            </h4>
+            <small class="text-muted">HSEQ Corporativo &bull; Meta: @META inspecciones / persona / mes</small>
+        </div>
+        <button class="btn btn-success btn-sm" @onclick="() => _mostrarCarga = !_mostrarCarga">
+            <i class="bi-file-earmark-excel me-1"></i>Cargar Excel
+        </button>
+    </div>
+
+    @if (_mostrarCarga)
+    {
+        <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <strong><i class="bi-file-earmark-excel me-2"></i>Cargar reporte Flokzu (OTS)</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="() => { _mostrarCarga = false; _msgCarga = null; }"></button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold">Período — Mes *</label>
+                        <select class="form-select" @bind="_mesCarga">
+                            @for (int m = 1; m <= 12; m++)
+                            { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Año *</label>
+                        <InputNumber class="form-control" @bind-Value="_anioCarga" />
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">Archivo Excel (.xlsx)</label>
+                        <InputFile class="form-control" OnChange="OnArchivoSeleccionado" accept=".xlsx,.xls" />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-success w-100" @onclick="ProcesarExcelAsync" disabled="@(_archivoStream is null || _procesando)">
+                            @if (_procesando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Procesar
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="bi-info-circle me-1"></i>Se lee <strong>Inspector interno (OTS)</strong> y <strong>Departamento (OTS)</strong>.
+                        Cada fila = 1 inspección OTS.
+                    </small>
+                </div>
+                @if (_msgCarga is not null)
+                {
+                    <div class="alert @(_msgCargaExito ? "alert-success" : "alert-danger") mt-3 mb-0 py-2">
+                        <i class="@(_msgCargaExito ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-1"></i>
+                        @_msgCarga
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Filtros -->
+    <div class="d-flex gap-2 mb-4 flex-wrap align-items-center mt-3">
+        <label class="form-label mb-0 fw-semibold">Mes:</label>
+        <select class="form-select form-select-sm" style="max-width:140px" @bind="_mesFiltro" @bind:after="CargarAsync">
+            @for (int m = 1; m <= 12; m++)
+            { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
+        </select>
+        <label class="form-label mb-0 fw-semibold">Año:</label>
+        <InputNumber class="form-control form-control-sm" style="max-width:90px" @bind-Value="_anioFiltro" />
+        <label class="form-label mb-0 fw-semibold">Departamento:</label>
+        <select class="form-select form-select-sm" style="max-width:220px" @bind="_deptoFiltro" @bind:after="CargarAsync">
+            <option value="">Todos</option>
+            @foreach (var d in _deptosDisponibles)
+            { <option value="@d">@d</option> }
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="CargarAsync">Aplicar</button>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-primary">
+                <div class="fw-bold" style="font-size:1.8rem;color:#183963">@_registros.Select(r => r.Inspector).Distinct().Count()</div>
+                <div class="text-muted small">Inspectores</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-success">
+                <div class="fw-bold" style="font-size:1.8rem;color:#6ABF4B">@_registros.Sum(r => r.CantidadInspecciones)</div>
+                <div class="text-muted small">Total OTS realizadas</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            @{ var promOts = _registros.Any() ? Math.Round(_registros.Average(r => r.CantidadInspecciones), 1) : 0; }
+            <div class="card shadow-sm p-3 text-center border-start border-4 border-warning">
+                <div class="fw-bold" style="font-size:1.8rem;color:#ffc107">@promOts</div>
+                <div class="text-muted small">Promedio OTS / persona</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            @{ var cumPct = _registros.Any() ? Math.Min(100, (int)Math.Round(_registros.Average(r => r.CantidadInspecciones) * 100.0 / META)) : 0; }
+            <div class="card shadow-sm p-3 text-center border-start border-4 @(cumPct>=100?"border-success":cumPct>=70?"border-warning":"border-danger")">
+                <div class="fw-bold" style="font-size:1.8rem;color:@(cumPct>=100?"#6ABF4B":cumPct>=70?"#ffc107":"#dc3545")">@cumPct%</div>
+                <div class="text-muted small">% Cumplimiento meta (@META)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard cumplimiento por departamento -->
+    @if (_registros.Any())
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-2">
+                <span class="fw-bold" style="color:#183963"><i class="bi-bar-chart-fill me-2"></i>Cumplimiento por departamento</span>
+            </div>
+            <div class="card-body p-3">
+                @foreach (var grupo in _registros.GroupBy(r => r.Departamento).OrderByDescending(g => g.Average(r => r.CantidadInspecciones) * 100.0 / META))
+                {
+                    var cumDepto = Math.Min(100, (int)Math.Round(grupo.Average(r => r.CantidadInspecciones) * 100.0 / META));
+                    var personas = grupo.Select(r => r.Inspector).Distinct().Count();
+                    var totalDepto = grupo.Sum(r => r.CantidadInspecciones);
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-semibold small">@grupo.Key</span>
+                            <span class="small text-muted">@totalDepto OTS &bull; @personas personas &bull; @cumDepto% cumpl.</span>
+                        </div>
+                        <div class="progress" style="height:22px;border-radius:6px">
+                            <div class="progress-bar @(cumDepto>=100?"bg-success":cumDepto>=70?"":"bg-danger")"
+                                 style="width:@cumDepto%;@(cumDepto>=70 && cumDepto<100?"background:linear-gradient(90deg,#183963,#6ABF4B);":"")border-radius:6px">
+                                <span class="fw-bold small">@cumDepto%</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @foreach (var grupo in _registros.GroupBy(r => r.Departamento).OrderBy(g => g.Key))
+        {
+            var grupoList = grupo.ToList();
+            var cumGrupo = Math.Min(100, (int)Math.Round(grupoList.Average(r => r.CantidadInspecciones) * 100.0 / META));
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                    <span class="fw-bold" style="color:#183963">
+                        <i class="bi-building me-2"></i>@grupo.Key
+                        <span class="badge bg-secondary ms-2">@grupoList.Count personas</span>
+                    </span>
+                    <span class="badge @(cumGrupo>=100?"bg-success":cumGrupo>=70?"bg-warning":"bg-danger") fs-6">@cumGrupo% cumplimiento</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Inspector</th>
+                                <th>Correo</th>
+                                <th class="text-center">OTS realizadas</th>
+                                <th class="text-center">Meta (@META)</th>
+                                <th class="text-center">% Cumplimiento</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in grupoList.OrderBy(r => r.Inspector))
+                            {
+                                var pct = Math.Min(100, (int)Math.Round(r.CantidadInspecciones * 100.0 / META));
+                                var cumple = r.CantidadInspecciones >= META;
+                                <tr>
+                                    <td class="fw-semibold">@r.Inspector</td>
+                                    <td class="text-muted">@r.CorreoInspector</td>
+                                    <td class="text-center fw-bold @(cumple?"text-success":pct>=70?"text-warning":"text-danger")">@r.CantidadInspecciones</td>
+                                    <td class="text-center">@META</td>
+                                    <td class="text-center" style="min-width:130px">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-grow-1" style="height:10px;border-radius:5px">
+                                                <div class="progress-bar @(cumple?"bg-success":pct>=70?"bg-warning":"bg-danger")" style="width:@pct%"></div>
+                                            </div>
+                                            <span class="fw-bold small @(cumple?"text-success":pct>=70?"text-warning":"text-danger")">@pct%</span>
+                                            @if (cumple) { <i class="bi-check-circle-fill text-success"></i> }
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (_confirmandoEliminar == r.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(r.Id)">Sí</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = r.Id"><i class="bi-trash"></i></button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center text-muted py-5">
+                <i class="bi-eye" style="font-size:3rem;opacity:.3"></i>
+                <p class="mt-2 mb-1">No hay registros de OTS para este período.</p>
+                <p class="small">Carga un reporte Excel de Flokzu para generar los datos automáticamente.</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const int META = 10;
+
+    private List<RegistroOTS> _registros = [];
+    private List<string> _deptosDisponibles = [];
+    private int? _confirmandoEliminar;
+    private int _mesFiltro = DateTime.Today.Month;
+    private int _anioFiltro = DateTime.Today.Year;
+    private string _deptoFiltro = "";
+
+    private bool _mostrarCarga;
+    private int _mesCarga = DateTime.Today.Month;
+    private int _anioCarga = DateTime.Today.Year;
+    private MemoryStream? _archivoStream;
+    private bool _procesando;
+    private string? _msgCarga;
+    private bool _msgCargaExito;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDeptosAsync();
+        await CargarAsync();
+    }
+
+    private async Task CargarDeptosAsync()
+    {
+        _deptosDisponibles = await Db.RegistrosOTS
+            .Select(r => r.Departamento)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToListAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var query = Db.RegistrosOTS
+            .Where(r => r.Mes == _mesFiltro && r.Anio == _anioFiltro);
+        if (!string.IsNullOrEmpty(_deptoFiltro))
+            query = query.Where(r => r.Departamento == _deptoFiltro);
+        _registros = await query.ToListAsync();
+    }
+
+    private async Task OnArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        _msgCarga = null;
+        _archivoStream?.Dispose();
+        _archivoStream = new MemoryStream();
+        await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(_archivoStream);
+        _archivoStream.Position = 0;
+    }
+
+    private async Task ProcesarExcelAsync()
+    {
+        if (_archivoStream is null) return;
+        _procesando = true;
+        _msgCarga = null;
+        StateHasChanged();
+
+        try
+        {
+            _archivoStream.Position = 0;
+            using var workbook = new XLWorkbook(_archivoStream);
+            var ws = workbook.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+
+            if (lastRow < 3) { _msgCarga = "El archivo no contiene datos."; _msgCargaExito = false; return; }
+
+            int colInspector = 0, colDepto = 0, colCorreo = 0;
+            var headerRow = ws.Row(2);
+            for (int c = 1; c <= ws.LastColumnUsed()?.ColumnNumber(); c++)
+            {
+                var header = headerRow.Cell(c).GetString().Trim();
+                if (header.Equals("Inspector interno (OTS)", StringComparison.OrdinalIgnoreCase))
+                    colInspector = c;
+                else if (header.Contains("Departamento", StringComparison.OrdinalIgnoreCase) && header.Contains("OTS", StringComparison.OrdinalIgnoreCase))
+                    colDepto = c;
+                else if (header.Equals("@ inspector (OTS)", StringComparison.OrdinalIgnoreCase))
+                    colCorreo = c;
+            }
+
+            if (colInspector == 0 || colDepto == 0)
+            {
+                _msgCarga = "No se encontraron las columnas 'Inspector interno (OTS)' y/o 'Departamento (OTS)'.";
+                _msgCargaExito = false;
+                return;
+            }
+
+            var registros = new Dictionary<string, (string Inspector, string Correo, string Depto, int Conteo)>();
+
+            for (int r = 3; r <= lastRow; r++)
+            {
+                var inspector = ws.Row(r).Cell(colInspector).GetString().Trim();
+                var depto = ws.Row(r).Cell(colDepto).GetString().Trim();
+                var correo = colCorreo > 0 ? ws.Row(r).Cell(colCorreo).GetString().Trim() : "";
+
+                if (string.IsNullOrWhiteSpace(inspector)) continue;
+
+                var key = $"{inspector.ToUpperInvariant()}|{depto.ToUpperInvariant()}";
+                if (registros.TryGetValue(key, out var existing))
+                    registros[key] = (inspector, correo, depto, existing.Conteo + 1);
+                else
+                    registros[key] = (inspector, correo, depto, 1);
+            }
+
+            if (registros.Count == 0) { _msgCarga = "No se encontraron registros válidos."; _msgCargaExito = false; return; }
+
+            var anteriores = await Db.RegistrosOTS.Where(r => r.Mes == _mesCarga && r.Anio == _anioCarga).ToListAsync();
+            if (anteriores.Any()) Db.RegistrosOTS.RemoveRange(anteriores);
+
+            foreach (var (_, data) in registros)
+            {
+                Db.RegistrosOTS.Add(new RegistroOTS
+                {
+                    Inspector            = data.Inspector,
+                    CorreoInspector      = data.Correo,
+                    Departamento         = data.Depto,
+                    Mes                  = _mesCarga,
+                    Anio                 = _anioCarga,
+                    CantidadInspecciones = data.Conteo,
+                    Observaciones        = "Importado desde Flokzu OTS",
+                    FechaModificacion    = DateTime.UtcNow
+                });
+            }
+
+            await Db.SaveChangesAsync();
+            _mesFiltro = _mesCarga; _anioFiltro = _anioCarga; _deptoFiltro = "";
+            await CargarDeptosAsync();
+            await CargarAsync();
+
+            var total = registros.Values.Sum(r => r.Conteo);
+            _msgCarga = $"Cargados {registros.Count} inspectores con {total} OTS en total para {new DateTime(2000, _mesCarga, 1):MMMM} {_anioCarga}.";
+            _msgCargaExito = true;
+        }
+        catch (Exception ex) { _msgCarga = $"Error: {ex.Message}"; _msgCargaExito = false; }
+        finally { _procesando = false; }
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var e = await Db.RegistrosOTS.FindAsync(id);
+        if (e is not null) { Db.RegistrosOTS.Remove(e); await Db.SaveChangesAsync(); }
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+}

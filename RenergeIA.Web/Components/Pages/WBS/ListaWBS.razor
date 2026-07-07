@@ -167,8 +167,9 @@ else
                         <th style="width:82px;text-align:center;padding:9px 4px;overflow:hidden">Desviación</th>
                         <th style="width:118px;text-align:center;padding:9px 4px;overflow:hidden">Inicio Plan.</th>
                         <th style="width:118px;text-align:center;padding:9px 4px;overflow:hidden">Fin Plan.</th>
+                        <th style="width:130px;text-align:center;padding:9px 4px;overflow:hidden">Disciplina</th>
                         <th style="width:108px;text-align:center;padding:9px 4px;overflow:hidden">Estado</th>
-                        <th style="width:90px;text-align:center;padding:9px 4px;overflow:hidden">Acciones</th>
+                        <th style="width:130px;text-align:center;padding:9px 4px;overflow:hidden">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -242,6 +243,27 @@ else
                                        @onchange="e => GuardarFechaFinAsync(a, e)" />
                             </td>
 
+                            <!-- Disciplina -->
+                            <td style="text-align:center;padding:3px 4px">
+                                @if (_esVersionVigente)
+                                {
+                                    <select class="form-select form-select-sm"
+                                            style="font-size:0.68rem;padding:1px 3px;border-color:#dee2e6;min-width:100px"
+                                            value="@(a.Disciplina?.ToString() ?? "")"
+                                            @onchange="e => GuardarDisciplinaAsync(a, e)">
+                                        <option value="">—</option>
+                                        @foreach (var d in Enum.GetValues<Disciplina>())
+                                        {
+                                            <option value="@d">@EnumDisplay.Mostrar(d)</option>
+                                        }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <span style="font-size:0.7rem">@(a.Disciplina.HasValue ? EnumDisplay.Mostrar(a.Disciplina.Value) : "—")</span>
+                                }
+                            </td>
+
                             <!-- Estado -->
                             <td style="text-align:center">
                                 <span class="badge"
@@ -252,9 +274,25 @@ else
 
                             <!-- Acciones -->
                             <td style="text-align:center">
-                                <div class="d-flex gap-1 justify-content-center">
+                                <div class="d-flex gap-1 justify-content-center align-items-center">
                                     @if (_esVersionVigente)
                                     {
+                                        <div class="d-flex flex-column" style="gap:1px">
+                                            <button class="btn btn-sm"
+                                                    title="Subir"
+                                                    disabled="@(!PuedeMoverArriba(a) || _reordenando)"
+                                                    style="font-size:0.6rem;padding:0 4px;line-height:1.1;color:#183963;border:1px solid #dee2e6"
+                                                    @onclick="() => MoverArribaAsync(a)">
+                                                ▲
+                                            </button>
+                                            <button class="btn btn-sm"
+                                                    title="Bajar"
+                                                    disabled="@(!PuedeMoverAbajo(a) || _reordenando)"
+                                                    style="font-size:0.6rem;padding:0 4px;line-height:1.1;color:#183963;border:1px solid #dee2e6"
+                                                    @onclick="() => MoverAbajoAsync(a)">
+                                                ▼
+                                            </button>
+                                        </div>
                                         <a href="/proyectos/@ProyectoId/wbs/@a.Id/editar"
                                            class="btn btn-sm btn-outline-primary"
                                            style="font-size:0.68rem;padding:2px 8px">Editar</a>
@@ -524,6 +562,17 @@ else
         await RecalcularPadresAsync(a);
     }
 
+    // ── Disciplina ───────────────────────────────────────────────────────────
+
+    private async Task GuardarDisciplinaAsync(ActividadWBS a, ChangeEventArgs e)
+    {
+        if (!_esVersionVigente) return;
+        var val = e.Value?.ToString();
+        a.Disciplina = string.IsNullOrEmpty(val) ? null : Enum.Parse<Disciplina>(val);
+        a.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+    }
+
     // ── Fechas ────────────────────────────────────────────────────────────────
 
     private async Task GuardarFechaInicioAsync(ActividadWBS a, ChangeEventArgs e)
@@ -554,6 +603,97 @@ else
         actividad.Activo = !actividad.Activo;
         actividad.FechaModificacion = DateTime.UtcNow;
         await Db.SaveChangesAsync();
+    }
+
+    // ── Reordenar actividades ────────────────────────────────────────────────
+
+    private bool _reordenando;
+
+    private List<ActividadWBS> ObtenerHermanos(ActividadWBS a) =>
+        _actividades
+            .Where(x => x.ActividadPadreId == a.ActividadPadreId && x.Activo)
+            .OrderBy(x => WbsSortKey(x.CodigoWBS))
+            .ToList();
+
+    private bool PuedeMoverArriba(ActividadWBS a)
+    {
+        var hermanos = ObtenerHermanos(a);
+        return hermanos.Count > 1 && hermanos[0].Id != a.Id;
+    }
+
+    private bool PuedeMoverAbajo(ActividadWBS a)
+    {
+        var hermanos = ObtenerHermanos(a);
+        return hermanos.Count > 1 && hermanos[^1].Id != a.Id;
+    }
+
+    private async Task MoverArribaAsync(ActividadWBS a)
+    {
+        var hermanos = ObtenerHermanos(a);
+        var idx = hermanos.FindIndex(x => x.Id == a.Id);
+        if (idx <= 0) return;
+        await IntercambiarYRenumerarAsync(hermanos, idx, idx - 1);
+    }
+
+    private async Task MoverAbajoAsync(ActividadWBS a)
+    {
+        var hermanos = ObtenerHermanos(a);
+        var idx = hermanos.FindIndex(x => x.Id == a.Id);
+        if (idx < 0 || idx >= hermanos.Count - 1) return;
+        await IntercambiarYRenumerarAsync(hermanos, idx, idx + 1);
+    }
+
+    private async Task IntercambiarYRenumerarAsync(List<ActividadWBS> hermanos, int idxA, int idxB)
+    {
+        _reordenando = true;
+        StateHasChanged();
+
+        // Swap positions in list
+        (hermanos[idxA], hermanos[idxB]) = (hermanos[idxB], hermanos[idxA]);
+
+        // Determine prefix (parent code)
+        var prefijo = "";
+        var primerCodigo = hermanos[0].CodigoWBS;
+        var partes = primerCodigo.Split('.');
+        if (partes.Length > 1)
+            prefijo = string.Join(".", partes[..^1]) + ".";
+
+        // Renumber all siblings sequentially
+        for (int i = 0; i < hermanos.Count; i++)
+        {
+            var nuevoCodigo = prefijo + (i + 1);
+            var codigoAnterior = hermanos[i].CodigoWBS;
+            if (codigoAnterior != nuevoCodigo)
+            {
+                RenumerarRecursivo(hermanos[i], codigoAnterior, nuevoCodigo);
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        _reordenando = false;
+    }
+
+    private void RenumerarRecursivo(ActividadWBS actividad, string codigoAnterior, string nuevoCodigo)
+    {
+        actividad.CodigoWBS = nuevoCodigo;
+        actividad.FechaModificacion = DateTime.UtcNow;
+
+        // Update NivelWBS based on new code
+        actividad.NivelWBS = nuevoCodigo.Split('.').Length;
+
+        // Update all descendants
+        var hijos = _actividades
+            .Where(h => h.ActividadPadreId == actividad.Id)
+            .OrderBy(h => WbsSortKey(h.CodigoWBS))
+            .ToList();
+
+        for (int i = 0; i < hijos.Count; i++)
+        {
+            var codigoHijoAnterior = hijos[i].CodigoWBS;
+            var nuevoCodigoHijo = nuevoCodigo + "." + (i + 1);
+            if (codigoHijoAnterior != nuevoCodigoHijo)
+                RenumerarRecursivo(hijos[i], codigoHijoAnterior, nuevoCodigoHijo);
+        }
     }
 
     // ── Crear reprogramación ──────────────────────────────────────────────────

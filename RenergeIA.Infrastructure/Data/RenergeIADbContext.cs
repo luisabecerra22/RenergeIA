@@ -56,6 +56,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Capacitacion> Capacitaciones => Set<Capacitacion>();
     public DbSet<PlanTrabajoHSE> PlanesTrabajoHSE => Set<PlanTrabajoHSE>();
     public DbSet<PausaActiva> PausasActivas => Set<PausaActiva>();
+    public DbSet<RegistroSTC> RegistrosSTC => Set<RegistroSTC>();
+    public DbSet<RegistroOTS> RegistrosOTS => Set<RegistroOTS>();
     public DbSet<CapacitacionPlanificada> CapacitacionesPlanificadas => Set<CapacitacionPlanificada>();
     public DbSet<InspeccionAmbiental> InspeccionesAmbientales => Set<InspeccionAmbiental>();
     public DbSet<GestionResiduos> GestionResiduos => Set<GestionResiduos>();
@@ -397,6 +399,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         });
         modelBuilder.Entity<PlanTrabajoHSE>().ToTable("PlanesTrabajoHSE");
         modelBuilder.Entity<PausaActiva>().ToTable("PausasActivas");
+        modelBuilder.Entity<RegistroSTC>().ToTable("RegistrosSTC");
+        modelBuilder.Entity<RegistroOTS>().ToTable("RegistrosOTS");
         modelBuilder.Entity<CapacitacionPlanificada>(e =>
         {
             e.ToTable("CapacitacionesPlanificadas");

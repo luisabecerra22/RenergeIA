@@ -169,6 +169,35 @@
                         </a>
                     </div>
                 }
+
+                <div class="nav-hseq-item nav-hseq-group @(_inspeccionesExpandido ? "nav-hseq-active" : "")"
+                     @onclick="ToggleInspecciones">
+                    <i class="bi-clipboard2-check nav-module-icon"></i>
+                    <span style="flex:1">Inspecciones</span>
+                    <i class="@(_inspeccionesExpandido ? "bi-chevron-down" : "bi-chevron-right") nav-chevron-small"></i>
+                </div>
+
+                @if (_inspeccionesExpandido)
+                {
+                    <div class="nav-hseq-sub">
+                        <a href="hseq/inspecciones/stc"
+                           class="nav-hseq-subitem @(HseqSubActivo("inspecciones/stc") ? "nav-hseq-active" : "")">
+                            <i class="bi-house-check nav-module-icon"></i><span>STC</span>
+                        </a>
+                        <a href="hseq/inspecciones/ots"
+                           class="nav-hseq-subitem @(HseqSubActivo("inspecciones/ots") ? "nav-hseq-active" : "")">
+                            <i class="bi-eye nav-module-icon"></i><span>OTS</span>
+                        </a>
+                        <a href="hseq/inspecciones/pausas-activas"
+                           class="nav-hseq-subitem @(HseqSubActivo("inspecciones/pausas-activas") ? "nav-hseq-active" : "")">
+                            <i class="bi-stopwatch nav-module-icon"></i><span>Pausas Activas</span>
+                        </a>
+                        <a href="hseq/inspecciones/consolidado"
+                           class="nav-hseq-subitem @(HseqSubActivo("inspecciones/consolidado") ? "nav-hseq-active" : "")">
+                            <i class="bi-file-earmark-bar-graph nav-module-icon"></i><span>Consolidado Anual</span>
+                        </a>
+                    </div>
+                }
             </div>
         }
 
@@ -200,7 +229,8 @@
     private readonly HashSet<int>  _expandidos = [];
     private bool _proyectosExpandido = true;
     private bool _hseqExpandido      = false;
-    private bool _auditoriasExpandido = false;
+    private bool _auditoriasExpandido  = false;
+    private bool _inspeccionesExpandido = false;
     private bool _error = false;
 
     // ── Detección de ruta activa ─────────────────────────────────────────────
@@ -253,6 +283,8 @@
             _hseqExpandido = true;
             if (path.StartsWith("/hseq/auditorias", StringComparison.OrdinalIgnoreCase))
                 _auditoriasExpandido = true;
+            if (path.StartsWith("/hseq/inspecciones", StringComparison.OrdinalIgnoreCase))
+                _inspeccionesExpandido = true;
         }
     }
 
@@ -290,6 +322,7 @@
     private void ToggleHseq() => _hseqExpandido = !_hseqExpandido;
 
     private void ToggleAuditorias() => _auditoriasExpandido = !_auditoriasExpandido;
+    private void ToggleInspecciones() => _inspeccionesExpandido = !_inspeccionesExpandido;
 
     private void ToggleProyecto(int id)
     {

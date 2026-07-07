@@ -13,7 +13,7 @@
 }
 else
 {
-    <PageHeader Titulo="Calidad — ISO 9001"
+    <PageHeader Titulo="Calidad"
                 Icono="bi-patch-check-fill"
                 Subtitulo="@_proyecto.Nombre"
                 UrlVolver="@($"/proyectos/{ProyectoId}/hseq")"
@@ -26,7 +26,6 @@ else
     <!-- Navegación sub-módulos -->
     <div class="d-flex gap-2 flex-wrap mb-4">
         <span class="btn btn-primary btn-sm">Dashboard</span>
-        <a href="/proyectos/@ProyectoId/hseq/calidad/checklist"       class="btn btn-outline-secondary btn-sm">Checklist ISO 9001</a>
         <a href="/proyectos/@ProyectoId/hseq/calidad/ppis"            class="btn btn-outline-secondary btn-sm">PPIs</a>
         <a href="/proyectos/@ProyectoId/hseq/calidad/calibracion"     class="btn btn-outline-secondary btn-sm">Calibración Equipos</a>
         <a href="/proyectos/@ProyectoId/hseq/calidad/documentos"      class="btn btn-outline-secondary btn-sm">Control Documental</a>
@@ -36,13 +35,6 @@ else
 
     <!-- KPIs -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <ExecutiveCard Titulo="Cumplimiento ISO 9001"
-                           Valor="87%"
-                           Icono="bi-patch-check-fill"
-                           SubTexto="de requisitos verificados"
-                           Estado="Saludable" />
-        </div>
         <div class="col-6 col-md-3">
             <ExecutiveCard Titulo="PPIs Ejecutados"
                            Valor="16"
@@ -97,16 +89,6 @@ else
     <!-- Tarjetas acceso sub-módulos -->
     <h5 class="fw-bold mb-3" style="color:#183963">Gestión de Calidad</h5>
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4 col-lg-2">
-            <a href="/proyectos/@ProyectoId/hseq/calidad/checklist" class="text-decoration-none">
-                <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
-                    <i class="bi-list-check d-block mb-2" style="font-size:2rem;color:#183963"></i>
-                    <div class="fw-semibold small">Checklist</div>
-                    <div class="fw-semibold small">ISO 9001</div>
-                    <span class="badge bg-success mt-1">87%</span>
-                </div>
-            </a>
-        </div>
         <div class="col-6 col-md-4 col-lg-2">
             <a href="/proyectos/@ProyectoId/hseq/calidad/ppis" class="text-decoration-none">
                 <div class="card shadow-sm h-100 text-center p-3 hseq-card-hover">
@@ -238,7 +220,7 @@ else
              EsSimulado="true">
         <Hallazgos>
             <ul>
-                <li>87% de cumplimiento ISO 9001 — por encima del umbral mínimo del 85%.</li>
+                <li>PPIs ejecutados al 70% — avance sostenido del período.</li>
                 <li>2 equipos de medición con calibración vencida requieren atención urgente.</li>
                 <li>4 documentos HSEQ con vigencia superada — riesgo de incumplimiento normativo.</li>
             </ul>

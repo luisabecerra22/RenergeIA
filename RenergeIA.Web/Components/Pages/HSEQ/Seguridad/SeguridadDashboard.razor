@@ -14,7 +14,7 @@ else
     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
         <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
-            <h1 class="h3 mb-0"><i class="bi-shield-exclamation me-2 text-danger"></i>Dashboard Seguridad — ISO 45001</h1>
+            <h1 class="h3 mb-0"><i class="bi-shield-exclamation me-2 text-danger"></i>Dashboard Seguridad</h1>
             <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("MMMM yyyy")</small>
         </div>
         @{ var (badgeCss, badgeTxt) = _cumplimientoGeneral >= 80 ? ("bg-success","Cumple") : _cumplimientoGeneral >= 60 ? ("bg-warning text-dark","En Riesgo") : ("bg-danger","Crítico"); }
@@ -160,9 +160,9 @@ else
         int cumISO     = checkISO.Any() ? (int)Math.Round((double)checkISO.Average(c => c.PorcentajeCumplimiento)) : 0;
 
         // ── Cumplimiento general ─────────────────────────────────────────────
-        _cumplimientoGeneral = new[] { _cumPlan, cumCap, cumISO, cumPausas }
+        _cumplimientoGeneral = new[] { _cumPlan, cumCap, cumEPP }
             .Where(v => v > 0).DefaultIfEmpty(0).Sum()
-            / Math.Max(1, new[] { _cumPlan, cumCap, cumISO, cumPausas }.Count(v => v > 0));
+            / Math.Max(1, new[] { _cumPlan, cumCap, cumEPP }.Count(v => v > 0));
 
         // ── Construir gauges ─────────────────────────────────────────────────
         _gauges =
@@ -194,16 +194,7 @@ else
                 "#183963",
                 "Informativo"
             ),
-            // 4 · STC
-            new(
-                "STC",
-                inspSTC.ToString(),
-                inspSTC == 1 ? "observación" : "observaciones",
-                Math.Min(100, inspSTC),
-                "#183963",
-                "Informativo"
-            ),
-            // 5 · Hallazgos Abiertos  (0 = bueno → verde lleno)
+            // 4 · Hallazgos Abiertos  (0 = bueno → verde lleno)
             new(
                 "Hallazgos Abiertos",
                 hallazgos.ToString(),
@@ -230,16 +221,7 @@ else
                 eppTotal > 0 ? Cpct(cumEPP) : "#adb5bd",
                 eppTotal > 0 ? Epct(cumEPP) : "Informativo"
             ),
-            // 8 · Pausas Activas
-            new(
-                "Pausas Activas",
-                pausas.Any() ? $"{cumPausas}%" : "—",
-                pausas.Any() ? $"prom. {promPausas} / 60 pausas" : "sin registros",
-                cumPausas,
-                !pausas.Any() ? "#adb5bd" : cumPausas >= 100 ? "#6ABF4B" : cumPausas >= 70 ? "#ffc107" : "#dc3545",
-                !pausas.Any() ? "Informativo" : cumPausas >= 100 ? "Saludable" : cumPausas >= 70 ? "En Riesgo" : "Crítico"
-            ),
-            // 9 · Capacitaciones
+            // 7 · Capacitaciones
             new(
                 "Capacitaciones",
                 capPlan.Count > 0 ? $"{cumCap}%"  : "—",
@@ -247,15 +229,6 @@ else
                 cumCap,
                 capPlan.Count > 0 ? Cpct(cumCap) : "#adb5bd",
                 capPlan.Count > 0 ? Epct(cumCap)  : "Informativo"
-            ),
-            // 10 · ISO 45001
-            new(
-                "ISO 45001",
-                checkISO.Any() ? $"{cumISO}%" : "—",
-                checkISO.Any() ? "cumplimiento" : "sin auditorías",
-                cumISO,
-                checkISO.Any() ? Cpct(cumISO) : "#adb5bd",
-                checkISO.Any() ? Epct(cumISO)  : "Informativo"
             ),
         ];
     }

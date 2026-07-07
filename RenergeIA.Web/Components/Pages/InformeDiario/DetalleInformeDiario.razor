@@ -5,8 +5,44 @@
 @inject NavigationManager Navigation
 @inject InformeDiarioService InformeSvc
 @inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
 
 <PageTitle>Informe Diario — RenergeIA</PageTitle>
+
+<style>
+    .fila-padre { background: #f0f4f8 !important; }
+    .fila-padre td { font-weight: 700; color: #183963; }
+    .fila-nivel-1 td:first-child { padding-left: 8px !important; }
+    .fila-nivel-2 td:first-child { padding-left: 20px !important; }
+    .fila-nivel-3 td:first-child { padding-left: 36px !important; }
+    .fila-nivel-4 td:first-child { padding-left: 52px !important; }
+    .print-header { display: none; }
+    .print-footer { display: none; }
+    .print-info-grid { display: none; }
+
+    @@media print {
+        @@page { size: landscape; margin: 10mm; }
+        .no-print { display: none !important; }
+        .print-header { display: flex !important; }
+        .print-footer { display: block !important; }
+        .print-info-grid { display: grid !important; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .print-info-item { padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 9pt; }
+        .print-info-item .label { color: #888; font-size: 8pt; text-transform: uppercase; }
+        .print-info-item .value { font-weight: 700; color: #183963; font-size: 10pt; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 8pt; }
+        .page { padding: 0 !important; }
+        main { padding: 0 !important; }
+        .card { box-shadow: none !important; border: none !important; }
+        .card-header { background: white !important; border-bottom: 2px solid #183963 !important; padding: 6px 0 !important; }
+        .table-responsive { overflow: visible !important; }
+        .table { font-size: 7.5pt !important; width: 100% !important; }
+        .table th { background: #183963 !important; color: white !important; font-size: 7pt !important; padding: 4px 3px !important; white-space: nowrap; }
+        .table td { padding: 3px 3px !important; border-color: #e0e0e0 !important; }
+        .badge { font-size: 7pt !important; padding: 2px 4px !important; }
+        tr { page-break-inside: avoid; }
+        .info-cards { display: none !important; }
+    }
+</style>
 
 @if (_informe is null)
 {
@@ -14,12 +50,42 @@
 }
 else
 {
-    <!-- Encabezado -->
-    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap">
+    <!-- Encabezado impresión -->
+    <div class="print-header align-items-center justify-content-between mb-2 pb-2" style="border-bottom:3px solid #183963">
+        <div class="d-flex align-items-center gap-3">
+            <img src="images/logo-renergeia.png.png" alt="Renergeia" style="height:38px" />
+            <div>
+                <h4 class="mb-0 fw-bold" style="color:#183963;font-size:14pt">Informe Diario de Obra N° @_informe.NumeroCertificado</h4>
+                <small style="color:#666">@_proyecto?.Nombre</small>
+            </div>
+        </div>
+        <div class="text-end">
+            <div style="font-size:8pt;color:#888">Fecha del informe</div>
+            <div class="fw-bold" style="color:#183963;font-size:12pt">@_informe.Fecha.ToString("dd/MM/yyyy")</div>
+        </div>
+    </div>
+
+    <div class="print-info-grid">
+        <div class="print-info-item">
+            <div class="label">Personal en sitio</div>
+            <div class="value">@_informe.PersonalTotal</div>
+        </div>
+        <div class="print-info-item">
+            <div class="label">Resumen de actividades</div>
+            <div class="value" style="font-size:8pt;font-weight:400">@(string.IsNullOrWhiteSpace(_informe.ResumenActividades) ? "—" : _informe.ResumenActividades)</div>
+        </div>
+        <div class="print-info-item">
+            <div class="label">Observaciones</div>
+            <div class="value" style="font-size:8pt;font-weight:400">@(string.IsNullOrWhiteSpace(_informe.Observaciones) ? "—" : _informe.Observaciones)</div>
+        </div>
+    </div>
+
+    <!-- Encabezado pantalla -->
+    <div class="d-flex align-items-center gap-2 mb-4 flex-wrap no-print">
         <a href="/proyectos/@ProyectoId/informes" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
         <div class="flex-grow-1">
             <div class="d-flex align-items-center gap-2 flex-wrap">
-                <h1 class="h3 mb-0">Informe del @_informe.Fecha.ToString("dd 'de' MMMM 'de' yyyy")</h1>
+                <h1 class="h3 mb-0 fw-bold" style="color:#183963">Informe del @_informe.Fecha.ToString("dd 'de' MMMM 'de' yyyy")</h1>
                 <span class="badge @BadgeEstado(_informe.Estado) fs-6">@EnumDisplay.Mostrar(_informe.Estado)</span>
             </div>
             <small class="text-muted">
@@ -29,6 +95,9 @@ else
             </small>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ExportarPDF">
+                <i class="bi-file-earmark-pdf me-1"></i>Exportar PDF
+            </button>
             @if (_informe.Estado == EstadoInforme.Borrador)
             {
                 <a href="/proyectos/@ProyectoId/informes/@InformeId/editar"
@@ -54,7 +123,7 @@ else
     <!-- Panel de rechazo -->
     @if (_mostrarRechazo)
     {
-        <div class="card border-danger shadow-sm mb-4">
+        <div class="card border-danger shadow-sm mb-4 no-print">
             <div class="card-header bg-danger text-white"><strong>Rechazar informe</strong></div>
             <div class="card-body">
                 <label class="form-label">Motivo del rechazo</label>
@@ -71,13 +140,13 @@ else
 
     @if (_informe.Estado == EstadoInforme.Rechazado && !string.IsNullOrEmpty(_informe.MotivoRechazo))
     {
-        <div class="alert alert-danger">
+        <div class="alert alert-danger no-print">
             <strong>Motivo de rechazo:</strong> @_informe.MotivoRechazo
         </div>
     }
 
     <!-- Información general + resumen -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 info-cards">
         <div class="col-md-5">
             <div class="card shadow-sm h-100">
                 <div class="card-header"><strong>Información general</strong></div>
@@ -109,148 +178,120 @@ else
                 <div class="card-header"><strong>Resumen del día</strong></div>
                 <div class="card-body small">
                     @if (!string.IsNullOrEmpty(_informe.ResumenActividades))
-                    {
-                        <p><strong>Actividades:</strong> @_informe.ResumenActividades</p>
-                    }
+                    { <p><strong>Actividades:</strong> @_informe.ResumenActividades</p> }
                     @if (!string.IsNullOrEmpty(_informe.Observaciones))
-                    {
-                        <p><strong>Observaciones:</strong> @_informe.Observaciones</p>
-                    }
+                    { <p><strong>Observaciones:</strong> @_informe.Observaciones</p> }
                     @if (!string.IsNullOrEmpty(_informe.ComentariosGenerales))
-                    {
-                        <p class="mb-0"><strong>Comentarios:</strong> @_informe.ComentariosGenerales</p>
-                    }
+                    { <p class="mb-0"><strong>Comentarios:</strong> @_informe.ComentariosGenerales</p> }
                     @if (string.IsNullOrEmpty(_informe.ResumenActividades) &&
                          string.IsNullOrEmpty(_informe.Observaciones) &&
                          string.IsNullOrEmpty(_informe.ComentariosGenerales))
-                    {
-                        <p class="text-muted mb-0">Sin resumen registrado.</p>
-                    }
+                    { <p class="text-muted mb-0">Sin resumen registrado.</p> }
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Resumen por disciplina -->
-    @if (_resumen.Any())
-    {
-        <h5 class="mb-3">Avance por disciplina</h5>
-        <div class="row g-3 mb-4">
-            @foreach (var r in _resumen)
-            {
-                var colorBarra = r.AvancePromedio >= r.EsperadoPromedio ? "bg-success" : "bg-danger";
-                var colorSPI   = r.SPI >= 1m ? "bg-success" : r.SPI >= 0.9m ? "bg-warning text-dark" : "bg-danger";
-                <div class="col-md-4">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <span style="font-size:1.2rem">@EnumDisplay.IconoDisciplina(r.Disciplina)</span>
-                                    <strong class="ms-1" style="font-size:0.88rem">@EnumDisplay.Mostrar(r.Disciplina)</strong>
-                                </div>
-                                <span class="badge @colorSPI">SPI @r.SPI.ToString("F2")</span>
-                            </div>
-                            <div class="small text-muted mb-1">
-                                Avance real vs esperado (@r.Total actividades)
-                            </div>
-                            <div class="progress mb-1" style="height:6px">
-                                <div class="progress-bar @colorBarra"
-                                     style="width:@(Math.Min(r.AvancePromedio, 100))%"></div>
-                            </div>
-                            <div class="d-flex justify-content-between small">
-                                <span class="fw-bold">@r.AvancePromedio.ToString("F1")% real</span>
-                                <span class="text-muted">@r.EsperadoPromedio.ToString("F1")% esperado</span>
-                            </div>
-                            @if (r.Atrasadas > 0)
-                            {
-                                <div class="mt-1 small text-danger">
-                                    ⚠ @r.Atrasadas de @r.Total actividades con atraso
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-            }
-        </div>
-    }
-
-    <!-- Tabla de registros de avance -->
+    <!-- Tabla de avances con jerarquía WBS -->
     <div class="card shadow-sm mb-4">
-        <div class="card-header">
-            <strong>Detalle de avances</strong>
-            <span class="badge bg-light text-dark border ms-2">@_informe.RegistrosAvance.Count actividades</span>
-        </div>
-        @if (!_informe.RegistrosAvance.Any())
-        {
-            <div class="card-body text-center text-muted py-4">
-                Este informe no tiene registros de avance.
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>Avances del Día (@_filasHoja.Count actividades)</strong>
+            <div class="d-flex gap-2 flex-wrap no-print">
+                <span class="badge bg-success">@_conteoAdelantado Adelantados</span>
+                <span class="badge bg-primary">@_conteoAlDia Al Día</span>
+                <span class="badge bg-warning text-dark">@_conteoAtrasado Atrasados</span>
+                <span class="badge bg-danger">@_conteoCritico Críticos</span>
             </div>
-        }
-        else
-        {
+        </div>
+        <div class="card-body p-2">
             <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0 align-middle">
-                    <thead class="table-light">
+                <table class="table table-bordered table-sm align-middle mb-0" style="font-size:0.82rem">
+                    <thead class="table-dark" style="position:sticky;top:0;z-index:1">
                         <tr>
-                            <th>Código</th>
-                            <th>Actividad</th>
-                            <th>Disciplina</th>
-                            <th class="text-end">Real %</th>
-                            <th class="text-end">Esperado %</th>
-                            <th class="text-end">Desviación</th>
-                            <th>Estado</th>
-                            <th class="text-end">Días atraso</th>
-                            <th>Observaciones</th>
+                            <th style="min-width:90px">Código WBS</th>
+                            <th style="min-width:200px">Actividad</th>
+                            <th style="min-width:50px" class="text-center">Disc.</th>
+                            <th style="min-width:80px">Inicio</th>
+                            <th style="min-width:80px">Fin</th>
+                            <th style="min-width:50px" class="text-center">Dur.</th>
+                            <th style="min-width:90px" class="text-center">Programado %</th>
+                            <th style="min-width:90px" class="text-center">Avance Real %</th>
+                            <th style="min-width:90px" class="text-center">Desviación</th>
+                            <th style="min-width:65px" class="text-center">Personal</th>
+                            <th style="min-width:65px" class="text-center">Horas</th>
+                            <th style="min-width:45px" class="text-center">Estado</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var reg in _informe.RegistrosAvance
-                            .OrderBy(r => WbsSortKey(r.ActividadWBS?.CodigoWBS ?? "")))
+                        @foreach (var fila in _filas)
                         {
-                            <tr>
-                                <td class="text-muted small">@reg.ActividadWBS?.CodigoWBS</td>
-                                <td>@reg.ActividadWBS?.Nombre</td>
-                                <td class="small">
-                                    @if (reg.ActividadWBS?.Disciplina.HasValue == true)
-                                    {
-                                        @EnumDisplay.IconoDisciplina(reg.ActividadWBS.Disciplina.Value)
-                                        <span class="ms-1">@EnumDisplay.Mostrar(reg.ActividadWBS.Disciplina.Value)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">—</span>
-                                    }
-                                </td>
-                                <td class="text-end fw-bold">@reg.AvanceAcumulado.ToString("F1")%</td>
-                                <td class="text-end text-muted">@reg.AvanceEsperado.ToString("F1")%</td>
-                                <td class="text-end @(reg.Desviacion >= 0 ? "text-success" : "text-danger") fw-bold">
-                                    @(reg.Desviacion >= 0 ? "+" : "")@reg.Desviacion.ToString("F1")%
-                                </td>
+                            var nivelClass = $"fila-nivel-{Math.Min(fila.Nivel, 4)}";
+                            <tr class="@nivelClass @(fila.EsPadre ? "fila-padre" : "")">
+                                <td class="font-monospace small">@fila.CodigoWBS</td>
                                 <td>
-                                    <span class="badge @BadgeEstadoAvance(reg.Estado)">
-                                        @EnumDisplay.Mostrar(reg.Estado)
+                                    @if (fila.EsPadre)
+                                    { <i class="bi-folder2 me-1" style="color:#6ABF4B"></i> }
+                                    @fila.Nombre
+                                    @if (fila.EsCritica)
+                                    { <span class="badge bg-danger ms-1" style="font-size:.6rem">CR</span> }
+                                </td>
+                                <td class="text-center">
+                                    @if (fila.Disciplina.HasValue)
+                                    { <span title="@EnumDisplay.Mostrar(fila.Disciplina.Value)">@EnumDisplay.IconoDisciplina(fila.Disciplina.Value)</span> }
+                                </td>
+                                <td class="text-muted small">@fila.FechaInicio.ToString("dd/MM/yy")</td>
+                                <td class="text-muted small">@fila.FechaFin.ToString("dd/MM/yy")</td>
+                                <td class="text-center text-muted small">@fila.DuracionDias d</td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary" style="font-size:0.75rem">@fila.AvanceProgramado.ToString("F2")%</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold" style="color:@(fila.EsPadre ? "#183963" : "inherit")">
+                                        @fila.AvanceReal.ToString("F2")%
                                     </span>
                                 </td>
-                                <td class="text-end">@(reg.DiasAtraso > 0 ? $"{reg.DiasAtraso}d" : "—")</td>
-                                <td class="small text-muted">@(reg.Observaciones ?? "—")</td>
+                                <td class="text-center">
+                                    <span class="badge @BadgeDesv(fila.Desviacion)" style="font-size:0.75rem">
+                                        @(fila.Desviacion >= 0 ? "+" : "")@fila.Desviacion.ToString("F2")%
+                                    </span>
+                                </td>
+                                <td class="text-center text-muted">@(fila.EsPadre ? "—" : (fila.PersonalEnSitio?.ToString() ?? "0"))</td>
+                                <td class="text-center text-muted">@(fila.EsPadre ? "—" : (fila.HorasTrabajadas?.ToString("F1") ?? "0"))</td>
+                                <td class="text-center">
+                                    <span style="font-size:1.1rem;color:@ColorEstado(fila.Desviacion)"
+                                          title="@NombreEstado(fila.Desviacion)">●</span>
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-        }
+        </div>
+    </div>
+
+    <!-- Footer impresión -->
+    <div class="print-footer mt-3 pt-2 text-center" style="border-top:2px solid #e0e0e0">
+        <small style="color:#999;font-size:7pt">Renergeia LLC — Sistema de Gestión EPC &bull; Documento confidencial &bull; Generado el @DateTime.Today.ToString("dd/MM/yyyy")</small>
     </div>
 }
 
 @code {
     [Parameter] public int ProyectoId { get; set; }
     [Parameter] public int InformeId { get; set; }
+    [SupplyParameterFromQuery(Name = "print")] public string? AutoPrint { get; set; }
 
+    private bool _printed;
     private Proyecto? _proyecto;
     private InformeDiario? _informe;
-    private List<ResumenDisciplina> _resumen = [];
+    private List<FilaDetalle> _filas = [];
     private bool _mostrarRechazo;
     private string _motivoRechazo = "";
+
+    private List<FilaDetalle> _filasHoja => _filas.Where(f => !f.EsPadre).ToList();
+    private int _conteoAdelantado => _filasHoja.Count(f => f.Desviacion >= 5);
+    private int _conteoAlDia      => _filasHoja.Count(f => f.Desviacion is >= 0 and < 5);
+    private int _conteoAtrasado   => _filasHoja.Count(f => f.Desviacion < 0 && f.Desviacion >= -15);
+    private int _conteoCritico    => _filasHoja.Count(f => f.Desviacion < -15);
 
     protected override async Task OnInitializedAsync()
     {
@@ -266,8 +307,74 @@ else
             return;
         }
 
-        _resumen = await InformeSvc.ResumenPorDisciplinaAsync(ProyectoId, _informe.Fecha);
+        var versionVigente = await Db.CronogramasVersion
+            .FirstOrDefaultAsync(v => v.ProyectoId == ProyectoId && v.EsVigente);
+
+        var actividades = (await Db.ActividadesWBS
+            .Where(a => a.ProyectoId == ProyectoId && a.Activo
+                     && (versionVigente == null || a.CronogramaVersionId == versionVigente.Id))
+            .ToListAsync())
+            .OrderBy(a => WbsSortKey(a.CodigoWBS))
+            .ToList();
+
+        var codigosSet = actividades.Select(a => a.CodigoWBS).ToHashSet();
+        var registroMap = _informe.RegistrosAvance.ToDictionary(r => r.ActividadWBSId);
+
+        foreach (var act in actividades)
+        {
+            var esPadre = codigosSet.Any(c => c != act.CodigoWBS && c.StartsWith(act.CodigoWBS + "."));
+            var nivel = act.CodigoWBS.Count(c => c == '.') + 1;
+
+            var fila = new FilaDetalle
+            {
+                CodigoWBS   = act.CodigoWBS,
+                Nombre      = act.Nombre,
+                Disciplina  = act.Disciplina,
+                FechaInicio = act.FechaInicioPlaneada,
+                FechaFin    = act.FechaFinPlaneada,
+                EsCritica   = act.EsCritica,
+                EsPadre     = esPadre,
+                Nivel       = nivel,
+                AvanceProgramado = InformeSvc.CalcularAvanceEsperado(
+                    act.FechaInicioPlaneada, act.FechaFinPlaneada, _informe.Fecha)
+            };
+
+            if (registroMap.TryGetValue(act.Id, out var reg))
+            {
+                fila.AvanceReal      = reg.PorcentajeAvance;
+                fila.PersonalEnSitio = reg.PersonalEnSitio;
+                fila.HorasTrabajadas = reg.HorasTrabajadas;
+            }
+
+            _filas.Add(fila);
+        }
+
+        foreach (var padre in _filas.Where(f => f.EsPadre).OrderByDescending(f => f.Nivel))
+        {
+            var hijos = _filas.Where(f =>
+                f.CodigoWBS != padre.CodigoWBS &&
+                f.CodigoWBS.StartsWith(padre.CodigoWBS + ".") &&
+                !f.EsPadre).ToList();
+
+            if (hijos.Any())
+            {
+                padre.AvanceReal = Math.Round(hijos.Average(h => h.AvanceReal), 2);
+                padre.AvanceProgramado = Math.Round(hijos.Average(h => h.AvanceProgramado), 2);
+            }
+        }
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AutoPrint == "1" && !_printed)
+        {
+            _printed = true;
+            await Task.Delay(500);
+            await JS.InvokeVoidAsync("window.print");
+        }
+    }
+
+    private async Task ExportarPDF() => await JS.InvokeVoidAsync("window.print");
 
     private async Task EnviarARevisionAsync()
     {
@@ -322,12 +429,30 @@ else
         _                        => "bg-secondary"
     };
 
-    private static string BadgeEstadoAvance(EstadoAvance e) => e switch
+    private static string BadgeDesv(decimal desv) =>
+        desv >= 0 ? "bg-success" : desv >= -5 ? "bg-warning text-dark" : "bg-danger";
+
+    private static string ColorEstado(decimal desv) =>
+        desv >= 5 ? "#198754" : desv >= 0 ? "#0d6efd" : desv >= -15 ? "#fd7e14" : "#dc3545";
+
+    private static string NombreEstado(decimal desv) =>
+        desv >= 5 ? "Adelantado" : desv >= 0 ? "Al Día" : desv >= -15 ? "Atrasado" : "Crítico";
+
+    private sealed class FilaDetalle
     {
-        EstadoAvance.Adelantado => "bg-primary",
-        EstadoAvance.EnTiempo   => "bg-success",
-        EstadoAvance.Atrasado   => "bg-warning text-dark",
-        EstadoAvance.Critico    => "bg-danger",
-        _                       => "bg-secondary"
-    };
+        public string CodigoWBS { get; set; } = "";
+        public string Nombre { get; set; } = "";
+        public Disciplina? Disciplina { get; set; }
+        public DateTime FechaInicio { get; set; }
+        public DateTime FechaFin { get; set; }
+        public bool EsCritica { get; set; }
+        public bool EsPadre { get; set; }
+        public int Nivel { get; set; } = 1;
+        public decimal AvanceProgramado { get; set; }
+        public decimal AvanceReal { get; set; }
+        public int? PersonalEnSitio { get; set; }
+        public decimal? HorasTrabajadas { get; set; }
+        public decimal Desviacion => AvanceReal - AvanceProgramado;
+        public int DuracionDias => Math.Max(1, (int)(FechaFin - FechaInicio).TotalDays + 1);
+    }
 }
