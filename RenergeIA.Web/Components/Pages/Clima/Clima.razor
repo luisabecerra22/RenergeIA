@@ -407,6 +407,106 @@ else
                 </div>
             </div>
         }
+
+        <!-- G2. Ventana Operacional — Próximos 3 días (cruce WBS + Clima) -->
+        @if (_alertasOperacionales.Count > 0)
+        {
+            <div class="card shadow-sm mb-3 border-0">
+                <div class="card-header d-flex align-items-center gap-2" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff">
+                    <i class="bi-shield-exclamation" style="font-size:1.2rem"></i>
+                    <strong>Alerta Meteorológica Operacional</strong>
+                    <span class="badge bg-warning text-dark ms-auto">
+                        <i class="bi-calendar3 me-1"></i>Próximos 3 días
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    @foreach (var grupo in _alertasOperacionales.GroupBy(a => a.Fecha))
+                    {
+                        var pronosticoDia = _pronostico.FirstOrDefault(p => p.Fecha == grupo.Key);
+                        <div class="border-bottom">
+                            <div class="px-3 py-2 d-flex align-items-center gap-2" style="background:#f0f3f8">
+                                <i class="bi-calendar-event text-primary"></i>
+                                <strong style="color:#183963">
+                                    @if (grupo.Key == DateOnly.FromDateTime(DateTime.Today))
+                                    {
+                                        <span class="badge bg-primary me-1">HOY</span>
+                                    }
+                                    else if (grupo.Key == DateOnly.FromDateTime(DateTime.Today.AddDays(1)))
+                                    {
+                                        <span class="badge bg-info text-white me-1">MAÑANA</span>
+                                    }
+                                    @DiaSemana(grupo.Key) @grupo.Key.Day/@grupo.Key.Month/@grupo.Key.Year
+                                </strong>
+                                @if (pronosticoDia is not null)
+                                {
+                                    <span class="ms-auto d-flex align-items-center gap-2 small">
+                                        <i class="@IconoWMO(pronosticoDia.WmoCode)"></i>
+                                        @DescripcionWMO(pronosticoDia.WmoCode)
+                                        <span class="text-danger fw-bold">@pronosticoDia.TempMax.ToString("F0")°</span>/<span class="text-primary">@pronosticoDia.TempMin.ToString("F0")°</span>
+                                        <i class="bi-droplet-fill text-primary"></i>@pronosticoDia.PrecipProbabilidad%
+                                        <i class="bi-wind"></i>@pronosticoDia.VientoMax.ToString("F0") km/h
+                                    </span>
+                                }
+                            </div>
+                            @foreach (var alerta in grupo)
+                            {
+                                var (bgColor, borderColor, textColor, iconoRiesgo) = alerta.NivelRiesgo switch
+                                {
+                                    "alto"  => ("#fde8e8", "#dc3545", "#dc3545", "bi-x-octagon-fill"),
+                                    "medio" => ("#fff8e1", "#fd7e14", "#fd7e14", "bi-exclamation-triangle-fill"),
+                                    _       => ("#e8f5e2", "#6ABF4B", "#6ABF4B", "bi-check-circle-fill")
+                                };
+                                <div class="px-3 py-2 d-flex align-items-start gap-3" style="background:@bgColor;border-left:4px solid @borderColor">
+                                    <div class="text-center" style="min-width:36px">
+                                        <span style="font-size:1.4rem">@EnumDisplay.IconoDisciplina(alerta.Disciplina)</span>
+                                        <div style="font-size:.6rem;color:@textColor;font-weight:600">@EnumDisplay.Mostrar(alerta.Disciplina)</div>
+                                    </div>
+                                    <div class="flex-fill">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fw-semibold" style="color:#183963;font-size:.85rem">@alerta.Actividad</span>
+                                            <span class="badge" style="background:@borderColor;color:#fff;font-size:.65rem">
+                                                <i class="@iconoRiesgo me-1"></i>Riesgo @alerta.NivelRiesgo.ToUpper()
+                                            </span>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <i class="bi-person me-1"></i>@(alerta.Responsable ?? "Sin asignar")
+                                            · WBS: @alerta.CodigoWBS
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(alerta.Recomendacion))
+                                        {
+                                            <div class="mt-1 small" style="color:@textColor">
+                                                <i class="bi-lightbulb me-1"></i><strong>Recomendación:</strong> @alerta.Recomendacion
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="card-footer small text-muted" style="background:#f8f9fa">
+                    <i class="bi-info-circle me-1"></i>
+                    Las alertas se generan cruzando el pronóstico climático con las actividades del WBS programadas para los próximos 3 días,
+                    evaluando la sensibilidad de cada disciplina a las condiciones meteorológicas.
+                </div>
+            </div>
+        }
+        else if (_actividadesProximas.Count > 0 && _pronostico.Count > 0)
+        {
+            <div class="card shadow-sm mb-3 border-0">
+                <div class="card-header d-flex align-items-center gap-2" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff">
+                    <i class="bi-shield-check" style="font-size:1.2rem"></i>
+                    <strong>Sin alertas operacionales</strong>
+                </div>
+                <div class="card-body text-center py-3">
+                    <i class="bi-check-circle text-success" style="font-size:2rem"></i>
+                    <p class="text-muted mb-0 mt-2 small">
+                        Las condiciones climáticas de los próximos 3 días son favorables para las
+                        <strong>@_actividadesProximas.Count actividad@(_actividadesProximas.Count != 1 ? "es" : "")</strong> programadas.
+                    </p>
+                </div>
+            </div>
+        }
     }
 
     <!-- H. Historial climático -->
@@ -492,6 +592,8 @@ else
     private List<RegistroClima>   _historial        = [];
     private ClimaActualDto?       _climaActual;
     private List<PronosticoDiarioDto> _pronostico   = [];
+    private List<ActividadWBS>    _actividadesProximas = [];
+    private List<AlertaOperacional> _alertasOperacionales = [];
 
     private DotNetObjectReference<Clima>? _dotNetRef;
     private bool _mapaInicializado;
@@ -519,6 +621,31 @@ else
             .Where(r => r.ProyectoId == ProyectoId)
             .OrderByDescending(r => r.Fecha)
             .Take(100)
+            .ToListAsync();
+
+        await CargarActividadesProximasAsync();
+    }
+
+    private async Task CargarActividadesProximasAsync()
+    {
+        var hoy = DateTime.Today;
+        var en3Dias = hoy.AddDays(3);
+
+        var versionVigente = await Db.Set<CronogramaVersion>()
+            .Where(v => v.ProyectoId == ProyectoId && v.EsVigente)
+            .Select(v => v.Id)
+            .FirstOrDefaultAsync();
+
+        if (versionVigente == 0) return;
+
+        _actividadesProximas = await Db.ActividadesWBS
+            .Where(a => a.ProyectoId == ProyectoId
+                     && a.CronogramaVersionId == versionVigente
+                     && a.Activo
+                     && a.Estado != EstadoActividad.Completada
+                     && a.FechaInicioPlaneada < en3Dias
+                     && a.FechaFinPlaneada >= hoy)
+            .OrderBy(a => a.FechaInicioPlaneada)
             .ToListAsync();
     }
 
@@ -801,6 +928,8 @@ else
             }
 
             _mensajeClima = $"Clima y pronóstico de 16 días obtenidos correctamente ({DateTime.Now:HH:mm}).";
+
+            GenerarAlertasOperacionales();
         }
         catch (Exception ex)
         {
@@ -810,6 +939,262 @@ else
         {
             _buscandoClima = false;
         }
+    }
+
+    // ── Alertas operacionales (cruce WBS + Clima por Disciplina) ────────────
+
+    private void GenerarAlertasOperacionales()
+    {
+        _alertasOperacionales.Clear();
+        if (_actividadesProximas.Count == 0 || _pronostico.Count == 0) return;
+
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+
+        foreach (var act in _actividadesProximas)
+        {
+            var disciplina = act.Disciplina ?? Disciplina.General;
+
+            for (int d = 0; d < 3 && d < _pronostico.Count; d++)
+            {
+                var dia = _pronostico[d];
+                if (dia.Fecha < hoy) continue;
+
+                var fechaIni = DateOnly.FromDateTime(act.FechaInicioPlaneada);
+                var fechaFin = DateOnly.FromDateTime(act.FechaFinPlaneada);
+                if (dia.Fecha < fechaIni || dia.Fecha > fechaFin) continue;
+
+                var (nivel, recomendacion) = EvaluarRiesgoActividad(act.Nombre, disciplina, dia);
+
+                if (nivel != "bajo")
+                {
+                    _alertasOperacionales.Add(new AlertaOperacional(
+                        Fecha:         dia.Fecha,
+                        Actividad:     act.Nombre,
+                        CodigoWBS:     act.CodigoWBS,
+                        Responsable:   act.Responsable,
+                        Disciplina:    disciplina,
+                        NivelRiesgo:   nivel,
+                        Recomendacion: recomendacion
+                    ));
+                }
+            }
+        }
+
+        _alertasOperacionales = _alertasOperacionales
+            .OrderBy(a => a.Fecha)
+            .ThenByDescending(a => a.NivelRiesgo == "alto" ? 0 : 1)
+            .ToList();
+    }
+
+    private static (string Nivel, string Recomendacion) EvaluarRiesgoActividad(
+        string nombreActividad, Disciplina disciplina, PronosticoDiarioDto dia)
+    {
+        var lluvia = dia.PrecipProbabilidad;
+        var viento = dia.VientoMax;
+        var precip = dia.PrecipSum;
+        var tormenta = dia.WmoCode is 95 or 96 or 99;
+        var nombre = nombreActividad.ToLowerInvariant();
+
+        var tipo = ClasificarActividad(nombre);
+
+        return tipo switch
+        {
+            "vaciado" => tormenta || lluvia >= 75 || precip > 12
+                ? ("alto", "Suspender vaciado de concreto. La lluvia afecta la relación agua/cemento y debilita la mezcla. Reprogramar para día seco.")
+                : lluvia >= 45 || precip > 3
+                    ? ("medio", "Riesgo de lluvia durante fraguado. Programar vaciado en las primeras horas. Tener plástico listo para cubrir y bomba de achique preparada.")
+                    : ("bajo", ""),
+
+            "excavacion" => tormenta || lluvia >= 70 || precip > 15
+                ? ("alto", "Suspender excavaciones. Riesgo de inundación, derrumbe de taludes y atrapamiento. Revisar entibados existentes.")
+                : lluvia >= 45 || precip > 5
+                    ? ("medio", "Precaución en zanjas abiertas. Verificar bombeo de achique, estabilidad de taludes y señalización. Uso de botas pantaneras.")
+                    : ("bajo", ""),
+
+            "vias" => tormenta || lluvia >= 80
+                ? ("alto", "Suspender extendido y compactación de material granular. La saturación impide alcanzar densidad requerida.")
+                : lluvia >= 50 || precip > 8
+                    ? ("medio", "Material granular puede saturarse. Verificar humedad óptima antes de compactar. Cubrir acopios. Uso de impermeable.")
+                    : ("bajo", ""),
+
+            "cimentacion" => tormenta || lluvia >= 75 || precip > 10
+                ? ("alto", "Suspender trabajos de cimentación. Riesgo de acumulación de agua en excavación y afectación de concreto de limpieza.")
+                : lluvia >= 50 || precip > 4
+                    ? ("medio", "Proteger acero de refuerzo expuesto. Verificar nivel freático. Tener bombeo listo. Cubrir formaletas.")
+                    : ("bajo", ""),
+
+            "estructura" => tormenta || viento > 45 || (lluvia >= 75 && viento > 30)
+                ? ("alto", "Suspender montaje estructural. Viento y/o tormenta hacen inseguro el izaje de elementos pesados.")
+                : lluvia >= 50 || viento > 30
+                    ? ("medio", "Precaución en soldadura y montaje. Proteger uniones sin pintar. Verificar estabilidad de arriostramientos temporales.")
+                    : ("bajo", ""),
+
+            "tendido_cable" => tormenta
+                ? ("alto", "Suspender tendido de cables. Riesgo de descarga atmosférica sobre conductores expuestos. Alejar personal del tendido.")
+                : lluvia >= 50 || precip > 5
+                    ? ("medio", "Proteger puntas de cables con capuchones. Evitar tendido sobre terreno encharcado. Usar guantes dieléctricos secos.")
+                    : ("bajo", ""),
+
+            "conexionado" => tormenta
+                ? ("alto", "Suspender conexionado eléctrico. Riesgo de descarga atmosférica y cortocircuito por humedad en bornes.")
+                : lluvia >= 40 || precip > 2
+                    ? ("medio", "No realizar conexionado con humedad. Secar completamente bornes y terminales antes de conectar. Usar EPP dieléctrico seco.")
+                    : ("bajo", ""),
+
+            "tableros" => tormenta
+                ? ("alto", "Suspender trabajo en tableros eléctricos. Riesgo de descarga y cortocircuito por ingreso de agua.")
+                : lluvia >= 40 || precip > 2
+                    ? ("medio", "Mantener tableros cerrados al máximo. Trabajar con carpas de protección. No energizar con humedad presente.")
+                    : ("bajo", ""),
+
+            "pruebas_electricas" => tormenta || lluvia >= 30
+                ? ("alto", "Suspender pruebas eléctricas (megado, hi-pot, aislamiento). Los resultados son inválidos con humedad y hay riesgo de descarga.")
+                : lluvia >= 20 || precip > 1
+                    ? ("medio", "Humedad relativa alta puede afectar resultados de megado. Verificar condiciones antes de iniciar. Documentar humedad ambiente.")
+                    : ("bajo", ""),
+
+            "malla_tierra" => tormenta
+                ? ("alto", "Suspender instalación de malla a tierra. Riesgo extremo de descarga atmosférica sobre sistema de puesta a tierra.")
+                : lluvia >= 50 || precip > 5
+                    ? ("medio", "Terreno húmedo facilita la instalación pero dificulta soldadura exotérmica. Proteger puntos de soldadura cadweld. Verificar resistividad post-lluvia.")
+                    : ("bajo", ""),
+
+            "izaje" => tormenta || viento > 40
+                ? ("alto", "Suspender izaje. Vientos superan límite seguro de operación de grúa. Asegurar cargas suspendidas.")
+                : viento > 25 || lluvia >= 60
+                    ? ("medio", "Reducir radio de operación de grúa. Asignar vigía de viento. Verificar estabilidad de apoyos. Usar vientos de guía.")
+                    : ("bajo", ""),
+
+            "soldadura" => lluvia >= 60 || viento > 35 || tormenta
+                ? ("alto", "Suspender soldadura en campo abierto. Viento dispersa gas protector y lluvia contamina la junta. Riesgo de defectos.")
+                : lluvia >= 40 || viento > 20
+                    ? ("medio", "Instalar pantallas cortaviento. Proteger juntas recién soldadas de la lluvia. Verificar precalentamiento en piezas húmedas.")
+                    : ("bajo", ""),
+
+            "montaje" => tormenta || viento > 45
+                ? ("alto", "Suspender montaje mecánico en altura. Condiciones de viento y/o tormenta hacen insegura la maniobra.")
+                : lluvia >= 60 || viento > 30
+                    ? ("medio", "Precaución en maniobras con carga. Superficies resbaladizas en altura. Verificar anclajes temporales y líneas de vida.")
+                    : ("bajo", ""),
+
+            "pintura" => lluvia >= 40 || precip > 2 || tormenta
+                ? ("alto", "Suspender pintura y recubrimiento. La humedad impide adherencia y causa defectos. Humedad relativa debe ser <85%.")
+                : lluvia >= 25
+                    ? ("medio", "Medir humedad relativa y punto de rocío antes de aplicar. Proteger áreas recién pintadas con plástico.")
+                    : ("bajo", ""),
+
+            "commissioning" => tormenta || viento > 50
+                ? ("alto", "Posponer pruebas de arranque. Condiciones inseguras para operación de equipos rotativos y pruebas con fluidos.")
+                : lluvia >= 60 || viento > 35
+                    ? ("medio", "Monitorear condiciones. Tener plan de paro de emergencia. Proteger instrumentación y sensores expuestos.")
+                    : ("bajo", ""),
+
+            "liberacion" => tormenta
+                ? ("medio", "Tormenta prevista. Reprogramar inspecciones de campo. Priorizar revisión documental en oficina.")
+                : lluvia >= 70
+                    ? ("medio", "Lluvia puede impedir acceso a frentes de trabajo para inspección. Coordinar ventanas de tiempo seco.")
+                    : ("bajo", ""),
+
+            _ => EvaluarRiesgoPorDisciplinaGenerica(disciplina, dia, tormenta, lluvia, viento, precip)
+        };
+    }
+
+    private static string ClasificarActividad(string nombre)
+    {
+        if (nombre.Contains("vaciado") || nombre.Contains("fundición") || nombre.Contains("fundicion")
+            || nombre.Contains("concreto") || nombre.Contains("hormigón") || nombre.Contains("hormigon"))
+            return "vaciado";
+
+        if (nombre.Contains("excavaci") || nombre.Contains("zanja") || nombre.Contains("movimiento de tierra"))
+            return "excavacion";
+
+        if (nombre.Contains("vía") || nombre.Contains("via") || nombre.Contains("vias")
+            || nombre.Contains("sub-base") || nombre.Contains("subbase") || nombre.Contains("base granular")
+            || nombre.Contains("afirmado") || nombre.Contains("compactac"))
+            return "vias";
+
+        if (nombre.Contains("cimentaci") || nombre.Contains("pedestal") || nombre.Contains("zapata")
+            || nombre.Contains("dado") || nombre.Contains("placa de"))
+            return "cimentacion";
+
+        if (nombre.Contains("estructura") && !nombre.Contains("electri"))
+            return "estructura";
+
+        if (nombre.Contains("malla") && nombre.Contains("tierra"))
+            return "malla_tierra";
+
+        if (nombre.Contains("tendido") || nombre.Contains("tirado") || (nombre.Contains("cable") && !nombre.Contains("conexion")))
+            return "tendido_cable";
+
+        if (nombre.Contains("conexion") || nombre.Contains("conexión") || nombre.Contains("empalme")
+            || nombre.Contains("acometida"))
+            return "conexionado";
+
+        if (nombre.Contains("tablero") || nombre.Contains("ccm") || nombre.Contains("mcc")
+            || nombre.Contains("subestaci") || nombre.Contains("celda"))
+            return "tableros";
+
+        if (nombre.Contains("prueba") && (nombre.Contains("electri") || nombre.Contains("megado")
+            || nombre.Contains("aislamiento") || nombre.Contains("hi-pot") || nombre.Contains("hipot")))
+            return "pruebas_electricas";
+
+        if (nombre.Contains("izaje") || nombre.Contains("grúa") || nombre.Contains("grua")
+            || nombre.Contains("maniobra"))
+            return "izaje";
+
+        if (nombre.Contains("soldadura") || nombre.Contains("soldar"))
+            return "soldadura";
+
+        if (nombre.Contains("montaje") || nombre.Contains("instalaci"))
+            return "montaje";
+
+        if (nombre.Contains("pintura") || nombre.Contains("recubrimiento") || nombre.Contains("sandblast")
+            || nombre.Contains("galvaniz"))
+            return "pintura";
+
+        if (nombre.Contains("commissioning") || nombre.Contains("arranque") || nombre.Contains("puesta en marcha"))
+            return "commissioning";
+
+        if (nombre.Contains("liberaci") || nombre.Contains("inspecci") || nombre.Contains("punch"))
+            return "liberacion";
+
+        return "general";
+    }
+
+    private static (string, string) EvaluarRiesgoPorDisciplinaGenerica(
+        Disciplina disciplina, PronosticoDiarioDto dia,
+        bool tormenta, int lluvia, decimal viento, decimal precip)
+    {
+        return disciplina switch
+        {
+            Disciplina.Civil => tormenta || lluvia >= 80
+                ? ("alto", "Suspender actividades civiles en campo. Condiciones adversas para trabajos al aire libre.")
+                : lluvia >= 50 || precip > 5
+                    ? ("medio", "Precaución en actividades civiles. Proteger materiales y frentes de trabajo. Uso de impermeable y botas pantaneras.")
+                    : ("bajo", ""),
+
+            Disciplina.Electrica => tormenta
+                ? ("alto", "Suspender trabajos eléctricos en campo. Riesgo de descarga atmosférica.")
+                : lluvia >= 50 || precip > 3
+                    ? ("medio", "Proteger componentes eléctricos de la humedad. Usar EPP dieléctrico seco.")
+                    : ("bajo", ""),
+
+            Disciplina.Mecanica => tormenta || viento > 50
+                ? ("alto", "Suspender trabajos mecánicos en altura y maniobras con carga. Viento excesivo.")
+                : lluvia >= 60 || viento > 35
+                    ? ("medio", "Precaución en trabajos mecánicos al aire libre. Verificar anclajes y proteger equipos.")
+                    : ("bajo", ""),
+
+            Disciplina.HotCommissioning => tormenta || viento > 50
+                ? ("alto", "Posponer pruebas. Condiciones inseguras para commissioning.")
+                : lluvia >= 60 || viento > 40
+                    ? ("medio", "Monitorear condiciones. Tener plan de contingencia listo.")
+                    : ("bajo", ""),
+
+            _ => tormenta
+                ? ("medio", "Tormenta eléctrica prevista. Limitar desplazamientos a campo. Priorizar trabajo en oficina.")
+                : ("bajo", "")
+        };
     }
 
     // ── Lógica de "Apto para obra" ────────────────────────────────────────────
@@ -965,5 +1350,15 @@ else
         decimal  PrecipSum,
         int      PrecipProbabilidad,
         decimal  VientoMax
+    );
+
+    private record AlertaOperacional(
+        DateOnly   Fecha,
+        string     Actividad,
+        string     CodigoWBS,
+        string?    Responsable,
+        Disciplina Disciplina,
+        string     NivelRiesgo,
+        string     Recomendacion
     );
 }
