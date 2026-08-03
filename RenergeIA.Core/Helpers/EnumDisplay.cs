@@ -47,12 +47,30 @@ public static class EnumDisplay
 
     public static string Mostrar(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Borrador   => "Borrador",
-        EstadoDocumento.EnRevision => "En Revisión",
-        EstadoDocumento.Aprobado   => "Aprobado",
-        EstadoDocumento.Rechazado  => "Rechazado",
-        EstadoDocumento.Obsoleto   => "Obsoleto",
-        _                          => estado.ToString()
+        EstadoDocumento.PendienteEmitir       => "Pendiente Emitir",
+        EstadoDocumento.PendienteValidacion   => "Pendiente Validación",
+        EstadoDocumento.ValidadoConComentarios => "Validado con Comentarios",
+        EstadoDocumento.Validado              => "Validado",
+        EstadoDocumento.Informativos          => "Informativos",
+        EstadoDocumento.NoValidado            => "No Validado",
+        _                                     => estado.ToString()
+    };
+
+    public static string Mostrar(CategoriaDocumento cat) => cat switch
+    {
+        CategoriaDocumento.Procedimientos => "Procedimientos",
+        CategoriaDocumento.HSE            => "HSE",
+        CategoriaDocumento.Ingenieria     => "Ingeniería",
+        _                                 => cat.ToString()
+    };
+
+    public static string Mostrar(AreaDocumento area) => area switch
+    {
+        AreaDocumento.Civil     => "Civil",
+        AreaDocumento.Mecanico  => "Mecánico",
+        AreaDocumento.Electrico => "Eléctrico",
+        AreaDocumento.General   => "General",
+        _                       => area.ToString()
     };
 
     public static string Mostrar(EstadoInforme estado) => estado switch

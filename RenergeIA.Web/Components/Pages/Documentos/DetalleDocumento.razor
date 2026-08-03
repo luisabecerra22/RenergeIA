@@ -38,7 +38,7 @@ else
             <div class="card shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Información general</strong>
-                    @if (_doc.Estado == EstadoDocumento.Borrador)
+                    @if (_doc.Estado == EstadoDocumento.PendienteEmitir)
                     {
                         <a href="/proyectos/@ProyectoId/documentos/@DocumentoId/editar"
                            class="btn btn-sm btn-outline-primary">Editar</a>
@@ -409,11 +409,12 @@ else
 
     private static string BadgeEstado(EstadoDocumento e) => e switch
     {
-        EstadoDocumento.Borrador => "bg-secondary",
-        EstadoDocumento.EnRevision => "bg-warning text-dark",
-        EstadoDocumento.Aprobado => "bg-success",
-        EstadoDocumento.Rechazado => "bg-danger",
-        EstadoDocumento.Obsoleto => "bg-dark",
+        EstadoDocumento.PendienteEmitir => "bg-secondary",
+        EstadoDocumento.PendienteValidacion => "bg-warning text-dark",
+        EstadoDocumento.ValidadoConComentarios => "bg-info text-dark",
+        EstadoDocumento.Validado => "bg-success",
+        EstadoDocumento.Informativos => "bg-secondary",
+        EstadoDocumento.NoValidado => "bg-danger",
         _ => "bg-secondary"
     };
 }

@@ -3,137 +3,389 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@using System.Globalization
+@using ClosedXML.Excel
 
 <PageTitle>Documentos — RenergeIA</PageTitle>
 
 @if (_proyecto is null)
 {
-    <p>Cargando...</p>
+    <p class="text-muted">Cargando...</p>
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-4">
+    <div class="d-flex align-items-center gap-2 mb-3">
         <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
-        <div>
-            <h1 class="h3 mb-0">Documentos</h1>
-            <small class="text-muted">@_proyecto.Nombre</small>
-        </div>
+        <h1 class="h3 mb-0">
+            <i class="bi-folder2-open me-2" style="color:#183963"></i>Documentos — @_proyecto.Nombre
+        </h1>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div class="d-flex gap-2 flex-wrap">
-            <input class="form-control form-control-sm" style="width:200px"
-                   placeholder="Buscar por código o título..." @bind="_busqueda" @bind:event="oninput" />
-            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroTipo">
-                <option value="">Todos los tipos</option>
-                @foreach (var tipo in Enum.GetValues<TipoDocumento>())
-                {
-                    <option value="@tipo">@NombreTipo(tipo)</option>
-                }
-            </select>
-            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroDisciplina">
-                <option value="">Todas las disciplinas</option>
-                @foreach (var disc in Enum.GetValues<DisciplinaDocumento>())
-                {
-                    <option value="@disc">@NombreDisciplina(disc)</option>
-                }
-            </select>
-            <select class="form-select form-select-sm" style="width:auto" @bind="_filtroEstado">
-                <option value="">Todos los estados</option>
-                @foreach (var est in Enum.GetValues<EstadoDocumento>())
-                {
-                    <option value="@est">@EnumDisplay.Mostrar(est)</option>
-                }
-            </select>
-        </div>
-        <a href="/proyectos/@ProyectoId/documentos/crear" class="btn btn-primary">+ Nuevo documento</a>
-    </div>
+    <!-- Pestañas de categoría -->
+    <ul class="nav nav-tabs mb-0">
+        @foreach (var cat in Enum.GetValues<CategoriaDocumento>())
+        {
+            <li class="nav-item">
+                <button class="nav-link @(_categoriaActiva == cat ? "active fw-bold" : "")"
+                        style="@(_categoriaActiva == cat ? "color:#183963;border-bottom:3px solid #183963" : "color:#6c757d")"
+                        @onclick="() => CambiarCategoria(cat)">
+                    <i class="@IconoCategoria(cat) me-1"></i>
+                    @EnumDisplay.Mostrar(cat)
+                    <span class="badge rounded-pill ms-1" style="background:@(_categoriaActiva == cat ? "#183963" : "#D9D9D6");color:@(_categoriaActiva == cat ? "#fff" : "#333");font-size:.65rem">
+                        @_documentos.Count(d => d.Categoria == cat)
+                    </span>
+                </button>
+            </li>
+        }
+        <li class="nav-item ms-auto d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-danger" @onclick="ExportarPdfAsync" title="Exportar informe PDF con dashboard">
+                <i class="bi-file-earmark-pdf me-1"></i>Informe PDF
+            </button>
+            <button class="btn btn-sm btn-outline-success" @onclick="ExportarExcelAsync" title="Exportar a Excel (.xlsx)">
+                <i class="bi-file-earmark-spreadsheet me-1"></i>Exportar
+            </button>
+            <label class="btn btn-sm btn-outline-primary mb-0" title="Importar desde Excel (.xlsx)">
+                <i class="bi-upload me-1"></i>Importar
+                <InputFile OnChange="ImportarExcelAsync" accept=".xlsx,.xls,.csv" style="display:none" />
+            </label>
+            <button class="btn btn-sm btn-success" @onclick="AgregarDocumento">
+                <i class="bi-plus-lg me-1"></i>Nuevo
+            </button>
+        </li>
+    </ul>
 
-    @if (!DocumentosFiltrados.Any())
-    {
-        <div class="card shadow-sm text-center py-5">
-            <p class="text-muted mb-3">No hay documentos registrados para este proyecto.</p>
-            <div>
-                <a href="/proyectos/@ProyectoId/documentos/crear" class="btn btn-primary">Agregar primer documento</a>
+    <!-- KPIs resumen -->
+    <div class="card border-0 shadow-sm mb-3" style="border-top:3px solid #183963!important">
+        <div class="card-body py-2">
+            <div class="row row-cols-2 row-cols-md-6 g-2 text-center small">
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#183963">@_vistaFiltrada.Count</div>
+                    <div class="text-muted">Total</div>
+                </div>
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#fd7e14">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.PendienteEmitir)</div>
+                    <div class="text-muted">Pend. Emitir</div>
+                </div>
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#0d6efd">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.PendienteValidacion)</div>
+                    <div class="text-muted">Pend. Validación</div>
+                </div>
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#ffc107">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.ValidadoConComentarios)</div>
+                    <div class="text-muted">Con Comentarios</div>
+                </div>
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#6ABF4B">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado)</div>
+                    <div class="text-muted">Validados</div>
+                </div>
+                <div class="col">
+                    <div class="fw-bold fs-5" style="color:#dc3545">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.NoValidado)</div>
+                    <div class="text-muted">No Validados</div>
+                </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-3">
+                    <input class="form-control form-control-sm" placeholder="Buscar código, descripción..."
+                           @bind="_busqueda" @bind:event="oninput" />
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm" @bind="_filtroEstado">
+                        <option value="">— Todos los estados —</option>
+                        @foreach (var e in Enum.GetValues<EstadoDocumento>())
+                        {
+                            <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm" @bind="_filtroArea">
+                        <option value="">— Todas las áreas —</option>
+                        @foreach (var a in Enum.GetValues<AreaDocumento>())
+                        {
+                            <option value="@a">@EnumDisplay.Mostrar(a)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm" @bind="_filtroFase">
+                        <option value="">— Todas las fases —</option>
+                        <option value="1">Fase 1</option>
+                        <option value="2">Fase 2</option>
+                        <option value="3">Fase 3</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-sm w-100" style="border:1px solid #D9D9D6;color:#183963"
+                            @onclick="LimpiarFiltros">Limpiar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra de edición flotante -->
+    @if (_editandoId is not null)
+    {
+        <div class="alert alert-warning d-flex align-items-center justify-content-between py-2 mb-2 shadow-sm" style="position:sticky;top:0;z-index:10">
+            <span><i class="bi-pencil-square me-2"></i><strong>Editando documento</strong> — modifica los campos en la tabla y presiona Guardar</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-success btn-sm px-3" @onclick="GuardarEdicionAsync">
+                    <i class="bi-check-lg me-1"></i>Guardar cambios
+                </button>
+                <button class="btn btn-outline-secondary btn-sm px-3" @onclick="CancelarEdicion">
+                    <i class="bi-x-lg me-1"></i>Cancelar
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- Tabla de documentos -->
+    @if (!_vistaFiltrada.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <i class="bi-folder2-open display-4 mb-3" style="color:#dde3ed"></i>
+            <p class="text-muted small mb-0">No hay documentos en esta categoría.</p>
         </div>
     }
     else
     {
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive" style="max-height:65vh;overflow-y:auto">
+                <table class="table table-hover align-middle mb-0" style="font-size:.75rem">
+                    <thead style="background:#183963;color:white;font-size:.68rem;position:sticky;top:0;z-index:1">
                         <tr>
-                            <th>Código</th>
-                            <th>Título</th>
-                            <th>Tipo</th>
-                            <th>Disciplina</th>
-                            <th>Estado</th>
-                            <th>Versión</th>
-                            <th>Fecha emisión</th>
-                            <th class="text-end">Acciones</th>
+                            <th class="ps-2" style="min-width:30px">#</th>
+                            <th style="min-width:130px">CÓD. CLIENTE</th>
+                            <th style="min-width:90px">CÓD. PROYECTO</th>
+                            <th style="min-width:200px">DESCRIPCIÓN</th>
+                            <th style="min-width:120px">ESTADO</th>
+                            <th style="min-width:45px" class="text-center">VER.</th>
+                            <th style="min-width:85px">EMISIÓN</th>
+                            <th style="min-width:85px">ENTREGA 1</th>
+                            <th style="min-width:85px">DEVOL. 1</th>
+                            <th style="min-width:55px" class="text-center">DÍAS</th>
+                            <th style="min-width:85px">ENTREGA 2</th>
+                            <th style="min-width:85px">DEVOL. 2</th>
+                            <th style="min-width:55px" class="text-center">DÍAS</th>
+                            <th style="min-width:85px">ENTREGA 3</th>
+                            <th style="min-width:85px">DEVOL. 3</th>
+                            <th style="min-width:55px" class="text-center">DÍAS</th>
+                            <th style="min-width:85px">VALIDACIÓN</th>
+                            <th style="min-width:50px">FASE</th>
+                            <th style="min-width:70px">ÁREA</th>
+                            <th style="min-width:110px">TRANSMITTAL</th>
+                            <th style="min-width:150px">OBSERVACIONES</th>
+                            <th style="min-width:110px">RESPONSABLE</th>
+                            <th style="min-width:50px" class="text-center">ACC.</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var doc in DocumentosFiltrados)
+                        @for (var idx = 0; idx < _vistaFiltrada.Count; idx++)
                         {
-                            var versionActual = doc.Versiones.FirstOrDefault(v => v.EsVersionActual);
-                            <tr>
-                                <td><code>@doc.Codigo</code></td>
+                            var doc = _vistaFiltrada[idx];
+                            var itemNum = idx + 1;
+                            var editando = _editandoId == doc.Id;
+                            <tr style="border-bottom:1px solid #f0f3f8" class="@(editando ? "table-warning" : "")">
+                                <td class="ps-2 text-muted">@itemNum</td>
                                 <td>
-                                    <div class="fw-semibold">@doc.Titulo</div>
-                                    @if (!string.IsNullOrEmpty(doc.Descripcion))
+                                    @if (editando)
                                     {
-                                        <small class="text-muted">@doc.Descripcion</small>
-                                    }
-                                </td>
-                                <td>
-                                    <span class="badge @BadgeTipo(doc.TipoDocumento)">
-                                        @NombreTipo(doc.TipoDocumento)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-light text-dark border">
-                                        @NombreDisciplina(doc.Disciplina)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge @BadgeEstado(doc.Estado)">
-                                        @EnumDisplay.Mostrar(doc.Estado)
-                                    </span>
-                                </td>
-                                <td>
-                                    @if (versionActual is not null)
-                                    {
-                                        <span class="badge bg-info text-dark">@versionActual.NumeroVersion</span>
+                                        <input class="form-control form-control-sm" @bind="_edit.CodigoCliente" style="font-size:.72rem" />
                                     }
                                     else
                                     {
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted" style="font-size:.7rem">@(doc.CodigoCliente ?? "—")</span>
                                     }
                                 </td>
-                                <td>@(doc.FechaEmision?.ToString("dd/MM/yyyy") ?? "—")</td>
-                                <td class="text-end">
-                                    <div class="d-flex gap-1 justify-content-end">
-                                        <a href="/proyectos/@ProyectoId/documentos/@doc.Id"
-                                           class="btn btn-sm btn-outline-secondary">Ver</a>
-                                        @if (doc.Estado == EstadoDocumento.Borrador)
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm" @bind="_edit.Codigo" style="font-size:.72rem" />
+                                    }
+                                    else
+                                    {
+                                        <code style="font-size:.72rem">@doc.Codigo</code>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm" @bind="_edit.Titulo" style="font-size:.72rem" />
+                                    }
+                                    else
+                                    {
+                                        <span title="@doc.Titulo">@doc.Titulo</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <select class="form-select form-select-sm" @bind="_edit.Estado" style="font-size:.72rem">
+                                            @foreach (var e in Enum.GetValues<EstadoDocumento>())
+                                            {
+                                                <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @BadgeEstado(doc.Estado)" style="font-size:.65rem">@EnumDisplay.Mostrar(doc.Estado)</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm text-center" @bind="_edit.Version" style="font-size:.72rem;width:45px" />
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-dark border" style="font-size:.68rem">@doc.Version</span>
+                                    }
+                                </td>
+                                <!-- Fechas -->
+                                @if (editando)
+                                {
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEmision" style="font-size:.68rem" /></td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega1" style="font-size:.68rem" /></td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion1" style="font-size:.68rem" /></td>
+                                    <td class="text-center">—</td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega2" style="font-size:.68rem" /></td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion2" style="font-size:.68rem" /></td>
+                                    <td class="text-center">—</td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega3" style="font-size:.68rem" /></td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion3" style="font-size:.68rem" /></td>
+                                    <td class="text-center">—</td>
+                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaValidacion" style="font-size:.68rem" /></td>
+                                }
+                                else
+                                {
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaEmision)</td>
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega1)</td>
+                                    <td class="text-nowrap @(doc.FechaDevolucion1.HasValue ? "" : "text-danger fw-bold")">@FechaCorta(doc.FechaDevolucion1)</td>
+                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso1)">@(doc.TiempoRetraso1?.ToString() ?? "—")</td>
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega2)</td>
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion2)</td>
+                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso2)">@(doc.TiempoRetraso2?.ToString() ?? "—")</td>
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega3)</td>
+                                    <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion3)</td>
+                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso3)">@(doc.TiempoRetraso3?.ToString() ?? "—")</td>
+                                    <td class="text-nowrap @(doc.FechaValidacion.HasValue ? "fw-semibold" : "")">
+                                        @if (doc.FechaValidacion.HasValue)
                                         {
-                                            <a href="/proyectos/@ProyectoId/documentos/@doc.Id/editar"
-                                               class="btn btn-sm btn-outline-primary">Editar</a>
+                                            <span style="color:#6ABF4B">@FechaCorta(doc.FechaValidacion)</span>
                                         }
-                                    </div>
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                }
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <select class="form-select form-select-sm" @bind="_edit.Fase" style="font-size:.72rem;width:55px">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-dark border" style="font-size:.65rem">F@doc.Fase</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <select class="form-select form-select-sm" @bind="_edit.Area" style="font-size:.72rem">
+                                            @foreach (var a in Enum.GetValues<AreaDocumento>())
+                                            {
+                                                <option value="@a">@EnumDisplay.Mostrar(a)</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge" style="background:@ColorArea(doc.Area);color:#fff;font-size:.65rem">@EnumDisplay.Mostrar(doc.Area)</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm" @bind="_edit.Transmittal" style="font-size:.72rem" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" style="font-size:.7rem">@(doc.Transmittal ?? "—")</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm" @bind="_edit.Observaciones" style="font-size:.72rem" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted" style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block" title="@doc.Observaciones">@(doc.Observaciones ?? "—")</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (editando)
+                                    {
+                                        <input class="form-control form-control-sm" @bind="_edit.Responsable" style="font-size:.72rem" />
+                                    }
+                                    else
+                                    {
+                                        <span style="font-size:.7rem">@(doc.Responsable ?? "—")</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (!editando)
+                                    {
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-outline-primary btn-sm py-0 px-1" @onclick="() => IniciarEdicion(doc)" title="Editar">
+                                                <i class="bi-pencil"></i>
+                                            </button>
+                                            @if (_confirmandoEliminar == doc.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(doc.Id)">
+                                                    <i class="bi-check-lg"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">
+                                                    <i class="bi-x-lg"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = doc.Id" title="Eliminar">
+                                                    <i class="bi-trash"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    }
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
+            <div class="card-footer small text-muted py-1">
+                @_vistaFiltrada.Count documento(s) · Validados: @_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado) (@(_vistaFiltrada.Count > 0 ? (_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado) * 100 / _vistaFiltrada.Count) : 0)%)
+            </div>
         </div>
+    }
 
-        <div class="text-muted small mt-2">
-            @DocumentosFiltrados.Count() documento(s) encontrado(s)
+    @if (!string.IsNullOrEmpty(_mensaje))
+    {
+        <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") mt-3 py-2 small">
+            <i class="@(_mensajeError ? "bi-x-circle" : "bi-check-circle") me-1"></i>@_mensaje
         </div>
     }
 }
@@ -143,18 +395,17 @@ else
 
     private Proyecto? _proyecto;
     private List<Documento> _documentos = [];
+    private List<Documento> _vistaFiltrada { get { return DocumentosFiltrados().ToList(); } }
+    private CategoriaDocumento _categoriaActiva = CategoriaDocumento.Ingenieria;
     private string _busqueda = "";
-    private string _filtroTipo = "";
-    private string _filtroDisciplina = "";
     private string _filtroEstado = "";
-
-    private IEnumerable<Documento> DocumentosFiltrados => _documentos.Where(d =>
-        (string.IsNullOrEmpty(_busqueda) ||
-            d.Codigo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
-            d.Titulo.Contains(_busqueda, StringComparison.OrdinalIgnoreCase)) &&
-        (string.IsNullOrEmpty(_filtroTipo) || d.TipoDocumento.ToString() == _filtroTipo) &&
-        (string.IsNullOrEmpty(_filtroDisciplina) || d.Disciplina.ToString() == _filtroDisciplina) &&
-        (string.IsNullOrEmpty(_filtroEstado) || d.Estado.ToString() == _filtroEstado));
+    private string _filtroArea = "";
+    private string _filtroFase = "";
+    private int? _editandoId;
+    private int? _confirmandoEliminar;
+    private EditModel _edit = new();
+    private string? _mensaje;
+    private bool _mensajeError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -166,56 +417,728 @@ else
     private async Task CargarAsync()
     {
         _documentos = await Db.Documentos
-            .Include(d => d.Versiones)
             .Where(d => d.ProyectoId == ProyectoId)
-            .OrderByDescending(d => d.FechaCreacion)
+            .OrderBy(d => d.Codigo)
             .ToListAsync();
     }
 
-    private static string NombreTipo(TipoDocumento t) => t switch
+    private IEnumerable<Documento> DocumentosFiltrados()
     {
-        TipoDocumento.Plano => "Plano",
-        TipoDocumento.Especificacion => "Especificación",
-        TipoDocumento.Contrato => "Contrato",
-        TipoDocumento.Permiso => "Permiso",
-        TipoDocumento.Informe => "Informe",
-        TipoDocumento.Procedimiento => "Procedimiento",
-        TipoDocumento.Certificado => "Certificado",
-        _ => "Otro"
-    };
+        var q = _documentos.Where(d => d.Categoria == _categoriaActiva);
 
-    private static string NombreDisciplina(DisciplinaDocumento d) => d switch
-    {
-        DisciplinaDocumento.Civil => "Civil",
-        DisciplinaDocumento.Electrico => "Eléctrico",
-        DisciplinaDocumento.Mecanico => "Mecánico",
-        DisciplinaDocumento.Estructural => "Estructural",
-        DisciplinaDocumento.InstrumentacionControl => "I&C",
-        DisciplinaDocumento.SCADA => "SCADA",
-        DisciplinaDocumento.GestionProyecto => "Gestión",
-        DisciplinaDocumento.HSE => "HSE",
-        DisciplinaDocumento.Calidad => "Calidad",
-        DisciplinaDocumento.Ambiental => "Ambiental",
-        _ => "Otro"
-    };
+        if (!string.IsNullOrEmpty(_busqueda))
+        {
+            var b = _busqueda.ToLower();
+            q = q.Where(d => (d.Codigo ?? "").ToLower().Contains(b)
+                          || (d.CodigoCliente ?? "").ToLower().Contains(b)
+                          || d.Titulo.ToLower().Contains(b)
+                          || (d.Transmittal ?? "").ToLower().Contains(b));
+        }
 
-    private static string BadgeTipo(TipoDocumento t) => t switch
+        if (!string.IsNullOrEmpty(_filtroEstado))
+            q = q.Where(d => d.Estado.ToString() == _filtroEstado);
+
+        if (!string.IsNullOrEmpty(_filtroArea))
+            q = q.Where(d => d.Area.ToString() == _filtroArea);
+
+        if (!string.IsNullOrEmpty(_filtroFase) && int.TryParse(_filtroFase, out var fase))
+            q = q.Where(d => d.Fase == fase);
+
+        return q;
+    }
+
+    private void CambiarCategoria(CategoriaDocumento cat)
     {
-        TipoDocumento.Plano => "bg-primary",
-        TipoDocumento.Contrato => "bg-success",
-        TipoDocumento.Permiso => "bg-warning text-dark",
-        TipoDocumento.Certificado => "bg-primary",
-        TipoDocumento.Informe => "bg-secondary",
-        _ => "bg-light text-dark border"
-    };
+        _categoriaActiva = cat;
+        _editandoId = null;
+    }
+
+    private void LimpiarFiltros()
+    {
+        _busqueda = "";
+        _filtroEstado = "";
+        _filtroArea = "";
+        _filtroFase = "";
+    }
+
+    // ── Agregar nuevo documento ──────────────────────────────────────────────
+
+    private async Task AgregarDocumento()
+    {
+        var nuevo = new Documento
+        {
+            ProyectoId = ProyectoId,
+            Categoria = _categoriaActiva,
+            Codigo = $"DOC-{_documentos.Count(d => d.Categoria == _categoriaActiva) + 1:D3}",
+            Titulo = "Nuevo documento",
+            Estado = EstadoDocumento.PendienteEmitir
+        };
+        Db.Documentos.Add(nuevo);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+        IniciarEdicion(nuevo);
+    }
+
+    // ── Edición inline ──────────────────────────────────────────────────────
+
+    private void IniciarEdicion(Documento doc)
+    {
+        _editandoId = doc.Id;
+        _edit = new EditModel
+        {
+            CodigoCliente = doc.CodigoCliente,
+            Codigo = doc.Codigo,
+            Titulo = doc.Titulo,
+            Estado = doc.Estado,
+            Version = doc.Version,
+            FechaEmision = doc.FechaEmision,
+            FechaEntrega1 = doc.FechaEntrega1,
+            FechaDevolucion1 = doc.FechaDevolucion1,
+            FechaEntrega2 = doc.FechaEntrega2,
+            FechaDevolucion2 = doc.FechaDevolucion2,
+            FechaEntrega3 = doc.FechaEntrega3,
+            FechaDevolucion3 = doc.FechaDevolucion3,
+            FechaValidacion = doc.FechaValidacion,
+            Fase = doc.Fase,
+            Area = doc.Area,
+            Transmittal = doc.Transmittal,
+            Observaciones = doc.Observaciones,
+            Responsable = doc.Responsable
+        };
+    }
+
+    private void CancelarEdicion() => _editandoId = null;
+
+    private async Task GuardarEdicionAsync()
+    {
+        if (_editandoId is null) return;
+        var doc = await Db.Documentos.FindAsync(_editandoId.Value);
+        if (doc is null) return;
+
+        doc.CodigoCliente = _edit.CodigoCliente;
+        doc.Codigo = _edit.Codigo;
+        doc.Titulo = _edit.Titulo;
+        doc.Estado = _edit.Estado;
+        doc.Version = _edit.Version;
+        doc.FechaEmision = _edit.FechaEmision;
+        doc.FechaEntrega1 = _edit.FechaEntrega1;
+        doc.FechaDevolucion1 = _edit.FechaDevolucion1;
+        doc.FechaEntrega2 = _edit.FechaEntrega2;
+        doc.FechaDevolucion2 = _edit.FechaDevolucion2;
+        doc.FechaEntrega3 = _edit.FechaEntrega3;
+        doc.FechaDevolucion3 = _edit.FechaDevolucion3;
+        doc.FechaValidacion = _edit.FechaValidacion;
+        doc.Fase = _edit.Fase;
+        doc.Area = _edit.Area;
+        doc.Transmittal = _edit.Transmittal;
+        doc.Observaciones = _edit.Observaciones;
+        doc.Responsable = _edit.Responsable;
+        doc.FechaModificacion = DateTime.UtcNow;
+
+        await Db.SaveChangesAsync();
+        _editandoId = null;
+        await CargarAsync();
+        MostrarMensaje("Documento guardado correctamente.", false);
+    }
+
+    private async Task EliminarAsync(int id)
+    {
+        var doc = await Db.Documentos.FindAsync(id);
+        if (doc is null) return;
+        Db.Documentos.Remove(doc);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminar = null;
+        await CargarAsync();
+    }
+
+    // ── Importar Excel (.xlsx / .csv) ──────────────────────────────────────
+
+    private async Task ImportarExcelAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            var extension = System.IO.Path.GetExtension(file.Name).ToLowerInvariant();
+
+            List<Documento> nuevos;
+            if (extension is ".xlsx" or ".xls")
+                nuevos = await ImportarDesdeXlsxAsync(file);
+            else
+                nuevos = await ImportarDesdeCsvAsync(file);
+
+            if (nuevos.Count == 0)
+            {
+                MostrarMensaje("No se encontraron datos válidos. Verifica que el archivo tenga encabezados (Código Cliente, Código, Nombre, Estado...).", true);
+                return;
+            }
+
+            foreach (var doc in nuevos)
+                Db.Documentos.Add(doc);
+
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+            MostrarMensaje($"{nuevos.Count} documentos importados correctamente.", false);
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al importar: {ex.Message}", true);
+        }
+    }
+
+    private async Task<List<Documento>> ImportarDesdeXlsxAsync(IBrowserFile file)
+    {
+        var nuevos = new List<Documento>();
+        using var ms = new System.IO.MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var workbook = new XLWorkbook(ms);
+        var ws = SeleccionarHoja(workbook);
+        var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+        var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+        if (lastRow < 2) return nuevos;
+
+        int headerRow = DetectarFilaEncabezados(ws, lastRow, lastCol);
+        var colMap = MapearColumnas(ws, headerRow, lastCol);
+
+        if (colMap.Count < 3)
+            colMap = MapeoFijo();
+
+        for (int row = headerRow + 1; row <= lastRow; row++)
+        {
+            var codigoCliente = CeldaTexto(ws, row, colMap, "codigocliente");
+            var codigo = CeldaTexto(ws, row, colMap, "codigo");
+            var titulo = CeldaTexto(ws, row, colMap, "nombre");
+            if (string.IsNullOrEmpty(codigo) && string.IsNullOrEmpty(titulo)) continue;
+
+            var doc = new Documento
+            {
+                ProyectoId = ProyectoId,
+                Categoria = _categoriaActiva,
+                CodigoCliente = codigoCliente,
+                Codigo = string.IsNullOrEmpty(codigo) ? $"IMP-{row:D3}" : codigo,
+                Titulo = string.IsNullOrEmpty(titulo) ? "Sin título" : titulo,
+                Estado = ParsearEstado(CeldaTexto(ws, row, colMap, "estado")),
+                Version = CeldaTexto(ws, row, colMap, "version") is var v && !string.IsNullOrEmpty(v) ? v : "0",
+                FechaEmision = CeldaFecha(ws, row, colMap, "fechaemision"),
+                FechaEntrega1 = CeldaFecha(ws, row, colMap, "fechaentrega1"),
+                FechaDevolucion1 = CeldaFecha(ws, row, colMap, "fechadevolucion1"),
+                FechaEntrega2 = CeldaFecha(ws, row, colMap, "fechaentrega2"),
+                FechaDevolucion2 = CeldaFecha(ws, row, colMap, "fechadevolucion2"),
+                FechaEntrega3 = CeldaFecha(ws, row, colMap, "fechaentrega3"),
+                FechaDevolucion3 = CeldaFecha(ws, row, colMap, "fechadevolucion3"),
+                FechaValidacion = CeldaFecha(ws, row, colMap, "fechavalidacion"),
+                Fase = ParsearFase(CeldaTexto(ws, row, colMap, "fase")),
+                Area = ParsearArea(CeldaTexto(ws, row, colMap, "area")),
+                Observaciones = CeldaTexto(ws, row, colMap, "observaciones"),
+                Transmittal = CeldaTexto(ws, row, colMap, "transmittal"),
+                Responsable = CeldaTexto(ws, row, colMap, "responsable")
+            };
+
+            nuevos.Add(doc);
+        }
+
+        return nuevos;
+    }
+
+    private IXLWorksheet SeleccionarHoja(XLWorkbook workbook)
+    {
+        var nombreCategoria = _categoriaActiva switch
+        {
+            CategoriaDocumento.Ingenieria => "Ingeniería",
+            CategoriaDocumento.HSE => "HSE",
+            CategoriaDocumento.Procedimientos => "Construcción",
+            _ => ""
+        };
+
+        if (!string.IsNullOrEmpty(nombreCategoria) && workbook.Worksheets.TryGetWorksheet(nombreCategoria, out var wsByName))
+            return wsByName;
+
+        foreach (var ws in workbook.Worksheets)
+        {
+            var lr = ws.LastRowUsed()?.RowNumber() ?? 0;
+            var lc = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+            for (int r = 1; r <= Math.Min(20, lr); r++)
+                for (int c = 1; c <= Math.Min(lc, 30); c++)
+                {
+                    var val = ws.Cell(r, c).GetString().ToLowerInvariant();
+                    if (val.Contains("código cliente") || val.Contains("codigo cliente") || val.Contains("nombre del documento"))
+                        return ws;
+                }
+        }
+
+        return workbook.Worksheets.First();
+    }
+
+    private static Dictionary<string, int> MapeoFijo()
+    {
+        return new Dictionary<string, int>
+        {
+            ["codigocliente"] = 2,
+            ["codigo"] = 3,
+            ["nombre"] = 4,
+            ["estado"] = 7,
+            ["version"] = 8,
+            ["fechaemision"] = 9,
+            ["fechaentrega1"] = 10,
+            ["fechadevolucion1"] = 11,
+            ["fechaentrega2"] = 13,
+            ["fechadevolucion2"] = 14,
+            ["fechaentrega3"] = 16,
+            ["fechadevolucion3"] = 17,
+            ["fechavalidacion"] = 19,
+            ["fase"] = 20,
+            ["area"] = 21,
+            ["observaciones"] = 22,
+            ["responsable"] = 24
+        };
+    }
+
+    private static int DetectarFilaEncabezados(IXLWorksheet ws, int lastRow, int lastCol)
+    {
+        for (int row = 1; row <= Math.Min(30, lastRow); row++)
+        {
+            for (int col = 1; col <= Math.Min(lastCol, 30); col++)
+            {
+                var val = ws.Cell(row, col).GetString().ToLowerInvariant();
+                if (val.Contains("código cliente") || val.Contains("codigo cliente") || val.Contains("nombre del documento"))
+                    return row;
+            }
+        }
+        for (int row = 1; row <= Math.Min(30, lastRow); row++)
+        {
+            int nonEmpty = 0;
+            for (int col = 1; col <= Math.Min(lastCol, 30); col++)
+                if (!string.IsNullOrEmpty(ws.Cell(row, col).GetString().Trim())) nonEmpty++;
+            if (nonEmpty >= 8) return row;
+        }
+        return 1;
+    }
+
+    private static Dictionary<string, int> MapearColumnas(IXLWorksheet ws, int headerRow, int lastCol)
+    {
+        var map = new Dictionary<string, int>();
+        int entregaCount = 0;
+        int devolucionCount = 0;
+
+        for (int col = 1; col <= lastCol; col++)
+        {
+            var raw = ws.Cell(headerRow, col).GetString().Trim();
+            if (string.IsNullOrEmpty(raw)) continue;
+            var h = raw.ToLowerInvariant()
+                .Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n");
+
+            if (h.Contains("codigo") && h.Contains("cliente"))
+                map["codigocliente"] = col;
+            else if (h.Contains("codigo") && (h.Contains("renerg") || h.Contains("proyecto") || h.Contains("interno")))
+                map["codigo"] = col;
+            else if (h.Contains("nombre") && h.Contains("documento"))
+                map["nombre"] = col;
+            else if (h == "nombre" || h == "descripcion" || h == "titulo")
+                map.TryAdd("nombre", col);
+            else if (h.Contains("estado") && !h.Contains("retraso"))
+                map["estado"] = col;
+            else if (h.Contains("version"))
+                map["version"] = col;
+            else if (h.Contains("emision"))
+                map["fechaemision"] = col;
+            else if (h.Contains("validac"))
+                map["fechavalidacion"] = col;
+            else if (h.Contains("entrega") && !h.Contains("retraso") && !h.Contains("tiempo"))
+            {
+                entregaCount++;
+                if (entregaCount <= 3) map[$"fechaentrega{entregaCount}"] = col;
+            }
+            else if (h.Contains("devolucion") && !h.Contains("retraso") && !h.Contains("tiempo"))
+            {
+                devolucionCount++;
+                if (devolucionCount <= 3) map[$"fechadevolucion{devolucionCount}"] = col;
+            }
+            else if (h == "fase" || h.Contains("fase del"))
+                map["fase"] = col;
+            else if (h == "area" || h.Contains("area") || h.Contains("especialidad"))
+                map["area"] = col;
+            else if (h.Contains("transmittal"))
+                map["transmittal"] = col;
+            else if (h.Contains("observacion"))
+                map["observaciones"] = col;
+            else if (h.Contains("responsable"))
+                map["responsable"] = col;
+        }
+
+        return map;
+    }
+
+    private static string CeldaTexto(IXLWorksheet ws, int row, Dictionary<string, int> map, string key)
+    {
+        if (!map.TryGetValue(key, out var col)) return "";
+        var cell = ws.Cell(row, col);
+        if (cell.IsEmpty()) return "";
+        return cell.GetString().Trim();
+    }
+
+    private static DateTime? CeldaFecha(IXLWorksheet ws, int row, Dictionary<string, int> map, string key)
+    {
+        if (!map.TryGetValue(key, out var col)) return null;
+        return ParsearFecha(ws.Cell(row, col));
+    }
+
+    private async Task<List<Documento>> ImportarDesdeCsvAsync(IBrowserFile file)
+    {
+        var nuevos = new List<Documento>();
+        using var reader = new System.IO.StreamReader(file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024));
+        var contenido = await reader.ReadToEndAsync();
+        var lineas = contenido.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        if (lineas.Length < 2) return nuevos;
+
+        for (int i = 1; i < lineas.Length; i++)
+        {
+            var cols = lineas[i].Split(new[] { ';', ',', '\t' }, StringSplitOptions.None);
+            if (cols.Length < 3) continue;
+
+            var codigo = cols.ElementAtOrDefault(1)?.Trim() ?? "";
+            var titulo = cols.ElementAtOrDefault(2)?.Trim() ?? "";
+            if (string.IsNullOrEmpty(codigo) && string.IsNullOrEmpty(titulo)) continue;
+
+            var doc = new Documento
+            {
+                ProyectoId = ProyectoId,
+                Categoria = _categoriaActiva,
+                CodigoCliente = cols.ElementAtOrDefault(0)?.Trim(),
+                Codigo = string.IsNullOrEmpty(codigo) ? $"IMP-{i:D3}" : codigo,
+                Titulo = string.IsNullOrEmpty(titulo) ? "Sin título" : titulo,
+                Version = cols.ElementAtOrDefault(5)?.Trim() is var ver && !string.IsNullOrEmpty(ver) ? ver : "0",
+                Estado = ParsearEstado(cols.ElementAtOrDefault(4)?.Trim() ?? ""),
+                Responsable = cols.ElementAtOrDefault(18)?.Trim()
+            };
+
+            if (cols.Length > 6 && DateTime.TryParse(cols[6].Trim(), CultureInfo.InvariantCulture, DateTimeStyles.None, out var fe)) doc.FechaEmision = fe;
+            if (cols.Length > 16) doc.Transmittal = cols[16].Trim();
+            if (cols.Length > 17) doc.Observaciones = cols[17].Trim();
+
+            nuevos.Add(doc);
+        }
+
+        return nuevos;
+    }
+
+    private static DateTime? ParsearFecha(IXLCell cell)
+    {
+        if (cell.IsEmpty()) return null;
+        try
+        {
+            if (cell.DataType == XLDataType.DateTime) return cell.GetDateTime();
+            if (cell.DataType == XLDataType.Number)
+            {
+                var num = cell.GetDouble();
+                if (num > 40000 && num < 60000)
+                    return DateTime.FromOADate(num);
+                return null;
+            }
+        }
+        catch { }
+        var txt = cell.GetString().Trim();
+        if (string.IsNullOrEmpty(txt)) return null;
+        string[] formatos = ["dd/MM/yyyy", "d/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "d-MM-yyyy"];
+        if (DateTime.TryParseExact(txt, formatos, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            return dt;
+        if (DateTime.TryParse(txt, new CultureInfo("es-CO"), DateTimeStyles.None, out var dt2))
+            return dt2;
+        if (DateTime.TryParse(txt, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt3))
+            return dt3;
+        return null;
+    }
+
+    private static EstadoDocumento ParsearEstado(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return EstadoDocumento.PendienteEmitir;
+        var t = texto.ToLowerInvariant().Trim();
+        if (t.Contains("no validado") || t.Contains("rechazado")) return EstadoDocumento.NoValidado;
+        if (t.Contains("validado") && t.Contains("comentario")) return EstadoDocumento.ValidadoConComentarios;
+        if (t.Contains("validado") || t.Contains("aprobado")) return EstadoDocumento.Validado;
+        if (t.Contains("pendiente") && t.Contains("valid")) return EstadoDocumento.PendienteValidacion;
+        if (t.Contains("pendiente")) return EstadoDocumento.PendienteEmitir;
+        if (t.Contains("informativo")) return EstadoDocumento.Informativos;
+        return EstadoDocumento.PendienteEmitir;
+    }
+
+    private static AreaDocumento ParsearArea(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return AreaDocumento.General;
+        var t = texto.ToLowerInvariant();
+        if (t.Contains("civil")) return AreaDocumento.Civil;
+        if (t.Contains("mec") || t.Contains("mecánic")) return AreaDocumento.Mecanico;
+        if (t.Contains("elec") || t.Contains("eléc")) return AreaDocumento.Electrico;
+        return AreaDocumento.General;
+    }
+
+    private static int ParsearFase(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return 1;
+        var limpio = texto.ToLowerInvariant().Replace("fase", "").Trim();
+        if (int.TryParse(limpio, out var f) && f >= 1 && f <= 3) return f;
+        return 1;
+    }
+
+    // ── Exportar Excel (.xlsx real) ─────────────────────────────────────────
+
+    private async Task ExportarExcelAsync()
+    {
+        var docs = DocumentosFiltrados().ToList();
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet(EnumDisplay.Mostrar(_categoriaActiva));
+
+        string[] headers = ["#", "Código Cliente", "Código Proyecto", "Nombre del Documento", "Estado", "Versión",
+            "Fecha Emisión", "Fecha Entrega 1", "Fecha Devolución 1", "Días Rev 1",
+            "Fecha Entrega 2", "Fecha Devolución 2", "Días Rev 2",
+            "Fecha Entrega 3", "Fecha Devolución 3", "Días Rev 3",
+            "Fecha Validación", "Fase", "Área", "Transmittal", "Observaciones", "Responsable"];
+
+        for (int c = 0; c < headers.Length; c++)
+        {
+            var cell = ws.Cell(1, c + 1);
+            cell.Value = headers[c];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Font.FontSize = 9;
+        }
+
+        for (int i = 0; i < docs.Count; i++)
+        {
+            var d = docs[i];
+            int r = i + 2;
+            ws.Cell(r, 1).Value = i + 1;
+            ws.Cell(r, 2).Value = d.CodigoCliente ?? "";
+            ws.Cell(r, 3).Value = d.Codigo;
+            ws.Cell(r, 4).Value = d.Titulo;
+            ws.Cell(r, 5).Value = EnumDisplay.Mostrar(d.Estado);
+            ws.Cell(r, 6).Value = d.Version;
+            if (d.FechaEmision.HasValue) ws.Cell(r, 7).Value = d.FechaEmision.Value;
+            if (d.FechaEntrega1.HasValue) ws.Cell(r, 8).Value = d.FechaEntrega1.Value;
+            if (d.FechaDevolucion1.HasValue) ws.Cell(r, 9).Value = d.FechaDevolucion1.Value;
+            if (d.TiempoRetraso1.HasValue) ws.Cell(r, 10).Value = d.TiempoRetraso1.Value;
+            if (d.FechaEntrega2.HasValue) ws.Cell(r, 11).Value = d.FechaEntrega2.Value;
+            if (d.FechaDevolucion2.HasValue) ws.Cell(r, 12).Value = d.FechaDevolucion2.Value;
+            if (d.TiempoRetraso2.HasValue) ws.Cell(r, 13).Value = d.TiempoRetraso2.Value;
+            if (d.FechaEntrega3.HasValue) ws.Cell(r, 14).Value = d.FechaEntrega3.Value;
+            if (d.FechaDevolucion3.HasValue) ws.Cell(r, 15).Value = d.FechaDevolucion3.Value;
+            if (d.TiempoRetraso3.HasValue) ws.Cell(r, 16).Value = d.TiempoRetraso3.Value;
+            if (d.FechaValidacion.HasValue) ws.Cell(r, 17).Value = d.FechaValidacion.Value;
+            ws.Cell(r, 18).Value = $"Fase {d.Fase}";
+            ws.Cell(r, 19).Value = EnumDisplay.Mostrar(d.Area);
+            ws.Cell(r, 20).Value = d.Transmittal ?? "";
+            ws.Cell(r, 21).Value = d.Observaciones ?? "";
+            ws.Cell(r, 22).Value = d.Responsable ?? "";
+
+            for (int c = 7; c <= 17; c++)
+            {
+                if (c == 10 || c == 13 || c == 16) continue;
+                ws.Cell(r, c).Style.DateFormat.Format = "dd/MM/yyyy";
+            }
+        }
+
+        ws.Columns().AdjustToContents(1, 50);
+
+        using var msOut = new System.IO.MemoryStream();
+        wb.SaveAs(msOut);
+        var base64 = Convert.ToBase64String(msOut.ToArray());
+        await JS.InvokeVoidAsync("eval",
+            $"{{const a=document.createElement('a');a.href='data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{base64}';a.download='Documentos_{EnumDisplay.Mostrar(_categoriaActiva)}_{DateTime.Now:yyyyMMdd}.xlsx';a.click()}}");
+        MostrarMensaje($"{docs.Count} documentos exportados a Excel.", false);
+    }
+
+    // ── Exportar PDF (informe con dashboard) ────────────────────────────────
+
+    private async Task ExportarPdfAsync()
+    {
+        var docs = DocumentosFiltrados().ToList();
+        var todosCategoria = _documentos.Where(d => d.Categoria == _categoriaActiva).ToList();
+        var categoria = EnumDisplay.Mostrar(_categoriaActiva);
+        var total = todosCategoria.Count;
+        var porEstado = Enum.GetValues<EstadoDocumento>()
+            .Select(e => new { Estado = EnumDisplay.Mostrar(e), Cant = todosCategoria.Count(d => d.Estado == e), Color = ColorEstadoHex(e) })
+            .Where(x => x.Cant > 0).ToList();
+        var porArea = Enum.GetValues<AreaDocumento>()
+            .Select(a => new { Area = EnumDisplay.Mostrar(a), Cant = todosCategoria.Count(d => d.Area == a), Color = ColorArea(a) })
+            .Where(x => x.Cant > 0).ToList();
+        var porFase = new[] { 1, 2, 3 }
+            .Select(f => new { Fase = $"Fase {f}", Cant = todosCategoria.Count(d => d.Fase == f) })
+            .Where(x => x.Cant > 0).ToList();
+
+        var pctValidado = total > 0 ? todosCategoria.Count(d => d.Estado == EstadoDocumento.Validado) * 100 / total : 0;
+
+        var filasHtml = new System.Text.StringBuilder();
+        for (int i = 0; i < docs.Count; i++)
+        {
+            var d = docs[i];
+            filasHtml.Append($"<tr><td>{i + 1}</td><td>{d.CodigoCliente ?? ""}</td><td>{d.Codigo}</td><td>{d.Titulo}</td>");
+            filasHtml.Append($"<td><span style='background:{ColorEstadoHex(d.Estado)};color:#fff;padding:2px 6px;border-radius:4px;font-size:9px'>{EnumDisplay.Mostrar(d.Estado)}</span></td>");
+            filasHtml.Append($"<td>{d.Version}</td><td>{FechaCorta(d.FechaEmision)}</td>");
+            filasHtml.Append($"<td>{FechaCorta(d.FechaEntrega1)}</td><td>{FechaCorta(d.FechaDevolucion1)}</td><td>{d.TiempoRetraso1?.ToString() ?? "—"}</td>");
+            filasHtml.Append($"<td>{FechaCorta(d.FechaEntrega2)}</td><td>{FechaCorta(d.FechaDevolucion2)}</td><td>{d.TiempoRetraso2?.ToString() ?? "—"}</td>");
+            filasHtml.Append($"<td>{FechaCorta(d.FechaValidacion)}</td><td>Fase {d.Fase}</td><td>{EnumDisplay.Mostrar(d.Area)}</td>");
+            filasHtml.Append($"<td>{d.Observaciones ?? ""}</td></tr>");
+        }
+
+        var barrasEstado = new System.Text.StringBuilder();
+        foreach (var e in porEstado)
+        {
+            var pct = total > 0 ? e.Cant * 100 / total : 0;
+            barrasEstado.Append($"<div style='margin-bottom:6px'><div style='display:flex;justify-content:space-between;font-size:11px'><span>{e.Estado}</span><span>{e.Cant} ({pct}%)</span></div>");
+            barrasEstado.Append($"<div style='background:#e9ecef;border-radius:4px;height:18px'><div style='background:{e.Color};height:18px;border-radius:4px;width:{pct}%'></div></div></div>");
+        }
+
+        var barrasArea = new System.Text.StringBuilder();
+        foreach (var a in porArea)
+        {
+            var pct = total > 0 ? a.Cant * 100 / total : 0;
+            barrasArea.Append($"<div style='margin-bottom:6px'><div style='display:flex;justify-content:space-between;font-size:11px'><span>{a.Area}</span><span>{a.Cant} ({pct}%)</span></div>");
+            barrasArea.Append($"<div style='background:#e9ecef;border-radius:4px;height:18px'><div style='background:{a.Color};height:18px;border-radius:4px;width:{pct}%'></div></div></div>");
+        }
+
+        var barrasFase = new System.Text.StringBuilder();
+        string[] coloresFase = ["#0d6efd", "#6ABF4B", "#fd7e14"];
+        for (int i = 0; i < porFase.Count; i++)
+        {
+            var f = porFase[i];
+            var pct = total > 0 ? f.Cant * 100 / total : 0;
+            var color = coloresFase[i % coloresFase.Length];
+            barrasFase.Append($"<div style='margin-bottom:6px'><div style='display:flex;justify-content:space-between;font-size:11px'><span>{f.Fase}</span><span>{f.Cant} ({pct}%)</span></div>");
+            barrasFase.Append($"<div style='background:#e9ecef;border-radius:4px;height:18px'><div style='background:{color};height:18px;border-radius:4px;width:{pct}%'></div></div></div>");
+        }
+
+        var html = $@"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Informe Documental — {categoria}</title>
+<style>
+@@media print {{ @@page {{ size: landscape; margin: 10mm; }} }}
+body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; color: #333; font-size: 11px; }}
+.header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #183963; padding-bottom: 10px; margin-bottom: 20px; }}
+.header h1 {{ color: #183963; margin: 0; font-size: 22px; }}
+.header .meta {{ text-align: right; color: #666; font-size: 11px; }}
+.dashboard {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 25px; }}
+.dash-card {{ border: 1px solid #dee2e6; border-radius: 8px; padding: 12px; }}
+.dash-card h3 {{ margin: 0 0 10px 0; font-size: 13px; color: #183963; border-bottom: 2px solid #183963; padding-bottom: 5px; }}
+.kpi-row {{ display: flex; justify-content: space-around; text-align: center; margin-bottom: 20px; }}
+.kpi {{ padding: 8px 15px; }}
+.kpi .num {{ font-size: 28px; font-weight: bold; }}
+.kpi .label {{ font-size: 10px; color: #666; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 9px; }}
+th {{ background: #183963; color: white; padding: 4px 6px; text-align: left; }}
+td {{ padding: 3px 6px; border-bottom: 1px solid #e9ecef; }}
+tr:nth-child(even) {{ background: #f8f9fa; }}
+.footer {{ margin-top: 15px; text-align: center; color: #999; font-size: 9px; border-top: 1px solid #dee2e6; padding-top: 8px; }}
+</style></head><body>
+<div class='header'>
+    <div><h1>RenergeIA — Informe Documental</h1><div style='color:#6ABF4B;font-size:14px;font-weight:bold'>{categoria}</div></div>
+    <div class='meta'><div>{_proyecto?.Nombre}</div><div>Fecha: {DateTime.Now:dd/MM/yyyy}</div><div>Total documentos: {total}</div></div>
+</div>
+<div class='kpi-row'>
+    <div class='kpi'><div class='num' style='color:#183963'>{total}</div><div class='label'>Total</div></div>
+    <div class='kpi'><div class='num' style='color:#6ABF4B'>{todosCategoria.Count(d => d.Estado == EstadoDocumento.Validado)}</div><div class='label'>Validados</div></div>
+    <div class='kpi'><div class='num' style='color:#0d6efd'>{todosCategoria.Count(d => d.Estado == EstadoDocumento.PendienteValidacion)}</div><div class='label'>Pend. Validación</div></div>
+    <div class='kpi'><div class='num' style='color:#fd7e14'>{todosCategoria.Count(d => d.Estado == EstadoDocumento.PendienteEmitir)}</div><div class='label'>Pend. Emitir</div></div>
+    <div class='kpi'><div class='num' style='color:#dc3545'>{todosCategoria.Count(d => d.Estado == EstadoDocumento.NoValidado)}</div><div class='label'>No Validados</div></div>
+    <div class='kpi'><div class='num' style='color:#6ABF4B'>{pctValidado}%</div><div class='label'>% Aprobación</div></div>
+</div>
+<div class='dashboard'>
+    <div class='dash-card'><h3>Por Estado</h3>{barrasEstado}</div>
+    <div class='dash-card'><h3>Por Área</h3>{barrasArea}</div>
+    <div class='dash-card'><h3>Por Fase</h3>{barrasFase}</div>
+</div>
+<h2 style='color:#183963;font-size:14px;margin-bottom:8px'>Listado de Documentos — {categoria}</h2>
+<table>
+<thead><tr><th>#</th><th>Cód. Cliente</th><th>Cód. Proyecto</th><th>Descripción</th><th>Estado</th><th>Ver.</th><th>Emisión</th><th>Entrega 1</th><th>Devol. 1</th><th>Días</th><th>Entrega 2</th><th>Devol. 2</th><th>Días</th><th>Validación</th><th>Fase</th><th>Área</th><th>Observaciones</th></tr></thead>
+<tbody>{filasHtml}</tbody>
+</table>
+<div class='footer'>Generado por RenergeIA — Plataforma de Gestión EPC Fotovoltaico · {DateTime.Now:dd/MM/yyyy HH:mm}</div>
+<script>window.onload=function(){{window.print();}}</script>
+</body></html>";
+
+        var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(html));
+        await JS.InvokeVoidAsync("eval",
+            $"window.open('data:text/html;base64,{base64}','_blank')");
+        MostrarMensaje("Informe PDF generado. Usa Ctrl+P o el diálogo de impresión para guardar como PDF.", false);
+    }
+
+    private void MostrarMensaje(string msg, bool error)
+    {
+        _mensaje = msg;
+        _mensajeError = error;
+    }
+
+    // ── Helpers visuales ────────────────────────────────────────────────────
+
+    private static string FechaCorta(DateTime? f) => f?.ToString("dd/MM/yyyy") ?? "—";
 
     private static string BadgeEstado(EstadoDocumento e) => e switch
     {
-        EstadoDocumento.Borrador => "bg-secondary",
-        EstadoDocumento.EnRevision => "bg-warning text-dark",
-        EstadoDocumento.Aprobado => "bg-success",
-        EstadoDocumento.Rechazado => "bg-danger",
-        EstadoDocumento.Obsoleto => "bg-dark",
-        _ => "bg-secondary"
+        EstadoDocumento.PendienteEmitir       => "bg-secondary",
+        EstadoDocumento.PendienteValidacion   => "bg-primary",
+        EstadoDocumento.ValidadoConComentarios => "bg-warning text-dark",
+        EstadoDocumento.Validado              => "bg-success",
+        EstadoDocumento.Informativos          => "bg-info text-dark",
+        EstadoDocumento.NoValidado            => "bg-danger",
+        _                                     => "bg-secondary"
     };
+
+    private static string ColorEstadoHex(EstadoDocumento e) => e switch
+    {
+        EstadoDocumento.PendienteEmitir       => "#6c757d",
+        EstadoDocumento.PendienteValidacion   => "#0d6efd",
+        EstadoDocumento.ValidadoConComentarios => "#ffc107",
+        EstadoDocumento.Validado              => "#6ABF4B",
+        EstadoDocumento.Informativos          => "#0dcaf0",
+        EstadoDocumento.NoValidado            => "#dc3545",
+        _                                     => "#6c757d"
+    };
+
+    private static string ColorArea(AreaDocumento a) => a switch
+    {
+        AreaDocumento.Civil     => "#0d6efd",
+        AreaDocumento.Mecanico  => "#6ABF4B",
+        AreaDocumento.Electrico => "#fd7e14",
+        AreaDocumento.General   => "#6c757d",
+        _                      => "#6c757d"
+    };
+
+    private static string ColorRetraso(int? dias) => dias switch
+    {
+        null => "",
+        <= 15 => "text-success",
+        <= 30 => "text-warning fw-bold",
+        _ => "text-danger fw-bold"
+    };
+
+    private static string IconoCategoria(CategoriaDocumento c) => c switch
+    {
+        CategoriaDocumento.Procedimientos => "bi-journal-text",
+        CategoriaDocumento.HSE            => "bi-shield-check",
+        CategoriaDocumento.Ingenieria     => "bi-rulers",
+        _                                 => "bi-file-earmark"
+    };
+
+    // ── Modelo de edición ───────────────────────────────────────────────────
+
+    private sealed class EditModel
+    {
+        public string? CodigoCliente { get; set; }
+        public string Codigo { get; set; } = "";
+        public string Titulo { get; set; } = "";
+        public EstadoDocumento Estado { get; set; }
+        public string Version { get; set; } = "0";
+        public DateTime? FechaEmision { get; set; }
+        public DateTime? FechaEntrega1 { get; set; }
+        public DateTime? FechaDevolucion1 { get; set; }
+        public DateTime? FechaEntrega2 { get; set; }
+        public DateTime? FechaDevolucion2 { get; set; }
+        public DateTime? FechaEntrega3 { get; set; }
+        public DateTime? FechaDevolucion3 { get; set; }
+        public DateTime? FechaValidacion { get; set; }
+        public int Fase { get; set; } = 1;
+        public AreaDocumento Area { get; set; }
+        public string? Transmittal { get; set; }
+        public string? Observaciones { get; set; }
+        public string? Responsable { get; set; }
+    }
 }

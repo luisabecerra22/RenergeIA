@@ -1,6 +1,7 @@
 # Build outputs
 **/bin/
 **/obj/
+publish/
 
 # Secretos y configuración local
 **/appsettings.Development.json
@@ -20,3 +21,6 @@ RenergeIA.Web/wwwroot/uploads/
 
 # Archivos temporales de ngrok
 ngrok.exe
+
+# Claude Code
+.claude/

@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **1 de julio de 2026 — Motor de Auditoría HSEQ genérico multi-norma, Matriz de Riesgos IPERV con Inspecciones asistidas por IA, y módulo de Costos ampliado con Compromisos de Gasto**
+> Última actualización: **3 de agosto de 2026 — Módulo de Documentos rediseñado (3 categorías, importación inteligente Excel, exportación .xlsx y PDF con dashboard), despliegue en GCP Cloud Run (v38), migración a PostgreSQL**
 
 ---
 
@@ -133,23 +133,23 @@ A diferencia de una SPA, en Blazor Server **todo el código C# corre en el servi
 | Gráficos | Chart.js | 4.4.0 (CDN) |
 | Mapas | Leaflet.js | 1.9.4 (CDN) |
 | ORM | Entity Framework Core | 10.0 |
-| Base de datos (local) | SQL Server (Express o Developer) | 2019+ |
-| Base de datos (nube, Fase 2) | Azure SQL | — |
+| Base de datos | PostgreSQL (Npgsql) | 10.0.2 |
 | Autenticación | ASP.NET Core Identity | 10.0 |
 | Interoperabilidad JS | IJSRuntime (Blazor built-in) | — |
 | Reportes PDF | QuestPDF | Fase 2 |
-| Almacenamiento archivos | Sistema local → Azure Blob (Fase 2) | — |
+| Almacenamiento archivos | Sistema local → GCS (Fase 2) | — |
 | Clima | Open-Meteo API | Gratis, sin clave |
-| IA | Azure OpenAI / OpenAI API | Fase 2 |
+| IA | Anthropic Claude API | claude-sonnet-4-6 |
 | Control de versiones | Git + GitHub | — |
 | Exportación Excel | ClosedXML | 0.104.2 |
+| Despliegue | Google Cloud Run + Artifact Registry | — |
 
 ### Paquetes NuGet instalados
 
 **RenergeIA.Infrastructure**
 ```
 Microsoft.AspNetCore.Identity.EntityFrameworkCore  10.0.x
-Microsoft.EntityFrameworkCore.SqlServer            10.0.x
+Npgsql.EntityFrameworkCore.PostgreSQL              10.0.2
 Microsoft.EntityFrameworkCore.Tools                10.0.x
 ```
 
@@ -358,27 +358,51 @@ Proyecto Agente/
 | Herramienta | Propósito |
 |------------|-----------|
 | .NET SDK 10 | Compilar y ejecutar la aplicación |
-| SQL Server Express/Developer | Base de datos local |
-| SQL Server Management Studio (SSMS) | Visualizar la base de datos |
+| PostgreSQL 16+ | Base de datos (local y producción) |
+| pgAdmin 4 o DBeaver | Visualizar la base de datos |
 | Visual Studio Code o Visual Studio 2022+ | Editor de código |
 | Git | Control de versiones local |
 | Cuenta GitHub | Repositorio remoto del proyecto |
+| Google Cloud CLI (gcloud) | Despliegue a Cloud Run (producción) |
+| Docker Desktop | Construcción de imagen para Cloud Run |
 
 ### Verificar instalación
 
 ```powershell
 dotnet --version   # Debe mostrar 10.x.x
 git --version      # Debe mostrar 2.x.x
+psql --version     # Debe mostrar 16.x o superior
+gcloud --version   # Para despliegues a Cloud Run
 ```
 
-### Clonar el repositorio (nuevos colaboradores)
+### Clonar el repositorio (nuevo PC o colaboradores)
 
 ```powershell
-git clone https://github.com/[organización]/renergeia.git "Proyecto Agente"
+# 1. Clonar el repositorio
+git clone https://github.com/luisabecerra22/RenergeIA.git "Proyecto Agente"
 cd "Proyecto Agente"
+
+# 2. Restaurar paquetes NuGet
 dotnet restore
+
+# 3. Instalar PostgreSQL y crear la base de datos
+#    (instalar PostgreSQL 16+, crear usuario postgres con contraseña postgres)
+#    La BD se crea automáticamente al aplicar migraciones.
+
+# 4. Aplicar migraciones
 dotnet ef database update --project RenergeIA.Infrastructure --startup-project RenergeIA.Web
-dotnet watch run --urls http://localhost:5169 --project RenergeIA.Web
+
+# 5. Ejecutar la aplicación
+dotnet run --project RenergeIA.Web
+```
+
+### Configuración de Google Cloud (para despliegues)
+
+```powershell
+# Instalar gcloud CLI: https://cloud.google.com/sdk/docs/install
+gcloud auth login
+gcloud config set project renergeia-app
+gcloud auth configure-docker us-central1-docker.pkg.dev
 ```
 
 ---
@@ -592,7 +616,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=RenergeIA;Trusted_Connection=True;TrustServerCertificate=True;"
+    "DefaultConnection": "Host=localhost;Database=RenergeIA;Username=postgres;Password=postgres"
   },
   "AccuWeather": {
     "ApiKey": "TU_CLAVE_ACCUWEATHER_AQUI"
@@ -604,11 +628,11 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
 }
 ```
 
+> **Nota:** La BD usa **PostgreSQL** con el paquete `Npgsql.EntityFrameworkCore.PostgreSQL`. En `Program.cs` se configura `AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true)` para compatibilidad de timestamps.
+
 La clave `AccuWeather:ApiKey` es necesaria para el módulo de Clima. Se obtiene gratis (plan de desarrollo) en [developer.accuweather.com](https://developer.accuweather.com). Si no se configura, el módulo muestra un error descriptivo pero no rompe el resto de la aplicación.
 
-La clave `Anthropic:ApiKey` es necesaria para el análisis automático de inspecciones con IA del módulo HSEQ Seguridad — Matriz de Riesgos (ver sección 31). `IAInspeccionService` la usa para llamar a la API de Anthropic (`https://api.anthropic.com/v1/messages`) y generar la valoración GTC 45 de un peligro a partir de una foto y/o descripción de la inspección. Se obtiene en [console.anthropic.com](https://console.anthropic.com). Sin esta clave, el botón de análisis con IA falla mostrando un error, pero el resto del módulo (captura manual de riesgos) sigue funcionando.
-
-> **Pendiente:** actualizar `Model` a un identificador vigente (p. ej. `claude-sonnet-5`) — `claude-sonnet-4-6` es una versión anterior de Sonnet que sigue activa pero ya no es la más reciente en el momento de escribir esta guía.
+La clave `Anthropic:ApiKey` es necesaria para el análisis automático de inspecciones con IA del módulo HSEQ Seguridad — Matriz de Riesgos (ver sección 31). Se obtiene en [console.anthropic.com](https://console.anthropic.com). Sin esta clave, el botón de análisis con IA falla pero el resto del módulo funciona.
 
 ---
 
@@ -746,11 +770,35 @@ Las actividades cargadas en el formulario de Informe Diario también se filtran 
 
 | Ruta | Función |
 |------|---------|
-| `/proyectos/{id}/documentos` | Lista con filtros por tipo, disciplina, estado |
+| `/proyectos/{id}/documentos` | Lista con 3 pestañas por categoría + KPIs + importación/exportación |
 | `/proyectos/{id}/documentos/crear` | Nuevo documento |
 | `/proyectos/{id}/documentos/{docId}` | Ver y gestionar versiones |
 
-Cada documento puede tener múltiples `VersionDocumento`. La versión activa es la más reciente aprobada.
+### Rediseño v35-v38 (julio-agosto 2026)
+
+El módulo fue completamente rediseñado para soportar la estructura real de documentos EPC:
+
+**3 Categorías (pestañas):** Procedimientos, HSE, Ingeniería — cada una con su propia fila de KPIs y tabla filtrada.
+
+**Estados del documento (`EstadoDocumento`):** PendienteEmitir, PendienteValidacion, ValidadoConComentarios, Validado, Informativos, NoValidado
+
+**Campos del documento:** CodigoCliente, Codigo, Titulo, Estado, Version, Fase, Area (Civil/Mecanico/Electrico/General), FechaEmision, FechaEntrega1-4, FechaDevolucion1-4, FechaValidacion, Transmittal, Observaciones, Responsable, TiempoRetraso1-4 (calculado)
+
+**Edición inline:** Todos los campos son editables directamente en la tabla. Al modificar un campo aparece una barra sticky amarilla con botones "Guardar cambios" y "Cancelar".
+
+**Importación inteligente de Excel (.xlsx):**
+- `SeleccionarHoja(XLWorkbook)` — selecciona la hoja correcta según la categoría activa (Ingeniería→"Ingeniería", HSE→"HSE", Procedimientos→"Construcción"); fallback busca "Código Cliente" en todas las hojas
+- `DetectarFilaEncabezados(ws, lastRow, lastCol)` — busca filas 1-30 para encontrar headers ("Código Cliente", "Nombre del documento"); fallback busca la fila con 8+ celdas no vacías
+- `MapearColumnas(ws, headerRow, lastCol)` — lectura dinámica de headers con normalización de acentos
+- `MapeoFijo()` — fallback con posiciones hardcodeadas que coinciden con el formato Excel estándar de Renergeia
+- `ParsearFecha(IXLCell)` — maneja DateTime, serial dates (OADate 40000-60000) y texto con múltiples formatos
+- `ParsearEstado(string)` — "no validado" se evalúa ANTES que "validado" para evitar falso positivo
+
+**Exportación Excel (.xlsx):** Genera archivo real con ClosedXML, headers formateados en azul #183963.
+
+**Exportación PDF con Dashboard:** Genera HTML con KPIs, gráficos de barras CSS (por estado/área/fase), tabla completa. Se abre en nueva ventana con `window.print()` automático.
+
+**Librería:** ClosedXML 0.104.2 (ya incluida en RenergeIA.Web.csproj)
 
 ---
 
@@ -1170,6 +1218,7 @@ Estados: Abierta → En Gestión → Resuelta / Aceptada.
 | `AddCamposISO9001` | 2026-06-29 | Renombra `Evidencia` → `OportunidadMejora` en `ItemsChecklist`; agrega `Clausula`, `EvidenciaUrl`, `Hallazgo`, `Plazo`, `Puntaje`, `Seguimiento`, `TituloClausula`; agrega `EstadoAuditoria`, `UsuarioId` en `ChecklistsAuditoria` |
 | `AddSeguridadIPERV` | 2026-06-30 | Tablas nuevas: `BibliotecaPeligros` (corporativa, sin FK), `InspeccionesIA` (FK a Proyectos), `RiesgosIPERV` (FK a Proyectos e InspeccionesIA) |
 | `AddCompromisoCosto` | 2026-06-30 | Tabla nueva `CompromisoCostos` (FK a Proyecto y Partida); agrega `AdjuntoUrl` en `CostosReales`; hace `ProyectoId` nullable (`SetNull`) en `ChecklistsAuditoria` para permitir auditorías corporativas sin proyecto |
+| `DocumentosControlRevisiones` | 2026-07-18 | Campos nuevos en `Documentos`: `Categoria` (CategoriaDocumento), `CodigoCliente`, `Area` (AreaDocumento), `Fase`, `FechaEntrega1-4`, `FechaDevolucion1-4`, `FechaValidacion`, `Transmittal`, `Observaciones`, `Responsable`, `TiempoRetraso1-4` (calculados). Enums nuevos: `CategoriaDocumento` (Procedimientos, HSE, Ingenieria), `AreaDocumento` (Civil, Mecanico, Electrico, General). Ampliación de `EstadoDocumento` (PendienteEmitir, PendienteValidacion, ValidadoConComentarios, Validado, Informativos, NoValidado) |
 
 ### Comandos de migración
 
@@ -1199,7 +1248,7 @@ dotnet ef migrations list `
 ### Primera vez (configuración inicial)
 
 ```powershell
-cd "C:\Users\Luisa_Becerra\OneDrive - Renergeia LLC\Escritorio\RenergeIA - Agente\Proyecto Agente"
+cd "Proyecto Agente"
 
 dotnet restore
 
@@ -1221,9 +1270,7 @@ Abrir en el navegador: `https://localhost:5001` o `http://localhost:5000`
 ### Si hay error "archivo bloqueado por otro proceso"
 
 ```powershell
-# Matar proceso dotnet que tiene los archivos bloqueados
 Get-Process dotnet | Stop-Process -Force
-# Luego volver a correr
 dotnet run --project RenergeIA.Web
 ```
 
@@ -1233,6 +1280,50 @@ dotnet run --project RenergeIA.Web
 |-------|-------|
 | Email | `admin@renergeia.com` |
 | Contraseña | `Admin123!` |
+
+### Despliegue a Google Cloud Run
+
+La app se despliega como contenedor Docker en GCP Cloud Run.
+
+**Datos del proyecto GCP:**
+- Proyecto: `renergeia-app`
+- Región: `us-central1`
+- Artifact Registry: `renergeia-repo`
+- Servicio: `renergeia-web`
+- Cuenta: `luisabecerra22@gmail.com`
+
+**Pasos para desplegar una nueva versión:**
+
+```powershell
+# 1. Publicar la app
+dotnet publish RenergeIA.Web/RenergeIA.Web.csproj -c Release -o publish
+
+# 2. Construir y subir la imagen Docker (cambiar vNN por el número de versión)
+gcloud builds submit --project renergeia-app `
+    --tag us-central1-docker.pkg.dev/renergeia-app/renergeia-repo/renergeia-web:vNN .
+
+# 3. Desplegar en Cloud Run
+gcloud run deploy renergeia-web --project renergeia-app `
+    --region us-central1 `
+    --image us-central1-docker.pkg.dev/renergeia-app/renergeia-repo/renergeia-web:vNN
+```
+
+**Versión actual desplegada: v38**
+
+**Dockerfile** (en la raíz del proyecto):
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+EXPOSE 8080
+COPY publish/ .
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENTRYPOINT ["dotnet", "RenergeIA.Web.dll"]
+```
+
+> **Nota:** Las variables de entorno (ConnectionStrings, API keys) se configuran directamente en Cloud Run como variables de entorno o secretos. La BD en producción es una instancia PostgreSQL gestionada.
+
+> **Importante:** La carpeta `publish/` es generada por `dotnet publish` y **no se sube a GitHub** (está en .gitignore). Solo se usa temporalmente para construir la imagen Docker.
 
 ---
 
@@ -1423,6 +1514,9 @@ git diff HEAD~1              # Qué cambió en el último commit
   - [x] `_Imports.razor` actualizado con `@using RenergeIA.Web.Components.Shared.Dashboard`
   - [x] `SeguridadDashboard.razor` migrado a los nuevos componentes (eliminado RenderFragment local)
 - [x] Control de versiones con GitHub (repositorio remoto configurado)
+- [x] **Módulo de Documentos rediseñado (v35-v38)**: 3 categorías (Procedimientos, HSE, Ingeniería), importación inteligente de Excel con detección automática de hojas/headers/columnas, exportación .xlsx con ClosedXML, exportación PDF con dashboard (KPIs + gráficos por estado/área/fase + tabla completa), edición inline con barra sticky de guardado
+- [x] **Despliegue en Google Cloud Run**: Docker + Artifact Registry, proyecto `renergeia-app`, versión actual v38
+- [x] **Migración a PostgreSQL**: Npgsql.EntityFrameworkCore.PostgreSQL, auto-migración con `MigrateAsync()` en Program.cs
 - [x] **Módulo de Costos ampliado**: rediseño en 5 pestañas (Presupuesto, Ejecutado, Compromisos, Dashboard, Comparativo); nueva entidad `CompromisoCosto` (órdenes de compra); `AdjuntoUrl` en `CostoReal` para evidencias digitales
 - [x] **Módulo HSEQ — Motor de Auditoría Genérico (corporativo)**: `NormaChecklistService` centraliza auditorías de ISO 9001, ISO 14001, ISO 45001, Decreto 1072/2015 y Resolución 0312/2019, sin requerir un proyecto asociado; hub `/hseq/dashboard`, auditorías por norma, historial
 - [x] **Módulo HSEQ Seguridad — Matriz de Riesgos IPERV**: metodología GTC 45 completa (ND/NE/NP/NC/NR, aceptabilidad I-V), biblioteca corporativa de peligros, dashboard SST, mapa de riesgos, acciones y evidencias
@@ -1430,23 +1524,27 @@ git diff HEAD~1              # Qué cambió en el último commit
 - [x] Checklist Resolución 0312/2019 (Estándares Mínimos SG-SST) en el sub-módulo Seguridad del proyecto
 
 **Pendiente Fase 1:**
-- [ ] Configurar `Anthropic:ApiKey` real en `appsettings.json` (actualmente placeholder; sin ella, el análisis con IA de la Matriz de Riesgos falla)
-- [ ] Aplicar las migraciones `AddCamposISO9001`, `AddSeguridadIPERV` y `AddCompromisoCosto` pendientes (`dotnet ef database update`)
+- [ ] Configurar `Anthropic:ApiKey` real en `appsettings.json`
 - [ ] Gestión de usuarios desde la UI (CRUD de cuentas)
 - [ ] Carga de archivos físicos de documentos
 - [ ] Generación de reportes PDF (QuestPDF)
 - [ ] Sistema de Alertas automáticas con notificaciones
+- [ ] Notificaciones al aprobar nueva versión de documento
+- [ ] Registro de quién visualizó la versión vigente de un documento
+- [ ] Dashboard in-app de documentos (gráficos por fase/especialidad/estado/área)
+- [ ] Integración WBS ↔ Documentos (ver documentos asociados desde una actividad WBS)
 - [ ] Comparativo de versiones de cronograma (Inicial vs Reprogramación N)
-- [ ] Registro de clima desde el formulario de Informe Diario (vinculado al módulo de Clima)
+- [ ] Registro de clima desde el formulario de Informe Diario
 - [ ] Horómetros y mantenimiento de equipos
+- [ ] Dominio personalizado: app.renergeia.com
 
 ### Fase 2 — Analítica (meses 5-8)
 
-- [ ] Migración a Azure SQL Database
-- [ ] Almacenamiento de archivos en Azure Blob Storage
+- [ ] Almacenamiento de archivos en Google Cloud Storage
 - [ ] Reportes automáticos por email
-- [ ] Integración con Azure OpenAI para resúmenes inteligentes
+- [ ] Integración IA con Gemini API
 - [ ] Valor Ganado (EVM): CPI, SPI avanzado, EAC
+- [ ] Integración WhatsApp vía Meta Business Manager
 
 ### Fase 3 — Avanzada (meses 9-14)
 
@@ -2245,4 +2343,4 @@ builder.Services.AddHttpClient(); // requerido por IAInspeccionService
 
 ---
 
-*Guía actualizada el 1 de julio de 2026 — RenergeIA v1.0 en desarrollo activo. Motor de Auditoría HSEQ genérico (ISO 9001/14001/45001, Decreto 1072/2015, Resolución 0312/2019) a nivel corporativo. Matriz de Riesgos IPERV (GTC 45) con Inspecciones asistidas por IA (Anthropic/Claude). Módulo de Costos rediseñado en 5 pestañas con Compromisos de Gasto.*
+*Guía actualizada el 3 de agosto de 2026 — RenergeIA v1.0 en desarrollo activo. Desplegado en GCP Cloud Run (v38). Módulo de Documentos rediseñado con importación/exportación Excel inteligente y PDF con dashboard. Motor de Auditoría HSEQ genérico multi-norma. Matriz de Riesgos IPERV (GTC 45) con IA. Base de datos PostgreSQL.*

@@ -2,9 +2,10 @@ namespace RenergeIA.Core.Enums;
 
 public enum EstadoDocumento
 {
-    Borrador,
-    EnRevision,
-    Aprobado,
-    Rechazado,
-    Obsoleto
+    PendienteEmitir,
+    PendienteValidacion,
+    ValidadoConComentarios,
+    Validado,
+    Informativos,
+    NoValidado
 }
