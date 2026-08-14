@@ -24,3 +24,10 @@ ngrok.exe
 
 # Claude Code
 .claude/
+
+# evaluacion-hse (Next.js)
+evaluacion-hse/node_modules/
+evaluacion-hse/.next/
+evaluacion-hse/.env.local
+evaluacion-hse/tsconfig.tsbuildinfo
+evaluacion-hse/data/*.json
