@@ -133,6 +133,12 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
              .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // Proyecto — TRM COP/USD con valor por defecto
+        modelBuilder.Entity<Proyecto>(e =>
+        {
+            e.Property(p => p.TasaCambioCOPUSD).HasColumnType("decimal(18,2)").HasDefaultValue(4000m);
+        });
+
         // Partida — jerarquía WBS + propiedad calculada ignorada
         modelBuilder.Entity<Partida>(e =>
         {
@@ -141,6 +147,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.PrecioUnitario).HasColumnType("decimal(18,2)");
             e.Ignore(p => p.MontoPresupuestado);
             e.Property(p => p.ValorEjecutado).HasColumnType("decimal(18,2)");
+            e.Property(p => p.MontoComprometido).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
             e.HasOne(p => p.Padre)
              .WithMany(p => p.SubPartidas)
              .HasForeignKey(p => p.PadreId)

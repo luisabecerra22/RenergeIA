@@ -94,7 +94,7 @@
                     <div class="mt-2">
                         <span class="semaforo @SemaforoClass(_cumPausas)">@SemaforoIcono(_cumPausas)</span>
                     </div>
-                    <small class="text-muted d-block mt-2">40 pausas/persona/mes × 12 meses</small>
+                    <small class="text-muted d-block mt-2">40 pausas/persona/mes × @_mesesTranscurridos meses transcurridos</small>
                 </div>
             </div>
         </div>
@@ -111,7 +111,7 @@
                     <div class="mt-2">
                         <span class="semaforo @SemaforoClass(_cumSTC)">@SemaforoIcono(_cumSTC)</span>
                     </div>
-                    <small class="text-muted d-block mt-2">5 inspecciones/persona/mes × 12 meses</small>
+                    <small class="text-muted d-block mt-2">5 inspecciones/persona/mes × @_mesesTranscurridos meses transcurridos</small>
                 </div>
             </div>
         </div>
@@ -128,7 +128,7 @@
                     <div class="mt-2">
                         <span class="semaforo @SemaforoClass(_cumOTS)">@SemaforoIcono(_cumOTS)</span>
                     </div>
-                    <small class="text-muted d-block mt-2">10 inspecciones/persona/mes × 12 meses</small>
+                    <small class="text-muted d-block mt-2">10 inspecciones/persona/mes × @_mesesTranscurridos meses transcurridos</small>
                 </div>
             </div>
         </div>
@@ -155,7 +155,7 @@
                             <th class="text-center">Personas</th>
                             <th class="text-center">Total pausas</th>
                             <th class="text-center">Promedio / persona</th>
-                            <th class="text-center">Meta anual</th>
+                            <th class="text-center">Meta acum.</th>
                             <th class="text-center" style="min-width:170px">% Cumplimiento</th>
                         </tr>
                     </thead>
@@ -199,7 +199,7 @@
                             <th class="text-center">Personas</th>
                             <th class="text-center">Total STC</th>
                             <th class="text-center">Promedio / persona</th>
-                            <th class="text-center">Meta anual</th>
+                            <th class="text-center">Meta acum.</th>
                             <th class="text-center" style="min-width:170px">% Cumplimiento</th>
                         </tr>
                     </thead>
@@ -243,7 +243,7 @@
                             <th class="text-center">Personas</th>
                             <th class="text-center">Total OTS</th>
                             <th class="text-center">Promedio / persona</th>
-                            <th class="text-center">Meta anual</th>
+                            <th class="text-center">Meta acum.</th>
                             <th class="text-center" style="min-width:170px">% Cumplimiento</th>
                         </tr>
                     </thead>
@@ -295,6 +295,7 @@
     private int _anio = DateTime.Today.Year;
     private int _mesesConDatos;
     private int _mesesConDatosPausas, _mesesConDatosSTC, _mesesConDatosOTS;
+    private int _mesesTranscurridos = 12;
     private int _cumPausas, _cumSTC, _cumOTS;
     private List<DeptoResumen> _pausasAnual = [];
     private List<DeptoResumen> _stcAnual = [];
@@ -317,13 +318,16 @@
         _mesesConDatosOTS = ots.Select(r => r.Mes).Distinct().Count();
         _mesesConDatos = new[] { _mesesConDatosPausas, _mesesConDatosSTC, _mesesConDatosOTS }.Max();
 
-        _pausasAnual = CalcularResumen(pausas.GroupBy(p => p.Area), p => p.Trabajador, p => p.CantidadPausas, 40, 12);
-        _stcAnual = CalcularResumen(stc.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 5, 12);
-        _otsAnual = CalcularResumen(ots.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 10, 12);
+        var mesesTranscurridos = _anio == DateTime.Today.Year ? DateTime.Today.Month : 12;
+        _mesesTranscurridos = mesesTranscurridos;
 
-        _cumPausas = CalcularCumplimientoGlobal(pausas.Select(p => (p.Trabajador, p.CantidadPausas, p.Mes)), 40, 12);
-        _cumSTC = CalcularCumplimientoGlobal(stc.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 5, 12);
-        _cumOTS = CalcularCumplimientoGlobal(ots.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 10, 12);
+        _pausasAnual = CalcularResumen(pausas.GroupBy(p => p.Area), p => p.Trabajador, p => p.CantidadPausas, 40, mesesTranscurridos);
+        _stcAnual = CalcularResumen(stc.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 5, mesesTranscurridos);
+        _otsAnual = CalcularResumen(ots.GroupBy(r => r.Departamento), r => r.Inspector, r => r.CantidadInspecciones, 10, mesesTranscurridos);
+
+        _cumPausas = CalcularCumplimientoGlobal(pausas.Select(p => (p.Trabajador, p.CantidadPausas, p.Mes)), 40, mesesTranscurridos);
+        _cumSTC = CalcularCumplimientoGlobal(stc.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 5, mesesTranscurridos);
+        _cumOTS = CalcularCumplimientoGlobal(ots.Select(r => (r.Inspector, r.CantidadInspecciones, r.Mes)), 10, mesesTranscurridos);
     }
 
     private int CalcularCumplimientoGlobal(IEnumerable<(string Persona, int Cantidad, int Mes)> datos, int metaMes, int meses)

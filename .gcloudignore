@@ -1,0 +1,10 @@
+.git/
+**/bin/
+**/obj/
+**/.vs/
+**/node_modules/
+**/wwwroot/uploads/
+*.md
+ngrok.exe
+docs/
+evaluacion-hse/

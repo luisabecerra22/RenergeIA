@@ -1,6 +1,7 @@
 @inject RenergeIADbContext Db
 @inject CostoService CostoSvc
 @using System.ComponentModel.DataAnnotations
+@using ClosedXML.Excel
 
 @if (_proyecto is null)
 {
@@ -9,6 +10,23 @@
 else
 {
     <div class="d-flex justify-content-end gap-2 mb-3">
+        <div class="btn-group btn-group-sm me-2" role="group">
+            <button class="btn @(_moneda == "COP" ? "" : "btn-outline-secondary")"
+                    style="@(_moneda == "COP" ? "background:#183963;color:#fff;border:none" : "")"
+                    @onclick='() => _moneda = "COP"'>COP</button>
+            <button class="btn @(_moneda == "USD" ? "" : "btn-outline-secondary")"
+                    style="@(_moneda == "USD" ? "background:#183963;color:#fff;border:none" : "")"
+                    @onclick='() => _moneda = "USD"'>USD</button>
+        </div>
+        @if (_moneda == "USD" && _proyecto is not null)
+        {
+            <div class="d-flex align-items-center gap-1 me-2">
+                <label class="form-label mb-0 small text-muted">TRM $</label>
+                <input type="number" class="form-control form-control-sm text-center" style="width:90px"
+                       value="@_proyecto.TasaCambioCOPUSD"
+                       @onchange="CambiarTasaCambio" min="1" step="1" />
+            </div>
+        }
         @if (_hayCAmbios)
         {
             <button class="btn btn-sm fw-semibold"
@@ -17,6 +35,10 @@ else
                 💾 Guardar cambios
             </button>
         }
+        <label class="btn btn-sm btn-outline-primary mb-0" title="Importar presupuesto desde Excel (.xlsx)">
+            <i class="bi-upload me-1"></i>Importar Excel
+            <InputFile OnChange="ImportarExcelAsync" accept=".xlsx,.xls" style="display:none" />
+        </label>
         @if (_partidas.Any())
         {
             <button class="btn btn-sm btn-outline-secondary" @onclick="ConfirmarPlantilla">↻ Recargar plantilla</button>
@@ -40,7 +62,7 @@ else
 
     @if (!string.IsNullOrEmpty(_mensajeGuardado))
     {
-        <div class="alert alert-success alert-dismissible py-2 mb-3">
+        <div class="alert @(_mensajeEsError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
             @_mensajeGuardado
             <button type="button" class="btn-close btn-sm" @onclick="() => _mensajeGuardado = null"></button>
         </div>
@@ -71,21 +93,21 @@ else
                 <div class="col">
                     <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
                         <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                        <div class="fw-bold fs-5">@FormatCOP(_totalPresupuestado)</div>
+                        <div class="fw-bold fs-5">@FormatMonto(_totalPresupuestado)</div>
                         <div class="small" style="opacity:0.8">Total Presupuestado</div>
                     </div>
                 </div>
                 <div class="col">
                     <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_totalEjecutado > _totalPresupuestado ? "linear-gradient(135deg,#dc3545 0%,#c82333 100%)" : "linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%)");color:#fff;border-radius:14px">
                         <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                        <div class="fw-bold fs-5">@FormatCOP(_totalEjecutado)</div>
+                        <div class="fw-bold fs-5">@FormatMonto(_totalEjecutado)</div>
                         <div class="small" style="opacity:0.8">Total Ejecutado</div>
                     </div>
                 </div>
                 <div class="col">
                     <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_diferencia >= 0 ? "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)" : "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)");border-radius:14px">
                         <i class="bi-arrow-left-right mb-1" style="font-size:1.5rem;color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")"></i>
-                        <div class="fw-bold fs-5" style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")">@FormatCOP(_diferencia)</div>
+                        <div class="fw-bold fs-5" style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#dc3545")">@FormatMonto(_diferencia)</div>
                         <div class="small text-muted">Diferencia</div>
                     </div>
                 </div>
@@ -108,8 +130,8 @@ else
                     <thead style="background:#183963;color:white">
                         <tr>
                             <th class="text-center">Categoría</th>
-                            <th class="text-center">Presupuestado COP</th>
-                            <th class="text-center">Ejecutado COP</th>
+                            <th class="text-center">Presupuestado @_moneda</th>
+                            <th class="text-center">Ejecutado @_moneda</th>
                             <th class="text-center">Diferencia</th>
                             <th class="text-center" style="min-width:200px">% Costo Ejecutado</th>
                             <th class="text-center">Actividades</th>
@@ -120,21 +142,21 @@ else
                         @foreach (var cat in _resumenCategorias)
                         {
                             var dif = cat.Presupuestado - cat.Ejecutado;
-                            var (aTexto, aBg, aFg) = AlertaCosto(cat.Presupuestado, cat.Ejecutado);
+                            var (aTexto, aBg, aFg) = AlertaCosto(cat.Presupuestado, cat.Comprometido, cat.Ejecutado);
                             <tr style="border-bottom:1px solid #D9D9D6">
                                 <td class="text-center">
                                     <span class="badge" style="background:#183963;font-size:0.78rem">@cat.Nombre</span>
                                 </td>
-                                <td class="text-center small" style="color:#183963">@FormatCOP(cat.Presupuestado)</td>
+                                <td class="text-center small" style="color:#183963">@FormatMonto(cat.Presupuestado)</td>
                                 <td class="text-center small"
                                     style="color:@(cat.Ejecutado > cat.Presupuestado ? "#dc3545" : "#111921");
                                            font-weight:@(cat.Ejecutado > cat.Presupuestado ? "bold" : "normal")">
-                                    @FormatCOP(cat.Ejecutado)
+                                    @FormatMonto(cat.Ejecutado)
                                 </td>
                                 <td class="text-center small"
                                     style="color:@(dif >= 0 ? "#6ABF4B" : "#dc3545");
                                            font-weight:@(dif < 0 ? "bold" : "normal")">
-                                    @FormatCOP(dif)
+                                    @FormatMonto(dif)
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
@@ -157,14 +179,14 @@ else
                         }
                         <tr class="fw-bold" style="background:#111921;color:white">
                             <td class="text-center">TOTAL</td>
-                            <td class="text-center">@FormatCOP(_totalPresupuestado)</td>
+                            <td class="text-center">@FormatMonto(_totalPresupuestado)</td>
                             <td class="text-center"
                                 style="color:@(_totalEjecutado > _totalPresupuestado ? "#ff6b6b" : "white")">
-                                @FormatCOP(_totalEjecutado)
+                                @FormatMonto(_totalEjecutado)
                             </td>
                             <td class="text-center"
                                 style="color:@(_diferencia >= 0 ? "#6ABF4B" : "#ff6b6b")">
-                                @FormatCOP(_diferencia)
+                                @FormatMonto(_diferencia)
                             </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
@@ -201,13 +223,12 @@ else
                     <colgroup>
                         <col style="width:42px" />
                         <col style="width:82px" />
-                        <col style="width:190px" />
-                        <col style="width:82px" />
-                        <col style="width:110px" />
-                        <col style="width:115px" />
-                        <col style="width:115px" />
+                        <col style="width:220px" />
+                        <col style="width:120px" />
                         <col style="width:115px" />
                         <col style="width:72px" />
+                        <col style="width:120px" />
+                        <col style="width:120px" />
                         <col style="width:130px" />
                         <col style="width:50px" />
                     </colgroup>
@@ -216,12 +237,11 @@ else
                             <th class="text-center">#</th>
                             <th class="text-center">Código</th>
                             <th class="text-center">Descripción</th>
-                            <th class="text-center">Cantidad</th>
-                            <th class="text-center">Unidad</th>
-                            <th class="text-center">Precio Unitario</th>
-                            <th class="text-center">Presup. COP</th>
-                            <th class="text-center">Ejec. COP</th>
+                            <th class="text-center">Presup. @_moneda</th>
+                            <th class="text-center">Ejec. @_moneda</th>
                             <th class="text-center">% Ejec.</th>
+                            <th class="text-center">Comprometido</th>
+                            <th class="text-center">Pendiente Ejec.</th>
                             <th class="text-center">Alerta</th>
                             <th class="text-center"></th>
                         </tr>
@@ -231,11 +251,13 @@ else
                         {
                             if (p.EsPrincipal)
                             {
-                                var hijos        = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
-                                var presupCap    = hijos.Sum(s => s.MontoPresupuestado);
-                                var ejecutadoCap = hijos.Sum(s => s.ValorEjecutado);
-                                var pctCap       = presupCap > 0 ? Math.Round(ejecutadoCap / presupCap * 100, 1) : 0m;
-                                var (aTexto, aBg, aFg) = AlertaCosto(presupCap, ejecutadoCap);
+                                var hijos           = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
+                                var presupCap       = hijos.Sum(s => s.MontoPresupuestado);
+                                var ejecutadoCap    = hijos.Sum(s => s.ValorEjecutado);
+                                var comprometidoCap = hijos.Sum(s => s.MontoComprometido);
+                                var pendienteCap    = presupCap - comprometidoCap - ejecutadoCap;
+                                var pctCap          = presupCap > 0 ? Math.Round(ejecutadoCap / presupCap * 100, 1) : 0m;
+                                var (aTexto, aBg, aFg) = AlertaCosto(presupCap, comprometidoCap, ejecutadoCap);
 
                                 <tr style="background:#D9D9D6">
                                     <td class="text-center fw-bold" style="color:#111921">@p.Numero</td>
@@ -245,15 +267,14 @@ else
                                     <td class="fw-bold text-uppercase"
                                         style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
                                         title="@p.Descripcion">@p.Descripcion</td>
-                                    <td class="text-center" style="color:#6c757d">—</td>
-                                    <td class="text-center" style="color:#6c757d">—</td>
-                                    <td class="text-center" style="color:#6c757d">—</td>
-                                    <td class="text-center fw-bold" style="color:#183963">@FormatCOP(presupCap)</td>
+                                    <td class="text-center fw-bold" style="color:#183963">@FormatMonto(presupCap)</td>
                                     <td class="text-center fw-bold"
                                         style="color:@(ejecutadoCap > presupCap ? "#dc3545" : "#6ABF4B")">
-                                        @FormatCOP(ejecutadoCap)
+                                        @FormatMonto(ejecutadoCap)
                                     </td>
                                     <td class="text-center fw-bold" style="color:#183963">@pctCap.ToString("F0")%</td>
+                                    <td class="text-center fw-bold" style="color:#6c757d">@FormatMonto(comprometidoCap)</td>
+                                    <td class="text-center fw-bold" style="color:@(pendienteCap < 0 ? "#dc3545" : "#183963")">@FormatMonto(pendienteCap)</td>
                                     <td class="text-center">
                                         <span class="badge" style="background:@aBg;color:@aFg;font-size:0.68rem;white-space:nowrap">@aTexto</span>
                                     </td>
@@ -264,9 +285,11 @@ else
                             {
                                 var presup         = p.MontoPresupuestado;
                                 var ejecutado      = p.ValorEjecutado;
+                                var comprometido   = p.MontoComprometido;
+                                var pendiente      = presup - comprometido - ejecutado;
                                 var pct            = presup > 0 ? Math.Round(ejecutado / presup * 100, 1) : 0m;
                                 var sobreEjecucion = ejecutado > presup && presup > 0;
-                                var (aTexto, aBg, aFg) = AlertaCosto(presup, ejecutado);
+                                var (aTexto, aBg, aFg) = AlertaCosto(presup, comprometido, ejecutado);
 
                                 <tr style="border-bottom:1px solid #D9D9D6">
                                     <td class="text-center small" style="color:#6c757d">@p.Numero</td>
@@ -277,46 +300,33 @@ else
                                         style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
                                         title="@p.Descripcion">@p.Descripcion</td>
                                     <td>
-                                        <input type="number" class="form-control form-control-sm text-center"
-                                               value="@p.CantidadPresupuestada"
-                                               @onchange="e => CambiarCantidad(p, e.Value?.ToString())"
+                                        <input type="number" class="form-control form-control-sm text-center fw-semibold"
+                                               style="color:#183963"
+                                               value="@ConvertirAMoneda(presup).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                               @onchange="e => CambiarPresupuesto(p, e.Value?.ToString())"
                                                min="0" step="0.01" />
                                     </td>
                                     <td>
-                                        <select class="form-select form-select-sm"
-                                                style="text-align:center"
-                                                value="@p.Unidad"
-                                                @onchange="e => { p.Unidad = e.Value?.ToString() ?? p.Unidad; _hayCAmbios = true; }">
-                                            <option value="Un">Unidad</option>
-                                            <option value="Global">Global</option>
-                                            <option value="m">Metros</option>
-                                            <option value="ml">Metros lin.</option>
-                                            <option value="m²">Metros cuad.</option>
-                                            <option value="m³">Metros cúb.</option>
-                                            <option value="gal">Galón</option>
-                                            <option value="kg">Kilogramo</option>
-                                            <option value="ton">Tonelada</option>
-                                            <option value="mes">Mes</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm text-center"
-                                               value="@p.PrecioUnitario"
-                                               @onchange="e => CambiarPrecio(p, e.Value?.ToString())"
-                                               min="0" step="1" />
-                                    </td>
-                                    <td class="text-center small fw-semibold" style="color:#183963">@FormatCOP(presup)</td>
-                                    <td>
                                         <input type="number" class="form-control form-control-sm text-center @(sobreEjecucion ? "border-danger" : "")"
                                                style="@(sobreEjecucion ? "color:#dc3545;font-weight:bold" : "")"
-                                               value="@p.ValorEjecutado"
+                                               value="@ConvertirAMoneda(p.ValorEjecutado).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
                                                @onchange="e => CambiarEjecutado(p, e.Value?.ToString())"
-                                               min="0" step="1" />
+                                               min="0" step="0.01" />
                                     </td>
                                     <td class="text-center small"
                                         style="color:@(sobreEjecucion ? "#dc3545" : pct > 0 ? "#6ABF4B" : "#6c757d");
                                                font-weight:@(sobreEjecucion ? "bold" : "normal")">
                                         @pct.ToString("F0")%
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm text-center"
+                                               style="color:#6c757d"
+                                               value="@ConvertirAMoneda(comprometido).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                                               @onchange="e => CambiarComprometido(p, e.Value?.ToString())"
+                                               min="0" step="0.01" />
+                                    </td>
+                                    <td class="text-center small fw-semibold" style="color:@(pendiente < 0 ? "#dc3545" : "#183963")">
+                                        @FormatMonto(pendiente)
                                     </td>
                                     <td class="text-center">
                                         <span class="badge"
@@ -448,16 +458,20 @@ else
     private bool _confirmandoPlantilla;
     private bool _hayCAmbios;
     private string? _mensajeGuardado;
+    private bool _mensajeEsError;
 
     private Partida? _partidaSeleccionada;
     private int? _confirmandoEliminarCosto;
 
     private decimal _totalPresupuestado;
     private decimal _totalEjecutado;
+    private decimal _totalComprometido;
+    private decimal _totalPendiente;
     private decimal _diferencia;
     private decimal _pctEjecucion;
 
     private CostoFormModel _formCosto = new();
+    private string _moneda = "COP";
 
     protected override async Task OnInitializedAsync()
     {
@@ -479,6 +493,8 @@ else
     {
         _totalPresupuestado = _subPartidas.Sum(p => p.MontoPresupuestado);
         _totalEjecutado     = _subPartidas.Sum(p => p.ValorEjecutado);
+        _totalComprometido  = _subPartidas.Sum(p => p.MontoComprometido);
+        _totalPendiente     = _totalPresupuestado - _totalComprometido - _totalEjecutado;
         _diferencia         = _totalPresupuestado - _totalEjecutado;
         _pctEjecucion       = _totalPresupuestado > 0
             ? _totalEjecutado / _totalPresupuestado * 100 : 0;
@@ -491,13 +507,14 @@ else
             .OrderBy(p => ParseNumero(p.Numero))
             .Select(principal =>
             {
-                var hijos  = _subPartidas.Where(p => p.PadreId == principal.Id).ToList();
-                var presup = hijos.Sum(p => p.MontoPresupuestado);
-                var ejec   = hijos.Sum(p => p.ValorEjecutado);
-                var pct    = presup > 0 ? ejec / presup * 100 : 0m;
+                var hijos       = _subPartidas.Where(p => p.PadreId == principal.Id).ToList();
+                var presup      = hijos.Sum(p => p.MontoPresupuestado);
+                var ejec        = hijos.Sum(p => p.ValorEjecutado);
+                var comprometido = hijos.Sum(p => p.MontoComprometido);
+                var pct         = presup > 0 ? ejec / presup * 100 : 0m;
                 return new CategoriaResumen(
                     principal.Descripcion, principal.Codigo,
-                    "#183963", presup, ejec, pct, hijos.Count);
+                    "#183963", presup, ejec, comprometido, pct, hijos.Count);
             })
             .ToList();
     }
@@ -512,34 +529,57 @@ else
         }
     }
 
-    private void CambiarCantidad(Partida p, string? valor)
+    private void CambiarPresupuesto(Partida p, string? valor)
     {
         if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            System.Globalization.CultureInfo.InvariantCulture, out var montoMostrado))
         {
-            p.CantidadPresupuestada = v;
+            var montoCOP = ConvertirDesdeMoneda(montoMostrado);
+            if (p.CantidadPresupuestada <= 0) p.CantidadPresupuestada = 1;
+            p.PrecioUnitario = Math.Max(montoCOP, 0) / p.CantidadPresupuestada;
             CalcularTotales(); CalcularResumenCategorias();
             _hayCAmbios = true;
         }
     }
 
-    private void CambiarPrecio(Partida p, string? valor)
+    private decimal ConvertirAMoneda(decimal montoCOP) =>
+        _moneda == "USD" && _proyecto is { TasaCambioCOPUSD: > 0 } ? montoCOP / _proyecto.TasaCambioCOPUSD : montoCOP;
+
+    private decimal ConvertirDesdeMoneda(decimal montoMostrado) =>
+        _moneda == "USD" && _proyecto is { TasaCambioCOPUSD: > 0 } ? montoMostrado * _proyecto.TasaCambioCOPUSD : montoMostrado;
+
+    private string FormatMonto(decimal montoCOP) =>
+        _moneda == "USD" ? "US$ " + ConvertirAMoneda(montoCOP).ToString("N2", _culturesCO) : FormatCOP(montoCOP);
+
+    private async Task CambiarTasaCambio(ChangeEventArgs e)
     {
-        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var v))
+        if (_proyecto is null) return;
+        if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var trm) && trm > 0)
         {
-            p.PrecioUnitario = v;
-            CalcularTotales(); CalcularResumenCategorias();
-            _hayCAmbios = true;
+            _proyecto.TasaCambioCOPUSD = trm;
+            Db.Proyectos.Update(_proyecto);
+            await Db.SaveChangesAsync();
         }
     }
 
     private void CambiarEjecutado(Partida p, string? valor)
     {
         if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            System.Globalization.CultureInfo.InvariantCulture, out var montoMostrado))
         {
-            p.ValorEjecutado = Math.Max(v, 0);
+            p.ValorEjecutado = Math.Max(ConvertirDesdeMoneda(montoMostrado), 0);
+            CalcularTotales(); CalcularResumenCategorias();
+            _hayCAmbios = true;
+        }
+    }
+
+    private void CambiarComprometido(Partida p, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var montoMostrado))
+        {
+            p.MontoComprometido = Math.Max(ConvertirDesdeMoneda(montoMostrado), 0);
             CalcularTotales(); CalcularResumenCategorias();
             _hayCAmbios = true;
         }
@@ -550,8 +590,125 @@ else
         foreach (var p in _subPartidas)
             Db.Partidas.Update(p);
         await Db.SaveChangesAsync();
-        _mensajeGuardado = "Cambios guardados correctamente.";
+        MostrarMensaje("Cambios guardados correctamente.", false);
         await CargarAsync();
+    }
+
+    // ── Importar presupuesto desde Excel (.xlsx) ────────────────────────────
+
+    private async Task ImportarExcelAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var workbook = new XLWorkbook(ms);
+            var ws = workbook.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+            if (lastRow < 2) { MostrarMensaje("El archivo no tiene filas de datos.", true); return; }
+
+            int headerRow = 0;
+            int colCodigo = 0, colPresup = 0, colEjec = 0, colComprometido = 0;
+            for (int r = 1; r <= Math.Min(10, lastRow) && headerRow == 0; r++)
+            {
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var texto = NormalizarTexto(ws.Cell(r, c).GetString());
+                    if (texto.Contains("codigo")) colCodigo = c;
+                    else if (texto.Contains("comprometido")) colComprometido = c;
+                    else if (texto.Contains("presup")) colPresup = c;
+                    else if (texto.Contains("ejec")) colEjec = c;
+                }
+                if (colCodigo > 0 && colPresup > 0) headerRow = r;
+                else { colCodigo = colPresup = colEjec = colComprometido = 0; }
+            }
+
+            if (headerRow == 0)
+            {
+                MostrarMensaje("No se encontraron columnas 'Código' y 'Presupuesto' en las primeras filas del archivo.", true);
+                return;
+            }
+
+            int actualizados = 0, noEncontrados = 0;
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                var codigo = ws.Cell(row, colCodigo).GetString().Trim();
+                if (string.IsNullOrEmpty(codigo)) continue;
+
+                var partida = _subPartidas.FirstOrDefault(p => string.Equals(p.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
+                if (partida is null) { noEncontrados++; continue; }
+
+                var presup = LeerMonto(ws.Cell(row, colPresup));
+                if (presup is null) continue;
+
+                if (partida.CantidadPresupuestada <= 0) partida.CantidadPresupuestada = 1;
+                partida.PrecioUnitario = Math.Max(presup.Value, 0) / partida.CantidadPresupuestada;
+
+                if (colEjec > 0)
+                {
+                    var ejec = LeerMonto(ws.Cell(row, colEjec));
+                    if (ejec is not null) partida.ValorEjecutado = Math.Max(ejec.Value, 0);
+                }
+
+                if (colComprometido > 0)
+                {
+                    var comprometido = LeerMonto(ws.Cell(row, colComprometido));
+                    if (comprometido is not null) partida.MontoComprometido = Math.Max(comprometido.Value, 0);
+                }
+
+                actualizados++;
+            }
+
+            if (actualizados == 0)
+            {
+                MostrarMensaje("No se actualizó ninguna partida. Verifica que los códigos coincidan con los de la plantilla cargada.", true);
+                return;
+            }
+
+            foreach (var p in _subPartidas) Db.Partidas.Update(p);
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+
+            var resumen = $"{actualizados} partidas actualizadas desde Excel.";
+            if (noEncontrados > 0) resumen += $" {noEncontrados} códigos del archivo no coinciden con ninguna partida.";
+            MostrarMensaje(resumen, false);
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al importar: {ex.Message}", true);
+        }
+    }
+
+    private static decimal? LeerMonto(IXLCell celda)
+    {
+        if (celda.IsEmpty()) return null;
+        if (celda.DataType == XLDataType.Number) return (decimal)celda.GetDouble();
+
+        var texto = celda.GetString().Trim();
+        if (string.IsNullOrEmpty(texto)) return null;
+        texto = texto.Replace("$", "").Replace(" ", "").Trim();
+
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any, _culturesCO, out var vCO))
+            return vCO;
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var vInv))
+            return vInv;
+        return null;
+    }
+
+    private static string NormalizarTexto(string texto) =>
+        texto.ToLowerInvariant()
+             .Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u")
+             .Trim();
+
+    private void MostrarMensaje(string mensaje, bool esError)
+    {
+        _mensajeGuardado = mensaje;
+        _mensajeEsError = esError;
     }
 
     private void ConfirmarPlantilla() => _confirmandoPlantilla = true;
@@ -605,14 +762,15 @@ else
         _partidaSeleccionada = idSel.HasValue ? _subPartidas.FirstOrDefault(p => p.Id == idSel) : null;
     }
 
-    private static (string Texto, string Bg, string Fg) AlertaCosto(decimal presupuesto, decimal ejecutado)
+    private static (string Texto, string Bg, string Fg) AlertaCosto(decimal presupuesto, decimal comprometido, decimal ejecutado)
     {
         if (presupuesto == 0) return ("Sin presupuesto", "#D9D9D6", "#111921");
-        if (ejecutado == 0)   return ("Sin ejecución",   "#D9D9D6", "#111921");
-        var pct = ejecutado / presupuesto * 100;
-        if (pct <= 85)  return ("Dentro del presupuesto", "#6ABF4B", "#fff");
-        if (pct <= 95)  return ("Cercano al límite",      "#ffc107", "#212529");
-        if (pct <= 100) return ("En riesgo",              "#fd7e14", "#fff");
+        var consumido = comprometido + ejecutado;
+        if (consumido == 0) return ("Sin ejecución", "#D9D9D6", "#111921");
+        var pct = consumido / presupuesto * 100;
+        if (pct < 70)   return ("Dentro del presupuesto", "#6ABF4B", "#fff");
+        if (pct < 85)   return ("En riesgo",               "#fd7e14", "#fff");
+        if (pct <= 100) return ("Cercano al límite",       "#ffc107", "#212529");
         return ("Sobrecosto", "#dc3545", "#fff");
     }
 
@@ -633,7 +791,7 @@ else
 
     private record CategoriaResumen(
         string Nombre, string Codigo, string Color,
-        decimal Presupuestado, decimal Ejecutado, decimal PctEjecucion, int NumPartidas);
+        decimal Presupuestado, decimal Ejecutado, decimal Comprometido, decimal PctEjecucion, int NumPartidas);
 
     private sealed class CostoFormModel
     {

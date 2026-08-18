@@ -16,6 +16,7 @@ public class Proyecto : EntidadBase
     public string? AccuWeatherLocationKey { get; set; }
     public decimal CapacidadKWp { get; set; }
     public decimal PresupuestoContractual { get; set; }
+    public decimal TasaCambioCOPUSD { get; set; } = 4000m;
     public DateTime FechaInicioPlaneada { get; set; }
     public DateTime FechaFinPlaneada { get; set; }
     public DateTime? FechaInicioReal { get; set; }
