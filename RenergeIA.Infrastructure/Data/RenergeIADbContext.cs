@@ -37,6 +37,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RecursoEquipo> RecursosEquipo => Set<RecursoEquipo>();
     public DbSet<TipoDocumentoControl> TiposDocumentoControl => Set<TipoDocumentoControl>();
     public DbSet<DocumentoControl> DocumentosControl => Set<DocumentoControl>();
+    public DbSet<EtapaRevision> EtapasRevision => Set<EtapaRevision>();
 
     // HSEQ
     public DbSet<ChecklistAuditoria> ChecklistsAuditoria => Set<ChecklistAuditoria>();
@@ -314,6 +315,16 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
              .WithMany(pv => pv.Documentos)
              .HasForeignKey(d => d.ProveedorId)
              .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EtapaRevision>(e =>
+        {
+            e.ToTable("EtapasRevision");
+            e.HasIndex(x => new { x.RecursoEquipoId, x.Etapa }).IsUnique();
+            e.HasOne(x => x.RecursoEquipo)
+             .WithMany(r => r.Etapas)
+             .HasForeignKey(x => x.RecursoEquipoId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Histogramas

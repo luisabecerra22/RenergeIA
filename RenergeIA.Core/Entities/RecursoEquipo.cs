@@ -19,7 +19,9 @@ public class RecursoEquipo : EntidadBase
 
     public DateTime? FechaInicioContrato { get; set; }
     public DateTime? FechaFinContrato { get; set; }
+    public DateTime? FechaIngresoSitio { get; set; }
     public bool Activo { get; set; } = true;
 
     public ICollection<DocumentoControl> Documentos { get; set; } = [];
+    public ICollection<EtapaRevision> Etapas { get; set; } = [];
 }

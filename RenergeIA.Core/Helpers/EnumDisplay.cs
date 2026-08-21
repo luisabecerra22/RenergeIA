@@ -34,6 +34,26 @@ public static class EnumDisplay
         _                       => tipo.ToString()
     };
 
+    public static string Mostrar(EtapaProceso etapa) => etapa switch
+    {
+        EtapaProceso.Compras  => "Compras",
+        EtapaProceso.RRHH     => "RRHH (Conductor/Operador)",
+        EtapaProceso.HSE      => "HSE (Máquina/Vehículo)",
+        EtapaProceso.Cliente  => "Aprobación Cliente",
+        EtapaProceso.Proyecto => "Aprobación Proyecto",
+        _                     => etapa.ToString()
+    };
+
+    public static string Mostrar(EstadoEtapa estado) => estado switch
+    {
+        EstadoEtapa.Pendiente      => "Pendiente",
+        EstadoEtapa.EnRevision     => "En Revisión",
+        EstadoEtapa.ConComentarios => "Con Comentarios",
+        EstadoEtapa.Aprobado       => "Aprobado",
+        EstadoEtapa.NoAplica       => "N/A",
+        _                          => estado.ToString()
+    };
+
     public static string Mostrar(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.PendienteEmitir       => "Pendiente Emitir",

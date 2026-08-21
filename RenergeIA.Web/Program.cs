@@ -78,6 +78,7 @@ using (var scope = app.Services.CreateScope())
 
     var controlIngresoSvc = scope.ServiceProvider.GetRequiredService<ControlIngresoService>();
     await controlIngresoSvc.SembrarCatalogoAsync();
+    await controlIngresoSvc.SembrarEtapasFaltantesAsync();
 }
 
 app.Run();

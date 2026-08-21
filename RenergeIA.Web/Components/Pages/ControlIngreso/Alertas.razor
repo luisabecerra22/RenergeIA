@@ -318,17 +318,24 @@ else
 
         <table class="table table-sm table-hover align-middle mb-0">
             <thead style="background:#f1f3f5">
-                <tr><th>Tipo</th><th>Descripción</th><th>Placa/Serial</th><th>Proveedor</th><th>Conductor</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr>
+                <tr><th>Tipo</th><th>Descripción</th><th>Placa/Serial</th><th>Proveedor</th><th>Conductor</th><th class="text-center">Estado</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr>
             </thead>
             <tbody>
                 @foreach (var r in RecursosFiltrados)
                 {
+                    var estadoGeneral = ControlIngresoService.EstadoGeneral(r);
+                    var (egBg, egFg) = ControlIngresoService.EstiloEstadoGeneral(estadoGeneral);
                     <tr>
                         <td><span class="badge bg-secondary">@EnumDisplay.Mostrar(r.Tipo)</span></td>
                         <td class="fw-semibold">@r.Descripcion</td>
                         <td class="small"><span class="badge bg-light text-dark border">@(r.PlacaSerial ?? "—")</span></td>
                         <td class="small">@(r.Proveedor?.Nombre ?? "—")</td>
                         <td class="small">@(r.ConductorOperador?.Nombre ?? "—")</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm" style="background:@egBg;color:@egFg;font-size:.7rem" @onclick="() => AbrirEtapas(r)">
+                                @estadoGeneral
+                            </button>
+                        </td>
                         <td class="text-center">
                             <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Equipo, r.Id, NombreConPlaca(r))">
                                 📄 @_documentos.Count(d => d.RecursoEquipoId == r.Id)
@@ -340,9 +347,67 @@ else
                         </td>
                     </tr>
                 }
-                @if (!RecursosFiltrados.Any()) { <tr><td colspan="7" class="text-center text-muted py-4">No hay recursos que coincidan.</td></tr> }
+                @if (!RecursosFiltrados.Any()) { <tr><td colspan="8" class="text-center text-muted py-4">No hay recursos que coincidan.</td></tr> }
             </tbody>
         </table>
+
+        @if (_recursoEtapasSeleccionado is not null)
+        {
+            <div class="card mt-3 border-primary shadow-sm">
+                <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#183963">
+                    <strong>Etapas — @NombreConPlaca(_recursoEtapasSeleccionado)</strong>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _recursoEtapasSeleccionado = null"></button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead style="background:#f1f3f5">
+                                <tr>
+                                    <th>Etapa</th>
+                                    <th class="text-center">Estado</th>
+                                    <th>Responsable</th>
+                                    <th class="text-center">Fecha aprobación</th>
+                                    <th>Comentarios</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var etapa in _recursoEtapasSeleccionado.Etapas.OrderBy(e => Array.IndexOf(ControlIngresoService.EtapasOrdenadas, e.Etapa)))
+                                {
+                                    var (bg, fg) = ControlIngresoService.EstiloEstadoEtapa(etapa.Estado);
+                                    <tr>
+                                        <td class="small fw-semibold">@EnumDisplay.Mostrar(etapa.Etapa)</td>
+                                        <td class="text-center" style="min-width:150px">
+                                            <select class="form-select form-select-sm" style="background:@bg;color:@fg"
+                                                    value="@etapa.Estado" @onchange="e => CambiarEstadoEtapa(etapa, e.Value?.ToString())">
+                                                @foreach (var est in Enum.GetValues<EstadoEtapa>())
+                                                {
+                                                    <option value="@est">@EnumDisplay.Mostrar(est)</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td style="min-width:150px">
+                                            <input class="form-control form-control-sm" value="@etapa.ResponsableNombre"
+                                                   @onchange="e => CambiarCampoEtapa(etapa, r => r.ResponsableNombre = e.Value?.ToString())" />
+                                        </td>
+                                        <td class="text-center" style="min-width:150px">
+                                            <input type="date" class="form-control form-control-sm"
+                                                   value="@(etapa.FechaAprobacion?.ToString("yyyy-MM-dd"))"
+                                                   @onchange="e => CambiarFechaEtapa(etapa, e.Value?.ToString())" />
+                                        </td>
+                                        <td style="min-width:200px">
+                                            <input class="form-control form-control-sm" value="@etapa.DetalleComentarios"
+                                                   @onchange="e => CambiarCampoEtapa(etapa, r => r.DetalleComentarios = e.Value?.ToString())" />
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
     }
     else if (_tab == "personal")
     {
@@ -586,7 +651,7 @@ else
     private async Task CargarAsync()
     {
         _proveedores = await Db.Proveedores.Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.Nombre).ToListAsync();
-        _recursos = await Db.RecursosEquipo.Include(r => r.Proveedor).Include(r => r.ConductorOperador)
+        _recursos = await Db.RecursosEquipo.Include(r => r.Proveedor).Include(r => r.ConductorOperador).Include(r => r.Etapas)
             .Where(r => r.ProyectoId == ProyectoId).OrderBy(r => r.Descripcion).ToListAsync();
         _personas = await Db.PersonasExternas.Include(p => p.Proveedor)
             .Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.Nombre).ToListAsync();
@@ -748,6 +813,8 @@ else
             var entidad = new RecursoEquipo { ProyectoId = ProyectoId };
             MapearRecurso(entidad);
             Db.RecursosEquipo.Add(entidad);
+            foreach (var etapa in ControlIngresoService.CrearEtapasIniciales(entidad))
+                Db.EtapasRevision.Add(etapa);
         }
         await Db.SaveChangesAsync();
         _mostrarFormRecurso = false;
@@ -770,10 +837,50 @@ else
     {
         var docs = Db.DocumentosControl.Where(d => d.RecursoEquipoId == id);
         Db.DocumentosControl.RemoveRange(docs);
+        var etapas = Db.EtapasRevision.Where(e => e.RecursoEquipoId == id);
+        Db.EtapasRevision.RemoveRange(etapas);
         var entidad = await Db.RecursosEquipo.FindAsync(id);
         if (entidad is not null) Db.RecursosEquipo.Remove(entidad);
         await Db.SaveChangesAsync();
+        if (_recursoEtapasSeleccionado?.Id == id) _recursoEtapasSeleccionado = null;
         await CargarAsync();
+    }
+
+    // ── Etapas de revisión ───────────────────────────────────────────────
+    private RecursoEquipo? _recursoEtapasSeleccionado;
+
+    private void AbrirEtapas(RecursoEquipo r) => _recursoEtapasSeleccionado = r;
+
+    private async Task CambiarEstadoEtapa(EtapaRevision etapa, string? valor)
+    {
+        if (!Enum.TryParse<EstadoEtapa>(valor, out var nuevoEstado)) return;
+        var entidad = await Db.EtapasRevision.FindAsync(etapa.Id);
+        if (entidad is null) return;
+        entidad.Estado = nuevoEstado;
+        entidad.FechaAprobacion = nuevoEstado == EstadoEtapa.Aprobado ? (entidad.FechaAprobacion ?? DateTime.UtcNow) : entidad.FechaAprobacion;
+        entidad.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+        if (_recursoEtapasSeleccionado is not null)
+            _recursoEtapasSeleccionado = _recursos.FirstOrDefault(r => r.Id == _recursoEtapasSeleccionado.Id);
+    }
+
+    private async Task CambiarCampoEtapa(EtapaRevision etapa, Action<EtapaRevision> setter)
+    {
+        var entidad = await Db.EtapasRevision.FindAsync(etapa.Id);
+        if (entidad is null) return;
+        setter(entidad);
+        entidad.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+        if (_recursoEtapasSeleccionado is not null)
+            _recursoEtapasSeleccionado = _recursos.FirstOrDefault(r => r.Id == _recursoEtapasSeleccionado.Id);
+    }
+
+    private async Task CambiarFechaEtapa(EtapaRevision etapa, string? valor)
+    {
+        DateTime? fecha = DateTime.TryParse(valor, out var f) ? f : null;
+        await CambiarCampoEtapa(etapa, e => e.FechaAprobacion = fecha);
     }
 
     // ── Personal ─────────────────────────────────────────────────────────
@@ -1008,6 +1115,7 @@ else
                 if (!string.IsNullOrEmpty(keyPlaca) && recursosPorPlaca.TryGetValue(keyPlaca, out var existente))
                     recurso = existente;
 
+                var recursoEsNuevo = recurso is null;
                 if (recurso is null)
                 {
                     recurso = new RecursoEquipo
@@ -1053,6 +1161,10 @@ else
                     }
                     recurso.ConductorOperador = conductor;
                 }
+
+                if (recursoEsNuevo)
+                    foreach (var etapa in ControlIngresoService.CrearEtapasIniciales(recurso))
+                        Db.EtapasRevision.Add(etapa);
 
                 documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "soat", "SOAT", tiposPorNombre, recurso: recurso);
                 documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "rtm", "RTM (Revisión Técnico-Mecánica)", tiposPorNombre, recurso: recurso);

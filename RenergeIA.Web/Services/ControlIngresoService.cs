@@ -76,4 +76,59 @@ public class ControlIngresoService(RenergeIADbContext db)
         SemaforoVencimiento.Vencido  => ("Vencido",       "#3b0764", "#fff"),
         _                             => ("Sin fecha",     "#D9D9D6", "#111921")
     };
+
+    public static (string Bg, string Fg) EstiloEstadoEtapa(EstadoEtapa estado) => estado switch
+    {
+        EstadoEtapa.Aprobado       => ("#6ABF4B", "#fff"),
+        EstadoEtapa.EnRevision     => ("#0d6efd", "#fff"),
+        EstadoEtapa.ConComentarios => ("#fd7e14", "#fff"),
+        EstadoEtapa.NoAplica       => ("#D9D9D6", "#111921"),
+        _                          => ("#e9ecef", "#495057")
+    };
+
+    public static readonly EtapaProceso[] EtapasOrdenadas =
+        [EtapaProceso.Compras, EtapaProceso.RRHH, EtapaProceso.HSE, EtapaProceso.Cliente, EtapaProceso.Proyecto];
+
+    public static List<EtapaRevision> CrearEtapasIniciales(RecursoEquipo recurso)
+    {
+        var tieneConductor = recurso.ConductorOperadorId.HasValue;
+        return EtapasOrdenadas.Select(etapa => new EtapaRevision
+        {
+            RecursoEquipo = recurso,
+            Etapa = etapa,
+            Estado = etapa == EtapaProceso.RRHH && !tieneConductor ? EstadoEtapa.NoAplica : EstadoEtapa.Pendiente
+        }).ToList();
+    }
+
+    public static string EstadoGeneral(RecursoEquipo recurso)
+    {
+        var etapas = recurso.Etapas;
+        if (etapas is null || etapas.Count == 0) return "Sin iniciar";
+        if (etapas.Any(e => e.Estado == EstadoEtapa.ConComentarios)) return "Con comentarios";
+        if (etapas.All(e => e.Estado is EstadoEtapa.Aprobado or EstadoEtapa.NoAplica)) return "Aprobado";
+        if (etapas.Any(e => e.Estado is EstadoEtapa.Aprobado or EstadoEtapa.EnRevision)) return "En proceso";
+        return "Pendiente";
+    }
+
+    public async Task SembrarEtapasFaltantesAsync()
+    {
+        var idsConEtapas = await db.EtapasRevision.Select(e => e.RecursoEquipoId).Distinct().ToListAsync();
+        var recursosSinEtapas = await db.RecursosEquipo
+            .Where(r => !idsConEtapas.Contains(r.Id))
+            .ToListAsync();
+
+        foreach (var recurso in recursosSinEtapas)
+            foreach (var etapa in CrearEtapasIniciales(recurso))
+                db.EtapasRevision.Add(etapa);
+
+        if (recursosSinEtapas.Count > 0) await db.SaveChangesAsync();
+    }
+
+    public static (string Bg, string Fg) EstiloEstadoGeneral(string estadoGeneral) => estadoGeneral switch
+    {
+        "Aprobado"        => ("#6ABF4B", "#fff"),
+        "Con comentarios" => ("#fd7e14", "#fff"),
+        "En proceso"      => ("#0d6efd", "#fff"),
+        _                 => ("#D9D9D6", "#111921")
+    };
 }
