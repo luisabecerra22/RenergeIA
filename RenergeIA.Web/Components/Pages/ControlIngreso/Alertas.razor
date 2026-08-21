@@ -35,6 +35,9 @@ else
         <button class="btn btn-sm @(_tab == "personal" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "personal"'>
             <i class="bi-people me-1"></i>Personal
         </button>
+        <button class="btn btn-sm @(_tab == "dashboard" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "dashboard"'>
+            <i class="bi-graph-up me-1"></i>Dashboard
+        </button>
     </div>
 
     <div class="d-flex justify-content-end mb-3">
@@ -485,6 +488,95 @@ else
             </tbody>
         </table>
     }
+    else if (_tab == "dashboard")
+    {
+        <div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:#183963;color:#fff;border-radius:14px">
+                    <div class="fw-bold fs-4">@_recursos.Count</div>
+                    <div class="small">Recursos en seguimiento</div>
+                </div>
+            </div>
+            @foreach (var estado in new[] { "Aprobado", "En proceso", "Con comentarios", "Pendiente" })
+            {
+                var (bg, fg) = ControlIngresoService.EstiloEstadoGeneral(estado);
+                var count = _recursos.Count(r => ControlIngresoService.EstadoGeneral(r) == estado);
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@bg;color:@fg;border-radius:14px">
+                        <div class="fw-bold fs-4">@count</div>
+                        <div class="small">@estado</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header text-white fw-semibold" style="background:#183963">
+                Tiempos promedio por etapa (días desde ingreso al sistema hasta aprobación)
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead style="background:#f1f3f5">
+                        <tr>
+                            <th>Etapa</th>
+                            <th class="text-center">Promedio (días)</th>
+                            <th class="text-center">Máximo</th>
+                            <th class="text-center">Mínimo</th>
+                            <th class="text-center"># Aprobadas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var etapa in ControlIngresoService.EtapasOrdenadas)
+                        {
+                            var dias = DiasAprobacionPorEtapa(etapa);
+                            <tr style="@(etapa == EtapaCuelloDeBotella ? "background:#fde8e8" : "")">
+                                <td class="fw-semibold">
+                                    @EnumDisplay.Mostrar(etapa)
+                                    @if (etapa == EtapaCuelloDeBotella)
+                                    {
+                                        <span class="badge bg-danger ms-1" style="font-size:.65rem">Cuello de botella</span>
+                                    }
+                                </td>
+                                <td class="text-center">@(dias.Count > 0 ? dias.Average().ToString("F1") : "—")</td>
+                                <td class="text-center">@(dias.Count > 0 ? dias.Max().ToString("F0") : "—")</td>
+                                <td class="text-center">@(dias.Count > 0 ? dias.Min().ToString("F0") : "—")</td>
+                                <td class="text-center">@dias.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header text-white fw-semibold" style="background:#183963">
+                Distribución de estados por etapa
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead style="background:#f1f3f5">
+                        <tr>
+                            <th>Etapa</th>
+                            @foreach (var est in Enum.GetValues<EstadoEtapa>()) { <th class="text-center">@EnumDisplay.Mostrar(est)</th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var etapa in ControlIngresoService.EtapasOrdenadas)
+                        {
+                            var etapasDeTipo = _recursos.SelectMany(r => r.Etapas).Where(e => e.Etapa == etapa).ToList();
+                            <tr>
+                                <td class="fw-semibold">@EnumDisplay.Mostrar(etapa)</td>
+                                @foreach (var est in Enum.GetValues<EstadoEtapa>())
+                                {
+                                    <td class="text-center">@etapasDeTipo.Count(e => e.Estado == est)</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 
     @if (_duenoSeleccionado is not null)
     {
@@ -850,6 +942,31 @@ else
     private RecursoEquipo? _recursoEtapasSeleccionado;
 
     private void AbrirEtapas(RecursoEquipo r) => _recursoEtapasSeleccionado = r;
+
+    // ── Dashboard (Fase 3) ───────────────────────────────────────────────
+    private List<double> DiasAprobacionPorEtapa(EtapaProceso etapa) =>
+        _recursos.SelectMany(r => r.Etapas)
+                 .Where(e => e.Etapa == etapa && e.Estado == EstadoEtapa.Aprobado && e.FechaAprobacion.HasValue)
+                 .Select(e => (e.FechaAprobacion!.Value.Date - e.FechaCreacion.Date).TotalDays)
+                 .Select(d => Math.Max(0, d))
+                 .ToList();
+
+    private EtapaProceso? EtapaCuelloDeBotella
+    {
+        get
+        {
+            EtapaProceso? peor = null;
+            var peorPromedio = -1.0;
+            foreach (var etapa in ControlIngresoService.EtapasOrdenadas)
+            {
+                var dias = DiasAprobacionPorEtapa(etapa);
+                if (dias.Count == 0) continue;
+                var promedio = dias.Average();
+                if (promedio > peorPromedio) { peorPromedio = promedio; peor = etapa; }
+            }
+            return peor;
+        }
+    }
 
     private async Task CambiarEstadoEtapa(EtapaRevision etapa, string? valor)
     {
