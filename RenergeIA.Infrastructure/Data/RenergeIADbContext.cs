@@ -25,14 +25,11 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
-    public DbSet<PersonalProyecto> PersonalProyecto => Set<PersonalProyecto>();
-    public DbSet<DocumentoPersona> DocumentosPersona => Set<DocumentoPersona>();
     public DbSet<Equipo> Equipos => Set<Equipo>();
     public DbSet<RegistroHorometro> RegistrosHorometro => Set<RegistroHorometro>();
     public DbSet<Mantenimiento> Mantenimientos => Set<Mantenimiento>();
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<RegistroClima> RegistrosClima => Set<RegistroClima>();
-    public DbSet<RegistroAvancePersonal> RegistrosAvancePersonal => Set<RegistroAvancePersonal>();
     public DbSet<RegistroAvanceEquipo> RegistrosAvanceEquipo => Set<RegistroAvanceEquipo>();
     public DbSet<RegistroAvanceRestriccion> RegistrosAvanceRestriccion => Set<RegistroAvanceRestriccion>();
     public DbSet<PlantillaHistograma> PlantillasHistograma => Set<PlantillaHistograma>();
@@ -239,21 +236,6 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         });
 
         // M:N — claves compuestas
-        modelBuilder.Entity<RegistroAvancePersonal>(e =>
-        {
-            e.ToTable("RegistrosAvancePersonal");
-            e.HasKey(r => new { r.RegistroAvanceDiarioId, r.PersonalProyectoId });
-            e.Property(r => r.HorasTrabajadas).HasColumnType("decimal(6,2)");
-            e.HasOne(r => r.RegistroAvanceDiario)
-             .WithMany(rd => rd.PersonalAsignado)
-             .HasForeignKey(r => r.RegistroAvanceDiarioId)
-             .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(r => r.PersonalProyecto)
-             .WithMany()
-             .HasForeignKey(r => r.PersonalProyectoId)
-             .OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<RegistroAvanceEquipo>(e =>
         {
             e.ToTable("RegistrosAvanceEquipo");
@@ -294,8 +276,6 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<NoConformidad>().ToTable("NoConformidades");
         modelBuilder.Entity<AccionCorrectiva>().ToTable("AccionesCorrectivas");
         modelBuilder.Entity<Restriccion>().ToTable("Restricciones");
-        modelBuilder.Entity<PersonalProyecto>().ToTable("PersonalProyecto");
-        modelBuilder.Entity<DocumentoPersona>().ToTable("DocumentosPersona");
         modelBuilder.Entity<Equipo>().ToTable("Equipos");
         modelBuilder.Entity<Alerta>().ToTable("Alertas");
 

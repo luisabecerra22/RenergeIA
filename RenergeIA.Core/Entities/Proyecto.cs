@@ -32,7 +32,6 @@ public class Proyecto : EntidadBase
     public ICollection<Partida> Partidas { get; set; } = [];
     public ICollection<NoConformidad> NoConformidades { get; set; } = [];
     public ICollection<Restriccion> Restricciones { get; set; } = [];
-    public ICollection<PersonalProyecto> Personal { get; set; } = [];
     public ICollection<Equipo> Equipos { get; set; } = [];
     public ICollection<Alerta> Alertas { get; set; } = [];
     public ICollection<RegistroClima> RegistrosClima { get; set; } = [];

@@ -210,7 +210,7 @@ else
                         <tr>
                             <th style="min-width:90px">Código WBS</th>
                             <th style="min-width:200px">Actividad</th>
-                            <th style="min-width:50px" class="text-center">Disc.</th>
+                            <th style="min-width:110px" class="text-center">Disciplina</th>
                             <th style="min-width:80px">Inicio</th>
                             <th style="min-width:80px">Fin</th>
                             <th style="min-width:50px" class="text-center">Dur.</th>
@@ -237,7 +237,7 @@ else
                                 </td>
                                 <td class="text-center">
                                     @if (fila.Disciplina.HasValue)
-                                    { <span title="@EnumDisplay.Mostrar(fila.Disciplina.Value)">@EnumDisplay.IconoDisciplina(fila.Disciplina.Value)</span> }
+                                    { <span class="badge bg-secondary" style="font-size:.68rem">@EnumDisplay.Mostrar(fila.Disciplina.Value)</span> }
                                 </td>
                                 <td class="text-muted small">@fila.FechaInicio.ToString("dd/MM/yy")</td>
                                 <td class="text-muted small">@fila.FechaFin.ToString("dd/MM/yy")</td>

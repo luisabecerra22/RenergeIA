@@ -25,16 +25,7 @@ public static class EnumDisplay
         _                           => estado.ToString()
     };
 
-    public static string Mostrar(TipoPersonal tipo) => tipo switch
-    {
-        TipoPersonal.Empleado       => "Empleado",
-        TipoPersonal.Contratista    => "Contratista",
-        TipoPersonal.Subcontratista => "Subcontratista",
-        TipoPersonal.Visitante      => "Visitante",
-        _                           => tipo.ToString()
-    };
-
-    public static string Mostrar(TipoEquipo tipo) => tipo switch
+public static string Mostrar(TipoEquipo tipo) => tipo switch
     {
         TipoEquipo.Vehiculo         => "Vehículo",
         TipoEquipo.HerramientaMenor => "Herramienta Menor",
@@ -98,7 +89,7 @@ public static class EnumDisplay
         Disciplina.Electrica        => "Eléctrica",
         Disciplina.Contractual      => "Contractual",
         Disciplina.HotCommissioning => "Hot Commissioning",
-        Disciplina.CierreProyecto   => "Cierre de Proyecto",
+        Disciplina.CierreProyecto   => "Dossier",
         Disciplina.General          => "General",
         _                           => disciplina.ToString()
     };

@@ -29,7 +29,6 @@ public class RegistroAvanceDiario : EntidadBase
     public decimal? HorasAfectadasClima { get; set; }
     public string? Novedades { get; set; }
 
-    public ICollection<RegistroAvancePersonal> PersonalAsignado { get; set; } = [];
     public ICollection<RegistroAvanceEquipo> EquiposUtilizados { get; set; } = [];
     public ICollection<RegistroAvanceRestriccion> RestriccionesRelacionadas { get; set; } = [];
 }
