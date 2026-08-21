@@ -518,7 +518,17 @@ else
         _tiposDocumento = await Db.TiposDocumentoControl.Where(t => t.Activo).OrderBy(t => t.Nombre).ToListAsync();
         _documentos = await Db.DocumentosControl.Include(d => d.TipoDocumentoControl)
             .Where(d => d.ProyectoId == ProyectoId).ToListAsync();
+
+        if (_duenoSeleccionado is not null && !DuenoExiste(_duenoSeleccionado.Value))
+            _duenoSeleccionado = null;
     }
+
+    private bool DuenoExiste((CategoriaDocumentoControl Categoria, int Id, string Nombre) dueno) => dueno.Categoria switch
+    {
+        CategoriaDocumentoControl.Persona => _personas.Any(p => p.Id == dueno.Id),
+        CategoriaDocumentoControl.Equipo => _recursos.Any(r => r.Id == dueno.Id),
+        _ => _proveedores.Any(p => p.Id == dueno.Id)
+    };
 
     private void MostrarMensaje(string mensaje, bool esError) { _mensaje = mensaje; _mensajeEsError = esError; }
 
