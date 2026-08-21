@@ -68,52 +68,110 @@ else
             }
         </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#183963">
-                <span class="fw-semibold">Documentos con fecha de vencimiento</span>
-                <input class="form-control form-control-sm" style="max-width:280px"
-                       placeholder="Buscar por nombre, placa o documento..."
-                       value="@_busquedaAlertas" @oninput="e => _busquedaAlertas = e.Value?.ToString() ?? string.Empty" />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="btn-group btn-group-sm" role="group">
+                <button class="btn @(_vistaAlertas == "matriz" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _vistaAlertas = "matriz"'>
+                    <i class="bi-table me-1"></i>Matriz
+                </button>
+                <button class="btn @(_vistaAlertas == "lista" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _vistaAlertas = "lista"'>
+                    <i class="bi-list-ul me-1"></i>Lista
+                </button>
             </div>
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead style="background:#f1f3f5">
-                        <tr>
-                            <th>Categoría</th>
-                            <th>Dueño</th>
-                            <th>Documento</th>
-                            <th class="text-center">Vencimiento</th>
-                            <th class="text-center">Días</th>
-                            <th class="text-center">Estado</th>
-                            <th>Responsable</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var d in DocumentosVencimientoFiltrados.OrderBy(d => d.FechaVencimiento))
-                        {
-                            var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
-                            var (texto, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
-                            var dias = d.FechaVencimiento.HasValue ? (d.FechaVencimiento.Value.Date - DateTime.Today).Days : (int?)null;
-                            <tr>
-                                <td><span class="badge bg-secondary">@d.TipoDocumentoControl.Categoria</span></td>
-                                <td class="fw-semibold">@NombreDueno(d)</td>
-                                <td>@d.TipoDocumentoControl.Nombre</td>
-                                <td class="text-center small">@(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
-                                <td class="text-center small">@(dias?.ToString() ?? "—")</td>
-                                <td class="text-center">
-                                    <span class="badge" style="background:@bg;color:@fg">@texto</span>
-                                </td>
-                                <td class="small text-muted">@(d.ResponsableNombre ?? "—")</td>
-                            </tr>
-                        }
-                        @if (!DocumentosVencimientoFiltrados.Any())
-                        {
-                            <tr><td colspan="7" class="text-center text-muted py-4">No hay documentos que coincidan.</td></tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <input class="form-control form-control-sm" style="max-width:280px"
+                   placeholder="Buscar por nombre, placa o documento..."
+                   value="@_busquedaAlertas" @oninput="e => _busquedaAlertas = e.Value?.ToString() ?? string.Empty" />
         </div>
+
+        @if (_vistaAlertas == "matriz")
+        {
+            <div class="card shadow-sm border-0">
+                <div class="card-header text-white fw-semibold" style="background:#183963">
+                    Cumplimiento por Recurso (como en el Excel de Control de Ingreso)
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle mb-0" style="font-size:.78rem">
+                        <thead style="background:#f1f3f5">
+                            <tr>
+                                <th>Proveedor</th>
+                                <th>Tipo</th>
+                                <th>Recurso</th>
+                                <th>Placa</th>
+                                <th>Conductor</th>
+                                @foreach (var t in TiposMatrizEquipo) { <th class="text-center">@t.Nombre</th> }
+                                @foreach (var t in TiposMatrizPersona) { <th class="text-center">@t.Nombre</th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in RecursosFiltradosMatriz)
+                            {
+                                <tr>
+                                    <td class="small">@(r.Proveedor?.Nombre ?? "—")</td>
+                                    <td><span class="badge bg-secondary" style="font-size:.68rem">@EnumDisplay.Mostrar(r.Tipo)</span></td>
+                                    <td class="fw-semibold">@r.Descripcion</td>
+                                    <td><span class="badge bg-light text-dark border">@(r.PlacaSerial ?? "—")</span></td>
+                                    <td class="small">@(r.ConductorOperador?.Nombre ?? "—")</td>
+                                    @foreach (var t in TiposMatrizEquipo)
+                                    {
+                                        <td class="text-center">@CeldaMatriz(BuscarDocumento(t.Id, recurso: r))</td>
+                                    }
+                                    @foreach (var t in TiposMatrizPersona)
+                                    {
+                                        <td class="text-center">@CeldaMatriz(r.ConductorOperador is null ? null : BuscarDocumento(t.Id, persona: r.ConductorOperador))</td>
+                                    }
+                                </tr>
+                            }
+                            @if (!RecursosFiltradosMatriz.Any())
+                            {
+                                <tr><td colspan="@(5 + TiposMatrizEquipo.Count + TiposMatrizPersona.Count)" class="text-center text-muted py-4">No hay recursos que coincidan.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card shadow-sm border-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead style="background:#f1f3f5">
+                            <tr>
+                                <th>Categoría</th>
+                                <th>Dueño</th>
+                                <th>Documento</th>
+                                <th class="text-center">Vencimiento</th>
+                                <th class="text-center">Días</th>
+                                <th class="text-center">Estado</th>
+                                <th>Responsable</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in DocumentosVencimientoFiltrados.OrderBy(d => d.FechaVencimiento))
+                            {
+                                var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
+                                var (texto, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
+                                var dias = d.FechaVencimiento.HasValue ? (d.FechaVencimiento.Value.Date - DateTime.Today).Days : (int?)null;
+                                <tr>
+                                    <td><span class="badge bg-secondary">@d.TipoDocumentoControl.Categoria</span></td>
+                                    <td class="fw-semibold">@NombreDueno(d)</td>
+                                    <td>@d.TipoDocumentoControl.Nombre</td>
+                                    <td class="text-center small">@(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                    <td class="text-center small">@(dias?.ToString() ?? "—")</td>
+                                    <td class="text-center">
+                                        <span class="badge" style="background:@bg;color:@fg">@texto</span>
+                                    </td>
+                                    <td class="small text-muted">@(d.ResponsableNombre ?? "—")</td>
+                                </tr>
+                            }
+                            @if (!DocumentosVencimientoFiltrados.Any())
+                            {
+                                <tr><td colspan="7" class="text-center text-muted py-4">No hay documentos que coincidan.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
     }
     else if (_tab == "proveedores")
     {
@@ -465,6 +523,7 @@ else
 
     private Proyecto? _proyecto;
     private string _tab = "alertas";
+    private string _vistaAlertas = "matriz";
     private string _busquedaRecursos = string.Empty;
     private string _busquedaAlertas = string.Empty;
     private string? _mensaje;
@@ -563,19 +622,44 @@ else
     private static string NombreConPlaca(RecursoEquipo r) =>
         string.IsNullOrEmpty(r.PlacaSerial) ? r.Descripcion : $"{r.Descripcion} ({r.PlacaSerial})";
 
-    private IEnumerable<RecursoEquipo> RecursosFiltrados
+    private List<TipoDocumentoControl> TiposMatrizEquipo =>
+        _tiposDocumento.Where(t => t.Categoria == CategoriaDocumentoControl.Equipo && t.RequiereVencimiento)
+                       .OrderBy(t => t.Nombre).ToList();
+
+    private List<TipoDocumentoControl> TiposMatrizPersona =>
+        _tiposDocumento.Where(t => t.Categoria == CategoriaDocumentoControl.Persona && t.RequiereVencimiento)
+                       .OrderBy(t => t.Nombre).ToList();
+
+    private DocumentoControl? BuscarDocumento(int tipoDocumentoControlId, RecursoEquipo? recurso = null, PersonaExterna? persona = null) =>
+        _documentos.FirstOrDefault(d => d.Vigente && d.TipoDocumentoControlId == tipoDocumentoControlId &&
+            (recurso is not null ? d.RecursoEquipoId == recurso.Id : d.PersonaExternaId == persona!.Id));
+
+    private MarkupString CeldaMatriz(DocumentoControl? d)
     {
-        get
-        {
-            if (string.IsNullOrWhiteSpace(_busquedaRecursos)) return _recursos;
-            var q = _busquedaRecursos.Trim();
-            return _recursos.Where(r =>
-                r.Descripcion.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                (r.PlacaSerial ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                EnumDisplay.Mostrar(r.Tipo).Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                (r.Proveedor?.Nombre ?? "").Contains(q, StringComparison.OrdinalIgnoreCase));
-        }
+        if (d is null || !d.FechaVencimiento.HasValue)
+            return new MarkupString("<span class=\"text-muted\">—</span>");
+        var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
+        var (_, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
+        var fecha = d.FechaVencimiento.Value.ToString("dd/MM/yy");
+        return new MarkupString(
+            $"<span class=\"badge\" style=\"background:{bg};color:{fg};font-size:.68rem\">{fecha}</span>");
     }
+
+    private IEnumerable<RecursoEquipo> FiltrarRecursos(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return _recursos;
+        var q = query.Trim();
+        return _recursos.Where(r =>
+            r.Descripcion.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            (r.PlacaSerial ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            EnumDisplay.Mostrar(r.Tipo).Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            (r.Proveedor?.Nombre ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+            (r.ConductorOperador?.Nombre ?? "").Contains(q, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IEnumerable<RecursoEquipo> RecursosFiltrados => FiltrarRecursos(_busquedaRecursos);
+
+    private IEnumerable<RecursoEquipo> RecursosFiltradosMatriz => FiltrarRecursos(_busquedaAlertas);
 
     private IEnumerable<DocumentoControl> DocumentosVencimientoFiltrados
     {
