@@ -12,6 +12,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "RenergeIA.Web", "--launch-profile", "https"],
       "port": 7138
+    },
+    {
+      "name": "evaluacion-hse",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["evaluacion-hse\\node_modules\\next\\dist\\bin\\next", "dev", "evaluacion-hse"],
+      "port": 3000
     }
   ]
 }

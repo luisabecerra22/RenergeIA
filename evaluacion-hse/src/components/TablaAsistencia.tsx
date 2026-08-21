@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Evaluacion, Asistencia } from "@/lib/types";
+import TablaConScrollDoble from "./TablaConScrollDoble";
 
 function fechaCorta(iso: string): string {
   const d = new Date(iso);
@@ -154,7 +155,7 @@ export default function TablaAsistencia({
       {verPapelera ? (
         <>
           <p className="muted">{papelera.length} registros en papelera</p>
-          <div className="tabla-wrap">
+          <TablaConScrollDoble>
             <table className="tabla">
               <thead>
                 <tr>
@@ -205,14 +206,14 @@ export default function TablaAsistencia({
                 )}
               </tbody>
             </table>
-          </div>
+          </TablaConScrollDoble>
         </>
       ) : (
         <>
           <p className="muted">
             {filtrados.length} de {asistencias.length} registros
           </p>
-          <div className="tabla-wrap">
+          <TablaConScrollDoble>
             <table className="tabla">
               <thead>
                 <tr>
@@ -259,7 +260,7 @@ export default function TablaAsistencia({
                 )}
               </tbody>
             </table>
-          </div>
+          </TablaConScrollDoble>
         </>
       )}
     </>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import TablaConScrollDoble from "./TablaConScrollDoble";
 
 interface Fila {
   id: string;
@@ -61,7 +62,7 @@ export default function ListaEvaluaciones({
         </button>
       </div>
 
-      <div className="tabla-wrap">
+      <TablaConScrollDoble>
         <table className="tabla">
           <thead>
             <tr>
@@ -121,7 +122,7 @@ export default function ListaEvaluaciones({
             )}
           </tbody>
         </table>
-      </div>
+      </TablaConScrollDoble>
     </>
   );
 }
