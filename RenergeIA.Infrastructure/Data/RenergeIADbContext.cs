@@ -25,12 +25,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
-    public DbSet<Equipo> Equipos => Set<Equipo>();
-    public DbSet<RegistroHorometro> RegistrosHorometro => Set<RegistroHorometro>();
-    public DbSet<Mantenimiento> Mantenimientos => Set<Mantenimiento>();
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<RegistroClima> RegistrosClima => Set<RegistroClima>();
-    public DbSet<RegistroAvanceEquipo> RegistrosAvanceEquipo => Set<RegistroAvanceEquipo>();
     public DbSet<RegistroAvanceRestriccion> RegistrosAvanceRestriccion => Set<RegistroAvanceRestriccion>();
     public DbSet<PlantillaHistograma> PlantillasHistograma => Set<PlantillaHistograma>();
     public DbSet<ItemHistograma> ItemsHistograma => Set<ItemHistograma>();
@@ -176,21 +172,6 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
              .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
         });
 
-        // RegistroHorometro
-        modelBuilder.Entity<RegistroHorometro>(e =>
-        {
-            e.ToTable("RegistrosHorometro");
-            e.Property(p => p.LecturaHorometro).HasColumnType("decimal(10,2)");
-            e.Property(p => p.HorasTrabajadas).HasColumnType("decimal(8,2)");
-        });
-
-        // Mantenimiento
-        modelBuilder.Entity<Mantenimiento>(e =>
-        {
-            e.ToTable("Mantenimientos");
-            e.Property(p => p.Costo).HasColumnType("decimal(18,2)");
-        });
-
         // RegistroClima
         modelBuilder.Entity<RegistroClima>(e =>
         {
@@ -236,21 +217,6 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         });
 
         // M:N — claves compuestas
-        modelBuilder.Entity<RegistroAvanceEquipo>(e =>
-        {
-            e.ToTable("RegistrosAvanceEquipo");
-            e.HasKey(r => new { r.RegistroAvanceDiarioId, r.EquipoId });
-            e.Property(r => r.HorasUtilizadas).HasColumnType("decimal(6,2)");
-            e.HasOne(r => r.RegistroAvanceDiario)
-             .WithMany(rd => rd.EquiposUtilizados)
-             .HasForeignKey(r => r.RegistroAvanceDiarioId)
-             .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(r => r.Equipo)
-             .WithMany()
-             .HasForeignKey(r => r.EquipoId)
-             .OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<RegistroAvanceRestriccion>(e =>
         {
             e.ToTable("RegistrosAvanceRestriccion");
@@ -276,7 +242,6 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<NoConformidad>().ToTable("NoConformidades");
         modelBuilder.Entity<AccionCorrectiva>().ToTable("AccionesCorrectivas");
         modelBuilder.Entity<Restriccion>().ToTable("Restricciones");
-        modelBuilder.Entity<Equipo>().ToTable("Equipos");
         modelBuilder.Entity<Alerta>().ToTable("Alertas");
 
         // Histogramas
