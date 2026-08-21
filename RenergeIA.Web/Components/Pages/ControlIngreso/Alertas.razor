@@ -6,6 +6,7 @@
 @inject DocumentoService DocSvc
 @using RenergeIA.Core.Enums
 @using System.ComponentModel.DataAnnotations
+@using ClosedXML.Excel
 
 <PageTitle>Alertas — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
@@ -36,6 +37,13 @@ else
         </button>
     </div>
 
+    <div class="d-flex justify-content-end mb-3">
+        <label class="btn btn-sm btn-outline-primary mb-0" title="Importar desde el Excel de Control de Ingreso">
+            <i class="bi-upload me-1"></i>Importar Excel
+            <InputFile OnChange="ImportarExcelAsync" accept=".xlsx,.xls" style="display:none" />
+        </label>
+    </div>
+
     @if (!string.IsNullOrEmpty(_mensaje))
     {
         <div class="alert @(_mensajeEsError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
@@ -61,8 +69,11 @@ else
         </div>
 
         <div class="card shadow-sm border-0">
-            <div class="card-header text-white fw-semibold" style="background:#183963">
-                Documentos con fecha de vencimiento
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#183963">
+                <span class="fw-semibold">Documentos con fecha de vencimiento</span>
+                <input class="form-control form-control-sm" style="max-width:280px"
+                       placeholder="Buscar por nombre, placa o documento..."
+                       value="@_busquedaAlertas" @oninput="e => _busquedaAlertas = e.Value?.ToString() ?? string.Empty" />
             </div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle mb-0">
@@ -78,7 +89,7 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var d in _documentosVencimiento.OrderBy(d => d.FechaVencimiento))
+                        @foreach (var d in DocumentosVencimientoFiltrados.OrderBy(d => d.FechaVencimiento))
                         {
                             var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
                             var (texto, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
@@ -95,9 +106,9 @@ else
                                 <td class="small text-muted">@(d.ResponsableNombre ?? "—")</td>
                             </tr>
                         }
-                        @if (!_documentosVencimiento.Any())
+                        @if (!DocumentosVencimientoFiltrados.Any())
                         {
-                            <tr><td colspan="7" class="text-center text-muted py-4">No hay documentos con vencimiento registrados.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-4">No hay documentos que coincidan.</td></tr>
                         }
                     </tbody>
                 </table>
@@ -172,7 +183,10 @@ else
     }
     else if (_tab == "recursos")
     {
-        <div class="d-flex justify-content-end mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+            <input class="form-control form-control-sm" style="max-width:320px"
+                   placeholder="Buscar por descripción, placa o tipo..."
+                   value="@_busquedaRecursos" @oninput="e => _busquedaRecursos = e.Value?.ToString() ?? string.Empty" />
             <button class="btn btn-primary btn-sm" @onclick='() => { _formRecurso = new(); _editandoRecursoId = null; _mostrarFormRecurso = true; }'>
                 <i class="bi-plus-lg me-1"></i>Nuevo Recurso
             </button>
@@ -249,16 +263,16 @@ else
                 <tr><th>Tipo</th><th>Descripción</th><th>Placa/Serial</th><th>Proveedor</th><th>Conductor</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr>
             </thead>
             <tbody>
-                @foreach (var r in _recursos)
+                @foreach (var r in RecursosFiltrados)
                 {
                     <tr>
                         <td><span class="badge bg-secondary">@EnumDisplay.Mostrar(r.Tipo)</span></td>
                         <td class="fw-semibold">@r.Descripcion</td>
-                        <td class="text-muted small">@(r.PlacaSerial ?? "—")</td>
+                        <td class="small"><span class="badge bg-light text-dark border">@(r.PlacaSerial ?? "—")</span></td>
                         <td class="small">@(r.Proveedor?.Nombre ?? "—")</td>
                         <td class="small">@(r.ConductorOperador?.Nombre ?? "—")</td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Equipo, r.Id, r.Descripcion)">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Equipo, r.Id, NombreConPlaca(r))">
                                 📄 @_documentos.Count(d => d.RecursoEquipoId == r.Id)
                             </button>
                         </td>
@@ -268,7 +282,7 @@ else
                         </td>
                     </tr>
                 }
-                @if (!_recursos.Any()) { <tr><td colspan="7" class="text-center text-muted py-4">No hay recursos registrados.</td></tr> }
+                @if (!RecursosFiltrados.Any()) { <tr><td colspan="7" class="text-center text-muted py-4">No hay recursos que coincidan.</td></tr> }
             </tbody>
         </table>
     }
@@ -451,6 +465,8 @@ else
 
     private Proyecto? _proyecto;
     private string _tab = "alertas";
+    private string _busquedaRecursos = string.Empty;
+    private string _busquedaAlertas = string.Empty;
     private string? _mensaje;
     private bool _mensajeEsError;
 
@@ -535,9 +551,42 @@ else
     private string NombreDueno(DocumentoControl d)
     {
         if (d.PersonaExternaId.HasValue) return _personas.FirstOrDefault(p => p.Id == d.PersonaExternaId)?.Nombre ?? "—";
-        if (d.RecursoEquipoId.HasValue) return _recursos.FirstOrDefault(r => r.Id == d.RecursoEquipoId)?.Descripcion ?? "—";
+        if (d.RecursoEquipoId.HasValue)
+        {
+            var r = _recursos.FirstOrDefault(r => r.Id == d.RecursoEquipoId);
+            return r is null ? "—" : NombreConPlaca(r);
+        }
         if (d.ProveedorId.HasValue) return _proveedores.FirstOrDefault(p => p.Id == d.ProveedorId)?.Nombre ?? "—";
         return "—";
+    }
+
+    private static string NombreConPlaca(RecursoEquipo r) =>
+        string.IsNullOrEmpty(r.PlacaSerial) ? r.Descripcion : $"{r.Descripcion} ({r.PlacaSerial})";
+
+    private IEnumerable<RecursoEquipo> RecursosFiltrados
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_busquedaRecursos)) return _recursos;
+            var q = _busquedaRecursos.Trim();
+            return _recursos.Where(r =>
+                r.Descripcion.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (r.PlacaSerial ?? "").Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                EnumDisplay.Mostrar(r.Tipo).Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (r.Proveedor?.Nombre ?? "").Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private IEnumerable<DocumentoControl> DocumentosVencimientoFiltrados
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_busquedaAlertas)) return _documentosVencimiento;
+            var q = _busquedaAlertas.Trim();
+            return _documentosVencimiento.Where(d =>
+                NombreDueno(d).Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                d.TipoDocumentoControl.Nombre.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     // ── Proveedores ──────────────────────────────────────────────────────
@@ -768,6 +817,240 @@ else
         await Db.SaveChangesAsync();
         await CargarAsync();
     }
+
+    // ── Importar desde Excel (Control de Ingreso) ───────────────────────────
+
+    private async Task ImportarExcelAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 15 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var workbook = new XLWorkbook(ms);
+            var ws = workbook.Worksheets.Contains("REGISTRO") ? workbook.Worksheet("REGISTRO") : workbook.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+            if (lastRow < 2) { MostrarMensaje("El archivo no tiene filas de datos.", true); return; }
+
+            var col = new Dictionary<string, int>();
+            int headerRow = 0;
+            for (int r = 1; r <= Math.Min(6, lastRow) && headerRow == 0; r++)
+            {
+                var mapaFila = new Dictionary<string, int>();
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var h = NormalizarTexto(ws.Cell(r, c).GetString());
+                    if (h.Length == 0) continue;
+                    if (h.Contains("nombre conductor")) mapaFila["conductor"] = c;
+                    else if (h.Contains("cedula conductor")) mapaFila["cedula"] = c;
+                    else if (h == "nombre") mapaFila["proveedor"] = c;
+                    else if (h == "nit") mapaFila["nit"] = c;
+                    else if (h.Contains("tipo de recurso")) mapaFila["tiporecurso"] = c;
+                    else if (h.Contains("descripcion del equipo")) mapaFila["descripcion"] = c;
+                    else if (h.Contains("placa")) mapaFila["placa"] = c;
+                    else if (h.Contains("fecha inicio contrato")) mapaFila["fechainicio"] = c;
+                    else if (h.Contains("fecha fin contrato")) mapaFila["fechafin"] = c;
+                    else if (h.Contains("venc. soat")) mapaFila["soat"] = c;
+                    else if (h.Contains("venc. rtm")) mapaFila["rtm"] = c;
+                    else if (h.Contains("venc. licencia")) mapaFila["licencia"] = c;
+                    else if (h.Contains("venc. poliza rc")) mapaFila["polizarc"] = c;
+                    else if (h.Contains("venc. poliza todo riesgo")) mapaFila["polizatr"] = c;
+                    else if (h.Contains("venc. arl")) mapaFila["arl"] = c;
+                    else if (h.Contains("venc. examen medico")) mapaFila["examenmedico"] = c;
+                    else if (h.Contains("revision de seguridad social")) mapaFila["segsocial"] = c;
+                }
+                if (mapaFila.ContainsKey("tiporecurso") && mapaFila.ContainsKey("descripcion"))
+                {
+                    headerRow = r;
+                    col = mapaFila;
+                }
+            }
+
+            if (headerRow == 0)
+            {
+                MostrarMensaje("No se reconoce el formato del archivo. Debe tener las columnas del Control de Ingreso (Tipo de Recurso, Descripción del Equipo, etc.).", true);
+                return;
+            }
+
+            var proveedoresPorNombre = _proveedores.ToDictionary(p => NormalizarTexto(p.Nombre), p => p);
+            var personasPorCedula = _personas.Where(p => !string.IsNullOrEmpty(p.Cedula)).ToDictionary(p => p.Cedula!, p => p);
+            var personasPorNombre = _personas.ToDictionary(p => NormalizarTexto(p.Nombre), p => p, StringComparer.Ordinal);
+            var recursosPorPlaca = _recursos.Where(r => !string.IsNullOrEmpty(r.PlacaSerial)).ToDictionary(r => NormalizarTexto(r.PlacaSerial!), r => r);
+            var tiposPorNombre = _tiposDocumento.ToDictionary(t => t.Nombre, t => t);
+
+            int recursosCreados = 0, personasCreadas = 0, proveedoresCreados = 0, documentosCreados = 0, filasOmitidas = 0;
+
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                var nombreProveedor = LeerTexto(ws, row, col, "proveedor");
+                var descripcion = LeerTexto(ws, row, col, "descripcion");
+                var placa = LeerTexto(ws, row, col, "placa");
+
+                if (string.IsNullOrEmpty(nombreProveedor) || (string.IsNullOrEmpty(descripcion) && string.IsNullOrEmpty(placa)))
+                {
+                    filasOmitidas++;
+                    continue;
+                }
+
+                var keyProveedor = NormalizarTexto(nombreProveedor);
+                if (!proveedoresPorNombre.TryGetValue(keyProveedor, out var proveedor))
+                {
+                    proveedor = new Proveedor
+                    {
+                        ProyectoId = ProyectoId,
+                        Nombre = nombreProveedor,
+                        NIT = LeerTexto(ws, row, col, "nit"),
+                        EsRenergeia = keyProveedor.Contains("renergeia")
+                    };
+                    Db.Proveedores.Add(proveedor);
+                    proveedoresPorNombre[keyProveedor] = proveedor;
+                    proveedoresCreados++;
+                }
+
+                var tipoTexto = NormalizarTexto(LeerTexto(ws, row, col, "tiporecurso") ?? "");
+                var tipoRecurso = tipoTexto switch
+                {
+                    var t when t.Contains("vehiculo") => TipoRecurso.Vehiculo,
+                    var t when t.Contains("maquinaria") => TipoRecurso.Maquinaria,
+                    var t when t.Contains("herramienta") => TipoRecurso.Herramienta,
+                    _ => TipoRecurso.Equipo
+                };
+
+                RecursoEquipo? recurso = null;
+                var keyPlaca = NormalizarTexto(placa ?? "");
+                if (!string.IsNullOrEmpty(keyPlaca) && recursosPorPlaca.TryGetValue(keyPlaca, out var existente))
+                    recurso = existente;
+
+                if (recurso is null)
+                {
+                    recurso = new RecursoEquipo
+                    {
+                        ProyectoId = ProyectoId,
+                        Tipo = tipoRecurso,
+                        Descripcion = string.IsNullOrEmpty(descripcion) ? placa ?? "Recurso sin descripción" : descripcion,
+                        PlacaSerial = placa,
+                        Proveedor = proveedor,
+                        FechaInicioContrato = LeerFechaCol(ws, row, col, "fechainicio"),
+                        FechaFinContrato = LeerFechaCol(ws, row, col, "fechafin")
+                    };
+                    Db.RecursosEquipo.Add(recurso);
+                    if (!string.IsNullOrEmpty(keyPlaca)) recursosPorPlaca[keyPlaca] = recurso;
+                    recursosCreados++;
+                }
+
+                PersonaExterna? conductor = null;
+                var nombreConductor = LeerTexto(ws, row, col, "conductor");
+                if (!string.IsNullOrEmpty(nombreConductor) && !NormalizarTexto(nombreConductor).Contains("no aplica"))
+                {
+                    var cedula = LeerTexto(ws, row, col, "cedula");
+                    var keyPersona = NormalizarTexto(nombreConductor);
+                    if (!string.IsNullOrEmpty(cedula) && personasPorCedula.TryGetValue(cedula, out var porCedula))
+                        conductor = porCedula;
+                    else if (personasPorNombre.TryGetValue(keyPersona, out var porNombre))
+                        conductor = porNombre;
+
+                    if (conductor is null)
+                    {
+                        conductor = new PersonaExterna
+                        {
+                            ProyectoId = ProyectoId,
+                            Nombre = nombreConductor,
+                            Cedula = cedula,
+                            Rol = "Conductor / Operador",
+                            Proveedor = proveedor
+                        };
+                        Db.PersonasExternas.Add(conductor);
+                        if (!string.IsNullOrEmpty(cedula)) personasPorCedula[cedula] = conductor;
+                        personasPorNombre[keyPersona] = conductor;
+                        personasCreadas++;
+                    }
+                    recurso.ConductorOperador = conductor;
+                }
+
+                documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "soat", "SOAT", tiposPorNombre, recurso: recurso);
+                documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "rtm", "RTM (Revisión Técnico-Mecánica)", tiposPorNombre, recurso: recurso);
+                documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "polizarc", "Póliza Responsabilidad Civil", tiposPorNombre, recurso: recurso);
+                documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "polizatr", "Póliza Todo Riesgo", tiposPorNombre, recurso: recurso);
+                if (conductor is not null)
+                {
+                    documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "licencia", "Licencia de Conducción", tiposPorNombre, persona: conductor);
+                    documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "arl", "ARL", tiposPorNombre, persona: conductor);
+                    documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "examenmedico", "Examen Médico Ocupacional", tiposPorNombre, persona: conductor);
+                    documentosCreados += CrearDocumentoSiHayFecha(ws, row, col, "segsocial", "Seguridad Social", tiposPorNombre, persona: conductor);
+                }
+            }
+
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+
+            MostrarMensaje($"Importado: {proveedoresCreados} proveedores, {recursosCreados} recursos, {personasCreadas} personas y {documentosCreados} documentos nuevos. {filasOmitidas} filas omitidas (sin proveedor o equipo).", false);
+        }
+        catch (Exception ex)
+        {
+            MostrarMensaje($"Error al importar: {ex.Message}", true);
+        }
+    }
+
+    private int CrearDocumentoSiHayFecha(
+        IXLWorksheet ws, int row, Dictionary<string, int> col, string clave, string nombreTipoDoc,
+        Dictionary<string, TipoDocumentoControl> tiposPorNombre,
+        RecursoEquipo? recurso = null, PersonaExterna? persona = null)
+    {
+        var fecha = LeerFechaCol(ws, row, col, clave);
+        if (fecha is null) return 0;
+        if (!tiposPorNombre.TryGetValue(nombreTipoDoc, out var tipo)) return 0;
+
+        Db.DocumentosControl.Add(new DocumentoControl
+        {
+            ProyectoId = ProyectoId,
+            TipoDocumentoControlId = tipo.Id,
+            TipoDocumentoControl = tipo,
+            FechaVencimiento = fecha,
+            Entregado = true,
+            Vigente = true,
+            RecursoEquipo = recurso,
+            PersonaExterna = persona
+        });
+        return 1;
+    }
+
+    private static string? LeerTexto(IXLWorksheet ws, int row, Dictionary<string, int> col, string clave)
+    {
+        if (!col.TryGetValue(clave, out var c) || c == 0) return null;
+        var v = ws.Cell(row, c).GetString().Trim();
+        return string.IsNullOrEmpty(v) ? null : v;
+    }
+
+    private static DateTime? LeerFechaCol(IXLWorksheet ws, int row, Dictionary<string, int> col, string clave)
+    {
+        if (!col.TryGetValue(clave, out var c) || c == 0) return null;
+        return LeerFecha(ws.Cell(row, c));
+    }
+
+    private static DateTime? LeerFecha(IXLCell? celda)
+    {
+        if (celda is null || celda.IsEmpty()) return null;
+        if (celda.DataType == XLDataType.DateTime) return celda.GetDateTime();
+
+        var texto = celda.GetString().Trim();
+        if (string.IsNullOrEmpty(texto) || texto.Equals("NO APLICA", StringComparison.OrdinalIgnoreCase)) return null;
+
+        if (DateTime.TryParse(texto, System.Globalization.CultureInfo.GetCultureInfo("es-CO"),
+            System.Globalization.DateTimeStyles.None, out var fecha))
+            return fecha;
+        if (DateTime.TryParse(texto, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out fecha))
+            return fecha;
+        return null;
+    }
+
+    private static string NormalizarTexto(string texto) =>
+        texto.ToLowerInvariant()
+             .Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u")
+             .Trim();
 
     private sealed class FormProveedorModel
     {
