@@ -25,7 +25,16 @@ public static class EnumDisplay
         _                           => estado.ToString()
     };
 
-public static string Mostrar(EstadoDocumento estado) => estado switch
+    public static string Mostrar(TipoRecurso tipo) => tipo switch
+    {
+        TipoRecurso.Vehiculo   => "Vehículo",
+        TipoRecurso.Maquinaria => "Maquinaria",
+        TipoRecurso.Equipo     => "Equipo",
+        TipoRecurso.Herramienta => "Herramienta",
+        _                       => tipo.ToString()
+    };
+
+    public static string Mostrar(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.PendienteEmitir       => "Pendiente Emitir",
         EstadoDocumento.PendienteValidacion   => "Pendiente Validación",

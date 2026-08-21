@@ -40,6 +40,7 @@ builder.Services.AddScoped<HomeDashboardService>();
 builder.Services.AddScoped<ChecklistISO9001Service>();
 builder.Services.AddScoped<NormaChecklistService>();
 builder.Services.AddScoped<IAInspeccionService>();
+builder.Services.AddScoped<ControlIngresoService>();
 builder.Services.AddHttpClient();
 
 builder.Services.AddRazorComponents()
@@ -74,6 +75,9 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     await DatabaseSeeder.SeedRolesAndAdminAsync(roleManager, userManager);
+
+    var controlIngresoSvc = scope.ServiceProvider.GetRequiredService<ControlIngresoService>();
+    await controlIngresoSvc.SembrarCatalogoAsync();
 }
 
 app.Run();

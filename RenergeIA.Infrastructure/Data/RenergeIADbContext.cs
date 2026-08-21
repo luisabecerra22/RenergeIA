@@ -32,6 +32,11 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ItemHistograma> ItemsHistograma => Set<ItemHistograma>();
     public DbSet<HistogramaReal> HistogramasReales => Set<HistogramaReal>();
     public DbSet<ItemHistogramaReal> ItemsHistogramaReal => Set<ItemHistogramaReal>();
+    public DbSet<Proveedor> Proveedores => Set<Proveedor>();
+    public DbSet<PersonaExterna> PersonasExternas => Set<PersonaExterna>();
+    public DbSet<RecursoEquipo> RecursosEquipo => Set<RecursoEquipo>();
+    public DbSet<TipoDocumentoControl> TiposDocumentoControl => Set<TipoDocumentoControl>();
+    public DbSet<DocumentoControl> DocumentosControl => Set<DocumentoControl>();
 
     // HSEQ
     public DbSet<ChecklistAuditoria> ChecklistsAuditoria => Set<ChecklistAuditoria>();
@@ -243,6 +248,73 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<AccionCorrectiva>().ToTable("AccionesCorrectivas");
         modelBuilder.Entity<Restriccion>().ToTable("Restricciones");
         modelBuilder.Entity<Alerta>().ToTable("Alertas");
+
+        // Control de Ingreso — Proveedores, Recursos, Personas y Documentos con vencimiento
+        modelBuilder.Entity<Proveedor>(e =>
+        {
+            e.ToTable("Proveedores");
+            e.HasOne(p => p.Proyecto)
+             .WithMany(pr => pr.Proveedores)
+             .HasForeignKey(p => p.ProyectoId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PersonaExterna>(e =>
+        {
+            e.ToTable("PersonasExternas");
+            e.HasOne(p => p.Proyecto)
+             .WithMany(pr => pr.PersonasExternas)
+             .HasForeignKey(p => p.ProyectoId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(p => p.Proveedor)
+             .WithMany(pv => pv.Personas)
+             .HasForeignKey(p => p.ProveedorId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RecursoEquipo>(e =>
+        {
+            e.ToTable("RecursosEquipo");
+            e.HasOne(r => r.Proyecto)
+             .WithMany(pr => pr.RecursosEquipo)
+             .HasForeignKey(r => r.ProyectoId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.Proveedor)
+             .WithMany(pv => pv.Recursos)
+             .HasForeignKey(r => r.ProveedorId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(r => r.ConductorOperador)
+             .WithMany()
+             .HasForeignKey(r => r.ConductorOperadorId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TipoDocumentoControl>().ToTable("TiposDocumentoControl");
+
+        modelBuilder.Entity<DocumentoControl>(e =>
+        {
+            e.ToTable("DocumentosControl");
+            e.HasOne(d => d.Proyecto)
+             .WithMany(pr => pr.DocumentosControl)
+             .HasForeignKey(d => d.ProyectoId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(d => d.TipoDocumentoControl)
+             .WithMany()
+             .HasForeignKey(d => d.TipoDocumentoControlId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(d => d.PersonaExterna)
+             .WithMany(p => p.Documentos)
+             .HasForeignKey(d => d.PersonaExternaId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(d => d.RecursoEquipo)
+             .WithMany(r => r.Documentos)
+             .HasForeignKey(d => d.RecursoEquipoId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(d => d.Proveedor)
+             .WithMany(pv => pv.Documentos)
+             .HasForeignKey(d => d.ProveedorId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
 
         // Histogramas
         modelBuilder.Entity<PlantillaHistograma>(e =>

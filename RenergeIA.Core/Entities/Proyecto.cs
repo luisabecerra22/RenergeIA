@@ -35,4 +35,8 @@ public class Proyecto : EntidadBase
     public ICollection<Alerta> Alertas { get; set; } = [];
     public ICollection<RegistroClima> RegistrosClima { get; set; } = [];
     public ICollection<RegistroAvanceDiario> RegistrosAvance { get; set; } = [];
+    public ICollection<Proveedor> Proveedores { get; set; } = [];
+    public ICollection<PersonaExterna> PersonasExternas { get; set; } = [];
+    public ICollection<RecursoEquipo> RecursosEquipo { get; set; } = [];
+    public ICollection<DocumentoControl> DocumentosControl { get; set; } = [];
 }

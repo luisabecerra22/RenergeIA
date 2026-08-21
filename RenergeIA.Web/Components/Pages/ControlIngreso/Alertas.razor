@@ -1,0 +1,800 @@
+@page "/proyectos/{ProyectoId:int}/alertas"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject DocumentoService DocSvc
+@using RenergeIA.Core.Enums
+@using System.ComponentModel.DataAnnotations
+
+<PageTitle>Alertas — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+@if (_proyecto is null)
+{
+    <p class="text-muted">Cargando...</p>
+}
+else
+{
+    <PageHeader Titulo="Alertas y Control de Documentos"
+                Icono="bi-bell-fill"
+                Subtitulo="@_proyecto.Nombre"
+                UrlVolver="@($"/proyectos/{ProyectoId}")"
+                TextoVolver="Proyecto" />
+
+    <div class="btn-group mb-4" role="group">
+        <button class="btn btn-sm @(_tab == "alertas" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "alertas"'>
+            <i class="bi-bell me-1"></i>Alertas
+        </button>
+        <button class="btn btn-sm @(_tab == "proveedores" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "proveedores"'>
+            <i class="bi-building me-1"></i>Proveedores
+        </button>
+        <button class="btn btn-sm @(_tab == "recursos" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "recursos"'>
+            <i class="bi-truck me-1"></i>Recursos
+        </button>
+        <button class="btn btn-sm @(_tab == "personal" ? "btn-primary" : "btn-outline-secondary")" @onclick='() => _tab = "personal"'>
+            <i class="bi-people me-1"></i>Personal
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_mensaje))
+    {
+        <div class="alert @(_mensajeEsError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
+            @_mensaje
+            <button type="button" class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+        </div>
+    }
+
+    @if (_tab == "alertas")
+    {
+        <div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
+            @foreach (var (sem, titulo) in ResumenSemaforos)
+            {
+                var (_, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
+                var count = _documentosVencimiento.Count(d => ControlIngresoService.CalcularSemaforo(d.FechaVencimiento) == sem);
+                <div class="col">
+                    <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@bg;color:@fg;border-radius:14px">
+                        <div class="fw-bold fs-4">@count</div>
+                        <div class="small">@titulo</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header text-white fw-semibold" style="background:#183963">
+                Documentos con fecha de vencimiento
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead style="background:#f1f3f5">
+                        <tr>
+                            <th>Categoría</th>
+                            <th>Dueño</th>
+                            <th>Documento</th>
+                            <th class="text-center">Vencimiento</th>
+                            <th class="text-center">Días</th>
+                            <th class="text-center">Estado</th>
+                            <th>Responsable</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _documentosVencimiento.OrderBy(d => d.FechaVencimiento))
+                        {
+                            var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
+                            var (texto, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
+                            var dias = d.FechaVencimiento.HasValue ? (d.FechaVencimiento.Value.Date - DateTime.Today).Days : (int?)null;
+                            <tr>
+                                <td><span class="badge bg-secondary">@d.TipoDocumentoControl.Categoria</span></td>
+                                <td class="fw-semibold">@NombreDueno(d)</td>
+                                <td>@d.TipoDocumentoControl.Nombre</td>
+                                <td class="text-center small">@(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td class="text-center small">@(dias?.ToString() ?? "—")</td>
+                                <td class="text-center">
+                                    <span class="badge" style="background:@bg;color:@fg">@texto</span>
+                                </td>
+                                <td class="small text-muted">@(d.ResponsableNombre ?? "—")</td>
+                            </tr>
+                        }
+                        @if (!_documentosVencimiento.Any())
+                        {
+                            <tr><td colspan="7" class="text-center text-muted py-4">No hay documentos con vencimiento registrados.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (_tab == "proveedores")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick='() => { _formProveedor = new(); _editandoProveedorId = null; _mostrarFormProveedor = true; }'>
+                <i class="bi-plus-lg me-1"></i>Nuevo Proveedor
+            </button>
+        </div>
+        @if (_mostrarFormProveedor)
+        {
+            <div class="card shadow-sm mb-3 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between">
+                    <strong>@(_editandoProveedorId.HasValue ? "Editar Proveedor" : "Nuevo Proveedor")</strong>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarFormProveedor = false"></button>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="_formProveedor" OnValidSubmit="GuardarProveedorAsync">
+                        <DataAnnotationsValidator />
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small">Nombre *</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formProveedor.Nombre" />
+                                <ValidationMessage For="() => _formProveedor.Nombre" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">NIT</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formProveedor.NIT" />
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" @bind-Value="_formProveedor.EsRenergeia" id="chkRenergeia" />
+                                    <label class="form-check-label small" for="chkRenergeia">Es Renergeia</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _mostrarFormProveedor = false">Cancelar</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        }
+
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead style="background:#f1f3f5"><tr><th>Nombre</th><th>NIT</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var p in _proveedores)
+                {
+                    <tr>
+                        <td class="fw-semibold">@p.Nombre @(p.EsRenergeia ? "(Renergeia)" : "")</td>
+                        <td class="text-muted small">@(p.NIT ?? "—")</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Proveedor, p.Id, p.Nombre)">
+                                📄 @_documentos.Count(d => d.ProveedorId == p.Id)
+                            </button>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => EditarProveedor(p)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => EliminarProveedorAsync(p.Id)"><i class="bi-trash"></i></button>
+                        </td>
+                    </tr>
+                }
+                @if (!_proveedores.Any()) { <tr><td colspan="4" class="text-center text-muted py-4">No hay proveedores registrados.</td></tr> }
+            </tbody>
+        </table>
+    }
+    else if (_tab == "recursos")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick='() => { _formRecurso = new(); _editandoRecursoId = null; _mostrarFormRecurso = true; }'>
+                <i class="bi-plus-lg me-1"></i>Nuevo Recurso
+            </button>
+        </div>
+        @if (_mostrarFormRecurso)
+        {
+            <div class="card shadow-sm mb-3 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between">
+                    <strong>@(_editandoRecursoId.HasValue ? "Editar Recurso" : "Nuevo Recurso")</strong>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarFormRecurso = false"></button>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="_formRecurso" OnValidSubmit="GuardarRecursoAsync">
+                        <DataAnnotationsValidator />
+                        <div class="row g-2">
+                            <div class="col-md-2">
+                                <label class="form-label small">Tipo *</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="_formRecurso.Tipo">
+                                    @foreach (var t in Enum.GetValues<TipoRecurso>())
+                                    {
+                                        <option value="@t">@EnumDisplay.Mostrar(t)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Descripción *</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formRecurso.Descripcion" />
+                                <ValidationMessage For="() => _formRecurso.Descripcion" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Placa / Serial</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formRecurso.PlacaSerial" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Proveedor</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="_formRecurso.ProveedorId">
+                                    <option value="">— Ninguno —</option>
+                                    @foreach (var p in _proveedores)
+                                    {
+                                        <option value="@p.Id">@p.Nombre</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small">Conductor / Operador</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="_formRecurso.ConductorOperadorId">
+                                    <option value="">— Ninguno —</option>
+                                    @foreach (var per in _personas)
+                                    {
+                                        <option value="@per.Id">@per.Nombre</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Inicio Contrato</label>
+                                <InputDate class="form-control form-control-sm" @bind-Value="_formRecurso.FechaInicioContrato" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Fin Contrato</label>
+                                <InputDate class="form-control form-control-sm" @bind-Value="_formRecurso.FechaFinContrato" />
+                            </div>
+                        </div>
+                        <div class="mt-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _mostrarFormRecurso = false">Cancelar</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        }
+
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead style="background:#f1f3f5">
+                <tr><th>Tipo</th><th>Descripción</th><th>Placa/Serial</th><th>Proveedor</th><th>Conductor</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _recursos)
+                {
+                    <tr>
+                        <td><span class="badge bg-secondary">@EnumDisplay.Mostrar(r.Tipo)</span></td>
+                        <td class="fw-semibold">@r.Descripcion</td>
+                        <td class="text-muted small">@(r.PlacaSerial ?? "—")</td>
+                        <td class="small">@(r.Proveedor?.Nombre ?? "—")</td>
+                        <td class="small">@(r.ConductorOperador?.Nombre ?? "—")</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Equipo, r.Id, r.Descripcion)">
+                                📄 @_documentos.Count(d => d.RecursoEquipoId == r.Id)
+                            </button>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => EditarRecurso(r)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => EliminarRecursoAsync(r.Id)"><i class="bi-trash"></i></button>
+                        </td>
+                    </tr>
+                }
+                @if (!_recursos.Any()) { <tr><td colspan="7" class="text-center text-muted py-4">No hay recursos registrados.</td></tr> }
+            </tbody>
+        </table>
+    }
+    else if (_tab == "personal")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick='() => { _formPersona = new(); _editandoPersonaId = null; _mostrarFormPersona = true; }'>
+                <i class="bi-plus-lg me-1"></i>Nueva Persona
+            </button>
+        </div>
+        @if (_mostrarFormPersona)
+        {
+            <div class="card shadow-sm mb-3 border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between">
+                    <strong>@(_editandoPersonaId.HasValue ? "Editar Persona" : "Nueva Persona")</strong>
+                    <button class="btn-close btn-close-white btn-sm" @onclick="() => _mostrarFormPersona = false"></button>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="_formPersona" OnValidSubmit="GuardarPersonaAsync">
+                        <DataAnnotationsValidator />
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label small">Nombre *</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formPersona.Nombre" />
+                                <ValidationMessage For="() => _formPersona.Nombre" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Cédula</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formPersona.Cedula" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Rol</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="_formPersona.Rol" placeholder="Conductor..." />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Proveedor</label>
+                                <InputSelect class="form-select form-select-sm" @bind-Value="_formPersona.ProveedorId">
+                                    <option value="">— Ninguno —</option>
+                                    @foreach (var p in _proveedores)
+                                    {
+                                        <option value="@p.Id">@p.Nombre</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <div class="mt-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _mostrarFormPersona = false">Cancelar</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        }
+
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead style="background:#f1f3f5"><tr><th>Nombre</th><th>Cédula</th><th>Rol</th><th>Proveedor</th><th class="text-center">Documentos</th><th class="text-center">Acciones</th></tr></thead>
+            <tbody>
+                @foreach (var per in _personas)
+                {
+                    <tr>
+                        <td class="fw-semibold">@per.Nombre</td>
+                        <td class="text-muted small">@(per.Cedula ?? "—")</td>
+                        <td class="small">@(per.Rol ?? "—")</td>
+                        <td class="small">@(per.Proveedor?.Nombre ?? "—")</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AbrirDocumentos(CategoriaDocumentoControl.Persona, per.Id, per.Nombre)">
+                                📄 @_documentos.Count(d => d.PersonaExternaId == per.Id)
+                            </button>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => EditarPersona(per)"><i class="bi-pencil"></i></button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => EliminarPersonaAsync(per.Id)"><i class="bi-trash"></i></button>
+                        </td>
+                    </tr>
+                }
+                @if (!_personas.Any()) { <tr><td colspan="6" class="text-center text-muted py-4">No hay personal registrado.</td></tr> }
+            </tbody>
+        </table>
+    }
+
+    @if (_duenoSeleccionado is not null)
+    {
+        <div class="card mt-3 border-primary shadow-sm">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#183963">
+                <strong>Documentos — @_duenoSeleccionado.Value.Nombre</strong>
+                <button class="btn-close btn-close-white btn-sm" @onclick="() => _duenoSeleccionado = null"></button>
+            </div>
+            <div class="card-body">
+                <EditForm Model="_formDocumento" OnValidSubmit="GuardarDocumentoAsync">
+                    <DataAnnotationsValidator />
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label small">Tipo de documento *</label>
+                            <InputSelect class="form-select form-select-sm" @bind-Value="_formDocumento.TipoDocumentoControlId">
+                                <option value="0">— Seleccionar —</option>
+                                @foreach (var t in _tiposDocumento.Where(t => t.Categoria == _duenoSeleccionado.Value.Categoria))
+                                {
+                                    <option value="@t.Id">@t.Nombre</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Fecha vencimiento</label>
+                            <InputDate class="form-control form-control-sm" @bind-Value="_formDocumento.FechaVencimiento" />
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="_formDocumento.Entregado" id="chkEntregado" />
+                                <label class="form-check-label small" for="chkEntregado">Entregado</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Archivo (opcional)</label>
+                            <InputFile OnChange="SeleccionarArchivo" class="form-control form-control-sm" />
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100">+ Agregar</button>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Responsable (nombre)</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_formDocumento.ResponsableNombre" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Responsable (correo)</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_formDocumento.ResponsableEmail" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Observaciones</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_formDocumento.Observaciones" />
+                        </div>
+                    </div>
+                </EditForm>
+
+                <hr />
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Documento</th><th>Vencimiento</th><th class="text-center">Estado</th><th>Archivo</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var d in DocumentosDelDuenoActual.OrderByDescending(d => d.FechaCreacion))
+                        {
+                            var sem = ControlIngresoService.CalcularSemaforo(d.FechaVencimiento);
+                            var (texto, bg, fg) = ControlIngresoService.EstiloSemaforo(sem);
+                            <tr style="@(d.Vigente ? "" : "opacity:0.55")">
+                                <td class="small">@d.TipoDocumentoControl.Nombre @(!d.Vigente ? "(histórico)" : "")</td>
+                                <td class="small">@(d.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (d.Entregado ? "Entregado" : "—"))</td>
+                                <td class="text-center">
+                                    @if (d.FechaVencimiento.HasValue)
+                                    {
+                                        <span class="badge" style="background:@bg;color:@fg;font-size:.68rem">@texto</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary" style="font-size:.68rem">@(d.Entregado ? "Entregado" : "Pendiente")</span>
+                                    }
+                                </td>
+                                <td class="small">
+                                    @if (!string.IsNullOrEmpty(d.RutaArchivo))
+                                    {
+                                        <a href="/@d.RutaArchivo" target="_blank"><i class="bi-file-earmark-arrow-down"></i> @d.NombreArchivo</a>
+                                    }
+                                    else { <span class="text-muted">—</span> }
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => EliminarDocumentoAsync(d.Id)"><i class="bi-trash"></i></button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!DocumentosDelDuenoActual.Any())
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-3">Sin documentos registrados.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private string _tab = "alertas";
+    private string? _mensaje;
+    private bool _mensajeEsError;
+
+    private List<Proveedor> _proveedores = [];
+    private List<RecursoEquipo> _recursos = [];
+    private List<PersonaExterna> _personas = [];
+    private List<TipoDocumentoControl> _tiposDocumento = [];
+    private List<DocumentoControl> _documentos = [];
+    private List<DocumentoControl> _documentosVencimiento => _documentos.Where(d => d.Vigente && d.FechaVencimiento.HasValue).ToList();
+
+    private static readonly (SemaforoVencimiento, string)[] ResumenSemaforos =
+    [
+        (SemaforoVencimiento.Vigente, "Vigentes"),
+        (SemaforoVencimiento.Amarillo, "Vence en 21-30 días"),
+        (SemaforoVencimiento.Naranja, "Vence en 10-20 días"),
+        (SemaforoVencimiento.Rojo, "Vence en <10 días"),
+        (SemaforoVencimiento.Vencido, "Vencidos"),
+    ];
+
+    private bool _mostrarFormProveedor;
+    private int? _editandoProveedorId;
+    private FormProveedorModel _formProveedor = new();
+
+    private bool _mostrarFormRecurso;
+    private int? _editandoRecursoId;
+    private FormRecursoModel _formRecurso = new();
+
+    private bool _mostrarFormPersona;
+    private int? _editandoPersonaId;
+    private FormPersonaModel _formPersona = new();
+
+    private (CategoriaDocumentoControl Categoria, int Id, string Nombre)? _duenoSeleccionado;
+    private FormDocumentoModel _formDocumento = new();
+    private IBrowserFile? _archivoSeleccionado;
+
+    private IEnumerable<DocumentoControl> DocumentosDelDuenoActual
+    {
+        get
+        {
+            if (_duenoSeleccionado is null) return [];
+            var (categoria, id, _) = _duenoSeleccionado.Value;
+            return categoria switch
+            {
+                CategoriaDocumentoControl.Persona => _documentos.Where(d => d.PersonaExternaId == id),
+                CategoriaDocumentoControl.Equipo => _documentos.Where(d => d.RecursoEquipoId == id),
+                _ => _documentos.Where(d => d.ProveedorId == id)
+            };
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _proveedores = await Db.Proveedores.Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.Nombre).ToListAsync();
+        _recursos = await Db.RecursosEquipo.Include(r => r.Proveedor).Include(r => r.ConductorOperador)
+            .Where(r => r.ProyectoId == ProyectoId).OrderBy(r => r.Descripcion).ToListAsync();
+        _personas = await Db.PersonasExternas.Include(p => p.Proveedor)
+            .Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.Nombre).ToListAsync();
+        _tiposDocumento = await Db.TiposDocumentoControl.Where(t => t.Activo).OrderBy(t => t.Nombre).ToListAsync();
+        _documentos = await Db.DocumentosControl.Include(d => d.TipoDocumentoControl)
+            .Where(d => d.ProyectoId == ProyectoId).ToListAsync();
+    }
+
+    private void MostrarMensaje(string mensaje, bool esError) { _mensaje = mensaje; _mensajeEsError = esError; }
+
+    private string NombreDueno(DocumentoControl d)
+    {
+        if (d.PersonaExternaId.HasValue) return _personas.FirstOrDefault(p => p.Id == d.PersonaExternaId)?.Nombre ?? "—";
+        if (d.RecursoEquipoId.HasValue) return _recursos.FirstOrDefault(r => r.Id == d.RecursoEquipoId)?.Descripcion ?? "—";
+        if (d.ProveedorId.HasValue) return _proveedores.FirstOrDefault(p => p.Id == d.ProveedorId)?.Nombre ?? "—";
+        return "—";
+    }
+
+    // ── Proveedores ──────────────────────────────────────────────────────
+    private void EditarProveedor(Proveedor p)
+    {
+        _formProveedor = new FormProveedorModel { Nombre = p.Nombre, NIT = p.NIT, EsRenergeia = p.EsRenergeia };
+        _editandoProveedorId = p.Id;
+        _mostrarFormProveedor = true;
+    }
+
+    private async Task GuardarProveedorAsync()
+    {
+        if (_editandoProveedorId.HasValue)
+        {
+            var entidad = await Db.Proveedores.FindAsync(_editandoProveedorId.Value);
+            if (entidad is not null)
+            {
+                entidad.Nombre = _formProveedor.Nombre;
+                entidad.NIT = _formProveedor.NIT;
+                entidad.EsRenergeia = _formProveedor.EsRenergeia;
+                entidad.FechaModificacion = DateTime.UtcNow;
+            }
+        }
+        else
+        {
+            Db.Proveedores.Add(new Proveedor
+            {
+                ProyectoId = ProyectoId,
+                Nombre = _formProveedor.Nombre,
+                NIT = _formProveedor.NIT,
+                EsRenergeia = _formProveedor.EsRenergeia
+            });
+        }
+        await Db.SaveChangesAsync();
+        _mostrarFormProveedor = false;
+        await CargarAsync();
+    }
+
+    private async Task EliminarProveedorAsync(int id)
+    {
+        var docs = Db.DocumentosControl.Where(d => d.ProveedorId == id);
+        Db.DocumentosControl.RemoveRange(docs);
+        var entidad = await Db.Proveedores.FindAsync(id);
+        if (entidad is not null) Db.Proveedores.Remove(entidad);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+    }
+
+    // ── Recursos ─────────────────────────────────────────────────────────
+    private void EditarRecurso(RecursoEquipo r)
+    {
+        _formRecurso = new FormRecursoModel
+        {
+            Tipo = r.Tipo,
+            Descripcion = r.Descripcion,
+            PlacaSerial = r.PlacaSerial,
+            ProveedorId = r.ProveedorId,
+            ConductorOperadorId = r.ConductorOperadorId,
+            FechaInicioContrato = r.FechaInicioContrato,
+            FechaFinContrato = r.FechaFinContrato
+        };
+        _editandoRecursoId = r.Id;
+        _mostrarFormRecurso = true;
+    }
+
+    private async Task GuardarRecursoAsync()
+    {
+        if (_editandoRecursoId.HasValue)
+        {
+            var entidad = await Db.RecursosEquipo.FindAsync(_editandoRecursoId.Value);
+            if (entidad is not null) MapearRecurso(entidad);
+        }
+        else
+        {
+            var entidad = new RecursoEquipo { ProyectoId = ProyectoId };
+            MapearRecurso(entidad);
+            Db.RecursosEquipo.Add(entidad);
+        }
+        await Db.SaveChangesAsync();
+        _mostrarFormRecurso = false;
+        await CargarAsync();
+    }
+
+    private void MapearRecurso(RecursoEquipo r)
+    {
+        r.Tipo = _formRecurso.Tipo;
+        r.Descripcion = _formRecurso.Descripcion;
+        r.PlacaSerial = _formRecurso.PlacaSerial;
+        r.ProveedorId = _formRecurso.ProveedorId;
+        r.ConductorOperadorId = _formRecurso.ConductorOperadorId;
+        r.FechaInicioContrato = _formRecurso.FechaInicioContrato;
+        r.FechaFinContrato = _formRecurso.FechaFinContrato;
+        r.FechaModificacion = DateTime.UtcNow;
+    }
+
+    private async Task EliminarRecursoAsync(int id)
+    {
+        var docs = Db.DocumentosControl.Where(d => d.RecursoEquipoId == id);
+        Db.DocumentosControl.RemoveRange(docs);
+        var entidad = await Db.RecursosEquipo.FindAsync(id);
+        if (entidad is not null) Db.RecursosEquipo.Remove(entidad);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+    }
+
+    // ── Personal ─────────────────────────────────────────────────────────
+    private void EditarPersona(PersonaExterna p)
+    {
+        _formPersona = new FormPersonaModel { Nombre = p.Nombre, Cedula = p.Cedula, Rol = p.Rol, ProveedorId = p.ProveedorId };
+        _editandoPersonaId = p.Id;
+        _mostrarFormPersona = true;
+    }
+
+    private async Task GuardarPersonaAsync()
+    {
+        if (_editandoPersonaId.HasValue)
+        {
+            var entidad = await Db.PersonasExternas.FindAsync(_editandoPersonaId.Value);
+            if (entidad is not null)
+            {
+                entidad.Nombre = _formPersona.Nombre;
+                entidad.Cedula = _formPersona.Cedula;
+                entidad.Rol = _formPersona.Rol;
+                entidad.ProveedorId = _formPersona.ProveedorId;
+                entidad.FechaModificacion = DateTime.UtcNow;
+            }
+        }
+        else
+        {
+            Db.PersonasExternas.Add(new PersonaExterna
+            {
+                ProyectoId = ProyectoId,
+                Nombre = _formPersona.Nombre,
+                Cedula = _formPersona.Cedula,
+                Rol = _formPersona.Rol,
+                ProveedorId = _formPersona.ProveedorId
+            });
+        }
+        await Db.SaveChangesAsync();
+        _mostrarFormPersona = false;
+        await CargarAsync();
+    }
+
+    private async Task EliminarPersonaAsync(int id)
+    {
+        var docs = Db.DocumentosControl.Where(d => d.PersonaExternaId == id);
+        Db.DocumentosControl.RemoveRange(docs);
+        var entidad = await Db.PersonasExternas.FindAsync(id);
+        if (entidad is not null) Db.PersonasExternas.Remove(entidad);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+    }
+
+    // ── Documentos ───────────────────────────────────────────────────────
+    private void AbrirDocumentos(CategoriaDocumentoControl categoria, int id, string nombre)
+    {
+        _duenoSeleccionado = (categoria, id, nombre);
+        _formDocumento = new FormDocumentoModel();
+        _archivoSeleccionado = null;
+    }
+
+    private void SeleccionarArchivo(InputFileChangeEventArgs e) => _archivoSeleccionado = e.File;
+
+    private async Task GuardarDocumentoAsync()
+    {
+        if (_duenoSeleccionado is null || _formDocumento.TipoDocumentoControlId == 0)
+        {
+            MostrarMensaje("Selecciona un tipo de documento.", true);
+            return;
+        }
+
+        var (categoria, id, _) = _duenoSeleccionado.Value;
+
+        // Marcar como histórico cualquier documento vigente del mismo tipo para este dueño
+        var anteriores = _documentos.Where(d =>
+            d.TipoDocumentoControlId == _formDocumento.TipoDocumentoControlId && d.Vigente &&
+            ((categoria == CategoriaDocumentoControl.Persona && d.PersonaExternaId == id) ||
+             (categoria == CategoriaDocumentoControl.Equipo && d.RecursoEquipoId == id) ||
+             (categoria == CategoriaDocumentoControl.Proveedor && d.ProveedorId == id)));
+        foreach (var anterior in anteriores)
+        {
+            var entidadAnterior = await Db.DocumentosControl.FindAsync(anterior.Id);
+            if (entidadAnterior is not null) entidadAnterior.Vigente = false;
+        }
+
+        var nuevo = new DocumentoControl
+        {
+            ProyectoId = ProyectoId,
+            TipoDocumentoControlId = _formDocumento.TipoDocumentoControlId,
+            FechaVencimiento = _formDocumento.FechaVencimiento,
+            Entregado = _formDocumento.Entregado || _formDocumento.FechaVencimiento.HasValue,
+            ResponsableNombre = _formDocumento.ResponsableNombre,
+            ResponsableEmail = _formDocumento.ResponsableEmail,
+            Observaciones = _formDocumento.Observaciones,
+            PersonaExternaId = categoria == CategoriaDocumentoControl.Persona ? id : null,
+            RecursoEquipoId = categoria == CategoriaDocumentoControl.Equipo ? id : null,
+            ProveedorId = categoria == CategoriaDocumentoControl.Proveedor ? id : null
+        };
+        Db.DocumentosControl.Add(nuevo);
+        await Db.SaveChangesAsync();
+
+        if (_archivoSeleccionado is not null)
+        {
+            await using var stream = _archivoSeleccionado.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            var (ruta, error) = await DocSvc.GuardarArchivoAsync(
+                stream, _archivoSeleccionado.Name, _archivoSeleccionado.Size, ProyectoId, nuevo.Id, "v1");
+            if (ruta is not null)
+            {
+                nuevo.RutaArchivo = ruta;
+                nuevo.NombreArchivo = _archivoSeleccionado.Name;
+                await Db.SaveChangesAsync();
+            }
+            else
+            {
+                MostrarMensaje($"Documento guardado, pero el archivo no se pudo subir: {error}", true);
+            }
+        }
+
+        _formDocumento = new FormDocumentoModel();
+        _archivoSeleccionado = null;
+        await CargarAsync();
+    }
+
+    private async Task EliminarDocumentoAsync(int id)
+    {
+        var entidad = await Db.DocumentosControl.FindAsync(id);
+        if (entidad is not null) Db.DocumentosControl.Remove(entidad);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+    }
+
+    private sealed class FormProveedorModel
+    {
+        [Required(ErrorMessage = "El nombre es obligatorio")]
+        public string Nombre { get; set; } = string.Empty;
+        public string? NIT { get; set; }
+        public bool EsRenergeia { get; set; }
+    }
+
+    private sealed class FormRecursoModel
+    {
+        public TipoRecurso Tipo { get; set; } = TipoRecurso.Vehiculo;
+        [Required(ErrorMessage = "La descripción es obligatoria")]
+        public string Descripcion { get; set; } = string.Empty;
+        public string? PlacaSerial { get; set; }
+        public int? ProveedorId { get; set; }
+        public int? ConductorOperadorId { get; set; }
+        public DateTime? FechaInicioContrato { get; set; }
+        public DateTime? FechaFinContrato { get; set; }
+    }
+
+    private sealed class FormPersonaModel
+    {
+        [Required(ErrorMessage = "El nombre es obligatorio")]
+        public string Nombre { get; set; } = string.Empty;
+        public string? Cedula { get; set; }
+        public string? Rol { get; set; }
+        public int? ProveedorId { get; set; }
+    }
+
+    private sealed class FormDocumentoModel
+    {
+        public int TipoDocumentoControlId { get; set; }
+        public DateTime? FechaVencimiento { get; set; }
+        public bool Entregado { get; set; }
+        public string? ResponsableNombre { get; set; }
+        public string? ResponsableEmail { get; set; }
+        public string? Observaciones { get; set; }
+    }
+}
