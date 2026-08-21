@@ -20,7 +20,7 @@ const PROYECTOS = [
   "COS4HA - Hatogrande",
   "COS2OT - OLD-T",
   "COSAR - Aris Mining",
-  "COS17PR - Bayunca",
+  "CO17PR - Bayunca",
   "PA21LV - La Villa",
   "COS6VL - Villanueva",
   "COS6ML - Malambo",
