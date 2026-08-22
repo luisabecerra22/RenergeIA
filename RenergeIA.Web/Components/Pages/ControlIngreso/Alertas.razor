@@ -1,9 +1,11 @@
 @page "/proyectos/{ProyectoId:int}/alertas"
 @attribute [Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
 @inject DocumentoService DocSvc
+@inject ControlIngresoNotifier Notifier
 @using RenergeIA.Core.Enums
 @using System.ComponentModel.DataAnnotations
 @using ClosedXML.Excel
@@ -738,7 +740,20 @@ else
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
         await CargarAsync();
+        Notifier.CambioRealizado += OnCambioRemotoAsync;
     }
+
+    private async Task OnCambioRemotoAsync(int proyectoId)
+    {
+        if (proyectoId != ProyectoId) return;
+        await InvokeAsync(async () =>
+        {
+            await CargarAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Notifier.CambioRealizado -= OnCambioRemotoAsync;
 
     private async Task CargarAsync()
     {
@@ -864,6 +879,7 @@ else
         await Db.SaveChangesAsync();
         _mostrarFormProveedor = false;
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     private async Task EliminarProveedorAsync(int id)
@@ -874,6 +890,7 @@ else
         if (entidad is not null) Db.Proveedores.Remove(entidad);
         await Db.SaveChangesAsync();
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     // ── Recursos ─────────────────────────────────────────────────────────
@@ -911,6 +928,7 @@ else
         await Db.SaveChangesAsync();
         _mostrarFormRecurso = false;
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     private void MapearRecurso(RecursoEquipo r)
@@ -936,6 +954,7 @@ else
         await Db.SaveChangesAsync();
         if (_recursoEtapasSeleccionado?.Id == id) _recursoEtapasSeleccionado = null;
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     // ── Etapas de revisión ───────────────────────────────────────────────
@@ -978,6 +997,7 @@ else
         entidad.FechaModificacion = DateTime.UtcNow;
         await Db.SaveChangesAsync();
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
         if (_recursoEtapasSeleccionado is not null)
             _recursoEtapasSeleccionado = _recursos.FirstOrDefault(r => r.Id == _recursoEtapasSeleccionado.Id);
     }
@@ -990,6 +1010,7 @@ else
         entidad.FechaModificacion = DateTime.UtcNow;
         await Db.SaveChangesAsync();
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
         if (_recursoEtapasSeleccionado is not null)
             _recursoEtapasSeleccionado = _recursos.FirstOrDefault(r => r.Id == _recursoEtapasSeleccionado.Id);
     }
@@ -1036,6 +1057,7 @@ else
         await Db.SaveChangesAsync();
         _mostrarFormPersona = false;
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     private async Task EliminarPersonaAsync(int id)
@@ -1046,6 +1068,7 @@ else
         if (entidad is not null) Db.PersonasExternas.Remove(entidad);
         await Db.SaveChangesAsync();
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     // ── Documentos ───────────────────────────────────────────────────────
@@ -1116,6 +1139,7 @@ else
         _formDocumento = new FormDocumentoModel();
         _archivoSeleccionado = null;
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     private async Task EliminarDocumentoAsync(int id)
@@ -1124,6 +1148,7 @@ else
         if (entidad is not null) Db.DocumentosControl.Remove(entidad);
         await Db.SaveChangesAsync();
         await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
     }
 
     // ── Importar desde Excel (Control de Ingreso) ───────────────────────────
@@ -1298,6 +1323,7 @@ else
 
             await Db.SaveChangesAsync();
             await CargarAsync();
+        await Notifier.NotificarAsync(ProyectoId);
 
             MostrarMensaje($"Importado: {proveedoresCreados} proveedores, {recursosCreados} recursos, {personasCreadas} personas y {documentosCreados} documentos nuevos. {filasOmitidas} filas omitidas (sin proveedor o equipo).", false);
         }

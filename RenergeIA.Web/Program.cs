@@ -41,6 +41,7 @@ builder.Services.AddScoped<ChecklistISO9001Service>();
 builder.Services.AddScoped<NormaChecklistService>();
 builder.Services.AddScoped<IAInspeccionService>();
 builder.Services.AddScoped<ControlIngresoService>();
+builder.Services.AddSingleton<ControlIngresoNotifier>();
 builder.Services.AddHttpClient();
 
 builder.Services.AddRazorComponents()
