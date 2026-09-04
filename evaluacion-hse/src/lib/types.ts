@@ -35,6 +35,7 @@ export interface Evaluacion {
   preguntas: PreguntaConocimiento[];
   feedback: PreguntaFeedback[];
   activa: boolean;
+  area: string; // id del área dueña (ver Area) — quién la creó/gestiona
   creadaEn: string; // ISO
   actualizadaEn: string; // ISO
 }
@@ -70,6 +71,7 @@ export interface Intento {
   nota: number; // escala 0-5, un decimal
   aprobado: boolean;
   firma?: string; // base64 data URL de la firma
+  area: string; // heredada de la evaluación al momento de presentarla
   presentadoEn: string; // ISO
   eliminado?: boolean;
   eliminadoEn?: string;
@@ -88,14 +90,28 @@ export interface Asistencia {
   proyecto: string;
   correo: string;
   firma?: string;
+  area: string; // heredada de la evaluación al momento de registrar asistencia
   registradoEn: string; // ISO
   eliminado?: boolean;
   eliminadoEn?: string;
 }
 
+/** Área/equipo que gestiona su propio conjunto de capacitaciones (ej. HSE, RRHH). */
+export interface Area {
+  id: string; // slug, ej. "hse", "rrhh"
+  nombre: string; // ej. "HSE", "Recursos Humanos"
+  creadaEn: string; // ISO
+}
+
+/** Rol de una cuenta de administrador. */
+export type RolAdmin = "admin" | "area";
+
 /** Cuenta de administrador. */
 export interface Admin {
   username: string;
   passwordHash: string;
+  rol: RolAdmin;
+  area?: string; // id del área (Area.id); requerido cuando rol === "area"
+  activo: boolean;
   creadoEn: string;
 }

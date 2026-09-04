@@ -14,15 +14,28 @@ export async function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get(SESSION_COOKIE)?.value;
-  const usuario = await verificarSesion(token);
+  const sesion = await verificarSesion(token);
 
-  if (!usuario) {
+  if (!sesion) {
     // APIs responden 401; páginas redirigen al login.
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "No autorizado." }, { status: 401 });
     }
     const url = req.nextUrl.clone();
     url.pathname = "/admin/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Rutas exclusivas del rol admin (gestión de usuarios y áreas).
+  const soloAdmin =
+    pathname.startsWith("/admin/usuarios") ||
+    pathname.startsWith("/api/admin/users");
+  if (soloAdmin && sesion.rol !== "admin") {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/admin";
     return NextResponse.redirect(url);
   }
 

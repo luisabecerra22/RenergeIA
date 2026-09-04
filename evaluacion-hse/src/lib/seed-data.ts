@@ -38,6 +38,7 @@ export const EVALUACION_INDUCCION_HSEQ: Evaluacion = {
   descripcion:
     "Evaluación de la inducción y reinducción en Seguridad, Salud en el Trabajo, Ambiente y Calidad (HSEQ) de Renergeia.",
   activa: true,
+  area: "hse",
   creadaEn: new Date().toISOString(),
   actualizadaEn: new Date().toISOString(),
   feedback: FEEDBACK_ESTANDAR,
@@ -309,6 +310,7 @@ export const EVALUACION_HABITOS_SALUDABLES: Evaluacion = {
   descripcion:
     "Evaluación de la capacitación en hábitos y estilos de vida saludables (SG-SST).",
   activa: true,
+  area: "hse",
   creadaEn: new Date().toISOString(),
   actualizadaEn: new Date().toISOString(),
   feedback: FEEDBACK_ESTANDAR,

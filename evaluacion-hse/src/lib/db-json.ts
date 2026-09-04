@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { DataStore } from "./db";
-import type { Admin, Asistencia, Evaluacion, Intento } from "./types";
+import type { Admin, Area, Asistencia, Evaluacion, Intento } from "./types";
 
 /**
  * Almacén basado en archivos JSON para desarrollo local.
@@ -136,6 +136,11 @@ export class JsonStore implements DataStore {
     return all.filter((a) => a.eliminado).sort((a, b) => (b.eliminadoEn ?? "").localeCompare(a.eliminadoEn ?? ""));
   }
 
+  async getAsistencia(id: string): Promise<Asistencia | null> {
+    const all = await readCollection<Asistencia>("asistencias");
+    return all.find((a) => a.id === id) ?? null;
+  }
+
   async softDeleteAsistencia(id: string): Promise<void> {
     const all = await readCollection<Asistencia>("asistencias");
     const idx = all.findIndex((a) => a.id === id);
@@ -161,6 +166,10 @@ export class JsonStore implements DataStore {
     await writeCollection("asistencias", all.filter((a) => a.id !== id));
   }
 
+  async listAdmins(): Promise<Admin[]> {
+    return readCollection<Admin>("admins");
+  }
+
   async getAdmin(username: string): Promise<Admin | null> {
     const all = await readCollection<Admin>("admins");
     return all.find((a) => a.username === username) ?? null;
@@ -172,5 +181,22 @@ export class JsonStore implements DataStore {
     if (idx >= 0) all[idx] = admin;
     else all.push(admin);
     await writeCollection("admins", all);
+  }
+
+  async listAreas(): Promise<Area[]> {
+    return readCollection<Area>("areas");
+  }
+
+  async getArea(id: string): Promise<Area | null> {
+    const all = await readCollection<Area>("areas");
+    return all.find((a) => a.id === id) ?? null;
+  }
+
+  async saveArea(area: Area): Promise<void> {
+    const all = await readCollection<Area>("areas");
+    const idx = all.findIndex((a) => a.id === area.id);
+    if (idx >= 0) all[idx] = area;
+    else all.push(area);
+    await writeCollection("areas", all);
   }
 }

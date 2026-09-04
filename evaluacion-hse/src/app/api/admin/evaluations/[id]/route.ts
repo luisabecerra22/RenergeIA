@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db";
+import { puedeVerArea, sesionActual } from "@/lib/auth";
 import type { Evaluacion } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -28,11 +29,17 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const sesion = await sesionActual();
+  if (!sesion) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const { id } = await params;
   const store = await getStore();
   const actual = await store.getEvaluacion(id);
   if (!actual) {
     return NextResponse.json({ error: "No encontrada." }, { status: 404 });
+  }
+  if (!puedeVerArea(sesion, actual.area)) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   }
 
   let body: Evaluacion;
@@ -46,6 +53,8 @@ export async function PUT(
     ...actual,
     ...body,
     id, // no permitir cambiar el id
+    // Solo el admin puede reasignar el área de una evaluación.
+    area: sesion.rol === "admin" ? body.area || actual.area : actual.area,
     creadaEn: actual.creadaEn,
     actualizadaEn: new Date().toISOString(),
   };
@@ -61,8 +70,15 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const sesion = await sesionActual();
+  if (!sesion) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const { id } = await params;
   const store = await getStore();
+  const actual = await store.getEvaluacion(id);
+  if (actual && !puedeVerArea(sesion, actual.area)) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  }
   await store.deleteEvaluacion(id);
   return NextResponse.json({ ok: true });
 }

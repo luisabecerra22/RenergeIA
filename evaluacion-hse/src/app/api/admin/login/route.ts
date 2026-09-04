@@ -34,7 +34,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const token = await crearSesion(username);
+  if (admin.activo === false) {
+    return NextResponse.json(
+      { error: "Esta cuenta está desactivada." },
+      { status: 403 },
+    );
+  }
+
+  const token = await crearSesion(admin);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

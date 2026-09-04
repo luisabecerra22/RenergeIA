@@ -18,9 +18,13 @@ function fechaCorta(iso: string): string {
 export default function TablaResultados({
   intentos: intentosIniciales,
   evaluaciones,
+  areasMap,
+  esAdmin,
 }: {
   intentos: Intento[];
   evaluaciones: Evaluacion[];
+  areasMap: Record<string, string>;
+  esAdmin: boolean;
 }) {
   const [intentos, setIntentos] = useState(intentosIniciales);
   const [papelera, setPapelera] = useState<Intento[]>([]);
@@ -251,6 +255,7 @@ export default function TablaResultados({
                   <th>Proyecto</th>
                   <th>Correo</th>
                   <th>Evaluación</th>
+                  {esAdmin && <th>Área</th>}
                   <th>Nota</th>
                   <th>Estado</th>
                   <th>Ver</th>
@@ -261,7 +266,7 @@ export default function TablaResultados({
               <tbody>
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={13} style={{ textAlign: "center", padding: 24 }}>
+                    <td colSpan={esAdmin ? 14 : 13} style={{ textAlign: "center", padding: 24 }}>
                       Sin registros.
                     </td>
                   </tr>
@@ -276,6 +281,7 @@ export default function TablaResultados({
                       <td>{i.participante.proyecto}</td>
                       <td>{i.participante.correo}</td>
                       <td>{i.evaluacionTitulo}</td>
+                      {esAdmin && <td>{areasMap[i.area] ?? i.area}</td>}
                       <td><strong>{i.nota.toFixed(1)}</strong></td>
                       <td>
                         <span className={`badge ${i.aprobado ? "badge-ok" : "badge-fail"}`}>

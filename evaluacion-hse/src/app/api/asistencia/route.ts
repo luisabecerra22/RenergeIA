@@ -39,6 +39,7 @@ export async function POST(req: Request) {
   const store = await getStore();
 
   let titulo: string;
+  let area = "";
   if (evaluacionId === "__otro__") {
     titulo = body.evaluacionTitulo?.trim() || "Otra capacitación";
   } else {
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "La capacitación no está disponible." }, { status: 404 });
     }
     titulo = evaluacion.titulo;
+    area = evaluacion.area;
   }
 
   const asistencia: Asistencia = {
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
     proyecto,
     correo: correo.trim().toLowerCase(),
     firma: firma || undefined,
+    area,
     registradoEn: new Date().toISOString(),
   };
 

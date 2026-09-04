@@ -18,9 +18,13 @@ function fechaCorta(iso: string): string {
 export default function TablaAsistencia({
   asistencias: asistenciasIniciales,
   evaluaciones,
+  areasMap,
+  esAdmin,
 }: {
   asistencias: Asistencia[];
   evaluaciones: Evaluacion[];
+  areasMap: Record<string, string>;
+  esAdmin: boolean;
 }) {
   const [asistencias, setAsistencias] = useState(asistenciasIniciales);
   const [papelera, setPapelera] = useState<Asistencia[]>([]);
@@ -225,13 +229,14 @@ export default function TablaAsistencia({
                   <th>Proyecto</th>
                   <th>Correo</th>
                   <th>Capacitación</th>
+                  {esAdmin && <th>Área</th>}
                   <th>Eliminar</th>
                 </tr>
               </thead>
               <tbody>
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: "center", padding: 24 }}>
+                    <td colSpan={esAdmin ? 10 : 9} style={{ textAlign: "center", padding: 24 }}>
                       Sin registros de asistencia.
                     </td>
                   </tr>
@@ -246,6 +251,7 @@ export default function TablaAsistencia({
                       <td>{a.proyecto}</td>
                       <td>{a.correo}</td>
                       <td>{a.evaluacionTitulo}</td>
+                      {esAdmin && <td>{areasMap[a.area] ?? a.area}</td>}
                       <td>
                         <button
                           className="btn btn-secondary"

@@ -1,6 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import type { DataStore } from "./db";
-import type { Admin, Asistencia, Evaluacion, Intento } from "./types";
+import type { Admin, Area, Asistencia, Evaluacion, Intento } from "./types";
 
 /**
  * Almacén Firestore para producción (Cloud Run).
@@ -127,6 +127,11 @@ export class FirestoreStore implements DataStore {
     return snap.docs.map((d) => d.data() as Asistencia).sort((a, b) => (b.eliminadoEn ?? "").localeCompare(a.eliminadoEn ?? ""));
   }
 
+  async getAsistencia(id: string): Promise<Asistencia | null> {
+    const doc = await this.db.collection("asistencias").doc(id).get();
+    return doc.exists ? (doc.data() as Asistencia) : null;
+  }
+
   async softDeleteAsistencia(id: string): Promise<void> {
     await this.db.collection("asistencias").doc(id).update({
       eliminado: true,
@@ -145,6 +150,11 @@ export class FirestoreStore implements DataStore {
     await this.db.collection("asistencias").doc(id).delete();
   }
 
+  async listAdmins(): Promise<Admin[]> {
+    const snap = await this.db.collection("admins").get();
+    return snap.docs.map((d) => d.data() as Admin);
+  }
+
   async getAdmin(username: string): Promise<Admin | null> {
     const doc = await this.db.collection("admins").doc(username).get();
     return doc.exists ? (doc.data() as Admin) : null;
@@ -152,5 +162,19 @@ export class FirestoreStore implements DataStore {
 
   async saveAdmin(admin: Admin): Promise<void> {
     await this.db.collection("admins").doc(admin.username).set(admin);
+  }
+
+  async listAreas(): Promise<Area[]> {
+    const snap = await this.db.collection("areas").get();
+    return snap.docs.map((d) => d.data() as Area);
+  }
+
+  async getArea(id: string): Promise<Area | null> {
+    const doc = await this.db.collection("areas").doc(id).get();
+    return doc.exists ? (doc.data() as Area) : null;
+  }
+
+  async saveArea(area: Area): Promise<void> {
+    await this.db.collection("areas").doc(area.id).set(area);
   }
 }

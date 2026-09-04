@@ -107,6 +107,7 @@ export async function POST(req: Request) {
     nota: resultado.nota,
     aprobado: resultado.aprobado,
     firma: firma ?? undefined,
+    area: evaluacion.area,
     presentadoEn: new Date().toISOString(),
   };
 

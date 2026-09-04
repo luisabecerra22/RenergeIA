@@ -3,7 +3,7 @@ import path from "node:path";
 import bcrypt from "bcryptjs";
 import { getStore } from "../src/lib/db";
 import { EVALUACION_HABITOS_SALUDABLES, EVALUACION_INDUCCION_HSEQ } from "../src/lib/seed-data";
-import type { Admin } from "../src/lib/types";
+import type { Admin, Area } from "../src/lib/types";
 
 /** Carga simple de variables desde .env.local si existe (para correr fuera de Next). */
 async function cargarEnv(): Promise<void> {
@@ -36,7 +36,22 @@ async function main(): Promise<void> {
   await cargarEnv();
   const store = await getStore();
 
-  // 1) Evaluaciones.
+  // 1) Áreas base.
+  for (const a of [
+    { id: "hse", nombre: "HSE" },
+    { id: "rrhh", nombre: "Recursos Humanos" },
+  ]) {
+    const existente = await store.getArea(a.id);
+    if (existente) {
+      console.log("• Área ya existe, no se sobrescribe:", a.id);
+    } else {
+      const area: Area = { ...a, creadaEn: new Date().toISOString() };
+      await store.saveArea(area);
+      console.log("✓ Área creada:", a.id);
+    }
+  }
+
+  // 2) Evaluaciones.
   for (const ev of [EVALUACION_HABITOS_SALUDABLES, EVALUACION_INDUCCION_HSEQ]) {
     const existente = await store.getEvaluacion(ev.id);
     if (existente) {
@@ -47,7 +62,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // 2) Administrador inicial.
+  // 3) Administrador inicial (rol admin: ve y gestiona todo).
   const username = process.env.ADMIN_USERNAME || "admin";
   const password = process.env.ADMIN_PASSWORD || "Renergeia2026*";
   const admin = await store.getAdmin(username);
@@ -57,6 +72,8 @@ async function main(): Promise<void> {
     const nuevo: Admin = {
       username,
       passwordHash: await bcrypt.hash(password, 10),
+      rol: "admin",
+      activo: true,
       creadoEn: new Date().toISOString(),
     };
     await store.saveAdmin(nuevo);

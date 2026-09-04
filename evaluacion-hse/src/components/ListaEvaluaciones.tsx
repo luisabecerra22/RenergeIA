@@ -9,13 +9,18 @@ interface Fila {
   titulo: string;
   tema: string;
   activa: boolean;
+  area: string;
   numPreguntas: number;
 }
 
 export default function ListaEvaluaciones({
   evaluaciones,
+  areasMap,
+  esAdmin,
 }: {
   evaluaciones: Fila[];
+  areasMap: Record<string, string>;
+  esAdmin: boolean;
 }) {
   const router = useRouter();
   const [creando, setCreando] = useState(false);
@@ -68,6 +73,7 @@ export default function ListaEvaluaciones({
             <tr>
               <th>Título</th>
               <th>Tema</th>
+              {esAdmin && <th>Área</th>}
               <th>Preguntas</th>
               <th>Estado</th>
               <th>Links</th>
@@ -77,7 +83,7 @@ export default function ListaEvaluaciones({
           <tbody>
             {evaluaciones.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: 24 }}>
+                <td colSpan={esAdmin ? 6 : 5} style={{ textAlign: "center", padding: 24 }}>
                   No hay evaluaciones. Crea la primera.
                 </td>
               </tr>
@@ -86,6 +92,7 @@ export default function ListaEvaluaciones({
                 <tr key={e.id}>
                   <td>{e.titulo}</td>
                   <td>{e.tema}</td>
+                  {esAdmin && <td>{areasMap[e.area] ?? e.area}</td>}
                   <td>{e.numPreguntas}</td>
                   <td>
                     <span className={`badge ${e.activa ? "badge-ok" : "badge-fail"}`}>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStore } from "@/lib/db";
+import { sesionActual } from "@/lib/auth";
 import type { Intento } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -12,6 +13,9 @@ function csvCampo(valor: string | number): string {
 }
 
 export async function GET(req: Request) {
+  const sesion = await sesionActual();
+  if (!sesion) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const url = new URL(req.url);
   const fEval = url.searchParams.get("evaluacion") ?? "";
   const fEstado = url.searchParams.get("estado") ?? "";
@@ -19,6 +23,9 @@ export async function GET(req: Request) {
 
   const store = await getStore();
   let intentos = await store.listIntentos();
+  if (sesion.rol !== "admin") {
+    intentos = intentos.filter((i) => i.area === sesion.area);
+  }
 
   intentos = intentos.filter((i: Intento) => {
     if (fEval && i.evaluacionId !== fEval) return false;

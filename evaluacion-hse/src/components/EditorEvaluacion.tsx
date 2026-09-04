@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Evaluacion, PreguntaConocimiento } from "@/lib/types";
+import type { Area, Evaluacion, PreguntaConocimiento } from "@/lib/types";
 
 const LETRAS = "abcdefghij";
 
 export default function EditorEvaluacion({
   inicial,
+  areas,
+  areaEditable,
 }: {
   inicial: Evaluacion;
+  areas: Area[];
+  areaEditable: boolean;
 }) {
   const router = useRouter();
   const [ev, setEv] = useState<Evaluacion>(inicial);
@@ -138,6 +142,20 @@ export default function EditorEvaluacion({
             value={ev.descripcion ?? ""}
             onChange={(e) => setCampo("descripcion", e.target.value)}
           />
+        </div>
+        <div className="field" style={{ maxWidth: 260 }}>
+          <label>Área</label>
+          {areaEditable ? (
+            <select value={ev.area} onChange={(e) => setCampo("area", e.target.value)}>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input value={areas.find((a) => a.id === ev.area)?.nombre ?? ev.area} disabled />
+          )}
         </div>
         <label className="opcion" style={{ maxWidth: 260 }}>
           <input

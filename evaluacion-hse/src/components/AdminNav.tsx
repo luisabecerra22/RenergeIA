@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { Sesion } from "@/lib/auth";
 
 export default function AdminNav({
   activo,
+  sesion,
 }: {
-  activo: "resultados" | "evaluaciones" | "dashboard" | "asistencia";
+  activo: "resultados" | "evaluaciones" | "dashboard" | "asistencia" | "usuarios" | "perfil";
+  sesion: Sesion;
 }) {
   const router = useRouter();
 
@@ -50,11 +53,28 @@ export default function AdminNav({
       >
         Asistencia
       </Link>
-      <button
-        className="btn btn-secondary"
-        style={{ marginLeft: "auto" }}
-        onClick={salir}
+      {sesion.rol === "admin" && (
+        <Link
+          className={`btn ${activo === "usuarios" ? "btn-primary" : "btn-secondary"}`}
+          href="/admin/usuarios"
+        >
+          Usuarios
+        </Link>
+      )}
+
+      <span
+        className="muted"
+        style={{ marginLeft: "auto", fontSize: 13, whiteSpace: "nowrap" }}
       >
+        {sesion.username} · {sesion.rol === "admin" ? "Administrador" : sesion.area}
+      </span>
+      <Link
+        className={`btn ${activo === "perfil" ? "btn-primary" : "btn-secondary"}`}
+        href="/admin/perfil"
+      >
+        Mi cuenta
+      </Link>
+      <button className="btn btn-secondary" onClick={salir}>
         Cerrar sesión
       </button>
     </nav>
