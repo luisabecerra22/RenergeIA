@@ -53,9 +53,12 @@
         .table-responsive { overflow: visible !important; }
         .table { font-size: 7.5pt !important; width: 100% !important; }
         .table th { background: #183963 !important; color: white !important; font-size: 7pt !important;
-                    padding: 4px 3px !important; white-space: nowrap; }
-        .table td { padding: 3px 3px !important; border-color: #e0e0e0 !important; }
+                    padding: 4px 2px !important; white-space: nowrap; }
+        .table td { padding: 3px 2px !important; border-color: #e0e0e0 !important; }
         .table th, .table td { min-width: 0 !important; }
+        col.col-personal, col.col-horas { width: 40px !important; }
+        col.col-actividad { width: auto !important; }
+        col.col-duracion { width: 35px !important; }
 
         /* Inputs como texto plano */
         input[type="number"] {
@@ -77,6 +80,13 @@
         /* No cortar tablas entre páginas */
         tr { page-break-inside: avoid; }
         .card { break-inside: auto; box-shadow: none !important; border: none !important; }
+    }
+
+    /* Columnas redimensionables */
+    .table-resizable th {
+        overflow: hidden;
+        resize: horizontal;
+        min-width: 40px;
     }
 </style>
 
@@ -224,22 +234,36 @@ else
                 else
                 {
                     <div class="table-responsive">
-                        <table class="table table-bordered table-sm align-middle mb-0"
-                               style="font-size:0.82rem">
+                        <table class="table table-bordered table-sm table-resizable align-middle mb-0"
+                               style="font-size:0.82rem;table-layout:fixed">
+                            <colgroup>
+                                <col style="width:60px" />
+                                <col class="col-actividad" style="width:280px" />
+                                <col style="width:90px" />
+                                <col style="width:72px" />
+                                <col style="width:72px" />
+                                <col class="col-duracion" style="width:42px" />
+                                <col style="width:68px" />
+                                <col style="width:90px" />
+                                <col style="width:72px" />
+                                <col class="col-personal" style="width:42px" />
+                                <col class="col-horas" style="width:42px" />
+                                <col style="width:35px" />
+                            </colgroup>
                             <thead class="table-dark" style="position:sticky;top:0;z-index:1">
                                 <tr>
-                                    <th style="min-width:90px">Código WBS</th>
-                                    <th style="min-width:200px">Actividad</th>
-                                    <th style="min-width:110px" class="text-center">Disciplina</th>
-                                    <th style="min-width:80px">Inicio</th>
-                                    <th style="min-width:80px">Fin</th>
-                                    <th style="min-width:50px" class="text-center">Dur.</th>
-                                    <th style="min-width:90px" class="text-center">Programado %</th>
-                                    <th style="min-width:105px" class="text-center">Avance Real %</th>
-                                    <th style="min-width:90px" class="text-center">Desviación</th>
-                                    <th style="min-width:65px" class="text-center">Personal</th>
-                                    <th style="min-width:65px" class="text-center">Horas</th>
-                                    <th style="min-width:45px" class="text-center">Estado</th>
+                                    <th style="min-width:70px">Código WBS</th>
+                                    <th style="min-width:150px">Actividad</th>
+                                    <th style="min-width:80px" class="text-center">Disciplina</th>
+                                    <th style="min-width:65px">Inicio</th>
+                                    <th style="min-width:65px">Fin</th>
+                                    <th style="min-width:35px" class="text-center">Dur.</th>
+                                    <th style="min-width:70px" class="text-center">Prog. %</th>
+                                    <th style="min-width:80px" class="text-center">Avance Real %</th>
+                                    <th style="min-width:70px" class="text-center">Desv.</th>
+                                    <th style="min-width:40px" class="text-center">Pers.</th>
+                                    <th style="min-width:40px" class="text-center">Hrs.</th>
+                                    <th style="min-width:35px" class="text-center">Est.</th>
                                 </tr>
                             </thead>
                             <tbody>

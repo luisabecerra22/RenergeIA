@@ -5,6 +5,8 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthState
+@inject IHttpClientFactory HttpFactory
+@inject IConfiguration Config
 
 <PageTitle>WBS — RenergeIA</PageTitle>
 
@@ -22,15 +24,23 @@ else
 
     @if (_actividades.Count == 0 && !_versiones.Any())
     {
-        <div class="card shadow-sm p-4 text-center" style="max-width:500px;margin:3rem auto">
+        <div class="card shadow-sm p-4 text-center" style="max-width:800px;margin:3rem auto">
             <h5 class="mb-1">No hay actividades aún</h5>
-            <p class="text-muted small mb-4">Puedes cargar la plantilla estándar tipo EPC fotovoltaico o crear actividades manualmente.</p>
-            <div class="d-flex gap-3 justify-content-center">
-                <button class="btn btn-success" @onclick="CargarPlantillaAsync" disabled="@_cargando">
+            <p class="text-muted small mb-4">Puedes cargar la plantilla estándar tipo EPC fotovoltaico, importar un cronograma existente o crear actividades manualmente.</p>
+            <div class="d-flex gap-2 justify-content-center align-items-center">
+                <button class="btn btn-success btn-sm" @onclick="CargarPlantillaAsync" disabled="@_cargando">
                     @if (_cargando) { <span class="spinner-border spinner-border-sm me-1"></span> }
                     Cargar plantilla EPC
                 </button>
-                <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-outline-primary">+ Nueva actividad</a>
+                <label class="btn btn-outline-success btn-sm mb-0" style="cursor:pointer">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Cronograma Excel
+                    <InputFile OnChange="OnExcelSeleccionado" accept=".xlsx,.xls" style="display:none" />
+                </label>
+                <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Cronograma PDF
+                    <InputFile OnChange="OnPdfSeleccionado" accept=".pdf" style="display:none" />
+                </label>
+                <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-outline-primary btn-sm">+ Nueva actividad</a>
             </div>
         </div>
     }
@@ -148,6 +158,9 @@ else
                     <button class="btn btn-sm btn-outline-warning"
                             @onclick="() => { _mostrarModalReprogramacion = true; _motivoReprogramacion = string.Empty; _errorReprogramacion = null; }">
                         + Crear reprogramación
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => _confirmarReinicio = true">
+                        <i class="bi-arrow-counterclockwise me-1"></i>Reiniciar plantilla
                     </button>
                     <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-sm"
                        style="background:#183963;color:white;border:none">+ Nueva actividad</a>
@@ -366,6 +379,155 @@ else
     </div>
 }
 
+<!-- Modal: Confirmar reinicio de plantilla -->
+@if (_confirmarReinicio)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-exclamation-triangle me-2"></i>Reiniciar Plantilla</h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            @onclick="() => _confirmarReinicio = false"
+                            disabled="@_ejecutandoReinicio"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger py-2 small mb-3">
+                        <strong>Esta acción eliminará TODAS las actividades</strong> de la versión actual del cronograma
+                        y volverá a la pantalla inicial donde podrás cargar la plantilla EPC nuevamente o crear actividades desde cero.
+                    </div>
+                    <p class="small text-muted mb-0">
+                        Se eliminarán <strong>@_actividades.Count actividades</strong> de
+                        <em>@_versionSeleccionada?.Nombre</em>. Esta acción no se puede deshacer.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="() => _confirmarReinicio = false"
+                            disabled="@_ejecutandoReinicio">
+                        Cancelar
+                    </button>
+                    <button class="btn btn-danger btn-sm" disabled="@_ejecutandoReinicio"
+                            @onclick="ReiniciarPlantillaAsync">
+                        @if (_ejecutandoReinicio)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                            <span>Eliminando...</span>
+                        }
+                        else
+                        {
+                            <span><i class="bi-trash me-1"></i>Sí, reiniciar todo</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Procesando PDF -->
+@if (_procesandoPdf)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+            <div class="modal-content shadow-lg text-center p-4">
+                <div class="spinner-border text-primary mb-3" style="width:3rem;height:3rem;margin:0 auto"></div>
+                <h5 class="mb-1">Analizando cronograma...</h5>
+                <p class="text-muted small mb-0">
+                    @if (_fuenteImport == "PDF")
+                    {
+                        <span>Extrayendo actividades del PDF con IA. Esto puede tardar unos segundos.</span>
+                    }
+                    else
+                    {
+                        <span>Leyendo actividades del Excel...</span>
+                    }
+                </p>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Vista previa actividades del PDF -->
+@if (_mostrarModalPdf)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header" style="background:#183963;color:white">
+                    <h5 class="modal-title" style="font-size:1rem">
+                        <i class="bi @(_fuenteImport == "PDF" ? "bi-file-earmark-pdf" : "bi-file-earmark-excel") me-2"></i>
+                        Actividades detectadas en el @_fuenteImport
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white"
+                            @onclick="() => _mostrarModalPdf = false"
+                            disabled="@_guardandoPdf"></button>
+                </div>
+                <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+                    @if (_errorPdf is not null)
+                    {
+                        <div class="alert alert-danger py-2 small">@_errorPdf</div>
+                    }
+                    else if (!_actividadesPdf.Any())
+                    {
+                        <div class="alert alert-warning py-2 small">No se detectaron actividades en el PDF.</div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info py-2 small mb-3">
+                            Se detectaron <strong>@_actividadesPdf.Count actividades</strong>. Revisa que la estructura sea correcta antes de importar.
+                        </div>
+                        <table class="table table-sm table-bordered" style="font-size:0.8rem">
+                            <thead style="background:#f8f9fa">
+                                <tr>
+                                    <th style="width:80px">Código</th>
+                                    <th>Actividad</th>
+                                    <th style="width:60px;text-align:center">Nivel</th>
+                                    <th style="width:80px;text-align:center">Duración (días)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in _actividadesPdf)
+                                {
+                                    <tr>
+                                        <td><code>@a.Codigo</code></td>
+                                        <td style="padding-left:@((a.Nivel - 1) * 16 + 6)px">@a.Nombre</td>
+                                        <td style="text-align:center">@a.Nivel</td>
+                                        <td style="text-align:center">@a.Duracion</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="() => _mostrarModalPdf = false"
+                            disabled="@_guardandoPdf">
+                        Cancelar
+                    </button>
+                    @if (_actividadesPdf.Any() && _errorPdf is null)
+                    {
+                        <button class="btn btn-sm" style="background:#6ABF4B;color:white;border:none"
+                                disabled="@_guardandoPdf"
+                                @onclick="ImportarActividadesPdfAsync">
+                            @if (_guardandoPdf)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                <span>Importando...</span>
+                            }
+                            else
+                            {
+                                <span>Importar @_actividadesPdf.Count actividades</span>
+                            }
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public int ProyectoId { get; set; }
 
@@ -385,6 +547,18 @@ else
     private string _motivoReprogramacion = string.Empty;
     private bool _creandoReprogramacion;
     private string? _errorReprogramacion;
+    private bool _confirmarReinicio;
+    private bool _ejecutandoReinicio;
+
+    // PDF/Excel import
+    private bool _procesandoPdf;
+    private bool _mostrarModalPdf;
+    private bool _guardandoPdf;
+    private string? _errorPdf;
+    private List<ActividadPdfPreview> _actividadesPdf = [];
+    private string _fuenteImport = "PDF"; // "PDF" o "Excel"
+
+    private record ActividadPdfPreview(string Codigo, string Nombre, int Nivel, string? CodigoPadre, int Duracion);
 
     // IDs de actividades que tienen al menos un hijo (nodos padre)
     private HashSet<int> _conHijos = [];
@@ -872,6 +1046,382 @@ else
 
         await CargarActividadesAsync();
         _cargando = false;
+    }
+
+    private async Task ReiniciarPlantillaAsync()
+    {
+        _ejecutandoReinicio = true;
+        StateHasChanged();
+
+        try
+        {
+            if (_versionSeleccionada is not null)
+            {
+                var actividades = await Db.ActividadesWBS
+                    .Where(a => a.ProyectoId == ProyectoId && a.CronogramaVersionId == _versionSeleccionada.Id)
+                    .ToListAsync();
+                Db.ActividadesWBS.RemoveRange(actividades);
+
+                Db.CronogramasVersion.Remove(_versionSeleccionada);
+                await Db.SaveChangesAsync();
+            }
+
+            _actividades.Clear();
+            _versiones.Clear();
+            _versionSeleccionada = null;
+            _versionVigente = null;
+            _confirmarReinicio = false;
+        }
+        finally
+        {
+            _ejecutandoReinicio = false;
+        }
+    }
+
+    // ── Importar PDF con IA ─────────────────────────────────────────────────
+
+    private async Task OnExcelSeleccionado(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null) return;
+
+        _procesandoPdf = true;
+        _fuenteImport = "Excel";
+        _errorPdf = null;
+        _actividadesPdf.Clear();
+        StateHasChanged();
+
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var wb = new ClosedXML.Excel.XLWorkbook(ms);
+            var ws = wb.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            if (lastRow < 2)
+            {
+                _errorPdf = "El archivo Excel está vacío o no tiene datos.";
+                _procesandoPdf = false;
+                _mostrarModalPdf = true;
+                return;
+            }
+
+            // Detect columns by header keywords
+            int colCodigo = 0, colNombre = 0, colDuracion = 0, colNivel = 0;
+            var headerRow = ws.Row(1);
+            for (int c = 1; c <= ws.LastColumnUsed()?.ColumnNumber(); c++)
+            {
+                var val = LeerCeldaExcel(ws, 1, c).ToLower();
+                if (val.Contains("codigo") || val.Contains("código") || val.Contains("wbs") || val.Contains("id")) colCodigo = c;
+                else if (val.Contains("actividad") || val.Contains("nombre") || val.Contains("tarea") || val.Contains("descripci")) colNombre = c;
+                else if (val.Contains("duración") || val.Contains("duracion") || val.Contains("días") || val.Contains("dias") || val.Contains("duration")) colDuracion = c;
+                else if (val.Contains("nivel") || val.Contains("level")) colNivel = c;
+            }
+
+            if (colNombre == 0)
+            {
+                _errorPdf = "No se encontró una columna de 'Actividad' o 'Nombre' en la primera fila del Excel.";
+                _procesandoPdf = false;
+                _mostrarModalPdf = true;
+                return;
+            }
+
+            int contador = 1;
+            for (int row = 2; row <= lastRow; row++)
+            {
+                var nombre = colNombre > 0 ? LeerCeldaExcel(ws, row, colNombre) : "";
+                if (string.IsNullOrWhiteSpace(nombre)) continue;
+
+                var codigo = colCodigo > 0 ? LeerCeldaExcel(ws, row, colCodigo) : "";
+                if (string.IsNullOrWhiteSpace(codigo)) codigo = $"1.{contador}";
+
+                int nivel = 1;
+                if (colNivel > 0)
+                {
+                    int.TryParse(LeerCeldaExcel(ws, row, colNivel), out nivel);
+                    if (nivel < 1) nivel = 1;
+                }
+                else
+                {
+                    nivel = codigo.Split('.').Length;
+                }
+
+                int duracion = 1;
+                if (colDuracion > 0)
+                {
+                    var durText = LeerCeldaExcel(ws, row, colDuracion);
+                    if (double.TryParse(durText, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d))
+                        duracion = Math.Max(1, (int)Math.Ceiling(d));
+                }
+
+                string? codigoPadre = null;
+                var partes = codigo.Split('.');
+                if (partes.Length > 1)
+                    codigoPadre = string.Join(".", partes[..^1]);
+
+                _actividadesPdf.Add(new ActividadPdfPreview(codigo, nombre.Trim(), nivel, codigoPadre, duracion));
+                contador++;
+            }
+
+            if (!_actividadesPdf.Any())
+                _errorPdf = "No se encontraron actividades en el Excel.";
+        }
+        catch (Exception ex)
+        {
+            _errorPdf = $"Error al leer el Excel: {ex.Message}";
+        }
+        finally
+        {
+            _procesandoPdf = false;
+            _mostrarModalPdf = true;
+            StateHasChanged();
+        }
+    }
+
+    private static string LeerCeldaExcel(ClosedXML.Excel.IXLWorksheet ws, int row, int col)
+    {
+        try
+        {
+            var cell = ws.Cell(row, col);
+            if (cell.IsEmpty()) return "";
+            if (cell.HasFormula) { try { return cell.CachedValue.ToString()?.Trim() ?? ""; } catch { return ""; } }
+            if (cell.DataType == ClosedXML.Excel.XLDataType.Number) return cell.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (cell.DataType == ClosedXML.Excel.XLDataType.DateTime) return cell.GetDateTime().ToString("yyyy-MM-dd");
+            if (cell.DataType == ClosedXML.Excel.XLDataType.Boolean) return cell.GetBoolean() ? "1" : "0";
+            try { return cell.GetString()?.Trim() ?? ""; }
+            catch { try { return cell.CachedValue.ToString()?.Trim() ?? ""; } catch { return ""; } }
+        }
+        catch { return ""; }
+    }
+
+    private async Task OnPdfSeleccionado(InputFileChangeEventArgs e)
+    {
+        _fuenteImport = "PDF";
+        var file = e.File;
+        if (file is null || !file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return;
+
+        _procesandoPdf = true;
+        _errorPdf = null;
+        _actividadesPdf.Clear();
+        StateHasChanged();
+
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+
+            var textoExtraido = ExtraerTextoPdf(ms);
+            if (string.IsNullOrWhiteSpace(textoExtraido))
+            {
+                _errorPdf = "No se pudo extraer texto del PDF. Asegúrate de que no sea una imagen escaneada.";
+                _procesandoPdf = false;
+                _mostrarModalPdf = true;
+                return;
+            }
+
+            var apiKey = Config["GEMINI_API_KEY"] ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "";
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                _errorPdf = "La clave de Gemini (GEMINI_API_KEY) no está configurada. Contacta al administrador.";
+                _procesandoPdf = false;
+                _mostrarModalPdf = true;
+                return;
+            }
+
+            _actividadesPdf = await ExtraerActividadesConGeminiAsync(textoExtraido, apiKey);
+            if (!_actividadesPdf.Any() && _errorPdf is null)
+                _errorPdf = $"Gemini no pudo identificar actividades estructuradas en el PDF. Se extrajeron {textoExtraido.Length} caracteres de texto.";
+        }
+        catch (Exception ex)
+        {
+            _errorPdf = $"Error al procesar el PDF: {ex.Message}";
+        }
+        finally
+        {
+            _procesandoPdf = false;
+            _mostrarModalPdf = true;
+            StateHasChanged();
+        }
+    }
+
+    private static string ExtraerTextoPdf(Stream stream)
+    {
+        var sb = new System.Text.StringBuilder();
+        using var doc = UglyToad.PdfPig.PdfDocument.Open(stream);
+        foreach (var page in doc.GetPages())
+        {
+            sb.AppendLine(page.Text);
+        }
+        return sb.ToString();
+    }
+
+    private async Task<List<ActividadPdfPreview>> ExtraerActividadesConGeminiAsync(string textoPdf, string apiKey)
+    {
+        var prompt = @"Eres un experto en gestión de proyectos de construcción y energía solar. Analiza el siguiente texto extraído de un PDF de cronograma/WBS de un proyecto y extrae TODAS las actividades que encuentres.
+
+Devuelve SOLO un JSON array (sin texto adicional, sin markdown, sin ```json) con este formato exacto:
+[
+  {""codigo"": ""1.1"", ""nombre"": ""Nombre de la actividad"", ""nivel"": 1, ""codigoPadre"": null, ""duracion"": 30},
+  {""codigo"": ""1.1.1"", ""nombre"": ""Sub-actividad"", ""nivel"": 2, ""codigoPadre"": ""1.1"", ""duracion"": 15}
+]
+
+Reglas:
+- Si el PDF tiene códigos WBS (1.1, 1.2, 1.2.1, etc.), úsalos tal cual
+- Si NO tiene códigos, asígnalos jerárquicamente (1.1, 1.2, 1.2.1, etc.)
+- El nivel se determina por la profundidad del código (1.1 = nivel 1, 1.1.1 = nivel 2, etc.)
+- codigoPadre es el código del padre inmediato (null para nivel 1)
+- Si ves duraciones en días, úsalas. Si no, estima 1 día por defecto
+- Extrae la mayor cantidad de actividades posible
+- Mantén el orden original del documento
+
+TEXTO DEL PDF:
+" + textoPdf;
+
+        if (prompt.Length > 30000)
+            prompt = prompt[..30000];
+
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={apiKey}";
+        var body = new
+        {
+            contents = new[] { new { parts = new[] { new { text = prompt } } } },
+            generationConfig = new { maxOutputTokens = 8192, temperature = 0.1 }
+        };
+
+        using var http = HttpFactory.CreateClient();
+        var response = await http.PostAsync(url,
+            new StringContent(System.Text.Json.JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json"));
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _errorPdf = $"Error de Gemini ({response.StatusCode}): {json[..Math.Min(json.Length, 300)]}";
+            return [];
+        }
+
+        try
+        {
+            var geminiResult = System.Text.Json.JsonDocument.Parse(json);
+            var text = geminiResult.RootElement
+                .GetProperty("candidates")[0]
+                .GetProperty("content")
+                .GetProperty("parts")[0]
+                .GetProperty("text")
+                .GetString() ?? "";
+
+            text = text.Trim();
+            if (text.StartsWith("```")) text = text[(text.IndexOf('\n') + 1)..];
+            if (text.EndsWith("```")) text = text[..text.LastIndexOf("```")];
+            text = text.Trim();
+
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<ActividadPdfJson>>(text,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+
+            return items.Select(i => new ActividadPdfPreview(
+                i.Codigo?.Trim() ?? "1",
+                i.Nombre?.Trim() ?? "Sin nombre",
+                Math.Max(1, i.Nivel),
+                string.IsNullOrWhiteSpace(i.CodigoPadre) ? null : i.CodigoPadre.Trim(),
+                Math.Max(1, i.Duracion)
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _errorPdf = $"Error al interpretar respuesta de Gemini: {ex.Message}. Respuesta: {json[..Math.Min(json.Length, 200)]}";
+            return [];
+        }
+    }
+
+    private class ActividadPdfJson
+    {
+        public string? Codigo { get; set; }
+        public string? Nombre { get; set; }
+        public int Nivel { get; set; }
+        public string? CodigoPadre { get; set; }
+        public int Duracion { get; set; }
+    }
+
+    private async Task ImportarActividadesPdfAsync()
+    {
+        if (_proyecto is null || !_actividadesPdf.Any()) return;
+        _guardandoPdf = true;
+        StateHasChanged();
+
+        try
+        {
+            if (!_versiones.Any())
+            {
+                var authState = await AuthState.GetAuthenticationStateAsync();
+                var usuario = authState.User.Identity?.Name ?? "Sistema";
+                var inicial = new CronogramaVersion
+                {
+                    ProyectoId = ProyectoId,
+                    Nombre = "Actividades Inicial",
+                    NumeroVersion = 0,
+                    EsVigente = true,
+                    CreadoPor = usuario
+                };
+                Db.CronogramasVersion.Add(inicial);
+                await Db.SaveChangesAsync();
+                _versiones = [inicial];
+                _versionVigente = inicial;
+                _versionSeleccionada = inicial;
+                _versionSeleccionadaId = inicial.Id;
+            }
+
+            var inicio = _proyecto.FechaInicioPlaneada;
+            var idMap = new Dictionary<string, int>();
+            var maxNivel = _actividadesPdf.Max(a => a.Nivel);
+
+            for (int nivel = 1; nivel <= maxNivel; nivel++)
+            {
+                var batch = _actividadesPdf.Where(a => a.Nivel == nivel).ToList();
+                var entities = new List<(string Codigo, ActividadWBS Entity)>();
+                int diasAcumulado = 0;
+
+                foreach (var item in batch)
+                {
+                    int? padreId = item.CodigoPadre is not null && idMap.TryGetValue(item.CodigoPadre, out var pid) ? pid : null;
+
+                    var act = new ActividadWBS
+                    {
+                        ProyectoId = ProyectoId,
+                        CronogramaVersionId = _versionSeleccionada!.Id,
+                        CodigoWBS = item.Codigo,
+                        Nombre = item.Nombre,
+                        NivelWBS = item.Nivel,
+                        ActividadPadreId = padreId,
+                        FechaInicioPlaneada = inicio.AddDays(diasAcumulado),
+                        FechaFinPlaneada = inicio.AddDays(diasAcumulado + Math.Max(item.Duracion, 1) - 1),
+                        AvancePlanificado = 0,
+                        AvanceReal = 0,
+                        Estado = EstadoActividad.Pendiente,
+                        Activo = true
+                    };
+                    Db.ActividadesWBS.Add(act);
+                    entities.Add((item.Codigo, act));
+                    if (nivel == 1) diasAcumulado += item.Duracion;
+                }
+
+                await Db.SaveChangesAsync();
+                foreach (var (codigo, entity) in entities)
+                    idMap[codigo] = entity.Id;
+            }
+
+            await CargarActividadesAsync();
+            _mostrarModalPdf = false;
+        }
+        catch (Exception ex)
+        {
+            _errorPdf = $"Error al importar: {ex.Message}";
+        }
+        finally
+        {
+            _guardandoPdf = false;
+        }
     }
 
     // ── Avance Planificado ────────────────────────────────────────────────────

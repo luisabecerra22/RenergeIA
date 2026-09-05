@@ -17,7 +17,7 @@ export default async function UsuariosPage() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container-wide">
         <AdminNav activo="usuarios" sesion={sesion} />
         <h1>Usuarios</h1>

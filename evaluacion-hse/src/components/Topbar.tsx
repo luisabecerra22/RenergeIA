@@ -1,11 +1,29 @@
 /* eslint-disable @next/next/no-img-element */
 
-/** Encabezado con el logo de Renergeia, usado en todas las páginas. */
-export default function Topbar({ subtitulo }: { subtitulo?: string }) {
+import type { Sesion } from "@/lib/auth";
+import TopbarActions from "./TopbarActions";
+
+export default function Topbar({
+  subtitulo,
+  sesion,
+}: {
+  subtitulo?: string;
+  sesion?: Sesion;
+}) {
   return (
     <header className="topbar">
       <img src="/logo-renergeia.png" alt="Renergeia" />
-      <span className="sub">{subtitulo ?? "Sistema de Evaluaciones SST"}</span>
+      <div style={{ textAlign: "right" }}>
+        <span className="sub">{subtitulo ?? "Sistema de Evaluaciones SST"}</span>
+        {sesion && (
+          <>
+            <div className="user-info">
+              {sesion.username} · {sesion.rol === "admin" ? "Administrador" : sesion.area}
+            </div>
+            <TopbarActions />
+          </>
+        )}
+      </div>
     </header>
   );
 }

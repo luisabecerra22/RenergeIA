@@ -11,7 +11,7 @@
 }
 else
 {
-    <div class="px-3 py-3 mb-3 rounded-3 text-white" style="background:#183963">
+    <div class="px-3 py-3 mb-3 rounded-3 text-white no-print" style="background:#183963">
         <div class="d-flex align-items-center gap-3">
             <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-light">&larr; Volver</a>
             <div>
@@ -21,7 +21,7 @@ else
         </div>
     </div>
 
-    <div class="d-flex gap-2 mb-4 flex-wrap px-1">
+    <div class="d-flex gap-2 mb-4 flex-wrap px-1 no-print">
         @foreach (var tab in _tabs)
         {
             var activa = _tabActivo == tab.Key;
@@ -56,6 +56,10 @@ else
     {
         <CostosComparativo ProyectoId="ProyectoId" />
     }
+    else if (_tabActivo == "consolidado")
+    {
+        <CostosConsolidado ProyectoId="ProyectoId" />
+    }
 }
 
 @code {
@@ -73,6 +77,7 @@ else
         new("compromisos",  "Compromisos",       "bi-file-earmark-text"),
         new("dashboard",    "Dashboard",         "bi-bar-chart-line"),
         new("comparativo",  "Comparativo",       "bi-arrows-angle-expand"),
+        new("consolidado",  "Consolidado",       "bi-journal-text"),
     ];
 
     protected override async Task OnInitializedAsync()

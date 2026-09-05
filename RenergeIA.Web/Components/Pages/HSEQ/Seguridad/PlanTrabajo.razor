@@ -6,188 +6,290 @@
 @inject IJSRuntime JS
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
+@using ClosedXML.Excel
 
 <PageTitle>Plan de Trabajo HSE — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
+
+<style>
+    .plan-header-card { background: linear-gradient(135deg, #183963, #1e4d80); color: white; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
+    .plan-header-card .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; opacity: .7; margin-bottom: 2px; }
+    .plan-header-card .value { font-size: .85rem; font-weight: 600; }
+    .plan-header-card input, .plan-header-card textarea { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); color: white; border-radius: 4px; padding: 4px 8px; font-size: .82rem; width: 100%; }
+    .plan-header-card input::placeholder, .plan-header-card textarea::placeholder { color: rgba(255,255,255,.5); }
+    .plan-header-card input:focus, .plan-header-card textarea:focus { background: rgba(255,255,255,.25); outline: none; border-color: #6ABF4B; }
+
+    .plan-table { font-size: .72rem; border-collapse: collapse; width: 100%; }
+    .plan-table th { background: #183963; color: white; padding: 4px 6px; text-align: center; font-weight: 600; white-space: nowrap; border: 1px solid #0f2844; }
+    .plan-table td { padding: 3px 5px; border: 1px solid #dee2e6; vertical-align: middle; }
+    .plan-table .mes-header { writing-mode: horizontal-tb; min-width: 28px; }
+    .plan-table .sub-header { background: #e8eef5; font-weight: 600; text-align: center; font-size: .68rem; }
+    .plan-table .sub-header.prog { background: #d4edda; color: #155724; }
+    .plan-table .sub-header.ejec { background: #cce5ff; color: #004085; }
+    .plan-table .check-cell { text-align: center; cursor: pointer; min-width: 24px; }
+    .plan-table .check-cell.prog-on { background: #d4edda; }
+    .plan-table .check-cell.ejec-on { background: #cce5ff; }
+    .plan-table .phva-P { background: #e3f2fd; }
+    .plan-table .phva-H { background: #fff3e0; }
+    .plan-table .phva-V { background: #e8f5e9; }
+    .plan-table .phva-A { background: #fce4ec; }
+    .plan-table .act-input { border: none; background: transparent; width: 100%; font-size: .72rem; min-width: 180px; }
+    .plan-table .act-input:focus { outline: none; background: #fffde7; }
+    .plan-table .resp-input { border: none; background: transparent; width: 100%; font-size: .72rem; min-width: 100px; }
+    .plan-table .resp-input:focus { outline: none; background: #fffde7; }
+    .plan-table select.cell-select { border: none; background: transparent; font-size: .7rem; padding: 1px; width: 100%; }
+    .plan-table select.cell-select:focus { outline: none; background: #fffde7; }
+    .plan-table .estado-badge { font-size: .65rem; padding: 2px 6px; border-radius: 3px; }
+    .plan-table .row-num { text-align: center; color: #6c757d; font-weight: 600; min-width: 30px; }
+
+    .cumpl-mini { display: inline-block; width: 60px; height: 6px; background: #e9ecef; border-radius: 3px; vertical-align: middle; margin-left: 6px; }
+    .cumpl-mini-bar { height: 100%; border-radius: 3px; }
+
+    .toast-save { position: fixed; bottom: 20px; right: 20px; z-index: 1055; padding: 10px 20px; border-radius: 6px; color: white; font-weight: 600; font-size: .85rem; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+
+    .print-header { display: none; }
+    .print-footer { display: none; }
+    .chart-print-img { display: none; }
+
+    @@media print {
+        @@page { size: landscape; margin: 8mm; }
+        .no-print, .sidebar, nav, .nav-tabs, .navbar { display: none !important; }
+        .print-header { display: flex !important; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 3px solid #183963; }
+        .print-footer { display: block !important; margin-top: 16px; padding-top: 8px; border-top: 2px solid #183963; text-align: center; font-size: 8pt; color: #666; }
+        .plan-header-card { background: #183963 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 14px !important; border-radius: 4px !important; margin-bottom: 8px !important; }
+        .plan-header-card input, .plan-header-card textarea { border: none !important; background: transparent !important; padding: 0 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .table-responsive { max-height: none !important; overflow: visible !important; }
+        .plan-table { font-size: 6.5pt !important; page-break-inside: auto; }
+        .plan-table tr { page-break-inside: avoid; }
+        .plan-table th { background: #183963 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 2px 3px !important; }
+        .plan-table td { padding: 2px 3px !important; }
+        .plan-table .act-input, .plan-table .resp-input { border: none !important; background: transparent !important; font-size: 6.5pt !important; }
+        .plan-table select.cell-select { -webkit-appearance: none; appearance: none; border: none !important; background: transparent !important; font-size: 6.5pt !important; }
+        .plan-table .sub-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .plan-table .sub-header.prog { background: #d4edda !important; }
+        .plan-table .sub-header.ejec { background: #cce5ff !important; }
+        .check-cell.prog-on, .check-cell.ejec-on { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .check-cell.prog-on { background: #d4edda !important; }
+        .check-cell.ejec-on { background: #cce5ff !important; }
+        .phva-P, .phva-H, .phva-V, .phva-A { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        canvas { display: none !important; }
+        .chart-print-img { display: block !important; max-width: 100%; height: auto; }
+        .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+    }
+</style>
 
 @if (_proyecto is null) { <p class="text-muted">Cargando...</p> }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <!-- Print header -->
+    <div class="print-header">
+        <div class="d-flex align-items-center gap-3">
+            <img src="images/logo-renergeia.png.png" alt="RenergeIA" style="height:38px" />
+            <div>
+                <h4 class="mb-0 fw-bold" style="color:#183963;font-size:14pt">PLAN DE TRABAJO HSE</h4>
+                <small style="color:#666">@_proyecto.Nombre — @_anioTrabajo</small>
+            </div>
+        </div>
+        <div style="text-align:right;font-size:9pt;color:#666">
+            <div>Fecha: @DateTime.Now.ToString("dd/MM/yyyy")</div>
+            <div>Proyecto: @_proyecto.Nombre</div>
+        </div>
+    </div>
+
+    <!-- Screen header -->
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap no-print">
         <a href="/proyectos/@ProyectoId/hseq" class="btn btn-sm btn-outline-secondary">&larr; HSEQ</a>
         <div class="flex-grow-1">
             <h1 class="h4 mb-0"><i class="bi-calendar3 me-2" style="color:#183963"></i>Plan de Trabajo HSE</h1>
             <small class="text-muted">@_proyecto.Nombre</small>
         </div>
-        <button class="btn btn-primary btn-sm" @onclick="MostrarFormulario"><i class="bi-plus-lg me-1"></i>Nueva Actividad</button>
-    </div>
-    <NavSeguridad ProyectoId="@ProyectoId" TabActiva="plan" />
-
-    <!-- Gráfico de barras + cumplimiento -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-9">
-            <div class="card shadow-sm p-3 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-semibold" style="color:#183963;font-size:.85rem">Estado de las actividades</span>
-                    <small class="text-muted">Total planificadas: <strong style="color:#183963">@_plan.Count</strong></small>
-                </div>
-                <canvas id="chartPlanTrabajo" height="100"></canvas>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm p-3 h-100 text-center d-flex flex-column justify-content-center">
-                <div class="text-muted small mb-1 fw-semibold text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Cumplimiento</div>
-                <div class="fw-bold mb-2" style="font-size:2.8rem;color:@(_cumplimiento>=80?"#6ABF4B":_cumplimiento>=60?"#ffc107":"#dc3545");line-height:1">@_cumplimiento%</div>
-                <div class="progress mb-2" style="height:10px;border-radius:5px">
-                    <div class="progress-bar @(_cumplimiento>=80?"bg-success":_cumplimiento>=60?"bg-warning":"bg-danger")"
-                         style="width:@_cumplimiento%"></div>
-                </div>
-                <small class="text-muted">@_ejec de @_plan.Count actividades ejecutadas</small>
-            </div>
-        </div>
-    </div>
-
-    @if (_mostrarFormulario)
-    {
-        <div class="card shadow-sm mb-4 border-primary">
-            <div class="card-header bg-primary text-white d-flex justify-content-between">
-                <strong>@(_editandoId.HasValue ? "Editar Actividad" : "Nueva Actividad del Plan")</strong>
-                <button class="btn-close btn-close-white btn-sm" @onclick="CancelarFormulario"></button>
-            </div>
-            <div class="card-body">
-                <EditForm Model="_form" OnValidSubmit="GuardarAsync">
-                    <DataAnnotationsValidator />
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Actividad *</label>
-                            <InputText class="form-control" @bind-Value="_form.Actividad" />
-                            <ValidationMessage For="() => _form.Actividad" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Tipo de Intervención *</label>
-                            <InputText class="form-control" @bind-Value="_form.TipoIntervencion" placeholder="Ej: Capacitación, Inspección" />
-                            <ValidationMessage For="() => _form.TipoIntervencion" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Área</label>
-                            <InputText class="form-control" @bind-Value="_form.Area" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Responsable</label>
-                            <InputText class="form-control" @bind-Value="_form.Responsable" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Recursos</label>
-                            <InputText class="form-control" @bind-Value="_form.Recursos" placeholder="Ej: Instructor, presupuesto" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Mes</label>
-                            <InputSelect class="form-select" @bind-Value="_form.Mes">
-                                @for (int m = 1; m <= 12; m++)
-                                {
-                                    <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Año</label>
-                            <InputNumber class="form-control" @bind-Value="_form.Anio" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Fecha Planificada *</label>
-                            <InputDate class="form-control" @bind-Value="_form.FechaPlanificada" />
-                            <ValidationMessage For="() => _form.FechaPlanificada" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Estado</label>
-                            <InputSelect class="form-select" @bind-Value="_form.Estado">
-                                @foreach (var e in Enum.GetValues<EstadoPlanTrabajo>())
-                                { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Fecha Ejecutada</label>
-                            <InputDate class="form-control" @bind-Value="_form.FechaEjecutada" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Ejecutado Por</label>
-                            <InputText class="form-control" @bind-Value="_form.EjecutadoPor" />
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Observaciones</label>
-                            <InputTextArea class="form-control" rows="2" @bind-Value="_form.Observaciones" />
-                        </div>
-                    </div>
-                    <div class="mt-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CancelarFormulario">Cancelar</button>
-                    </div>
-                </EditForm>
-            </div>
-        </div>
-    }
-
-    <!-- Filtros -->
-    <div class="d-flex gap-2 mb-3 flex-wrap">
-        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Buscar actividad..."
-               @bind="_busqueda" @bind:event="oninput" />
-        <select class="form-select form-select-sm" style="max-width:160px" @bind="_filtroEstado">
-            <option value="">Todos los estados</option>
-            @foreach (var e in Enum.GetValues<EstadoPlanTrabajo>())
-            { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+        <select class="form-select form-select-sm no-print" style="max-width:100px" @bind="_anioTrabajo" @bind:after="CargarAsync">
+            @for (int y = DateTime.Today.Year - 2; y <= DateTime.Today.Year + 2; y++)
+            { <option value="@y">@y</option> }
         </select>
-        <select class="form-select form-select-sm" style="max-width:120px" @bind="_filtroMes">
-            <option value="0">Todos los meses</option>
-            @for (int m = 1; m <= 12; m++)
-            { <option value="@m">@(new DateTime(2000, m, 1).ToString("MMMM"))</option> }
-        </select>
+        <button class="btn btn-outline-success btn-sm no-print" @onclick="ExportarPDF"><i class="bi-printer me-1"></i>Imprimir PDF</button>
+    </div>
+    <div class="no-print">
+        <NavSeguridad ProyectoId="@ProyectoId" TabActiva="plan" />
     </div>
 
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 small">
-                <thead class="table-light">
+    <!-- Import Excel -->
+    <div class="card shadow-sm mb-3 no-print">
+        <div class="card-body py-2">
+            <div class="row align-items-end g-2">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold mb-1" style="font-size:.8rem">Importar Excel (.xlsx)</label>
+                    <InputFile class="form-control form-control-sm" OnChange="OnArchivoSeleccionado" accept=".xlsx,.xls" />
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-success btn-sm w-100" @onclick="ProcesarExcelAsync" disabled="@(_archivoStream is null || _procesando)">
+                        @if (_procesando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi-upload me-1"></i>Importar
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    @if (!string.IsNullOrEmpty(_msgCarga))
+                    {
+                        <div class="alert @(_msgCargaOk ? "alert-success" : "alert-danger") py-1 px-2 mb-0" style="font-size:.78rem">@_msgCarga</div>
+                    }
+                </div>
+                <div class="col-md-2 text-end">
+                    <button class="btn btn-primary btn-sm" @onclick="GuardarCambiosAsync" disabled="@_guardando">
+                        @if (_guardando) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi-save me-1"></i>Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Encabezado del Plan -->
+    <div class="plan-header-card">
+        <div class="row g-2">
+            <div class="col-md-3">
+                <div class="label">Responsable</div>
+                <input @bind="_encabezado.ResponsableNombre" placeholder="Nombre del responsable" />
+            </div>
+            <div class="col-md-2">
+                <div class="label">Cargo</div>
+                <input @bind="_encabezado.Cargo" placeholder="Cargo" />
+            </div>
+            <div class="col-md-3">
+                <div class="label">Ubicación</div>
+                <input @bind="_encabezado.Ubicacion" placeholder="Ubicación del proyecto" />
+            </div>
+            <div class="col-md-2">
+                <div class="label">Fecha Elaboración</div>
+                <input type="date" @bind="_encabezado.FechaElaboracion" />
+            </div>
+            <div class="col-md-2">
+                <div class="label">Fecha Actualización</div>
+                <input type="date" @bind="_encabezado.FechaActualizacion" />
+            </div>
+            <div class="col-md-4">
+                <div class="label">Objetivo General</div>
+                <input @bind="_encabezado.ObjetivoGeneral" placeholder="Objetivo general del plan" />
+            </div>
+            <div class="col-md-3">
+                <div class="label">Indicador % Cumplimiento</div>
+                <input @bind="_encabezado.IndicadorCumplimiento" placeholder="% Cumplimiento - Proceso" />
+            </div>
+            <div class="col-md-3">
+                <div class="label">Indicador % Eficacia</div>
+                <input @bind="_encabezado.IndicadorEficacia" placeholder="% Eficacia - Resultado" />
+            </div>
+            <div class="col-md-2">
+                <div class="label">Indicador % Cobertura</div>
+                <input @bind="_encabezado.IndicadorCobertura" placeholder="% Cobertura - Proceso" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Cumplimiento rápido -->
+    <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+        <div style="font-size:.82rem">
+            <strong style="color:#183963">Cumplimiento:</strong>
+            <span class="fw-bold" style="color:@(_cumplimiento >= 80 ? "#6ABF4B" : _cumplimiento >= 60 ? "#ffc107" : "#dc3545")">@_cumplimiento%</span>
+            <span class="cumpl-mini">
+                <span class="cumpl-mini-bar" style="width:@(_cumplimiento)%;background:@(_cumplimiento >= 80 ? "#6ABF4B" : _cumplimiento >= 60 ? "#ffc107" : "#dc3545")"></span>
+            </span>
+        </div>
+        <small class="text-muted">@_plan.Count actividades | @_ejec ejecutadas | @_pend pendientes</small>
+        <div class="flex-grow-1"></div>
+        <button class="btn btn-outline-primary btn-sm no-print" @onclick="AgregarFila"><i class="bi-plus-lg me-1"></i>Agregar Fila</button>
+    </div>
+
+    <!-- Tabla principal -->
+    <div class="card shadow-sm mb-4">
+        <div class="table-responsive" style="max-height: 70vh; overflow: auto;">
+            <table class="plan-table">
+                <thead>
                     <tr>
-                        <th>Actividad</th>
-                        <th>Tipo</th>
-                        <th>Área</th>
-                        <th>Responsable</th>
-                        <th>F. Planificada</th>
-                        <th>F. Ejecutada</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Acciones</th>
+                        <th rowspan="2" style="min-width:30px">N°</th>
+                        <th rowspan="2" style="min-width:50px">PHVA</th>
+                        <th rowspan="2" style="min-width:200px">ACTIVIDAD</th>
+                        <th rowspan="2" style="min-width:120px">RESPONSABLE</th>
+                        @foreach (var m in _meses)
+                        {
+                            <th colspan="2" class="mes-header">@m</th>
+                        }
+                        <th rowspan="2" style="min-width:130px">F. VERIFICACIÓN</th>
+                        <th rowspan="2" style="min-width:90px">ESTADO</th>
+                        <th rowspan="2" class="no-print" style="min-width:40px"></th>
+                    </tr>
+                    <tr>
+                        @for (int i = 0; i < 12; i++)
+                        {
+                            <th class="sub-header prog">P</th>
+                            <th class="sub-header ejec">E</th>
+                        }
                     </tr>
                 </thead>
                 <tbody>
-                    @if (!PlanFiltrado.Any())
+                    @if (!_plan.Any())
                     {
-                        <tr><td colspan="8" class="text-center text-muted py-4">No hay actividades registradas.</td></tr>
+                        <tr><td colspan="32" class="text-center text-muted py-4">No hay actividades. Importe un Excel o agregue filas manualmente.</td></tr>
                     }
-                    @foreach (var p in PlanFiltrado)
+                    @{ int idx = 0; }
+                    @foreach (var p in _plan)
                     {
-                        var vencida = p.FechaPlanificada < DateTime.Today && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada;
-                        <tr class="@(vencida ? "table-danger" : "")">
-                            <td>
-                                <div class="fw-semibold">@p.Actividad</div>
-                                @if (!string.IsNullOrEmpty(p.Observaciones))
-                                { <div class="text-muted" style="font-size:.78rem">@p.Observaciones</div> }
-                            </td>
-                            <td class="text-muted">@p.TipoIntervencion</td>
-                            <td class="text-muted">@(p.Area ?? "—")</td>
-                            <td>@(p.Responsable ?? "—")</td>
-                            <td class="@(vencida ? "text-danger fw-bold" : "")">@p.FechaPlanificada.ToString("dd/MM/yyyy")</td>
-                            <td class="text-muted">@(p.FechaEjecutada?.ToString("dd/MM/yyyy") ?? "—")</td>
-                            <td class="text-center"><span class="badge @BadgePlan(p.Estado)">@EnumDisplay.Mostrar(p.Estado)</span></td>
+                        idx++;
+                        var item = p;
+                        <tr>
+                            <td class="row-num">@idx</td>
                             <td class="text-center">
-                                @if (_confirmandoEliminar == p.Id)
-                                {
-                                    <button class="btn btn-danger btn-sm me-1" @onclick="() => EliminarAsync(p.Id)">Sí</button>
-                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _confirmandoEliminar = null">No</button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => EditarItem(p)"><i class="bi-pencil"></i></button>
-                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => _confirmandoEliminar = p.Id"><i class="bi-trash"></i></button>
-                                }
+                                <select class="cell-select" @bind="item.EtapaPHVA">
+                                    <option value="">—</option>
+                                    <option value="P">P</option>
+                                    <option value="H">H</option>
+                                    <option value="V">V</option>
+                                    <option value="A">A</option>
+                                </select>
+                            </td>
+                            <td><input class="act-input" @bind="item.Actividad" /></td>
+                            <td><input class="resp-input" @bind="item.Responsable" /></td>
+
+                            <td class="check-cell @(item.EneProg ? "prog-on" : "")" @onclick="() => item.EneProg = !item.EneProg">@(item.EneProg ? "1" : "")</td>
+                            <td class="check-cell @(item.EneEjec ? "ejec-on" : "")" @onclick="() => item.EneEjec = !item.EneEjec">@(item.EneEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.FebProg ? "prog-on" : "")" @onclick="() => item.FebProg = !item.FebProg">@(item.FebProg ? "1" : "")</td>
+                            <td class="check-cell @(item.FebEjec ? "ejec-on" : "")" @onclick="() => item.FebEjec = !item.FebEjec">@(item.FebEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.MarProg ? "prog-on" : "")" @onclick="() => item.MarProg = !item.MarProg">@(item.MarProg ? "1" : "")</td>
+                            <td class="check-cell @(item.MarEjec ? "ejec-on" : "")" @onclick="() => item.MarEjec = !item.MarEjec">@(item.MarEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.AbrProg ? "prog-on" : "")" @onclick="() => item.AbrProg = !item.AbrProg">@(item.AbrProg ? "1" : "")</td>
+                            <td class="check-cell @(item.AbrEjec ? "ejec-on" : "")" @onclick="() => item.AbrEjec = !item.AbrEjec">@(item.AbrEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.MayProg ? "prog-on" : "")" @onclick="() => item.MayProg = !item.MayProg">@(item.MayProg ? "1" : "")</td>
+                            <td class="check-cell @(item.MayEjec ? "ejec-on" : "")" @onclick="() => item.MayEjec = !item.MayEjec">@(item.MayEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.JunProg ? "prog-on" : "")" @onclick="() => item.JunProg = !item.JunProg">@(item.JunProg ? "1" : "")</td>
+                            <td class="check-cell @(item.JunEjec ? "ejec-on" : "")" @onclick="() => item.JunEjec = !item.JunEjec">@(item.JunEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.JulProg ? "prog-on" : "")" @onclick="() => item.JulProg = !item.JulProg">@(item.JulProg ? "1" : "")</td>
+                            <td class="check-cell @(item.JulEjec ? "ejec-on" : "")" @onclick="() => item.JulEjec = !item.JulEjec">@(item.JulEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.AgoProg ? "prog-on" : "")" @onclick="() => item.AgoProg = !item.AgoProg">@(item.AgoProg ? "1" : "")</td>
+                            <td class="check-cell @(item.AgoEjec ? "ejec-on" : "")" @onclick="() => item.AgoEjec = !item.AgoEjec">@(item.AgoEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.SepProg ? "prog-on" : "")" @onclick="() => item.SepProg = !item.SepProg">@(item.SepProg ? "1" : "")</td>
+                            <td class="check-cell @(item.SepEjec ? "ejec-on" : "")" @onclick="() => item.SepEjec = !item.SepEjec">@(item.SepEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.OctProg ? "prog-on" : "")" @onclick="() => item.OctProg = !item.OctProg">@(item.OctProg ? "1" : "")</td>
+                            <td class="check-cell @(item.OctEjec ? "ejec-on" : "")" @onclick="() => item.OctEjec = !item.OctEjec">@(item.OctEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.NovProg ? "prog-on" : "")" @onclick="() => item.NovProg = !item.NovProg">@(item.NovProg ? "1" : "")</td>
+                            <td class="check-cell @(item.NovEjec ? "ejec-on" : "")" @onclick="() => item.NovEjec = !item.NovEjec">@(item.NovEjec ? "1" : "")</td>
+                            <td class="check-cell @(item.DicProg ? "prog-on" : "")" @onclick="() => item.DicProg = !item.DicProg">@(item.DicProg ? "1" : "")</td>
+                            <td class="check-cell @(item.DicEjec ? "ejec-on" : "")" @onclick="() => item.DicEjec = !item.DicEjec">@(item.DicEjec ? "1" : "")</td>
+
+                            <td>
+                                <select class="cell-select" @bind="item.FrecuenciaVerificacion">
+                                    <option value="">— Seleccionar —</option>
+                                    @foreach (var f in _frecuencias)
+                                    { <option value="@f">@f</option> }
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                <select class="cell-select" @bind="item.Estado">
+                                    @foreach (var e in Enum.GetValues<EstadoPlanTrabajo>())
+                                    { <option value="@e">@EnumDisplay.Mostrar(e)</option> }
+                                </select>
+                            </td>
+                            <td class="text-center no-print">
+                                <button class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size:.7rem" @onclick="() => EliminarFila(item)">
+                                    <i class="bi-x-lg"></i>
+                                </button>
                             </td>
                         </tr>
                     }
@@ -195,29 +297,81 @@ else
             </table>
         </div>
     </div>
+
+    <!-- Gráficos -->
+    <div class="row g-3 mb-4 mt-2">
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 h-100">
+                <span class="fw-semibold mb-2" style="color:#183963;font-size:.82rem">Estado de Actividades</span>
+                <canvas id="chartEstadoPlan" height="200"></canvas>
+                <img id="chartEstadoPlanImg" class="chart-print-img" alt="Estado" />
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 h-100">
+                <span class="fw-semibold mb-2" style="color:#183963;font-size:.82rem">Programado vs Ejecutado por Mes</span>
+                <canvas id="chartProgEjec" height="200"></canvas>
+                <img id="chartProgEjecImg" class="chart-print-img" alt="Prog vs Ejec" />
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm p-3 h-100 text-center d-flex flex-column justify-content-center">
+                <div class="text-muted small mb-1 fw-semibold text-uppercase" style="font-size:.7rem;letter-spacing:.05em">Cumplimiento General</div>
+                <div class="fw-bold mb-2" style="font-size:3rem;color:@(_cumplimiento >= 80 ? "#6ABF4B" : _cumplimiento >= 60 ? "#ffc107" : "#dc3545");line-height:1">@_cumplimiento%</div>
+                <div class="progress mb-2" style="height:12px;border-radius:6px">
+                    <div class="progress-bar @(_cumplimiento >= 80 ? "bg-success" : _cumplimiento >= 60 ? "bg-warning" : "bg-danger")"
+                         style="width:@_cumplimiento%"></div>
+                </div>
+                <small class="text-muted">@_ejec de @_plan.Count actividades ejecutadas</small>
+                <div class="mt-3" style="font-size:.78rem">
+                    <span class="badge bg-success me-1">@_ejec Ejecutadas</span>
+                    <span class="badge bg-warning text-dark me-1">@_pend Pendientes</span>
+                    <span class="badge bg-secondary">@_plan.Count(p => p.Estado == EstadoPlanTrabajo.Cancelada) Canceladas</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print footer -->
+    <div class="print-footer">
+        <strong style="color:#183963">RenergeIA</strong> — Plan de Trabajo HSE — @_proyecto.Nombre — @_anioTrabajo
+        | Generado: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")
+    </div>
+
+    @if (_mostrarToast)
+    {
+        <div class="toast-save @(_toastOk ? "bg-success" : "bg-danger")">@_toastMsg</div>
+    }
 }
 
 @code {
     [Parameter] public int ProyectoId { get; set; }
     private Proyecto? _proyecto;
     private List<PlanTrabajoHSE> _plan = [];
-    private bool _mostrarFormulario;
-    private int? _editandoId;
-    private int? _confirmandoEliminar;
-    private string _busqueda = "";
-    private string _filtroEstado = "";
-    private int _filtroMes;
-    private FormModel _form = new();
-    private int _cumplimiento;
-    private int _ejec, _pend, _venc;
-    private bool _graficoListo;
+    private PlanTrabajoHSEEncabezado _encabezado = new();
+    private int _anioTrabajo = DateTime.Today.Year;
+    private int _cumplimiento, _ejec, _pend;
+    private bool _renderGraficos;
 
-    private IEnumerable<PlanTrabajoHSE> PlanFiltrado => _plan
-        .Where(p =>
-            (string.IsNullOrEmpty(_busqueda) || p.Actividad.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
-            && (string.IsNullOrEmpty(_filtroEstado) || p.Estado.ToString() == _filtroEstado)
-            && (_filtroMes == 0 || p.Mes == _filtroMes))
-        .OrderBy(p => p.FechaPlanificada);
+    private MemoryStream? _archivoStream;
+    private bool _procesando, _guardando;
+    private string? _msgCarga;
+    private bool _msgCargaOk;
+
+    private bool _mostrarToast;
+    private string _toastMsg = "";
+    private bool _toastOk;
+
+    private static readonly string[] _meses = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+
+    private static readonly string[] _frecuencias =
+    [
+        "Continuamente", "Mensual", "Bimensual", "Trimestral", "Diario",
+        "Según una necesidad puntual", "Según vigencia de periodo o necesidad puntual",
+        "Trimestral o antes según necesidad puntual", "Semestral", "Anual",
+        "Posterior a la auditoría interna", "Posterior a la auditoría externa",
+        "Antes de la auditoría", "Sin definir"
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -228,119 +382,432 @@ else
 
     private async Task CargarAsync()
     {
-        _plan = await Db.PlanesTrabajoHSE.Where(p => p.ProyectoId == ProyectoId).OrderBy(p => p.FechaPlanificada).ToListAsync();
-        var hoy = DateTime.Today;
-        _ejec  = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
-        _pend  = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente || p.Estado == EstadoPlanTrabajo.Planificada);
-        _venc  = _plan.Count(p => p.FechaPlanificada < hoy && p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada);
+        _plan = await Db.PlanesTrabajoHSE
+            .Where(p => p.ProyectoId == ProyectoId && p.Anio == _anioTrabajo)
+            .OrderBy(p => p.Orden).ThenBy(p => p.Id)
+            .ToListAsync();
+
+        _encabezado = await Db.PlanesTrabajoHSEEncabezados
+            .FirstOrDefaultAsync(e => e.ProyectoId == ProyectoId && e.Anio == _anioTrabajo)
+            ?? new PlanTrabajoHSEEncabezado { ProyectoId = ProyectoId, Anio = _anioTrabajo };
+
+        CalcularEstadisticas();
+        _renderGraficos = true;
+    }
+
+    private void CalcularEstadisticas()
+    {
+        _ejec = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Ejecutada);
+        _pend = _plan.Count(p => p.Estado != EstadoPlanTrabajo.Ejecutada && p.Estado != EstadoPlanTrabajo.Cancelada);
         _cumplimiento = _plan.Count > 0 ? (int)Math.Round(_ejec * 100.0 / _plan.Count) : 0;
-        _graficoListo = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_graficoListo && _proyecto is not null)
+        if (_renderGraficos && _proyecto is not null)
         {
-            _graficoListo = false;
-            await JS.InvokeVoidAsync("renderPlanTrabajoChart", "chartPlanTrabajo",
-                _plan.Count, _ejec, _pend, _venc);
+            _renderGraficos = false;
+            await RenderChartsAsync();
         }
     }
 
-    private void MostrarFormulario()
+    private async Task RenderChartsAsync()
     {
-        _form = new FormModel { FechaPlanificada = DateTime.Today, Mes = DateTime.Today.Month, Anio = DateTime.Today.Year };
-        _editandoId = null; _mostrarFormulario = true;
-    }
-    private void CancelarFormulario() { _mostrarFormulario = false; _editandoId = null; }
+        var planif = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Planificada);
+        var pend = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Pendiente);
+        var venc = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Vencida);
+        var reprog = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Reprogramada);
+        var canc = _plan.Count(p => p.Estado == EstadoPlanTrabajo.Cancelada);
 
-    private void EditarItem(PlanTrabajoHSE p)
-    {
-        _form = new FormModel
+        int[] progPorMes = new int[12];
+        int[] ejecPorMes = new int[12];
+        foreach (var p in _plan)
         {
-            Actividad       = p.Actividad,
-            TipoIntervencion = p.TipoIntervencion,
-            Area            = p.Area,
-            Responsable     = p.Responsable,
-            Recursos        = p.Recursos,
-            Mes             = p.Mes,
-            Anio            = p.Anio,
-            FechaPlanificada = p.FechaPlanificada,
-            FechaEjecutada  = p.FechaEjecutada,
-            EjecutadoPor    = p.EjecutadoPor,
-            Estado          = p.Estado,
-            Observaciones   = p.Observaciones
+            if (p.EneProg) progPorMes[0]++; if (p.EneEjec) ejecPorMes[0]++;
+            if (p.FebProg) progPorMes[1]++; if (p.FebEjec) ejecPorMes[1]++;
+            if (p.MarProg) progPorMes[2]++; if (p.MarEjec) ejecPorMes[2]++;
+            if (p.AbrProg) progPorMes[3]++; if (p.AbrEjec) ejecPorMes[3]++;
+            if (p.MayProg) progPorMes[4]++; if (p.MayEjec) ejecPorMes[4]++;
+            if (p.JunProg) progPorMes[5]++; if (p.JunEjec) ejecPorMes[5]++;
+            if (p.JulProg) progPorMes[6]++; if (p.JulEjec) ejecPorMes[6]++;
+            if (p.AgoProg) progPorMes[7]++; if (p.AgoEjec) ejecPorMes[7]++;
+            if (p.SepProg) progPorMes[8]++; if (p.SepEjec) ejecPorMes[8]++;
+            if (p.OctProg) progPorMes[9]++; if (p.OctEjec) ejecPorMes[9]++;
+            if (p.NovProg) progPorMes[10]++; if (p.NovEjec) ejecPorMes[10]++;
+            if (p.DicProg) progPorMes[11]++; if (p.DicEjec) ejecPorMes[11]++;
+        }
+
+        await JS.InvokeVoidAsync("renderPlanCharts",
+            _ejec, planif, pend, venc, reprog, canc,
+            progPorMes, ejecPorMes);
+    }
+
+    private async Task OnArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        _msgCarga = null;
+        _archivoStream?.Dispose();
+        _archivoStream = new MemoryStream();
+        await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(_archivoStream);
+        _archivoStream.Position = 0;
+    }
+
+    private async Task ProcesarExcelAsync()
+    {
+        if (_archivoStream is null) return;
+        _procesando = true; _msgCarga = null;
+        StateHasChanged();
+
+        try
+        {
+            _archivoStream.Position = 0;
+            using var workbook = new XLWorkbook(_archivoStream);
+            var ws = workbook.Worksheets.First();
+
+            LeerEncabezadoExcel(ws);
+
+            int filaInicio = BuscarFilaActividades(ws);
+            int importadas = 0;
+            int orden = _plan.Count > 0 ? _plan.Max(p => p.Orden) + 1 : 1;
+
+            for (int row = filaInicio; row <= ws.LastRowUsed()?.RowNumber(); row++)
+            {
+                var actividad = LeerCelda(ws, row, ColActividad(ws));
+                if (string.IsNullOrWhiteSpace(actividad)) continue;
+
+                var existente = _plan.FirstOrDefault(p =>
+                    p.Actividad.Equals(actividad, StringComparison.OrdinalIgnoreCase));
+
+                var item = existente ?? new PlanTrabajoHSE
+                {
+                    ProyectoId = ProyectoId,
+                    Anio = _anioTrabajo,
+                    Mes = 1,
+                    FechaPlanificada = new DateTime(_anioTrabajo, 1, 1),
+                    TipoIntervencion = "Plan HSE"
+                };
+
+                var phva = LeerCelda(ws, row, ColPHVA(ws)).ToUpper();
+                if (phva is "P" or "H" or "V" or "A") item.EtapaPHVA = phva;
+
+                item.Actividad = actividad;
+
+                var resp = LeerCelda(ws, row, ColResponsable(ws));
+                if (!string.IsNullOrEmpty(resp)) item.Responsable = resp;
+
+                int colMeses = ColPrimerMes(ws);
+                if (colMeses > 0)
+                {
+                    SetMesBool(item, 1, ws, row, colMeses);
+                    SetMesBool(item, 2, ws, row, colMeses + 2);
+                    SetMesBool(item, 3, ws, row, colMeses + 4);
+                    SetMesBool(item, 4, ws, row, colMeses + 6);
+                    SetMesBool(item, 5, ws, row, colMeses + 8);
+                    SetMesBool(item, 6, ws, row, colMeses + 10);
+                    SetMesBool(item, 7, ws, row, colMeses + 12);
+                    SetMesBool(item, 8, ws, row, colMeses + 14);
+                    SetMesBool(item, 9, ws, row, colMeses + 16);
+                    SetMesBool(item, 10, ws, row, colMeses + 18);
+                    SetMesBool(item, 11, ws, row, colMeses + 20);
+                    SetMesBool(item, 12, ws, row, colMeses + 22);
+                }
+
+                int colVerif = ColVerificacion(ws);
+                if (colVerif > 0)
+                {
+                    var verif = LeerCelda(ws, row, colVerif);
+                    if (!string.IsNullOrEmpty(verif)) item.FrecuenciaVerificacion = verif;
+                }
+
+                int colEstado = ColEstado(ws);
+                if (colEstado > 0)
+                {
+                    var est = LeerCelda(ws, row, colEstado).ToLower();
+                    item.Estado = est switch
+                    {
+                        "ejecutada" or "ejecutado" => EstadoPlanTrabajo.Ejecutada,
+                        "pendiente" => EstadoPlanTrabajo.Pendiente,
+                        "vencida" or "vencido" => EstadoPlanTrabajo.Vencida,
+                        "reprogramada" or "reprogramado" => EstadoPlanTrabajo.Reprogramada,
+                        "cancelada" or "cancelado" => EstadoPlanTrabajo.Cancelada,
+                        _ => EstadoPlanTrabajo.Planificada
+                    };
+                }
+
+                if (existente is null)
+                {
+                    item.Orden = orden++;
+                    Db.PlanesTrabajoHSE.Add(item);
+                }
+                else
+                {
+                    item.FechaModificacion = DateTime.UtcNow;
+                }
+
+                importadas++;
+            }
+
+            if (_encabezado.Id == 0)
+                Db.PlanesTrabajoHSEEncabezados.Add(_encabezado);
+            else
+                _encabezado.FechaModificacion = DateTime.UtcNow;
+
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+            _msgCarga = $"{importadas} actividades importadas correctamente.";
+            _msgCargaOk = true;
+        }
+        catch (Exception ex)
+        {
+            _msgCarga = $"Error: {ex.Message}";
+            _msgCargaOk = false;
+        }
+        finally
+        {
+            _procesando = false;
+            _archivoStream?.Dispose();
+            _archivoStream = null;
+        }
+    }
+
+    private static string LeerCelda(IXLWorksheet ws, int row, int col)
+    {
+        try
+        {
+            var cell = ws.Cell(row, col);
+            if (cell.IsEmpty()) return "";
+            if (cell.HasFormula)
+            {
+                try { return cell.CachedValue.ToString()?.Trim() ?? ""; }
+                catch { return ""; }
+            }
+            if (cell.DataType == XLDataType.Number)
+                return cell.GetDouble().ToString();
+            if (cell.DataType == XLDataType.DateTime)
+                return cell.GetDateTime().ToString("yyyy-MM-dd");
+            if (cell.DataType == XLDataType.Boolean)
+                return cell.GetBoolean() ? "1" : "0";
+            try { return cell.GetString()?.Trim() ?? ""; }
+            catch { try { return cell.CachedValue.ToString()?.Trim() ?? ""; } catch { return ""; } }
+        }
+        catch { return ""; }
+    }
+
+    private void LeerEncabezadoExcel(IXLWorksheet ws)
+    {
+        for (int r = 1; r <= Math.Min(15, ws.LastRowUsed()?.RowNumber() ?? 1); r++)
+        {
+            for (int c = 1; c <= Math.Min(10, ws.LastColumnUsed()?.ColumnNumber() ?? 1); c++)
+            {
+                var label = LeerCelda(ws, r, c).ToLower();
+                var val = LeerCelda(ws, r, c + 1);
+                if (string.IsNullOrEmpty(val)) val = LeerCelda(ws, r, c + 2);
+
+                if (label.Contains("responsable") && !label.Contains("actividad"))
+                    _encabezado.ResponsableNombre ??= val;
+                else if (label.Contains("cargo"))
+                    _encabezado.Cargo ??= val;
+                else if (label.Contains("ubicaci"))
+                    _encabezado.Ubicacion ??= val;
+                else if (label.Contains("objetivo"))
+                    _encabezado.ObjetivoGeneral ??= val;
+                else if (label.Contains("cumplimiento") && label.Contains("indicador"))
+                    _encabezado.IndicadorCumplimiento ??= val;
+                else if (label.Contains("eficacia"))
+                    _encabezado.IndicadorEficacia ??= val;
+                else if (label.Contains("cobertura"))
+                    _encabezado.IndicadorCobertura ??= val;
+                else if (label.Contains("elaboraci"))
+                {
+                    if (DateTime.TryParse(val, out var fe)) _encabezado.FechaElaboracion ??= fe;
+                }
+                else if (label.Contains("actualizaci"))
+                {
+                    if (DateTime.TryParse(val, out var fa)) _encabezado.FechaActualizacion ??= fa;
+                }
+            }
+        }
+    }
+
+    private int BuscarFilaActividades(IXLWorksheet ws)
+    {
+        for (int r = 1; r <= Math.Min(20, ws.LastRowUsed()?.RowNumber() ?? 1); r++)
+        {
+            for (int c = 1; c <= Math.Min(10, ws.LastColumnUsed()?.ColumnNumber() ?? 1); c++)
+            {
+                var txt = LeerCelda(ws, r, c).ToLower();
+                if (txt.Contains("actividad") || txt == "n°" || txt == "no." || txt == "nro")
+                    return r + 1;
+            }
+        }
+        return 2;
+    }
+
+    private int ColPHVA(IXLWorksheet ws) => BuscarColumna(ws, "phva", "etapa", "ciclo");
+    private int ColActividad(IXLWorksheet ws) => BuscarColumna(ws, "actividad");
+    private int ColResponsable(IXLWorksheet ws) => BuscarColumna(ws, "responsable");
+    private int ColVerificacion(IXLWorksheet ws) => BuscarColumna(ws, "verificaci", "frecuencia");
+    private int ColEstado(IXLWorksheet ws) => BuscarColumna(ws, "estado");
+
+    private int ColPrimerMes(IXLWorksheet ws)
+    {
+        for (int r = 1; r <= Math.Min(20, ws.LastRowUsed()?.RowNumber() ?? 1); r++)
+        {
+            for (int c = 1; c <= Math.Min(40, ws.LastColumnUsed()?.ColumnNumber() ?? 1); c++)
+            {
+                var txt = LeerCelda(ws, r, c).ToLower();
+                if (txt is "ene" or "enero" or "jan" or "january")
+                    return c;
+            }
+        }
+        return 0;
+    }
+
+    private int BuscarColumna(IXLWorksheet ws, params string[] keywords)
+    {
+        for (int r = 1; r <= Math.Min(20, ws.LastRowUsed()?.RowNumber() ?? 1); r++)
+        {
+            for (int c = 1; c <= Math.Min(40, ws.LastColumnUsed()?.ColumnNumber() ?? 1); c++)
+            {
+                var txt = LeerCelda(ws, r, c).ToLower();
+                if (keywords.Any(k => txt.Contains(k)))
+                    return c;
+            }
+        }
+        return keywords[0] switch
+        {
+            "actividad" => 3,
+            "phva" or "etapa" => 2,
+            "responsable" => 4,
+            _ => 0
         };
-        _editandoId = p.Id; _mostrarFormulario = true;
     }
 
-    private async Task GuardarAsync()
+    private void SetMesBool(PlanTrabajoHSE item, int mes, IXLWorksheet ws, int row, int col)
     {
-        if (_editandoId.HasValue)
+        bool prog = EsCeldaMarcada(ws, row, col);
+        bool ejec = EsCeldaMarcada(ws, row, col + 1);
+
+        switch (mes)
         {
-            var e = await Db.PlanesTrabajoHSE.FindAsync(_editandoId.Value);
-            if (e is not null) MapearForm(e);
+            case 1:  item.EneProg = prog; item.EneEjec = ejec; break;
+            case 2:  item.FebProg = prog; item.FebEjec = ejec; break;
+            case 3:  item.MarProg = prog; item.MarEjec = ejec; break;
+            case 4:  item.AbrProg = prog; item.AbrEjec = ejec; break;
+            case 5:  item.MayProg = prog; item.MayEjec = ejec; break;
+            case 6:  item.JunProg = prog; item.JunEjec = ejec; break;
+            case 7:  item.JulProg = prog; item.JulEjec = ejec; break;
+            case 8:  item.AgoProg = prog; item.AgoEjec = ejec; break;
+            case 9:  item.SepProg = prog; item.SepEjec = ejec; break;
+            case 10: item.OctProg = prog; item.OctEjec = ejec; break;
+            case 11: item.NovProg = prog; item.NovEjec = ejec; break;
+            case 12: item.DicProg = prog; item.DicEjec = ejec; break;
         }
-        else
+    }
+
+    private static bool EsCeldaMarcada(IXLWorksheet ws, int row, int col)
+    {
+        try
         {
-            var e = new PlanTrabajoHSE { ProyectoId = ProyectoId };
-            MapearForm(e);
-            Db.PlanesTrabajoHSE.Add(e);
+            var txt = LeerCelda(ws, row, col);
+            if (txt is "1" or "x" or "X" or "✓" or "✔") return true;
+            if (double.TryParse(txt, out var n) && n >= 1) return true;
+            if (!string.IsNullOrWhiteSpace(txt)) return false;
+            var cell = ws.Cell(row, col);
+            try
+            {
+                var bg = cell.Style.Fill.BackgroundColor;
+                if (bg.ColorType == XLColorType.Color && bg.Color.A > 0)
+                {
+                    var c = bg.Color;
+                    if (c.G > 150 && c.R < 200) return true;
+                }
+            }
+            catch { }
+            return false;
         }
-        await Db.SaveChangesAsync();
-        CancelarFormulario();
-        await CargarAsync();
+        catch { return false; }
     }
 
-    private void MapearForm(PlanTrabajoHSE e)
+    private async Task GuardarCambiosAsync()
     {
-        e.Actividad        = _form.Actividad;
-        e.TipoIntervencion = _form.TipoIntervencion;
-        e.Area             = _form.Area;
-        e.Responsable      = _form.Responsable;
-        e.Recursos         = _form.Recursos;
-        e.Mes              = _form.Mes;
-        e.Anio             = _form.Anio;
-        e.FechaPlanificada = _form.FechaPlanificada;
-        e.FechaEjecutada   = _form.FechaEjecutada;
-        e.EjecutadoPor     = _form.EjecutadoPor;
-        e.Estado           = _form.Estado;
-        e.Observaciones    = _form.Observaciones;
-        e.FechaModificacion = DateTime.UtcNow;
+        _guardando = true;
+        StateHasChanged();
+
+        try
+        {
+            for (int i = 0; i < _plan.Count; i++)
+            {
+                _plan[i].Orden = i + 1;
+                _plan[i].FechaModificacion = DateTime.UtcNow;
+            }
+
+            if (_encabezado.Id == 0)
+            {
+                _encabezado.ProyectoId = ProyectoId;
+                _encabezado.Anio = _anioTrabajo;
+                Db.PlanesTrabajoHSEEncabezados.Add(_encabezado);
+            }
+            else
+            {
+                _encabezado.FechaModificacion = DateTime.UtcNow;
+            }
+
+            await Db.SaveChangesAsync();
+            CalcularEstadisticas();
+            await MostrarToast("Cambios guardados correctamente", true);
+        }
+        catch (Exception ex)
+        {
+            await MostrarToast($"Error al guardar: {ex.Message}", false);
+        }
+        finally
+        {
+            _guardando = false;
+        }
     }
 
-    private async Task EliminarAsync(int id)
+    private void AgregarFila()
     {
-        var e = await Db.PlanesTrabajoHSE.FindAsync(id);
-        if (e is not null) { Db.PlanesTrabajoHSE.Remove(e); await Db.SaveChangesAsync(); }
-        _confirmandoEliminar = null;
-        await CargarAsync();
+        var nueva = new PlanTrabajoHSE
+        {
+            ProyectoId = ProyectoId,
+            Anio = _anioTrabajo,
+            Mes = 1,
+            FechaPlanificada = new DateTime(_anioTrabajo, 1, 1),
+            TipoIntervencion = "Plan HSE",
+            Orden = _plan.Count + 1,
+            Estado = EstadoPlanTrabajo.Planificada
+        };
+        Db.PlanesTrabajoHSE.Add(nueva);
+        _plan.Add(nueva);
     }
 
-    private static string BadgePlan(EstadoPlanTrabajo e) => e switch
+    private void EliminarFila(PlanTrabajoHSE item)
     {
-        EstadoPlanTrabajo.Ejecutada    => "bg-success",
-        EstadoPlanTrabajo.Planificada  => "bg-primary",
-        EstadoPlanTrabajo.Pendiente    => "bg-warning text-dark",
-        EstadoPlanTrabajo.Vencida      => "bg-danger",
-        EstadoPlanTrabajo.Reprogramada => "bg-info text-dark",
-        EstadoPlanTrabajo.Cancelada    => "bg-secondary",
-        _                              => "bg-secondary"
-    };
+        _plan.Remove(item);
+        if (item.Id > 0) Db.PlanesTrabajoHSE.Remove(item);
+        else Db.Entry(item).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+    }
 
-    private sealed class FormModel
+    private async Task ExportarPDF()
     {
-        [System.ComponentModel.DataAnnotations.Required] public string Actividad { get; set; } = "";
-        [System.ComponentModel.DataAnnotations.Required] public string TipoIntervencion { get; set; } = "";
-        public string? Area { get; set; }
-        public string? Responsable { get; set; }
-        public string? Recursos { get; set; }
-        public int Mes { get; set; } = DateTime.Today.Month;
-        public int Anio { get; set; } = DateTime.Today.Year;
-        public DateTime FechaPlanificada { get; set; } = DateTime.Today;
-        public DateTime? FechaEjecutada { get; set; }
-        public string? EjecutadoPor { get; set; }
-        public EstadoPlanTrabajo Estado { get; set; } = EstadoPlanTrabajo.Planificada;
-        public string? Observaciones { get; set; }
+        await JS.InvokeVoidAsync("eval", @"
+            ['chartEstadoPlan','chartProgEjec'].forEach(id => {
+                var c = document.getElementById(id);
+                var img = document.getElementById(id + 'Img');
+                if (c && img) img.src = c.toDataURL('image/png');
+            });
+        ");
+        await Task.Delay(200);
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private async Task MostrarToast(string msg, bool ok)
+    {
+        _toastMsg = msg; _toastOk = ok; _mostrarToast = true;
+        StateHasChanged();
+        await Task.Delay(3000);
+        _mostrarToast = false;
+        StateHasChanged();
     }
 }

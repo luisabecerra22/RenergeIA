@@ -36,11 +36,21 @@
         .card-header { background: white !important; border-bottom: 2px solid #183963 !important; padding: 6px 0 !important; }
         .table-responsive { overflow: visible !important; }
         .table { font-size: 7.5pt !important; width: 100% !important; }
-        .table th { background: #183963 !important; color: white !important; font-size: 7pt !important; padding: 4px 3px !important; white-space: nowrap; }
-        .table td { padding: 3px 3px !important; border-color: #e0e0e0 !important; }
+        .table th { background: #183963 !important; color: white !important; font-size: 7pt !important; padding: 4px 2px !important; white-space: nowrap; }
+        .table td { padding: 3px 2px !important; border-color: #e0e0e0 !important; }
         .badge { font-size: 7pt !important; padding: 2px 4px !important; }
         tr { page-break-inside: avoid; }
+        col.col-personal, col.col-horas { width: 40px !important; }
+        col.col-actividad { width: auto !important; }
+        col.col-duracion { width: 35px !important; }
         .info-cards { display: none !important; }
+    }
+
+    /* Columnas redimensionables */
+    .table-resizable th {
+        overflow: hidden;
+        resize: horizontal;
+        min-width: 40px;
     }
 </style>
 
@@ -205,21 +215,35 @@ else
         </div>
         <div class="card-body p-2">
             <div class="table-responsive">
-                <table class="table table-bordered table-sm align-middle mb-0" style="font-size:0.82rem">
+                <table class="table table-bordered table-sm table-resizable align-middle mb-0" style="font-size:0.82rem;table-layout:fixed">
+                    <colgroup>
+                        <col style="width:90px" />
+                        <col class="col-actividad" style="width:auto" />
+                        <col style="width:100px" />
+                        <col style="width:75px" />
+                        <col style="width:75px" />
+                        <col class="col-duracion" style="width:45px" />
+                        <col style="width:85px" />
+                        <col style="width:85px" />
+                        <col style="width:85px" />
+                        <col class="col-personal" style="width:50px" />
+                        <col class="col-horas" style="width:50px" />
+                        <col style="width:40px" />
+                    </colgroup>
                     <thead class="table-dark" style="position:sticky;top:0;z-index:1">
                         <tr>
-                            <th style="min-width:90px">Código WBS</th>
-                            <th style="min-width:200px">Actividad</th>
-                            <th style="min-width:110px" class="text-center">Disciplina</th>
-                            <th style="min-width:80px">Inicio</th>
-                            <th style="min-width:80px">Fin</th>
-                            <th style="min-width:50px" class="text-center">Dur.</th>
-                            <th style="min-width:90px" class="text-center">Programado %</th>
-                            <th style="min-width:90px" class="text-center">Avance Real %</th>
-                            <th style="min-width:90px" class="text-center">Desviación</th>
-                            <th style="min-width:65px" class="text-center">Personal</th>
-                            <th style="min-width:65px" class="text-center">Horas</th>
-                            <th style="min-width:45px" class="text-center">Estado</th>
+                            <th>Código WBS</th>
+                            <th>Actividad</th>
+                            <th class="text-center">Disciplina</th>
+                            <th>Inicio</th>
+                            <th>Fin</th>
+                            <th class="text-center">Dur.</th>
+                            <th class="text-center">Prog. %</th>
+                            <th class="text-center">Real %</th>
+                            <th class="text-center">Desv.</th>
+                            <th class="text-center">Pers.</th>
+                            <th class="text-center">Hrs.</th>
+                            <th class="text-center">Est.</th>
                         </tr>
                     </thead>
                     <tbody>

@@ -45,10 +45,16 @@ a {
   gap: 12px;
 }
 .topbar img {
-  height: 54px;
+  height: 100px;
   width: auto;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
+}
+.topbar .user-info {
+  color: var(--gris-texto);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 .topbar .sub {
   color: var(--gris-texto);

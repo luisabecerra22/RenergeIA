@@ -1251,3 +1251,60 @@ window.destroyCostosCharts = function (proyectoId) {
         if (_costoCharts[k]) { _costoCharts[k].destroy(); delete _costoCharts[k]; }
     });
 };
+
+window.renderPlanCharts = function (ejec, planif, pend, venc, reprog, canc, progPorMes, ejecPorMes) {
+    const meses = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
+    destroyChart('chartEstadoPlan');
+    const ctx1 = document.getElementById('chartEstadoPlan');
+    if (ctx1) {
+        _charts['chartEstadoPlan'] = new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: ['Ejecutadas','Planificadas','Pendientes','Vencidas','Reprogramadas','Canceladas'],
+                datasets: [{
+                    data: [ejec, planif, pend, venc, reprog, canc],
+                    backgroundColor: ['#6ABF4B','#183963','#ffc107','#dc3545','#17a2b8','#6c757d'],
+                    borderColor: '#fff', borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '55%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+                }
+            }
+        });
+        setTimeout(() => {
+            const img = document.getElementById('chartEstadoPlanImg');
+            if (img && ctx1) img.src = ctx1.toDataURL('image/png');
+        }, 500);
+    }
+
+    destroyChart('chartProgEjec');
+    const ctx2 = document.getElementById('chartProgEjec');
+    if (ctx2) {
+        _charts['chartProgEjec'] = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: meses,
+                datasets: [
+                    { label: 'Programado', data: progPorMes, backgroundColor: 'rgba(24,57,99,0.7)', borderColor: '#183963', borderWidth: 1, borderRadius: 2 },
+                    { label: 'Ejecutado', data: ejecPorMes, backgroundColor: 'rgba(106,191,75,0.7)', borderColor: '#6ABF4B', borderWidth: 1, borderRadius: 2 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 9 } } },
+                    x: { ticks: { font: { size: 9 } } }
+                }
+            }
+        });
+        setTimeout(() => {
+            const img = document.getElementById('chartProgEjecImg');
+            if (img && ctx2) img.src = ctx2.toDataURL('image/png');
+        }, 500);
+    }
+};

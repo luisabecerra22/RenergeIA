@@ -38,6 +38,9 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<TipoDocumentoControl> TiposDocumentoControl => Set<TipoDocumentoControl>();
     public DbSet<DocumentoControl> DocumentosControl => Set<DocumentoControl>();
     public DbSet<EtapaRevision> EtapasRevision => Set<EtapaRevision>();
+    public DbSet<InformeConsolidado> InformesConsolidados => Set<InformeConsolidado>();
+    public DbSet<LineaConsolidado> LineasConsolidado => Set<LineaConsolidado>();
+    public DbSet<FlujoCajaSemanal> FlujosCajaSemanal => Set<FlujoCajaSemanal>();
 
     // HSEQ
     public DbSet<ChecklistAuditoria> ChecklistsAuditoria => Set<ChecklistAuditoria>();
@@ -54,6 +57,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<EntregaEPP> EntregasEPP => Set<EntregaEPP>();
     public DbSet<Capacitacion> Capacitaciones => Set<Capacitacion>();
     public DbSet<PlanTrabajoHSE> PlanesTrabajoHSE => Set<PlanTrabajoHSE>();
+    public DbSet<PlanTrabajoHSEEncabezado> PlanesTrabajoHSEEncabezados => Set<PlanTrabajoHSEEncabezado>();
     public DbSet<PausaActiva> PausasActivas => Set<PausaActiva>();
     public DbSet<RegistroSTC> RegistrosSTC => Set<RegistroSTC>();
     public DbSet<RegistroOTS> RegistrosOTS => Set<RegistroOTS>();
@@ -88,6 +92,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.PresupuestoContractual).HasColumnType("decimal(18,2)");
             e.Property(p => p.Latitud).HasColumnType("decimal(10,7)");
             e.Property(p => p.Longitud).HasColumnType("decimal(10,7)");
+            e.Property(p => p.Eliminado).HasDefaultValue(false);
+            e.HasQueryFilter(p => !p.Eliminado);
         });
 
         // CronogramaVersion
@@ -147,6 +153,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Ignore(p => p.MontoPresupuestado);
             e.Property(p => p.ValorEjecutado).HasColumnType("decimal(18,2)");
             e.Property(p => p.MontoComprometido).HasColumnType("decimal(18,2)").HasDefaultValue(0m);
+            e.Property(p => p.MonedaOriginal).HasMaxLength(3).HasDefaultValue("COP");
             e.HasOne(p => p.Padre)
              .WithMany(p => p.SubPartidas)
              .HasForeignKey(p => p.PadreId)
@@ -433,6 +440,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.DuracionHoras).HasColumnType("decimal(6,2)");
         });
         modelBuilder.Entity<PlanTrabajoHSE>().ToTable("PlanesTrabajoHSE");
+        modelBuilder.Entity<PlanTrabajoHSEEncabezado>().ToTable("PlanesTrabajoHSEEncabezados");
         modelBuilder.Entity<PausaActiva>().ToTable("PausasActivas");
         modelBuilder.Entity<RegistroSTC>().ToTable("RegistrosSTC");
         modelBuilder.Entity<RegistroOTS>().ToTable("RegistrosOTS");
@@ -477,5 +485,58 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.ValorCOP).HasColumnType("decimal(18,2)");
         });
         modelBuilder.Entity<ActaEvidencia>().ToTable("ActasEvidencias");
+
+        // InformeConsolidado
+        modelBuilder.Entity<InformeConsolidado>(e =>
+        {
+            e.ToTable("InformesConsolidados");
+            e.Property(c => c.TRM).HasColumnType("decimal(18,2)");
+            e.Property(c => c.TRMBomInicial).HasColumnType("decimal(18,2)");
+            e.Property(c => c.VentaContractualCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.VentaContractualUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.PresupuestoCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.EjecutadoCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.ComprometidoCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.PresupuestoUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.EjecutadoUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.ComprometidoUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.ImprevistosCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.ImprevistosUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.TotalPOsCOP).HasColumnType("decimal(18,2)");
+            e.Property(c => c.TotalPOsUSD).HasColumnType("decimal(18,2)");
+            e.Property(c => c.Estado).HasConversion<int>();
+            e.Property(c => c.CreadoPor).HasMaxLength(200);
+            e.Property(c => c.Responsable).HasMaxLength(200);
+            e.HasOne(c => c.Proyecto).WithMany(p => p.InformesConsolidados)
+             .HasForeignKey(c => c.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(c => c.ConsolidadoAnterior).WithMany()
+             .HasForeignKey(c => c.ConsolidadoAnteriorId).OnDelete(DeleteBehavior.NoAction);
+            e.Property(c => c.Eliminado).HasDefaultValue(false);
+            e.HasQueryFilter(c => !c.Eliminado);
+        });
+
+        modelBuilder.Entity<LineaConsolidado>(e =>
+        {
+            e.ToTable("LineasConsolidado");
+            e.Property(l => l.Categoria).HasMaxLength(200);
+            e.Property(l => l.CodigoCategoria).HasMaxLength(50);
+            e.Property(l => l.PresupuestoCOP).HasColumnType("decimal(18,2)");
+            e.Property(l => l.EjecutadoCOP).HasColumnType("decimal(18,2)");
+            e.Property(l => l.ComprometidoCOP).HasColumnType("decimal(18,2)");
+            e.Property(l => l.PresupuestoUSD).HasColumnType("decimal(18,2)");
+            e.Property(l => l.EjecutadoUSD).HasColumnType("decimal(18,2)");
+            e.Property(l => l.ComprometidoUSD).HasColumnType("decimal(18,2)");
+            e.HasOne(l => l.InformeConsolidado).WithMany(c => c.Lineas)
+             .HasForeignKey(l => l.InformeConsolidadoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FlujoCajaSemanal>(e =>
+        {
+            e.ToTable("FlujosCajaSemanal");
+            e.Property(f => f.Ingresos).HasColumnType("decimal(18,2)");
+            e.Property(f => f.Pagos).HasColumnType("decimal(18,2)");
+            e.HasOne(f => f.InformeConsolidado).WithMany(c => c.FlujosCaja)
+             .HasForeignKey(f => f.InformeConsolidadoId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

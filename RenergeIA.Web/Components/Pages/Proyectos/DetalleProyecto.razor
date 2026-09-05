@@ -138,7 +138,8 @@ else
     private async Task EliminarAsync()
     {
         if (_proyecto is null) return;
-        Db.Proyectos.Remove(_proyecto);
+        _proyecto.Eliminado = true;
+        _proyecto.FechaEliminacion = DateTime.UtcNow;
         await Db.SaveChangesAsync();
         Navigation.NavigateTo("/proyectos");
     }

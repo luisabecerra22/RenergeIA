@@ -21,6 +21,7 @@ public class Partida : EntidadBase
     public decimal CantidadPresupuestada { get; set; }
     public decimal PrecioUnitario { get; set; }
     public decimal MontoComprometido { get; set; }
+    public string MonedaOriginal { get; set; } = "COP";
 
     public decimal MontoPresupuestado => CantidadPresupuestada * PrecioUnitario;
     public decimal ValorEjecutado { get; set; }

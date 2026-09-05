@@ -25,6 +25,12 @@ ngrok.exe
 # Claude Code
 .claude/
 
+# Arquitectura agéntica
+.tmp/
+.env
+credentials.json
+token.json
+
 # evaluacion-hse (Next.js)
 evaluacion-hse/node_modules/
 evaluacion-hse/.next/

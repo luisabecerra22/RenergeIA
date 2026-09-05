@@ -26,7 +26,7 @@ export default async function EditarEvaluacion({
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container">
         <AdminNav activo="evaluaciones" sesion={sesion} />
         <h1>Editar evaluación</h1>

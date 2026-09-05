@@ -12,7 +12,7 @@ export default async function PerfilPage() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container">
         <AdminNav activo="perfil" sesion={sesion} />
         <h1>Mi cuenta</h1>

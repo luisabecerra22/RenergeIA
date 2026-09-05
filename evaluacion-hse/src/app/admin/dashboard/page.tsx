@@ -29,7 +29,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container-wide">
         <AdminNav activo="dashboard" sesion={sesion} />
         <h1>Dashboard</h1>

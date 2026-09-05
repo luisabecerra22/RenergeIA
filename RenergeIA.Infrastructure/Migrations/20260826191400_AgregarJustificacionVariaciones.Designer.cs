@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RenergeIA.Infrastructure.Data;
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260826191400_AgregarJustificacionVariaciones")]
+    partial class AgregarJustificacionVariaciones
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -715,49 +718,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("EtapasRevision", (string)null);
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.FlujoCajaSemanal", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("InformeConsolidadoId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Ingresos")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Justificacion")
-                        .HasColumnType("text");
-
-                    b.Property<int>("OrdenSemana")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("Pagos")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("Semana")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("TipoFlujo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InformeConsolidadoId");
-
-                    b.ToTable("FlujosCajaSemanal", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.Fotografia", b =>
@@ -2528,21 +2488,9 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("AbrEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AbrProg")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Actividad")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("AgoEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AgoProg")
-                        .HasColumnType("boolean");
 
                     b.Property<int>("Anio")
                         .HasColumnType("integer");
@@ -2550,32 +2498,11 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<string>("Area")
                         .HasColumnType("text");
 
-                    b.Property<bool>("DicEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("DicProg")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("EjecutadoPor")
                         .HasColumnType("text");
 
-                    b.Property<bool>("EneEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("EneProg")
-                        .HasColumnType("boolean");
-
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
-
-                    b.Property<string>("EtapaPHVA")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("FebEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("FebProg")
-                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp without time zone");
@@ -2589,53 +2516,11 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<DateTime>("FechaPlanificada")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<string>("FrecuenciaVerificacion")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("JulEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("JulProg")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("JunEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("JunProg")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("MarEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("MarProg")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("MayEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("MayProg")
-                        .HasColumnType("boolean");
-
                     b.Property<int>("Mes")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("NovEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("NovProg")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Observaciones")
                         .HasColumnType("text");
-
-                    b.Property<bool>("OctEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("OctProg")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("Orden")
-                        .HasColumnType("integer");
 
                     b.Property<int>("ProyectoId")
                         .HasColumnType("integer");
@@ -2646,12 +2531,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<string>("Responsable")
                         .HasColumnType("text");
 
-                    b.Property<bool>("SepEjec")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("SepProg")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("TipoIntervencion")
                         .IsRequired()
                         .HasColumnType("text");
@@ -2661,60 +2540,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("PlanesTrabajoHSE", (string)null);
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.PlanTrabajoHSEEncabezado", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("Anio")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Cargo")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("FechaActualizacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("FechaElaboracion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("IndicadorCobertura")
-                        .HasColumnType("text");
-
-                    b.Property<string>("IndicadorCumplimiento")
-                        .HasColumnType("text");
-
-                    b.Property<string>("IndicadorEficacia")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ObjetivoGeneral")
-                        .HasColumnType("text");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ResponsableNombre")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Ubicacion")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProyectoId");
-
-                    b.ToTable("PlanesTrabajoHSEEncabezados", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.RegistroFaunaFlora", b =>
@@ -3135,13 +2960,7 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<DateTime>("FechaFin")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<DateTime?>("FechaFinFlujo")
-                        .HasColumnType("timestamp without time zone");
-
                     b.Property<DateTime>("FechaInicio")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("FechaInicioFlujo")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<DateTime?>("FechaModificacion")
@@ -4431,17 +4250,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("RecursoEquipo");
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.FlujoCajaSemanal", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.InformeConsolidado", "InformeConsolidado")
-                        .WithMany("FlujosCaja")
-                        .HasForeignKey("InformeConsolidadoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InformeConsolidado");
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.Fotografia", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.InformeDiario", "InformeDiario")
@@ -4749,17 +4557,6 @@ namespace RenergeIA.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.PlanTrabajoHSE", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Proyecto");
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.PlanTrabajoHSEEncabezado", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
                         .WithMany()
@@ -5129,8 +4926,6 @@ namespace RenergeIA.Infrastructure.Migrations
 
             modelBuilder.Entity("RenergeIA.Core.Entities.InformeConsolidado", b =>
                 {
-                    b.Navigation("FlujosCaja");
-
                     b.Navigation("Lineas");
                 });
 

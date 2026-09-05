@@ -25,6 +25,8 @@ public class Proyecto : EntidadBase
     public string? Descripcion { get; set; }
     public int MesInicialHistograma  { get; set; } = 1;
     public int AnioInicialHistograma { get; set; } = 2025;
+    public bool Eliminado { get; set; }
+    public DateTime? FechaEliminacion { get; set; }
 
     public ICollection<ActividadWBS> Actividades { get; set; } = [];
     public ICollection<InformeDiario> InformesDiarios { get; set; } = [];
@@ -39,4 +41,5 @@ public class Proyecto : EntidadBase
     public ICollection<PersonaExterna> PersonasExternas { get; set; } = [];
     public ICollection<RecursoEquipo> RecursosEquipo { get; set; } = [];
     public ICollection<DocumentoControl> DocumentosControl { get; set; } = [];
+    public ICollection<InformeConsolidado> InformesConsolidados { get; set; } = [];
 }

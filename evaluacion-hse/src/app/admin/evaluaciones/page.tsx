@@ -25,7 +25,7 @@ export default async function AdminEvaluaciones() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container-wide">
         <AdminNav activo="evaluaciones" sesion={sesion} />
         <h1>Evaluaciones</h1>

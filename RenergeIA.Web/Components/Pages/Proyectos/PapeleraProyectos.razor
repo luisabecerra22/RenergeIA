@@ -1,0 +1,104 @@
+@page "/proyectos/papelera"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+
+<PageTitle>Papelera — RenergeIA</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <a href="/proyectos" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+        <h1 class="h3 mb-0">Papelera de proyectos</h1>
+    </div>
+</div>
+
+@if (_proyectos is null)
+{
+    <p>Cargando...</p>
+}
+else if (!_proyectos.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-trash3 me-2"></i>La papelera está vacía.
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var p in _proyectos)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm" style="opacity:0.75">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary">@p.Codigo</span>
+                            <span class="badge bg-danger">Eliminado</span>
+                        </div>
+                        <h5 class="card-title">@p.Nombre</h5>
+                        <p class="card-text text-muted small">@p.Cliente</p>
+                        <p class="card-text small">
+                            <strong>Ubicación:</strong> @p.Ubicacion, @p.Pais<br />
+                            @if (p.FechaEliminacion.HasValue)
+                            {
+                                <strong>Eliminado:</strong> @p.FechaEliminacion.Value.ToString("dd/MM/yyyy HH:mm")
+                            }
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-success flex-fill" @onclick="() => RestaurarAsync(p)">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar
+                        </button>
+                        @if (_confirmarId == p.Id)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => EliminarDefinitivoAsync(p)">
+                                Eliminar definitivamente
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmarId = null">
+                                Cancelar
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => _confirmarId = p.Id"
+                                    title="Eliminar definitivamente">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Proyecto>? _proyectos;
+    private int? _confirmarId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyectos = await Db.Proyectos.IgnoreQueryFilters()
+            .Where(p => p.Eliminado)
+            .OrderByDescending(p => p.FechaEliminacion)
+            .ToListAsync();
+    }
+
+    private async Task RestaurarAsync(Proyecto p)
+    {
+        p.Eliminado = false;
+        p.FechaEliminacion = null;
+        await Db.SaveChangesAsync();
+        _proyectos!.Remove(p);
+    }
+
+    private async Task EliminarDefinitivoAsync(Proyecto p)
+    {
+        Db.Proyectos.Remove(p);
+        await Db.SaveChangesAsync();
+        _proyectos!.Remove(p);
+        _confirmarId = null;
+    }
+}

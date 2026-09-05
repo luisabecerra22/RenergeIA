@@ -8,5 +8,6 @@ public enum Disciplina
     Contractual,
     HotCommissioning,
     CierreProyecto,
-    General
+    General,
+    Suministros
 }

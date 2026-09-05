@@ -29,7 +29,7 @@ export default async function AsistenciaAdminPage() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container-wide">
         <AdminNav activo="asistencia" sesion={sesion} />
         <h1>Registro de asistencia</h1>

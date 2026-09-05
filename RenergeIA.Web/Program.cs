@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RenergeIA.Infrastructure.Data;
 using RenergeIA.Infrastructure.Identity;
 using RenergeIA.Web.Components;
+using RenergeIA.Infrastructure.Services;
 using RenergeIA.Web.Services;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -43,6 +44,13 @@ builder.Services.AddScoped<IAInspeccionService>();
 builder.Services.AddScoped<ControlIngresoService>();
 builder.Services.AddSingleton<ControlIngresoNotifier>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<TrmService>(c => c.BaseAddress = new Uri("https://www.datos.gov.co/"));
+builder.Services.AddSingleton(sp =>
+{
+    var http = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
+    var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "";
+    return new AnalisisIAService(http, apiKey);
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

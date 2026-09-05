@@ -1,0 +1,1436 @@
+@inject RenergeIADbContext Db
+@inject NavigationManager Navigation
+@inject IHttpClientFactory HttpFactory
+@inject IJSRuntime JS
+@inject AnalisisIAService AnalisisIA
+@using RenergeIA.Infrastructure.Services
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+
+@if (_vista == "listado")
+{
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Informes Consolidados</h5>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-danger" @onclick="IrAPapelera">
+                <i class="bi bi-trash3 me-1"></i>Papelera@(_cantidadPapelera > 0 ? $" ({_cantidadPapelera})" : "")
+            </button>
+            <button class="btn btn-sm text-white" style="background:#183963" @onclick="NuevoConsolidado">
+                <i class="bi bi-plus-lg me-1"></i>Nuevo consolidado
+            </button>
+        </div>
+    </div>
+
+    @if (_informes is null)
+    {
+        <p>Cargando...</p>
+    }
+    else if (!_informes.Any())
+    {
+        <div class="card shadow-sm text-center py-5">
+            <p class="text-muted mb-3">No hay informes consolidados registrados.</p>
+            <div><button class="btn text-white" style="background:#183963" @onclick="NuevoConsolidado">Crear primer informe</button></div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0" style="border-radius:14px;overflow:hidden">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr style="background:#183963;color:#fff">
+                            <th class="py-2">N°</th>
+                            <th>Período</th>
+                            <th>TRM</th>
+                            <th>Presup. USD</th>
+                            <th>Ejecutado USD</th>
+                            <th>Disponible USD</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inf in _informes)
+                        {
+                            var disponible = inf.PresupuestoUSD - inf.EjecutadoUSD - inf.ComprometidoUSD;
+                            <tr>
+                                <td><strong>@inf.NumeroInforme</strong> <small class="text-muted">v@(inf.Version)</small></td>
+                                <td>@inf.FechaInicio.ToString("dd/MM") — @inf.FechaFin.ToString("dd/MM/yyyy")</td>
+                                <td>$@inf.TRM.ToString("N0")</td>
+                                <td>@FormatUSD(inf.PresupuestoUSD)</td>
+                                <td>@FormatUSD(inf.EjecutadoUSD)</td>
+                                <td class="@(disponible < 0 ? "text-danger fw-bold" : "text-success fw-semibold")">@FormatUSD(disponible)</td>
+                                <td><span class="badge @BadgeEstado(inf.Estado)">@EnumDisplay.Mostrar(inf.Estado)</span></td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end">
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => VerConsolidado(inf.Id)" title="Ver"><i class="bi bi-eye"></i></button>
+                                        @if (inf.Estado == EstadoInforme.Borrador)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarConsolidado(inf.Id)" title="Editar"><i class="bi bi-pencil"></i></button>
+                                        }
+                                        <button class="btn btn-sm btn-outline-info" @onclick="() => CrearNuevaVersionAsync(inf.Id)" title="Nueva versión"><i class="bi bi-copy"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => VerConsolidadoPrint(inf.Id)" title="PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => EliminarConsolidadoAsync(inf.Id)" title="Eliminar"><i class="bi bi-trash3"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+else if (_vista == "papelera")
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="VolverAListado"><i class="bi bi-arrow-left me-1"></i>Volver</button>
+            <h5 class="mb-0"><i class="bi bi-trash3 me-2 text-danger"></i>Papelera de Consolidados</h5>
+        </div>
+    </div>
+
+    @if (_informesPapelera is null || !_informesPapelera.Any())
+    {
+        <div class="alert alert-info"><i class="bi bi-trash3 me-2"></i>La papelera está vacía.</div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0" style="border-radius:14px;overflow:hidden">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr style="background:#dc3545;color:#fff">
+                            <th class="py-2">N°</th>
+                            <th>Período</th>
+                            <th>TRM</th>
+                            <th>Presup. USD</th>
+                            <th>Estado</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inf in _informesPapelera)
+                        {
+                            <tr style="opacity:0.75">
+                                <td><strong>@inf.NumeroInforme</strong> <small class="text-muted">v@(inf.Version)</small></td>
+                                <td>@inf.FechaInicio.ToString("dd/MM") — @inf.FechaFin.ToString("dd/MM/yyyy")</td>
+                                <td>$@inf.TRM.ToString("N0")</td>
+                                <td>@FormatUSD(inf.PresupuestoUSD)</td>
+                                <td><span class="badge bg-danger">Eliminado</span></td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-success" @onclick="() => RestaurarConsolidadoAsync(inf.Id)" title="Restaurar">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+else if (_vista == "detalle" && _informe is not null)
+{
+    <!-- TOOLBAR (solo pantalla) -->
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap no-print">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Volver"><i class="bi bi-arrow-left me-1"></i>Volver</button>
+        <h5 class="mb-0">Consolidado N° @_informe.NumeroInforme <small class="text-muted">v@(_informe.Version)</small></h5>
+        <span class="badge @BadgeEstado(_informe.Estado)">@EnumDisplay.Mostrar(_informe.Estado)</span>
+        @if (_editando)
+        {
+            <div class="ms-auto d-flex gap-2 align-items-center">
+                <label class="small text-muted mb-0">Comparar con:</label>
+                <select class="form-select form-select-sm" style="width:auto" @bind="_comparacionId" @bind:after="CambiarComparacion">
+                    <option value="0">— Sin comparación —</option>
+                    @if (_todosConsolidados is not null)
+                    {
+                        @foreach (var c in _todosConsolidados.Where(c => c.Id != _informe.Id))
+                        {
+                            <option value="@c.Id">N° @c.NumeroInforme — @c.FechaInicio.ToString("dd/MM") a @c.FechaFin.ToString("dd/MM/yy")</option>
+                        }
+                    }
+                </select>
+            </div>
+            <button class="btn btn-sm btn-outline-info" @onclick="RecalcularDesdePartidasAsync" title="Recalcular datos desde Presupuesto, Ejecutado y Compromisos">
+                <i class="bi bi-arrow-repeat me-1"></i>Recalcular
+            </button>
+            <button class="btn btn-sm btn-success" @onclick="GuardarAsync"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+        }
+        <button class="btn btn-sm btn-outline-danger" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    </div>
+
+    @if (_msgGuardado is not null)
+    {
+        <div class="alert alert-success alert-dismissible py-2 no-print">
+            @_msgGuardado
+            <button type="button" class="btn-close" @onclick='() => _msgGuardado = null'></button>
+        </div>
+    }
+
+    <!-- HEADER IMPRESIÓN (solo visible al imprimir) -->
+    <div class="print-header-conso align-items-center justify-content-between mb-2 pb-2" style="border-bottom:3px solid #183963">
+        <div class="d-flex align-items-center gap-3">
+            <img src="images/logo-renergeia.png.png" alt="RenergeIA" style="height:38px" />
+            <div>
+                <h4 class="mb-0 fw-bold" style="color:#183963;font-size:14pt">Informe Semanal de Costos N° @_informe.NumeroInforme</h4>
+                <small style="color:#666">@_proyecto!.Nombre — @_proyecto.Codigo</small>
+            </div>
+        </div>
+        <div class="text-end">
+            <div style="font-size:8pt;color:#888">Fecha del informe</div>
+            <div class="fw-bold" style="color:#183963;font-size:12pt">@_informe.FechaInicio.ToString("dd/MM") — @_informe.FechaFin.ToString("dd/MM/yyyy")</div>
+            <div style="font-size:8pt;color:#888" class="mt-1">TRM: <strong style="color:#183963">$@_informe.TRM.ToString("N0")</strong></div>
+        </div>
+    </div>
+
+    <!-- HEADER PANTALLA (solo visible en pantalla) -->
+    <div class="conso-header mb-3 print-section no-print">
+        <div class="row align-items-center">
+            <div class="col-md-5">
+                <div class="small opacity-75">Informe Semanal de Costos</div>
+                <h3 class="fw-bold mb-0">@_proyecto!.Nombre</h3>
+                <span class="small opacity-75">@_proyecto.Codigo</span>
+            </div>
+            <div class="col-md-3">
+                <div class="small opacity-75">Período del informe</div>
+                @if (_editando)
+                {
+                    <div class="d-flex gap-1 mt-1">
+                        <input type="date" class="form-control form-control-sm" @bind="_informe.FechaInicio" />
+                        <input type="date" class="form-control form-control-sm" @bind="_informe.FechaFin" />
+                    </div>
+                }
+                else
+                {
+                    <strong>@_informe.FechaInicio.ToString("dd MMM") — @_informe.FechaFin.ToString("dd MMM yyyy")</strong>
+                }
+            </div>
+            <div class="col-md-2 text-center">
+                <div class="small opacity-75">N° Informe</div>
+                <div class="fw-bold fs-2">@_informe.NumeroInforme</div>
+            </div>
+            <div class="col-md-2 text-end">
+                <div class="small opacity-75">TRM Cierre</div>
+                @if (_editando)
+                {
+                    <div class="d-flex align-items-center gap-1 justify-content-end mt-1">
+                        <span class="fw-semibold">$</span>
+                        <input type="number" class="form-control form-control-sm text-end fw-bold" style="width:90px"
+                               @bind="_informe.TRM" @bind:after="RecalcularConTrm" step="0.01" />
+                    </div>
+                    <button class="btn btn-sm btn-outline-dark mt-1" @onclick="ActualizarTrmAsync" disabled="@_cargandoTrm">
+                        <i class="bi bi-arrow-repeat me-1"></i>@(_cargandoTrm ? "..." : "TRM automática")
+                    </button>
+                }
+                else
+                {
+                    <div class="fw-bold fs-4">$@_informe.TRM.ToString("N0")</div>
+                }
+            </div>
+        </div>
+        @if (_editando)
+        {
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <input class="form-control form-control-sm" @bind="_informe.Responsable" placeholder="Responsable del informe" />
+                </div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(_informe.Responsable))
+        {
+            <div class="mt-1 small opacity-75">Responsable: <strong>@_informe.Responsable</strong></div>
+        }
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="row g-3 mb-4 print-section">
+        <div class="col-6 col-lg-3">
+            <div class="kpi-card kpi-blue">
+                <i class="bi bi-wallet2"></i>
+                <div class="kpi-label">Presupuesto</div>
+                <div class="kpi-value">@FormatUSD(_informe.PresupuestoUSD)</div>
+                <div class="kpi-sub">@FormatCOP(_informe.PresupuestoCOP) COP</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="kpi-card kpi-orange">
+                <i class="bi bi-cash-stack"></i>
+                <div class="kpi-label">Ejecutado</div>
+                <div class="kpi-value">@FormatUSD(_informe.EjecutadoUSD)</div>
+                <div class="kpi-sub">@FormatCOP(_informe.EjecutadoCOP) COP</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="kpi-card kpi-yellow">
+                <i class="bi bi-hourglass-split"></i>
+                <div class="kpi-label">Comprometido</div>
+                <div class="kpi-value">@FormatUSD(_informe.ComprometidoUSD)</div>
+                <div class="kpi-sub">@FormatCOP(_informe.ComprometidoCOP) COP</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="kpi-card @(DispUSD() < 0 ? "kpi-red" : "kpi-green")">
+                <i class="bi bi-piggy-bank"></i>
+                <div class="kpi-label">Disponible</div>
+                <div class="kpi-value">@FormatUSD(DispUSD())</div>
+                <div class="kpi-sub">@FormatCOP(DispCOP()) COP</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BAR CHART + MARGEN -->
+    <div class="row g-3 mb-4 print-section print-row-side">
+        <div class="col-lg-8 print-col-8">
+            <div class="card shadow-sm border-0 h-100" style="border-radius:14px">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3" style="color:#183963"><i class="bi bi-bar-chart-fill me-2"></i>Distribución de Costos (USD)</h6>
+                    @foreach (var bar in ObtenerBarras())
+                    {
+                        <div class="chart-bar-row">
+                            <span class="chart-label">@bar.Label</span>
+                            <div class="chart-bar-bg"><div class="chart-bar" style="width:@bar.Pct;background:@bar.Grad"></div></div>
+                            <span class="chart-val">@FormatUSD(bar.Valor)</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 print-col-4">
+            <div class="card shadow-sm border-0 h-100" style="border-radius:14px">
+                <div class="card-body text-center d-flex flex-column justify-content-center py-2">
+                    <h6 class="fw-bold mb-2" style="color:#183963;font-size:0.8rem">Ejecución Presupuestal</h6>
+                    <div class="position-relative d-inline-block mx-auto" style="width:90px;height:90px">
+                        <svg viewBox="0 0 36 36" style="width:100%;height:100%;transform:rotate(-90deg)">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e9ecef" stroke-width="3"></circle>
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="@(PctEjec() > 90 ? "#dc3545" : PctEjec() > 70 ? "#fd7e14" : "#6ABF4B")" stroke-width="3"
+                                    stroke-dasharray="@PctEjec().ToString("F1", System.Globalization.CultureInfo.InvariantCulture) 100" stroke-linecap="round"></circle>
+                        </svg>
+                        <div class="position-absolute top-50 start-50 translate-middle">
+                            <div class="fw-bold fs-4" style="color:#183963">@PctEjec().ToString("N1")%</div>
+                        </div>
+                    </div>
+                    <div class="mt-1" style="font-size:0.7rem;color:#888">del presupuesto ejecutado</div>
+                    <div class="mt-1" style="font-size:0.68rem">
+                        <span class="fw-semibold" style="color:#183963">BOM: $@_informe.TRMBomInicial.ToString("N0")</span>
+                        <span class="mx-1 text-muted">|</span>
+                        <span class="fw-semibold" style="color:#6ABF4B">Actual: $@_informe.TRM.ToString("N0")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMPARATIVO Y TABLAS -->
+    @if (_anterior is not null)
+    {
+        <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
+            <div class="card-header text-white fw-bold py-2 text-center" style="background:#183963">
+                <i class="bi bi-arrow-left-right me-2"></i>Comparativo: Semana @(_anterior.NumeroInforme) vs Semana @(_informe.NumeroInforme)
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle conso-table">
+                        <thead>
+                            <tr>
+                                <th class="text-start ps-3">Concepto</th>
+                                <th class="text-end">Semana @(_anterior.NumeroInforme) USD</th>
+                                <th class="text-end">Semana @(_informe.NumeroInforme) USD</th>
+                                <th class="text-end">Variación USD</th>
+                                <th class="text-end">Semana @(_anterior.NumeroInforme) COP</th>
+                                <th class="text-end">Semana @(_informe.NumeroInforme) COP</th>
+                                <th class="text-end pe-3">Variación COP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in ObtenerFilasComparativo())
+                            {
+                                <tr class="@(r.EsTotal ? "fw-bold" : "") @(r.Alt ? "conso-alt" : "")">
+                                    <td class="text-start ps-3 fw-semibold">@r.Label</td>
+                                    <td class="text-end">@FormatUSD(r.AntUSD)</td>
+                                    <td class="text-end">@FormatUSD(r.ActUSD)</td>
+                                    <td class="text-end @(r.EsTotal ? ClsVar(r.VarUSD) : ClsVar(-r.VarUSD))">@FormatUSD(r.VarUSD)</td>
+                                    <td class="text-end">@FormatCOP(r.AntCOP)</td>
+                                    <td class="text-end">@FormatCOP(r.ActCOP)</td>
+                                    <td class="text-end pe-3 @(r.EsTotal ? ClsVar(r.VarCOP) : ClsVar(-r.VarCOP))">@FormatCOP(r.VarCOP)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- RESUMEN USD -->
+    @foreach (var rm in ObtenerResumenesMoneda())
+    {
+        <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
+            <div class="card-header text-white fw-bold py-2 text-center" style="background:@rm.BgColor">
+                @rm.Titulo
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle conso-table">
+                        <thead>
+                            <tr>
+                                <th class="text-start ps-3" style="width:18%">Concepto</th>
+                                <th class="text-end">BOM Inicial</th>
+                                <th class="text-end">%</th>
+                                <th class="text-end">Sem. Anterior</th>
+                                <th class="text-end">%</th>
+                                <th class="text-end">Resultado Actual</th>
+                                <th class="text-end">%</th>
+                                <th class="text-end pe-3">Variación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="conso-alt">
+                                <td class="text-start ps-3 fw-semibold">Venta @rm.Moneda</td>
+                                <td class="text-end">@Fmt(rm.BomPresup, rm.EsCop)</td><td></td>
+                                <td class="text-end">@Fmt(rm.AntPresup, rm.EsCop)</td><td></td>
+                                <td class="text-end">@Fmt(rm.ActPresup, rm.EsCop)</td><td></td>
+                                <td class="text-end pe-3 @ClsVar(rm.VarVenta)">@Fmt(rm.VarVenta, rm.EsCop)</td>
+                            </tr>
+                            <tr>
+                                <td class="text-start ps-3 fw-semibold">Costo total</td>
+                                <td class="text-end">@Fmt(rm.BomCosto, rm.EsCop)</td><td></td>
+                                <td class="text-end">@Fmt(rm.AntCosto, rm.EsCop)</td><td></td>
+                                <td class="text-end">@Fmt(rm.ActCosto, rm.EsCop)</td><td></td>
+                                <td class="text-end pe-3 @ClsVar(-rm.VarCosto)">@Fmt(rm.VarCosto, rm.EsCop)</td>
+                            </tr>
+                            <tr class="conso-alt fw-bold">
+                                <td class="text-start ps-3">Margen</td>
+                                <td class="text-end">@Fmt(rm.BomMargen, rm.EsCop)</td><td class="text-end">@rm.BomPct.ToString("N1")%</td>
+                                <td class="text-end">@Fmt(rm.AntMargen, rm.EsCop)</td><td class="text-end">@rm.AntPct.ToString("N1")%</td>
+                                <td class="text-end">@Fmt(rm.ActMargen, rm.EsCop)</td><td class="text-end">@rm.ActPct.ToString("N1")%</td>
+                                <td class="text-end pe-3 @ClsVar(rm.VarMargen)">@Fmt(rm.VarMargen, rm.EsCop)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- DESGLOSE POR CATEGORÍA -->
+    @if (_informe.Lineas.Any())
+    {
+        <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
+            <div class="card-header text-white fw-bold py-2 text-center" style="background:#6ABF4B">
+                <i class="bi bi-list-columns-reverse me-2"></i>Desglose por Categoría
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle conso-table">
+                        <thead>
+                            <tr>
+                                <th class="text-start ps-3">Categoría</th>
+                                <th class="text-end">Presup. COP</th>
+                                <th class="text-end">Presup. USD</th>
+                                <th class="text-end">Ejec. COP</th>
+                                <th class="text-end">Ejec. USD</th>
+                                <th class="text-end">Comp. COP</th>
+                                <th class="text-end">Comp. USD</th>
+                                <th class="text-end">Disp. COP</th>
+                                <th class="text-end pe-3">Disp. USD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var fd in ObtenerFilasDesglose())
+                            {
+                                <tr class="@(fd.Alt ? "conso-alt" : "")">
+                                    <td class="text-start ps-3 fw-semibold">@fd.Cat</td>
+                                    <td class="text-end">@FormatCOP(fd.PC)</td>
+                                    <td class="text-end">@FormatUSD(fd.PU)</td>
+                                    <td class="text-end">@FormatCOP(fd.EC)</td>
+                                    <td class="text-end">@FormatUSD(fd.EU)</td>
+                                    <td class="text-end">@FormatCOP(fd.CC)</td>
+                                    <td class="text-end">@FormatUSD(fd.CU)</td>
+                                    <td class="text-end @(fd.DC < 0 ? "text-danger fw-bold" : "")">@FormatCOP(fd.DC)</td>
+                                    <td class="text-end pe-3 @(fd.DU < 0 ? "text-danger fw-bold" : "")">@FormatUSD(fd.DU)</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold" style="background:#e8f0fe">
+                                <td class="text-start ps-3">TOTAL</td>
+                                <td class="text-end">@FormatCOP(TotalLineas(l => l.PresupuestoCOP))</td><td class="text-end">@FormatUSD(TotalLineas(l => l.PresupuestoUSD))</td>
+                                <td class="text-end">@FormatCOP(TotalLineas(l => l.EjecutadoCOP))</td><td class="text-end">@FormatUSD(TotalLineas(l => l.EjecutadoUSD))</td>
+                                <td class="text-end">@FormatCOP(TotalLineas(l => l.ComprometidoCOP))</td><td class="text-end">@FormatUSD(TotalLineas(l => l.ComprometidoUSD))</td>
+                                <td class="text-end @(TotalDispCOP() < 0 ? "text-danger" : "")">@FormatCOP(TotalDispCOP())</td>
+                                <td class="text-end pe-3 @(TotalDispUSD() < 0 ? "text-danger" : "")">@FormatUSD(TotalDispUSD())</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- JUSTIFICACIÓN DE LAS VARIACIONES -->
+    <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
+        <div class="card-header text-white fw-bold py-2 text-center" style="background:#6ABF4B">
+            <i class="bi bi-chat-left-text me-2"></i>Justificación de las variaciones
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered mb-0">
+                <tbody>
+                    <tr>
+                        <td class="fw-bold align-top" style="width:80px;background:#e9ecef;vertical-align:top;padding:8px 12px">Venta</td>
+                        <td style="padding:8px 12px">
+                            @if (_editando)
+                            {
+                                <textarea class="form-control border-0 p-0" rows="3" @bind="_informe.JustificacionVenta" placeholder="Justificación de variaciones en venta..." style="resize:vertical"></textarea>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(_informe.JustificacionVenta))
+                            {
+                                <span style="white-space:pre-wrap">@_informe.JustificacionVenta</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="fw-bold align-top" style="width:80px;background:#e9ecef;vertical-align:top;padding:8px 12px">Costo</td>
+                        <td style="padding:8px 12px">
+                            @if (_editando)
+                            {
+                                <textarea class="form-control border-0 p-0" rows="3" @bind="_informe.JustificacionCosto" placeholder="Justificación de variaciones en costo..." style="resize:vertical"></textarea>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(_informe.JustificacionCosto))
+                            {
+                                <span style="white-space:pre-wrap">@_informe.JustificacionCosto</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @foreach (var tipoFlujo in new[] { ("USDCOP", "Variación temporal USD+COP"), ("USD", "Variación temporal USD"), ("COP", "Variación temporal COP") })
+    {
+        var flujosTipo = _informe.FlujosCaja.Where(f => f.TipoFlujo == tipoFlujo.Item1).ToList();
+        var antFlujosTipo = _anteriorFlujos?.Where(f => f.TipoFlujo == tipoFlujo.Item1).ToList();
+        var hayAnteriorTipo = _anterior is not null;
+        <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
+            <div class="card-header text-white fw-bold py-2 text-center" style="background:#6ABF4B">
+                <i class="bi bi-arrow-left-right me-2"></i>@tipoFlujo.Item2
+            </div>
+            <div class="card-body p-2">
+                @if (_editando)
+                {
+                    <div class="d-flex gap-3 align-items-center mb-2 no-print">
+                        <label class="small fw-semibold mb-0">Inicio flujo:</label>
+                        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_informe.FechaInicioFlujo" />
+                        <label class="small fw-semibold mb-0">Fin flujo:</label>
+                        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_informe.FechaFinFlujo" />
+                        @{ var tipo = tipoFlujo.Item1; }
+                        <button class="btn btn-sm btn-outline-dark" @onclick="() => GenerarSemanasFlujoCajaTipo(tipo)">
+                            <i class="bi bi-calendar-week me-1"></i>Generar semanas
+                        </button>
+                    </div>
+                }
+                else if (_informe.FechaInicioFlujo.HasValue)
+                {
+                    <div class="small text-muted mb-2">
+                        Flujo: @_informe.FechaInicioFlujo.Value.ToString("dd/MM/yyyy") — @(_informe.FechaFinFlujo?.ToString("dd/MM/yyyy") ?? "en curso")
+                    </div>
+                }
+
+                @if (flujosTipo.Any())
+                {
+                    var filas = ObtenerFilasFlujoTipo(flujosTipo, antFlujosTipo);
+                    <div class="table-responsive" style="max-height:450px;overflow-y:auto">
+                        <table class="table table-sm mb-0 align-middle flujo-table">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th colspan="4" class="text-center text-white py-1" style="background:#183963">
+                                        Cierre semana @_informe.FechaFin.ToString("dd.MM.yy")
+                                    </th>
+                                    @if (hayAnteriorTipo)
+                                    {
+                                        <th class="flujo-sep" rowspan="2"></th>
+                                        <th colspan="4" class="text-center text-white py-1" style="background:#183963">
+                                            Cierre semana @_anterior!.FechaFin.ToString("dd.MM.yy")
+                                        </th>
+                                        <th class="flujo-sep" rowspan="2"></th>
+                                        <th class="text-center text-white py-1" style="background:#183963">Variación</th>
+                                        <th class="flujo-sep" rowspan="2"></th>
+                                        <th class="text-center text-white py-1" style="background:#183963">Justificación</th>
+                                    }
+                                </tr>
+                                <tr style="background:#e8f0fe">
+                                    <th class="text-center flujo-th">Semana</th>
+                                    <th class="text-center flujo-th">Ingresos</th>
+                                    <th class="text-center flujo-th">Pagos</th>
+                                    <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
+                                    @if (hayAnteriorTipo)
+                                    {
+                                        <th class="text-center flujo-th">Semana</th>
+                                        <th class="text-center flujo-th">Ingresos</th>
+                                        <th class="text-center flujo-th">Pagos</th>
+                                        <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
+                                        <th class="text-center flujo-th" style="background:#fff3cd">Variación</th>
+                                        <th class="text-center flujo-th flujo-justif">Justificación</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ decimal cajaAcumT = 0; decimal cajaAcumAntT = 0; }
+                                @foreach (var fila in filas)
+                                {
+                                    cajaAcumT += fila.Ingresos - fila.Pagos;
+                                    var cajaAntT = 0m;
+                                    if (fila.AntIngresos.HasValue || fila.AntPagos.HasValue)
+                                    {
+                                        cajaAcumAntT += (fila.AntIngresos ?? 0) - (fila.AntPagos ?? 0);
+                                        cajaAntT = cajaAcumAntT;
+                                    }
+                                    else if (hayAnteriorTipo)
+                                    {
+                                        cajaAntT = cajaAcumAntT;
+                                    }
+                                    var varT = hayAnteriorTipo ? cajaAcumT - cajaAntT : (decimal?)null;
+                                    <tr>
+                                        <td class="text-center">@fila.Semana.ToString("d/MM/yyyy")</td>
+                                        <td class="text-end">
+                                            @if (_editando)
+                                            {
+                                                <input type="number" class="form-control form-control-sm text-end p-0 border-0" style="width:75px;display:inline"
+                                                       value="@fila.Flujo.Ingresos" @onchange="e => { fila.Flujo.Ingresos = decimal.TryParse(e.Value?.ToString(), out var v) ? v : 0; }" step="0.01" />
+                                            }
+                                            else
+                                            {
+                                                @(fila.Ingresos != 0 ? fila.Ingresos.ToString("N0") : "-")
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            @if (_editando)
+                                            {
+                                                <input type="number" class="form-control form-control-sm text-end p-0 border-0" style="width:75px;display:inline"
+                                                       value="@fila.Flujo.Pagos" @onchange="e => { fila.Flujo.Pagos = decimal.TryParse(e.Value?.ToString(), out var v) ? v : 0; }" step="0.01" />
+                                            }
+                                            else
+                                            {
+                                                @(fila.Pagos != 0 ? fila.Pagos.ToString("N0") : "-")
+                                            }
+                                        </td>
+                                        <td class="text-end fw-semibold @(cajaAcumT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
+                                            @(cajaAcumT != 0 ? cajaAcumT.ToString("N0") : "-")
+                                        </td>
+                                        @if (hayAnteriorTipo)
+                                        {
+                                            <td class="flujo-sep"></td>
+                                            <td class="text-center">@fila.Semana.ToString("d/MM/yyyy")</td>
+                                            <td class="text-end">@(fila.AntIngresos.HasValue && fila.AntIngresos != 0 ? fila.AntIngresos.Value.ToString("N0") : "-")</td>
+                                            <td class="text-end">@(fila.AntPagos.HasValue && fila.AntPagos != 0 ? fila.AntPagos.Value.ToString("N0") : "-")</td>
+                                            <td class="text-end fw-semibold @(cajaAntT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
+                                                @(cajaAntT != 0 ? cajaAntT.ToString("N0") : "-")
+                                            </td>
+                                            <td class="flujo-sep"></td>
+                                            <td class="text-end fw-semibold @(varT < 0 ? "text-danger" : varT > 0 ? "text-success" : "")" style="background:#fffde7">
+                                                @(varT.HasValue && varT != 0 ? varT.Value.ToString("N0") : "-")
+                                            </td>
+                                            <td class="flujo-sep"></td>
+                                            <td>
+                                                @if (_editando)
+                                                {
+                                                    <input type="text" class="form-control form-control-sm p-0 border-0" style="font-size:0.7rem"
+                                                           value="@fila.Flujo.Justificacion" @onchange="e => { fila.Flujo.Justificacion = e.Value?.ToString(); }" placeholder="—" />
+                                                }
+                                                else
+                                                {
+                                                    @(string.IsNullOrWhiteSpace(fila.Flujo.Justificacion) ? "—" : fila.Flujo.Justificacion)
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center mb-0 py-2">
+                        @if (_editando)
+                        {
+                            <span>Configure las fechas y presione "Generar semanas".</span>
+                        }
+                        else
+                        {
+                            <span>Sin datos de flujo de caja registrados.</span>
+                        }
+                    </p>
+                }
+
+                @if (tipoFlujo.Item1 == "USDCOP" && flujosTipo.Any())
+                {
+                    <div class="mt-3 print-section">
+                        <canvas id="flujoChart" style="width:100%;height:320px"></canvas>
+                        <img id="flujoChartImg" style="display:none;width:100%;max-height:350px" />
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ANÁLISIS INTELIGENTE -->
+    <div class="card shadow-sm border-0 mb-4 @(_informe.MostrarAnalisisEnPrint ? "print-section" : "no-print")" style="border-radius:14px;overflow:hidden">
+        <div class="card-header fw-bold py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(90deg,#183963,#1e5a9a);color:#fff">
+            <span><i class="bi bi-stars me-2"></i>Análisis Inteligente (IA)</span>
+            <div class="d-flex align-items-center gap-2 no-print">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="chkAnalisisPrint" @bind="_informe.MostrarAnalisisEnPrint" />
+                    <label class="form-check-label small text-white" for="chkAnalisisPrint">Incluir en impreso</label>
+                </div>
+                <button class="btn btn-sm btn-outline-light" @onclick="GenerarAnalisisAsync" disabled="@_generandoAnalisis">
+                    <i class="bi bi-@(_generandoAnalisis ? "hourglass-split" : "magic") me-1"></i>
+                    @(_generandoAnalisis ? "Generando..." : "Generar Análisis")
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            @if (_generandoAnalisis)
+            {
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2 mb-0">Analizando datos del informe...</p>
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(_informe.AnalisisIA))
+            {
+                <p class="mb-0" style="white-space:pre-wrap;font-size:0.85rem;line-height:1.6">@_informe.AnalisisIA</p>
+            }
+            else
+            {
+                <p class="text-muted mb-0 text-center py-2">
+                    <i class="bi bi-info-circle me-1"></i>Presione "Generar Análisis" para obtener un análisis automatizado de los datos del informe.
+                </p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<InformeConsolidado>? _informes;
+    private List<InformeConsolidado>? _todosConsolidados;
+    private InformeConsolidado? _informe;
+    private InformeConsolidado? _anterior;
+    private List<InformeConsolidado>? _informesPapelera;
+    private List<FlujoCajaSemanal>? _anteriorFlujos;
+    private bool _flujoFechasBloqueadas;
+    private int _cantidadPapelera;
+    private string _vista = "listado";
+    private bool _editando;
+    private bool _cargandoTrm;
+    private bool _generandoAnalisis;
+    private bool _renderChart;
+    private string? _msgGuardado;
+    private int _comparacionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        await CargarListadoAsync();
+    }
+
+    private async Task CargarListadoAsync()
+    {
+        _informes = await Db.InformesConsolidados
+            .Where(c => c.ProyectoId == ProyectoId)
+            .OrderByDescending(c => c.NumeroInforme)
+            .ThenByDescending(c => c.Version)
+            .ToListAsync();
+        _todosConsolidados = _informes;
+        _cantidadPapelera = await Db.InformesConsolidados.IgnoreQueryFilters()
+            .CountAsync(c => c.ProyectoId == ProyectoId && c.Eliminado);
+    }
+
+    private async Task NuevoConsolidado()
+    {
+        if (_proyecto is null) return;
+
+        var ultimoNum = await Db.InformesConsolidados
+            .Where(c => c.ProyectoId == ProyectoId)
+            .MaxAsync(c => (int?)c.NumeroInforme) ?? 0;
+
+        var ultimoConsolidado = await Db.InformesConsolidados
+            .Where(c => c.ProyectoId == ProyectoId)
+            .OrderByDescending(c => c.NumeroInforme).ThenByDescending(c => c.Version)
+            .FirstOrDefaultAsync();
+
+        var trm = await ObtenerTrmAsync();
+        if (trm <= 0) trm = _proyecto.TasaCambioCOPUSD;
+
+        var partidas = await Db.Partidas
+            .Where(p => p.ProyectoId == ProyectoId)
+            .ToListAsync();
+
+        _informe = new InformeConsolidado
+        {
+            ProyectoId = ProyectoId,
+            NumeroInforme = ultimoNum + 1,
+            Version = 1,
+            FechaInicio = ultimoConsolidado?.FechaFin.AddDays(1) ?? DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek + 1),
+            FechaFin = DateTime.Today,
+            TRM = trm,
+            TRMBomInicial = ultimoConsolidado?.TRMBomInicial ?? _proyecto.TasaCambioCOPUSD,
+            Estado = EstadoInforme.Borrador,
+            CreadoPor = "",
+            VentaContractualCOP = _proyecto.PresupuestoContractual,
+            VentaContractualUSD = _proyecto.PresupuestoContractual / trm,
+            ConsolidadoAnteriorId = ultimoConsolidado?.Id,
+        };
+
+        CalcularTotalesDesdePartidas(partidas, trm);
+
+        if (ultimoConsolidado?.FechaInicioFlujo.HasValue == true)
+        {
+            _informe.FechaInicioFlujo = ultimoConsolidado.FechaInicioFlujo;
+            _informe.FechaFinFlujo = ultimoConsolidado.FechaFinFlujo;
+            var flujosAnt = await Db.FlujosCajaSemanal
+                .Where(f => f.InformeConsolidadoId == ultimoConsolidado.Id)
+                .OrderBy(f => f.OrdenSemana).ToListAsync();
+            _anteriorFlujos = flujosAnt;
+            GenerarSemanasFlujoCaja();
+        }
+        else
+        {
+            _anteriorFlujos = null;
+        }
+        _flujoFechasBloqueadas = false;
+
+        _anterior = ultimoConsolidado;
+        _comparacionId = ultimoConsolidado?.Id ?? 0;
+        _editando = true;
+        _vista = "detalle";
+        _renderChart = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_renderChart)
+        {
+            _renderChart = false;
+            await RenderFlujoChartAsync();
+        }
+    }
+
+    private async Task RenderFlujoChartAsync()
+    {
+        if (_informe is null) return;
+        var flujos = _informe.FlujosCaja.Where(f => f.TipoFlujo == "USDCOP").OrderBy(f => f.OrdenSemana).ToList();
+        if (!flujos.Any()) return;
+
+        var labels = flujos.Select(f => f.Semana.ToString("d/MM/yyyy")).ToArray();
+        var ingresos = flujos.Select(f => f.Ingresos).ToArray();
+        var pagos = flujos.Select(f => f.Pagos).ToArray();
+
+        var caja = new decimal[flujos.Count];
+        decimal acum = 0;
+        for (int i = 0; i < flujos.Count; i++) { acum += flujos[i].Ingresos - flujos[i].Pagos; caja[i] = acum; }
+
+        await JS.InvokeVoidAsync("renderFlujoChart", labels, ingresos, pagos, caja,
+            _informe.FechaFin.ToString("dd.MM.yy"));
+    }
+
+    private void CalcularTotalesDesdePartidas(List<Partida> partidas, decimal trm)
+    {
+        if (_informe is null || trm <= 0) return;
+
+        decimal pCop = 0, pUsd = 0, eCop = 0, eUsd = 0, cCop = 0, cUsd = 0;
+        var categorias = new Dictionary<string, (decimal pC, decimal pU, decimal eC, decimal eU, decimal cC, decimal cU, string codigo, int orden)>();
+        int orden = 0;
+
+        foreach (var p in partidas.Where(p => p.EsPrincipal))
+        {
+            var hijas = partidas.Where(h => h.PadreId == p.Id).ToList();
+            if (!hijas.Any()) hijas = [p];
+
+            decimal catPC = 0, catPU = 0, catEC = 0, catEU = 0, catCC = 0, catCU = 0;
+            foreach (var h in hijas)
+            {
+                var presup = h.CantidadPresupuestada * h.PrecioUnitario;
+                if (h.MonedaOriginal == "USD")
+                {
+                    catPU += presup; catPC += presup * trm;
+                    catEU += h.ValorEjecutado; catEC += h.ValorEjecutado * trm;
+                    catCU += h.MontoComprometido; catCC += h.MontoComprometido * trm;
+                }
+                else
+                {
+                    catPC += presup; catPU += presup / trm;
+                    catEC += h.ValorEjecutado; catEU += h.ValorEjecutado / trm;
+                    catCC += h.MontoComprometido; catCU += h.MontoComprometido / trm;
+                }
+            }
+
+            pCop += catPC; pUsd += catPU; eCop += catEC; eUsd += catEU; cCop += catCC; cUsd += catCU;
+            var nombre = string.IsNullOrWhiteSpace(p.Categoria) ? p.Descripcion : p.Categoria;
+            categorias[nombre] = (catPC, catPU, catEC, catEU, catCC, catCU, p.Codigo, orden++);
+        }
+
+        _informe.PresupuestoCOP = pCop; _informe.PresupuestoUSD = pUsd;
+        _informe.EjecutadoCOP = eCop; _informe.EjecutadoUSD = eUsd;
+        _informe.ComprometidoCOP = cCop; _informe.ComprometidoUSD = cUsd;
+
+        _informe.Lineas = categorias.Select(kv => new LineaConsolidado
+        {
+            Categoria = kv.Key, CodigoCategoria = kv.Value.codigo, Orden = kv.Value.orden,
+            PresupuestoCOP = kv.Value.pC, PresupuestoUSD = kv.Value.pU,
+            EjecutadoCOP = kv.Value.eC, EjecutadoUSD = kv.Value.eU,
+            ComprometidoCOP = kv.Value.cC, ComprometidoUSD = kv.Value.cU,
+        }).ToList();
+    }
+
+    private async Task CambiarComparacion()
+    {
+        if (_comparacionId > 0)
+        {
+            _anterior = await Db.InformesConsolidados.FindAsync(_comparacionId);
+            if (_informe is not null) _informe.ConsolidadoAnteriorId = _comparacionId;
+        }
+        else
+        {
+            _anterior = null;
+            if (_informe is not null) _informe.ConsolidadoAnteriorId = null;
+        }
+    }
+
+    private async Task<decimal> ObtenerTrmAsync()
+    {
+        try
+        {
+            var http = HttpFactory.CreateClient();
+            http.BaseAddress = new Uri("https://www.datos.gov.co/");
+            var svc = new TrmService(http);
+            return await svc.ObtenerTrmActualAsync();
+        }
+        catch { return 0m; }
+    }
+
+    private async Task ActualizarTrmAsync()
+    {
+        _cargandoTrm = true;
+        StateHasChanged();
+        var trm = await ObtenerTrmAsync();
+        if (trm > 0 && _informe is not null)
+        {
+            _informe.TRM = trm;
+            var partidas = await Db.Partidas.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+            CalcularTotalesDesdePartidas(partidas, trm);
+            if (_proyecto is not null) _informe.VentaContractualUSD = _proyecto.PresupuestoContractual / trm;
+        }
+        _cargandoTrm = false;
+    }
+
+    private async Task RecalcularConTrm()
+    {
+        if (_informe is null || _informe.TRM <= 0) return;
+        var partidas = await Db.Partidas.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+        CalcularTotalesDesdePartidas(partidas, _informe.TRM);
+        if (_proyecto is not null) _informe.VentaContractualUSD = _proyecto.PresupuestoContractual / _informe.TRM;
+    }
+
+    private async Task GenerarAnalisisAsync()
+    {
+        if (_informe is null || _proyecto is null) return;
+        _generandoAnalisis = true;
+        StateHasChanged();
+
+        var dispUsd = _informe.PresupuestoUSD - _informe.EjecutadoUSD - _informe.ComprometidoUSD;
+        var pctEjec = _informe.PresupuestoUSD != 0 ? _informe.EjecutadoUSD / _informe.PresupuestoUSD * 100 : 0;
+        var margenUsd = _informe.VentaContractualUSD - _informe.EjecutadoUSD - _informe.ComprometidoUSD;
+        var pctMargen = _informe.VentaContractualUSD != 0 ? margenUsd / _informe.VentaContractualUSD * 100 : 0;
+
+        var datos = new DatosAnalisis
+        {
+            NombreProyecto = _proyecto.Nombre,
+            FechaInicio = _informe.FechaInicio,
+            FechaFin = _informe.FechaFin,
+            NumeroInforme = _informe.NumeroInforme,
+            TrmBom = _informe.TRMBomInicial,
+            TrmActual = _informe.TRM,
+            PresupuestoUSD = _informe.PresupuestoUSD,
+            EjecutadoUSD = _informe.EjecutadoUSD,
+            ComprometidoUSD = _informe.ComprometidoUSD,
+            DisponibleUSD = dispUsd,
+            PctEjecucion = pctEjec,
+            VentaUSD = _informe.VentaContractualUSD,
+            MargenUSD = margenUsd,
+            PctMargen = pctMargen,
+            PresupuestoCOP = _informe.PresupuestoCOP,
+            EjecutadoCOP = _informe.EjecutadoCOP,
+            DisponibleCOP = _informe.PresupuestoCOP - _informe.EjecutadoCOP - _informe.ComprometidoCOP,
+            Categorias = _informe.Lineas.Select(l => new CategoriaAnalisis
+            {
+                Nombre = l.Categoria,
+                PresupuestoUSD = l.PresupuestoUSD,
+                EjecutadoUSD = l.EjecutadoUSD,
+                DisponibleUSD = l.PresupuestoUSD - l.EjecutadoUSD - l.ComprometidoUSD,
+            }).ToList(),
+        };
+
+        _informe.AnalisisIA = await AnalisisIA.GenerarAnalisisConsolidadoAsync(datos);
+        _generandoAnalisis = false;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_informe is null) return;
+        _informe.FechaModificacion = DateTime.UtcNow;
+        if (_informe.Id == 0) Db.InformesConsolidados.Add(_informe);
+        await Db.SaveChangesAsync();
+        _editando = false;
+        _msgGuardado = "Informe consolidado guardado correctamente.";
+        await CargarListadoAsync();
+    }
+
+    private async Task VerConsolidado(int id) => await CargarDetalle(id, false);
+    private async Task EditarConsolidado(int id) => await CargarDetalle(id, true);
+    private async Task VerConsolidadoPrint(int id)
+    {
+        await CargarDetalle(id, false);
+        StateHasChanged();
+        await Task.Delay(300);
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private async Task CargarDetalle(int id, bool editar)
+    {
+        _informe = await Db.InformesConsolidados.Include(c => c.Lineas).Include(c => c.FlujosCaja).FirstOrDefaultAsync(c => c.Id == id);
+        if (_informe is null) return;
+        _anterior = _informe.ConsolidadoAnteriorId.HasValue
+            ? await Db.InformesConsolidados.FindAsync(_informe.ConsolidadoAnteriorId.Value) : null;
+        _anteriorFlujos = _anterior is not null
+            ? await Db.FlujosCajaSemanal.Where(f => f.InformeConsolidadoId == _anterior.Id).OrderBy(f => f.OrdenSemana).ToListAsync()
+            : null;
+        _comparacionId = _anterior?.Id ?? 0;
+        _proyecto = await Db.Proyectos.FindAsync(_informe.ProyectoId);
+        await DeterminarBloqueoFechasFlujo();
+        if (editar) await RecalcularDesdePartidasAsync();
+        _editando = editar;
+        _vista = "detalle";
+        _renderChart = true;
+    }
+
+    private async Task RecalcularDesdePartidasAsync()
+    {
+        if (_informe is null || _informe.TRM <= 0) return;
+        var partidas = await Db.Partidas.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+        CalcularTotalesDesdePartidas(partidas, _informe.TRM);
+        if (_proyecto is not null) _informe.VentaContractualUSD = _proyecto.PresupuestoContractual / _informe.TRM;
+    }
+
+    private async Task IrAPapelera()
+    {
+        _informesPapelera = await Db.InformesConsolidados.IgnoreQueryFilters()
+            .Where(c => c.ProyectoId == ProyectoId && c.Eliminado)
+            .OrderByDescending(c => c.NumeroInforme).ToListAsync();
+        _vista = "papelera";
+    }
+
+    private async Task EliminarConsolidadoAsync(int id)
+    {
+        var inf = await Db.InformesConsolidados.FindAsync(id);
+        if (inf is null) return;
+        inf.Eliminado = true;
+        inf.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        await CargarListadoAsync();
+    }
+
+    private async Task RestaurarConsolidadoAsync(int id)
+    {
+        var inf = await Db.InformesConsolidados.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == id && c.Eliminado);
+        if (inf is null) return;
+        inf.Eliminado = false;
+        inf.FechaModificacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        _informesPapelera = await Db.InformesConsolidados.IgnoreQueryFilters()
+            .Where(c => c.ProyectoId == ProyectoId && c.Eliminado)
+            .OrderByDescending(c => c.NumeroInforme).ToListAsync();
+        _cantidadPapelera = _informesPapelera.Count;
+    }
+
+    private async Task VolverAListado()
+    {
+        await CargarListadoAsync();
+        _vista = "listado";
+    }
+
+    private async Task CrearNuevaVersionAsync(int id)
+    {
+        var original = await Db.InformesConsolidados.Include(c => c.Lineas).FirstOrDefaultAsync(c => c.Id == id);
+        if (original is null) return;
+
+        var maxVersion = await Db.InformesConsolidados
+            .Where(c => c.ProyectoId == ProyectoId && c.NumeroInforme == original.NumeroInforme)
+            .MaxAsync(c => c.Version);
+
+        var nueva = new InformeConsolidado
+        {
+            ProyectoId = original.ProyectoId,
+            NumeroInforme = original.NumeroInforme,
+            Version = maxVersion + 1,
+            FechaInicio = original.FechaInicio,
+            FechaFin = original.FechaFin,
+            TRM = original.TRM,
+            TRMBomInicial = original.TRMBomInicial,
+            Estado = EstadoInforme.Borrador,
+            CreadoPor = original.CreadoPor,
+            Responsable = original.Responsable,
+            Observaciones = original.Observaciones,
+            VentaContractualCOP = original.VentaContractualCOP,
+            VentaContractualUSD = original.VentaContractualUSD,
+            PresupuestoCOP = original.PresupuestoCOP,
+            EjecutadoCOP = original.EjecutadoCOP,
+            ComprometidoCOP = original.ComprometidoCOP,
+            PresupuestoUSD = original.PresupuestoUSD,
+            EjecutadoUSD = original.EjecutadoUSD,
+            ComprometidoUSD = original.ComprometidoUSD,
+            ImprevistosCOP = original.ImprevistosCOP,
+            ImprevistosUSD = original.ImprevistosUSD,
+            TotalPOsCOP = original.TotalPOsCOP,
+            TotalPOsUSD = original.TotalPOsUSD,
+            ConsolidadoAnteriorId = original.ConsolidadoAnteriorId,
+            Lineas = original.Lineas.Select(l => new LineaConsolidado
+            {
+                Categoria = l.Categoria,
+                CodigoCategoria = l.CodigoCategoria,
+                Orden = l.Orden,
+                PresupuestoCOP = l.PresupuestoCOP,
+                PresupuestoUSD = l.PresupuestoUSD,
+                EjecutadoCOP = l.EjecutadoCOP,
+                EjecutadoUSD = l.EjecutadoUSD,
+                ComprometidoCOP = l.ComprometidoCOP,
+                ComprometidoUSD = l.ComprometidoUSD,
+            }).ToList(),
+        };
+
+        Db.InformesConsolidados.Add(nueva);
+        await Db.SaveChangesAsync();
+
+        _informe = nueva;
+        _anterior = original.ConsolidadoAnteriorId.HasValue
+            ? await Db.InformesConsolidados.FindAsync(original.ConsolidadoAnteriorId.Value) : null;
+        _comparacionId = _anterior?.Id ?? 0;
+        _editando = true;
+        _vista = "detalle";
+        _msgGuardado = $"Nueva versión v{nueva.Version} creada a partir del informe N° {original.NumeroInforme} v{original.Version}.";
+    }
+
+    private async Task DeterminarBloqueoFechasFlujo()
+    {
+        if (_informe is null) { _flujoFechasBloqueadas = false; return; }
+        if (!_informe.FechaInicioFlujo.HasValue)
+        {
+            var anterior = await Db.InformesConsolidados
+                .Where(c => c.ProyectoId == ProyectoId && c.Id != _informe.Id && c.FechaInicioFlujo.HasValue)
+                .OrderByDescending(c => c.NumeroInforme)
+                .FirstOrDefaultAsync();
+            if (anterior is not null)
+            {
+                _informe.FechaInicioFlujo = anterior.FechaInicioFlujo;
+                _informe.FechaFinFlujo = anterior.FechaFinFlujo;
+                if (!_informe.FlujosCaja.Any()) GenerarSemanasFlujoCaja();
+            }
+        }
+        _flujoFechasBloqueadas = false;
+    }
+
+    private void GenerarSemanasFlujoCaja()
+    {
+        foreach (var tipo in new[] { "USDCOP", "USD", "COP" })
+            GenerarSemanasFlujoCajaTipo(tipo);
+    }
+
+    private void GenerarSemanasFlujoCajaTipo(string tipo)
+    {
+        if (_informe is null || !_informe.FechaInicioFlujo.HasValue) return;
+        var fin = _informe.FechaFinFlujo ?? DateTime.Today.AddMonths(6);
+        var inicio = _informe.FechaInicioFlujo.Value;
+
+        var existentes = _informe.FlujosCaja
+            .Where(f => f.TipoFlujo == tipo)
+            .ToDictionary(f => f.Semana);
+        var otros = _informe.FlujosCaja.Where(f => f.TipoFlujo != tipo).ToList();
+        int orden = 0;
+        for (var fecha = inicio; fecha <= fin; fecha = fecha.AddDays(7))
+        {
+            if (existentes.TryGetValue(fecha, out var ex))
+            {
+                ex.OrdenSemana = orden++;
+            }
+            else
+            {
+                var nuevo = new FlujoCajaSemanal { Semana = fecha, OrdenSemana = orden++, TipoFlujo = tipo };
+                otros.Add(nuevo);
+            }
+        }
+        _informe.FlujosCaja = otros.Concat(existentes.Values).OrderBy(f => f.TipoFlujo).ThenBy(f => f.OrdenSemana).ToList();
+    }
+
+    private record FilaFlujo(DateTime Semana, decimal Ingresos, decimal Pagos, FlujoCajaSemanal Flujo, decimal? AntIngresos, decimal? AntPagos);
+
+    private List<FilaFlujo> ObtenerFilasFlujoTipo(List<FlujoCajaSemanal> flujos, List<FlujoCajaSemanal>? antFlujos)
+    {
+        var antDict = antFlujos?.ToDictionary(f => f.Semana) ?? [];
+        return flujos.OrderBy(f => f.OrdenSemana).Select(f =>
+        {
+            antDict.TryGetValue(f.Semana, out var ant);
+            return new FilaFlujo(f.Semana, f.Ingresos, f.Pagos, f, ant?.Ingresos, ant?.Pagos);
+        }).ToList();
+    }
+
+    private void Volver() { _vista = "listado"; _informe = null; _anterior = null; _anteriorFlujos = null; _editando = false; _msgGuardado = null; }
+
+    private record ResumenMonedaDatos(string Titulo, string Moneda, string BgColor, bool EsCop,
+        decimal BomPresup, decimal BomCosto, decimal BomMargen, decimal BomPct,
+        decimal AntPresup, decimal AntCosto, decimal AntMargen, decimal AntPct,
+        decimal ActPresup, decimal ActCosto, decimal ActMargen, decimal ActPct,
+        decimal VarVenta, decimal VarCosto, decimal VarMargen,
+        decimal ImpAnt, decimal ImpAct, decimal PoAnt, decimal PoAct);
+
+    private List<ResumenMonedaDatos> ObtenerResumenesMoneda()
+    {
+        if (_informe is null) return [];
+        var result = new List<ResumenMonedaDatos>();
+        foreach (var (titulo, moneda, bg) in new[] { ("Resumen USD", "USD", "#183963"), ("Resumen COP", "COP", "#6ABF4B") })
+        {
+            var esCop = moneda == "COP";
+            var bomP = esCop ? _informe.VentaContractualCOP : _informe.VentaContractualUSD;
+            var bomC = esCop ? _informe.PresupuestoCOP : _informe.PresupuestoUSD;
+            var bomM = bomP - bomC; var bomPct = bomP != 0 ? bomM / bomP * 100 : 0;
+            var antP = esCop ? (_anterior?.VentaContractualCOP ?? bomP) : (_anterior?.VentaContractualUSD ?? bomP);
+            var antC = (esCop ? (_anterior?.EjecutadoCOP ?? 0) : (_anterior?.EjecutadoUSD ?? 0))
+                     + (esCop ? (_anterior?.ComprometidoCOP ?? 0) : (_anterior?.ComprometidoUSD ?? 0));
+            var antM = antP - antC; var antPct = antP != 0 ? antM / antP * 100 : 0;
+            var actP = esCop ? _informe.VentaContractualCOP : _informe.VentaContractualUSD;
+            var actC = (esCop ? _informe.EjecutadoCOP : _informe.EjecutadoUSD)
+                     + (esCop ? _informe.ComprometidoCOP : _informe.ComprometidoUSD);
+            var actM = actP - actC; var actPct = actP != 0 ? actM / actP * 100 : 0;
+            result.Add(new(titulo, moneda, bg, esCop, bomP, bomC, bomM, bomPct, antP, antC, antM, antPct,
+                actP, actC, actM, actPct, actP - antP, actC - antC, actM - antM,
+                esCop ? (_anterior?.ImprevistosCOP ?? 0) : (_anterior?.ImprevistosUSD ?? 0),
+                esCop ? _informe.ImprevistosCOP : _informe.ImprevistosUSD,
+                esCop ? (_anterior?.TotalPOsCOP ?? 0) : (_anterior?.TotalPOsUSD ?? 0),
+                esCop ? _informe.TotalPOsCOP : _informe.TotalPOsUSD));
+        }
+        return result;
+    }
+
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0");
+    private static string FormatUSD(decimal v) => "US$ " + v.ToString("N2");
+    private static string FormatNum(decimal v) => v.ToString("N2");
+    private static string Fmt(decimal v, bool cop) => cop ? "$" + v.ToString("N0") : "US$ " + v.ToString("N2");
+    private static string ClsVar(decimal v) => v < 0 ? "text-danger fw-semibold" : v > 0 ? "text-success fw-semibold" : "";
+
+    private decimal DispCOP() => _informe is null ? 0 : _informe.PresupuestoCOP - _informe.EjecutadoCOP - _informe.ComprometidoCOP;
+    private decimal DispUSD() => _informe is null ? 0 : _informe.PresupuestoUSD - _informe.EjecutadoUSD - _informe.ComprometidoUSD;
+    private decimal PctEjec() => _informe is null || _informe.PresupuestoUSD == 0 ? 0 : _informe.EjecutadoUSD / _informe.PresupuestoUSD * 100;
+
+    private record BarData(string Label, string Pct, string Grad, decimal Valor);
+    private List<BarData> ObtenerBarras()
+    {
+        if (_informe is null) return [];
+        var maxVal = Math.Max(1m, new[] { _informe.PresupuestoUSD, _informe.EjecutadoUSD, _informe.ComprometidoUSD }.Max());
+        string Pct(decimal v) => (v / maxVal * 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%";
+        return
+        [
+            new("Presupuesto", Pct(_informe.PresupuestoUSD), "linear-gradient(90deg,#183963,#2a5a8a)", _informe.PresupuestoUSD),
+            new("Ejecutado", Pct(_informe.EjecutadoUSD), "linear-gradient(90deg,#111921,#2a3a50)", _informe.EjecutadoUSD),
+            new("Comprometido", Pct(_informe.ComprometidoUSD), "linear-gradient(90deg,#D9D9D6,#b8b8b5)", _informe.ComprometidoUSD),
+            new("Disponible", Pct(Math.Max(0, DispUSD())), "linear-gradient(90deg,#4da84a,#6ABF4B)", DispUSD()),
+        ];
+    }
+
+    private record FilaComparativo(string Label, decimal AntUSD, decimal ActUSD, decimal VarUSD, decimal AntCOP, decimal ActCOP, decimal VarCOP, bool EsTotal, bool Alt);
+    private List<FilaComparativo> ObtenerFilasComparativo()
+    {
+        if (_informe is null || _anterior is null) return [];
+        var dispAntU = _anterior.PresupuestoUSD - _anterior.EjecutadoUSD - _anterior.ComprometidoUSD;
+        var dispAntC = _anterior.PresupuestoCOP - _anterior.EjecutadoCOP - _anterior.ComprometidoCOP;
+        var items = new (string l, decimal au, decimal cu, decimal ac, decimal cc, bool t)[]
+        {
+            ("Presupuesto", _anterior.PresupuestoUSD, _informe.PresupuestoUSD, _anterior.PresupuestoCOP, _informe.PresupuestoCOP, false),
+            ("Ejecutado", _anterior.EjecutadoUSD, _informe.EjecutadoUSD, _anterior.EjecutadoCOP, _informe.EjecutadoCOP, false),
+            ("Comprometido", _anterior.ComprometidoUSD, _informe.ComprometidoUSD, _anterior.ComprometidoCOP, _informe.ComprometidoCOP, false),
+            ("Disponible", dispAntU, DispUSD(), dispAntC, DispCOP(), true),
+        };
+        return items.Select((r, i) => new FilaComparativo(r.l, r.au, r.cu, r.cu - r.au, r.ac, r.cc, r.cc - r.ac, r.t, i % 2 == 0)).ToList();
+    }
+
+    private record FilaDesglose(string Cat, decimal PC, decimal PU, decimal EC, decimal EU, decimal CC, decimal CU, decimal DC, decimal DU, bool Alt);
+    private List<FilaDesglose> ObtenerFilasDesglose()
+    {
+        if (_informe is null) return [];
+        return _informe.Lineas.OrderBy(l => l.Orden).Select((l, i) => new FilaDesglose(
+            l.Categoria, l.PresupuestoCOP, l.PresupuestoUSD, l.EjecutadoCOP, l.EjecutadoUSD, l.ComprometidoCOP, l.ComprometidoUSD,
+            l.PresupuestoCOP - l.EjecutadoCOP - l.ComprometidoCOP, l.PresupuestoUSD - l.EjecutadoUSD - l.ComprometidoUSD, i % 2 == 0)).ToList();
+    }
+
+    private decimal TotalLineas(Func<LineaConsolidado, decimal> sel) => _informe?.Lineas.Sum(sel) ?? 0;
+    private decimal TotalDispCOP() => TotalLineas(l => l.PresupuestoCOP) - TotalLineas(l => l.EjecutadoCOP) - TotalLineas(l => l.ComprometidoCOP);
+    private decimal TotalDispUSD() => TotalLineas(l => l.PresupuestoUSD) - TotalLineas(l => l.EjecutadoUSD) - TotalLineas(l => l.ComprometidoUSD);
+
+    private static string BadgeEstado(EstadoInforme e) => e switch
+    {
+        EstadoInforme.Borrador   => "bg-secondary",
+        EstadoInforme.EnRevision => "bg-warning text-dark",
+        EstadoInforme.Aprobado   => "bg-success",
+        EstadoInforme.Rechazado  => "bg-danger",
+        _                        => "bg-secondary"
+    };
+}
+
+<style>
+    .print-header-conso { display: none; }
+
+    .conso-header {
+        background: linear-gradient(135deg, #f0f4ff 0%, #dce8f5 100%);
+        border-radius: 10px; padding: 14px 18px;
+        border-left: 4px solid #183963;
+    }
+    .conso-header h3 { font-size: 1.1rem; }
+
+    .kpi-card {
+        border-radius: 10px; padding: 14px 12px; text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; overflow: hidden;
+    }
+    .kpi-card i { font-size: 1.2rem; opacity: 0.8; }
+    .kpi-label { font-size: 0.8rem; font-weight: 600; opacity: 0.9; margin-top: 3px; letter-spacing: 0.3px; }
+    .kpi-value { font-size: 1.25rem; font-weight: 700; margin-top: 2px; }
+    .kpi-sub { font-size: 0.72rem; opacity: 0.75; margin-top: 2px; }
+    .kpi-blue { background: linear-gradient(135deg, #183963 0%, #1e5a9a 100%); color: #fff; }
+    .kpi-orange { background: linear-gradient(135deg, #111921 0%, #2a3a50 100%); color: #fff; }
+    .kpi-yellow { background: linear-gradient(135deg, #D9D9D6 0%, #b8b8b5 100%); color: #183963; }
+    .kpi-green { background: linear-gradient(135deg, #4da84a 0%, #6ABF4B 100%); color: #fff; }
+    .kpi-red { background: linear-gradient(135deg, #c0392b 0%, #dc3545 100%); color: #fff; }
+
+    .chart-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .chart-label { width: 90px; font-size: 0.75rem; font-weight: 600; color: #555; text-align: right; }
+    .chart-bar-bg { flex: 1; background: #f0f0f0; border-radius: 6px; height: 22px; overflow: hidden; }
+    .chart-bar { height: 100%; border-radius: 6px; transition: width 0.6s ease; min-width: 2px; }
+    .chart-val { width: 100px; font-size: 0.75rem; font-weight: 600; color: #333; }
+
+    .conso-table th { background: #f4f6fa; color: #183963; font-size: 0.72rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.3px; padding: 5px 8px; border: none; border-bottom: 2px solid #dce3ed; }
+    .conso-table td { font-size: 0.76rem; padding: 5px 8px; border: none; border-bottom: 1px solid #eef1f6; }
+    .conso-alt { background: #f8fafd; }
+    .conso-table tfoot td { border-top: 2px solid #183963; }
+
+    .flujo-table { font-size: 0.73rem; border-collapse: collapse; width: 100%; }
+    .flujo-table th, .flujo-table td { padding: 4px 6px; border-bottom: 1px solid #e0e4ea; overflow: hidden; text-overflow: ellipsis; }
+    .flujo-table .flujo-th { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .flujo-table .flujo-sep { width: 8px; background: transparent; border-bottom: none; border-left: 2px solid #183963; padding: 0; }
+    .flujo-table .flujo-justif { min-width: 250px; resize: horizontal; overflow: auto; }
+    .flujo-table tbody tr:nth-child(even) { background: #f8fafd; }
+    .flujo-table tbody tr:hover { background: #eef3fb; }
+
+    @@media print {
+        @@page { size: landscape; margin: 6mm 8mm; }
+        .no-print { display: none !important; }
+        .print-header-conso { display: flex !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+
+        body, html { font-size: 9px !important; }
+
+        .kpi-card { padding: 8px 6px !important; border-radius: 6px !important; box-shadow: none !important; }
+        .kpi-card i { font-size: 0.85rem !important; }
+        .kpi-label { font-size: 0.65rem !important; margin-top: 1px !important; }
+        .kpi-value { font-size: 0.9rem !important; }
+        .kpi-sub { font-size: 0.55rem !important; }
+        .row.g-3 { --bs-gutter-y: 0.35rem !important; --bs-gutter-x: 0.35rem !important; }
+
+        .card { box-shadow: none !important; border: 1px solid #ccc !important; border-radius: 6px !important; margin-bottom: 5px !important; }
+        .card-header { padding: 3px 8px !important; font-size: 0.62rem !important; }
+        .card-body { padding: 5px 8px !important; }
+        .card-body h6 { font-size: 0.62rem !important; margin-bottom: 4px !important; }
+
+        .chart-bar-row { margin-bottom: 4px !important; gap: 4px !important; }
+        .chart-label { font-size: 0.55rem !important; width: 58px !important; }
+        .chart-bar-bg { height: 14px !important; border-radius: 3px !important; }
+        .chart-val { font-size: 0.55rem !important; width: 60px !important; }
+
+        svg[viewBox="0 0 36 36"] { width: 65px !important; height: 65px !important; }
+        .fs-4 { font-size: 0.7rem !important; }
+        .fs-2 { font-size: 0.85rem !important; }
+
+        .conso-table th { font-size: 0.55rem !important; padding: 2px 4px !important; }
+        .conso-table td { font-size: 0.58rem !important; padding: 2px 4px !important; }
+
+        .print-section { break-inside: avoid; margin-bottom: 4px !important; }
+        .mb-4, .mb-3 { margin-bottom: 4px !important; }
+
+        .print-row-side { display: flex !important; flex-wrap: nowrap !important; align-items: stretch !important; }
+        .print-col-8 { flex: 0 0 65% !important; max-width: 65% !important; width: 65% !important; }
+        .print-col-4 { flex: 0 0 35% !important; max-width: 35% !important; width: 35% !important; }
+        .print-row-side .card { height: 100% !important; }
+        .print-row-side .card-body { display: flex !important; flex-direction: column !important; justify-content: center !important; padding: 4px 6px !important; }
+        .print-row-side .chart-bar-row:last-child { margin-bottom: 0 !important; }
+        .print-row-side h6 { margin-bottom: 3px !important; }
+
+        .card-body p[style*="pre-wrap"] { font-size: 0.6rem !important; line-height: 1.4 !important; }
+
+        .flujo-table { font-size: 0.55rem !important; }
+        .flujo-table th, .flujo-table td { padding: 2px 3px !important; }
+        .flujo-table .flujo-th { font-size: 0.5rem !important; }
+        .flujo-table .flujo-sep { width: 4px !important; padding: 0 !important; }
+        .table-responsive { max-height: none !important; overflow: visible !important; }
+
+        #flujoChart { display: none !important; }
+        #flujoChartImg { display: block !important; width: 100% !important; max-height: 280px !important; }
+    }
+</style>
+
+<script suppress-error="BL9992">
+    window.renderFlujoChart = function (labels, ingresos, pagos, caja, cierreActual) {
+        var canvas = document.getElementById('flujoChart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        if (window._flujoChartInstance) window._flujoChartInstance.destroy();
+
+        var datasets = [
+            { label: 'Ingresos', data: ingresos, type: 'bar', backgroundColor: 'rgba(24,57,99,0.85)', borderColor: '#183963', borderWidth: 1, order: 2, yAxisID: 'y' },
+            { label: 'Pagos', data: pagos, type: 'bar', backgroundColor: 'rgba(255,127,14,0.85)', borderColor: '#ff7f0e', borderWidth: 1, order: 2, yAxisID: 'y' },
+            { label: 'Caja', data: caja, type: 'line', borderColor: '#6ABF4B', backgroundColor: 'rgba(106,191,75,0.1)', borderWidth: 2.5, pointRadius: 0, fill: false, tension: 0.3, order: 1, yAxisID: 'y' }
+        ];
+
+        window._flujoChartInstance = new Chart(ctx, {
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    title: { display: true, text: 'Flujo de caja — Cierre semana ' + cierreActual, font: { size: 13, weight: 'bold' }, color: '#183963' },
+                    legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: function(c) { return c.dataset.label + ': ' + (c.parsed.y||0).toLocaleString('es-CO'); } } }
+                },
+                scales: {
+                    x: { ticks: { maxRotation: 60, font: { size: 9 } }, grid: { display: false } },
+                    y: { position: 'left', ticks: { callback: function(v) { return v < 0 ? '(' + Math.abs(v).toLocaleString('es-CO') + ')' : v.toLocaleString('es-CO'); }, font: { size: 9 } }, grid: { color: '#eee' } }
+                }
+            }
+        });
+
+        setTimeout(function () {
+            var img = document.getElementById('flujoChartImg');
+            if (img && canvas) img.src = canvas.toDataURL('image/png');
+        }, 800);
+    };
+</script>

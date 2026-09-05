@@ -27,7 +27,7 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <Topbar subtitulo="Panel de administración" />
+      <Topbar subtitulo="Panel de administración" sesion={sesion} />
       <main className="container-wide">
         <AdminNav activo="resultados" sesion={sesion} />
         <h1>Resultados de evaluaciones</h1>

@@ -109,6 +109,7 @@ public static class EnumDisplay
         Disciplina.HotCommissioning => "Hot Commissioning",
         Disciplina.CierreProyecto   => "Dossier",
         Disciplina.General          => "General",
+        Disciplina.Suministros      => "Suministros",
         _                           => disciplina.ToString()
     };
 
@@ -121,6 +122,7 @@ public static class EnumDisplay
         Disciplina.HotCommissioning => "🔥",
         Disciplina.CierreProyecto   => "✅",
         Disciplina.General          => "📌",
+        Disciplina.Suministros      => "📦",
         _                           => "📌"
     };
 

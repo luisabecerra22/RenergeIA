@@ -2,12 +2,22 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
+@inject NavigationManager Navigation
 
 <PageTitle>Proyectos — RenergeIA</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Proyectos</h1>
-    <a href="/proyectos/nuevo" class="btn btn-primary">+ Nuevo proyecto</a>
+    <div class="d-flex gap-2">
+        <a href="/proyectos/papelera" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-trash3 me-1"></i>Papelera
+            @if (_cantidadEliminados > 0)
+            {
+                <span class="badge bg-danger ms-1">@_cantidadEliminados</span>
+            }
+        </a>
+        <a href="/proyectos/nuevo" class="btn btn-primary">+ Nuevo proyecto</a>
+    </div>
 </div>
 
 @if (_proyectos is null)
@@ -37,8 +47,27 @@ else
                             <strong>Capacidad:</strong> @p.CapacidadKWp kWp
                         </p>
                     </div>
-                    <div class="card-footer bg-transparent">
-                        <a href="/proyectos/@p.Id" class="btn btn-sm btn-outline-primary w-100">Ver detalle</a>
+                    <div class="card-footer bg-transparent d-flex gap-2">
+                        <a href="/proyectos/@p.Id" class="btn btn-sm btn-outline-primary flex-fill">Ver detalle</a>
+                        <a href="/proyectos/@p.Id/editar" class="btn btn-sm btn-outline-secondary" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        @if (_confirmarId == p.Id)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => EnviarPapeleraAsync(p)">
+                                <i class="bi bi-check-lg"></i> Sí
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmarId = null">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-danger" title="Enviar a papelera"
+                                    @onclick="() => _confirmarId = p.Id">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        }
                     </div>
                 </div>
             </div>
@@ -48,10 +77,24 @@ else
 
 @code {
     private List<Proyecto>? _proyectos;
+    private int? _confirmarId;
+    private int _cantidadEliminados;
 
     protected override async Task OnInitializedAsync()
     {
         _proyectos = await Db.Proyectos.OrderByDescending(p => p.FechaCreacion).ToListAsync();
+        _cantidadEliminados = await Db.Proyectos.IgnoreQueryFilters()
+            .CountAsync(p => p.Eliminado);
+    }
+
+    private async Task EnviarPapeleraAsync(Proyecto p)
+    {
+        p.Eliminado = true;
+        p.FechaEliminacion = DateTime.UtcNow;
+        await Db.SaveChangesAsync();
+        _proyectos!.Remove(p);
+        _cantidadEliminados++;
+        _confirmarId = null;
     }
 
     private static string BadgeClass(EstadoProyecto estado) => estado switch
