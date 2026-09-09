@@ -1,6 +1,6 @@
 import { Firestore } from "@google-cloud/firestore";
 import type { DataStore } from "./db";
-import type { Admin, Area, Asistencia, Evaluacion, Intento } from "./types";
+import type { Admin, Area, Asistencia, Evaluacion, Intento, Persona } from "./types";
 
 /**
  * Almacén Firestore para producción (Cloud Run).
@@ -176,5 +176,35 @@ export class FirestoreStore implements DataStore {
 
   async saveArea(area: Area): Promise<void> {
     await this.db.collection("areas").doc(area.id).set(area);
+  }
+
+  async listPersonal(): Promise<Persona[]> {
+    const snap = await this.db.collection("personal").get();
+    return snap.docs.map((d) => d.data() as Persona);
+  }
+
+  async getPersona(cedula: string): Promise<Persona | null> {
+    const doc = await this.db.collection("personal").doc(cedula).get();
+    return doc.exists ? (doc.data() as Persona) : null;
+  }
+
+  async savePersona(persona: Persona): Promise<void> {
+    await this.db.collection("personal").doc(persona.cedula).set(persona);
+  }
+
+  async deletePersona(cedula: string): Promise<void> {
+    await this.db.collection("personal").doc(cedula).delete();
+  }
+
+  async savePersonalBatch(personas: Persona[]): Promise<void> {
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < personas.length; i += BATCH_SIZE) {
+      const batch = this.db.batch();
+      const chunk = personas.slice(i, i + BATCH_SIZE);
+      for (const p of chunk) {
+        batch.set(this.db.collection("personal").doc(p.cedula), p);
+      }
+      await batch.commit();
+    }
   }
 }

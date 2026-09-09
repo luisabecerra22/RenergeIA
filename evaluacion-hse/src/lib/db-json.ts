@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { DataStore } from "./db";
-import type { Admin, Area, Asistencia, Evaluacion, Intento } from "./types";
+import type { Admin, Area, Asistencia, Evaluacion, Intento, Persona } from "./types";
 
 /**
  * Almacén basado en archivos JSON para desarrollo local.
@@ -198,5 +198,37 @@ export class JsonStore implements DataStore {
     if (idx >= 0) all[idx] = area;
     else all.push(area);
     await writeCollection("areas", all);
+  }
+
+  async listPersonal(): Promise<Persona[]> {
+    return readCollection<Persona>("personal");
+  }
+
+  async getPersona(cedula: string): Promise<Persona | null> {
+    const all = await readCollection<Persona>("personal");
+    return all.find((p) => p.cedula === cedula) ?? null;
+  }
+
+  async savePersona(persona: Persona): Promise<void> {
+    const all = await readCollection<Persona>("personal");
+    const idx = all.findIndex((p) => p.cedula === persona.cedula);
+    if (idx >= 0) all[idx] = persona;
+    else all.push(persona);
+    await writeCollection("personal", all);
+  }
+
+  async deletePersona(cedula: string): Promise<void> {
+    const all = await readCollection<Persona>("personal");
+    await writeCollection("personal", all.filter((p) => p.cedula !== cedula));
+  }
+
+  async savePersonalBatch(personas: Persona[]): Promise<void> {
+    const all = await readCollection<Persona>("personal");
+    for (const p of personas) {
+      const idx = all.findIndex((x) => x.cedula === p.cedula);
+      if (idx >= 0) all[idx] = p;
+      else all.push(p);
+    }
+    await writeCollection("personal", all);
   }
 }

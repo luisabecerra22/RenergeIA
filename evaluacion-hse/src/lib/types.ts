@@ -106,6 +106,21 @@ export interface Area {
 /** Rol de una cuenta de administrador. */
 export type RolAdmin = "admin" | "area";
 
+/** Empleado/persona registrada en la planta de personal. */
+export interface Persona {
+  cedula: string;
+  nombre: string;
+  apellido: string;
+  tipoDocumento: string;
+  correo: string;
+  area: string;
+  cargo: string;
+  proyecto: string;
+  fechaContratacion: string;
+  trabajo: string;
+  creadoEn: string;
+}
+
 /** Cuenta de administrador. */
 export interface Admin {
   username: string;

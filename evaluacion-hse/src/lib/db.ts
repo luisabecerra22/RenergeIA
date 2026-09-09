@@ -1,4 +1,4 @@
-import type { Admin, Area, Asistencia, Evaluacion, Intento } from "./types";
+import type { Admin, Area, Asistencia, Evaluacion, Intento, Persona } from "./types";
 
 /**
  * Contrato del almacén de datos. Permite dos implementaciones intercambiables:
@@ -45,6 +45,13 @@ export interface DataStore {
   listAreas(): Promise<Area[]>;
   getArea(id: string): Promise<Area | null>;
   saveArea(area: Area): Promise<void>;
+
+  // Personal
+  listPersonal(): Promise<Persona[]>;
+  getPersona(cedula: string): Promise<Persona | null>;
+  savePersona(persona: Persona): Promise<void>;
+  deletePersona(cedula: string): Promise<void>;
+  savePersonalBatch(personas: Persona[]): Promise<void>;
 }
 
 let cached: DataStore | null = null;

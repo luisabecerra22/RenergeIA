@@ -30,6 +30,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Los controles de formulario nativos no heredan la fuente por defecto. */
+button,
+input,
+select,
+textarea,
+optgroup,
+option {
+  font-family: inherit;
+}
+
+/* El input de archivo y su botón interno usan la fuente del navegador; forzamos la del sitio. */
+input[type="file"] {
+  font: inherit;
+}
+input[type="file"]::file-selector-button,
+input[type="file"]::-webkit-file-upload-button {
+  font: inherit;
+}
+
 a {
   color: var(--azul-claro);
 }

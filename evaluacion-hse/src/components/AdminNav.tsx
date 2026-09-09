@@ -7,7 +7,7 @@ export default function AdminNav({
   activo,
   sesion,
 }: {
-  activo: "resultados" | "evaluaciones" | "dashboard" | "asistencia" | "usuarios" | "perfil";
+  activo: "resultados" | "evaluaciones" | "dashboard" | "asistencia" | "personal" | "usuarios" | "perfil";
   sesion: Sesion;
 }) {
   return (
@@ -43,6 +43,12 @@ export default function AdminNav({
         href="/admin/asistencia"
       >
         Asistencia
+      </Link>
+      <Link
+        className={`btn ${activo === "personal" ? "btn-primary" : "btn-secondary"}`}
+        href="/admin/personal"
+      >
+        Personal
       </Link>
       {sesion.rol === "admin" && (
         <Link

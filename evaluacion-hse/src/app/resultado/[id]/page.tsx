@@ -55,21 +55,15 @@ export default async function ResultadoPage({
           </p>
 
           {aprobado ? (
-            <>
-              <div className="alert alert-info" style={{ marginTop: 20 }}>
-                Enviamos tu certificado al correo{" "}
-                <strong>{intento.participante.correo}</strong>. También puedes
-                descargarlo aquí.
-              </div>
-              <a
-                className="btn btn-primary"
-                href={`/api/certificate/${intento.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Descargar certificado (PDF)
-              </a>
-            </>
+            <a
+              className="btn btn-primary"
+              style={{ marginTop: 20 }}
+              href={`/api/certificate/${intento.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Descargar certificado (PDF)
+            </a>
           ) : (
             <div className="alert alert-error" style={{ marginTop: 20 }}>
               Tu calificación es inferior a 3,0. Debes repetir la capacitación y
