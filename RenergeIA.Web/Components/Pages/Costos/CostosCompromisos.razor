@@ -1,62 +1,102 @@
 @inject RenergeIADbContext Db
+@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @using RenergeIA.Core.Enums
+@using ClosedXML.Excel
 @using System.ComponentModel.DataAnnotations
 
 <!-- KPIs -->
-<SeccionDash Titulo="Resumen de Compromisos" Icono="bi-file-earmark-text">
-    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-3">
+<SeccionDash Titulo="Resumen de Órdenes de Compra" Icono="bi-file-earmark-text">
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3 mb-3">
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
-                <i class="bi-stack mb-1" style="font-size:1.4rem;opacity:0.8"></i>
-                <div class="fw-bold fs-4">@_compromisos.Count</div>
+                <i class="bi-currency-dollar mb-1" style="font-size:1.4rem;opacity:0.8"></i>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.95rem">@FormatCOP(TotalOC)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(255,255,255,0.35);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="font-size:0.95rem">@FormatUSD(TotalOC / TRM)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                    </div>
+                </div>
                 <div class="small" style="opacity:0.8">Total</div>
+                <div style="font-size:0.62rem;opacity:0.6">Subtotal + IVA de todas las OC</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff8e1 0%,#ffecb3 100%);border-radius:14px">
-                <i class="bi-hourglass-split mb-1" style="font-size:1.4rem;color:#ffc107"></i>
-                <div class="fw-bold fs-4" style="color:#ffc107">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pendiente)</div>
-                <div class="small text-muted">Pendientes</div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
-                <i class="bi-arrow-repeat mb-1" style="font-size:1.4rem;color:#fd7e14"></i>
-                <div class="fw-bold fs-4" style="color:#fd7e14">@_compromisos.Count(c => c.Estado == EstadoCompromiso.EnProceso)</div>
-                <div class="small text-muted">En Proceso</div>
+                <i class="bi-hourglass-split mb-1" style="font-size:1.4rem;color:#e0a800"></i>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:#c69500;font-size:0.95rem">@FormatCOP(TotalPendiente)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:#c69500;font-size:0.95rem">@FormatUSD(TotalPendiente / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
+                <div class="small text-muted">Pendiente por pagar</div>
+                <div class="text-muted" style="font-size:0.62rem">Saldos pendientes de las OC</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%);border-radius:14px">
                 <i class="bi-check-circle mb-1" style="font-size:1.4rem;color:#6ABF4B"></i>
-                <div class="fw-bold fs-4" style="color:#6ABF4B">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Pagado)</div>
-                <div class="small text-muted">Pagados</div>
-            </div>
-        </div>
-        <div class="col">
-            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%);border-radius:14px">
-                <i class="bi-exclamation-triangle mb-1" style="font-size:1.4rem;color:#dc3545"></i>
-                <div class="fw-bold fs-4" style="color:#dc3545">@_compromisos.Count(c => c.Estado == EstadoCompromiso.Vencido)</div>
-                <div class="small text-muted">Vencidos</div>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:#5aa83e;font-size:0.95rem">@FormatCOP(TotalPagado)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:#5aa83e;font-size:0.95rem">@FormatUSD(TotalPagado / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
+                <div class="small text-muted">Pagado</div>
+                <div class="text-muted" style="font-size:0.62rem">Pagos realizados a la fecha</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
-                <i class="bi-currency-dollar mb-1" style="font-size:1.4rem;color:#183963"></i>
-                <div class="fw-bold" style="color:#183963;font-size:1rem">@FormatCOP(_compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => c.Valor))</div>
-                <div class="small text-muted">Valor Total</div>
+                <i class="bi-stack mb-1" style="font-size:1.4rem;color:#183963"></i>
+                <div class="fw-bold fs-4" style="color:#183963">@_compromisos.Count</div>
+                <div class="small text-muted">Total Órdenes de Compra</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
+                <i class="bi-arrow-repeat mb-1" style="font-size:1.4rem;color:#fd7e14"></i>
+                <div class="fw-bold fs-4" style="color:#fd7e14">@EnProceso</div>
+                <div class="small text-muted">En Proceso</div>
+                <div class="text-muted" style="font-size:0.62rem">Proyectadas sin consecutivo (XXX)</div>
             </div>
         </div>
     </div>
 </SeccionDash>
 
-<!-- Botón nuevo compromiso -->
-<div class="d-flex justify-content-end mb-3">
+<!-- Acciones -->
+<div class="d-flex justify-content-end gap-2 mb-3">
+    @if (_compromisos.Any())
+    {
+        <button class="btn btn-sm btn-outline-success" title="Exportar órdenes de compra a Excel (.xlsx)"
+                @onclick="ExportarExcelAsync">
+            <i class="bi-download me-1"></i>Exportar Excel
+        </button>
+    }
+    <label class="btn btn-sm btn-outline-primary mb-0" title="Importar órdenes de compra desde el archivo de tesorería (.xlsx)">
+        <i class="bi-upload me-1"></i>Importar Excel Tesorería
+        <InputFile OnChange="ImportarExcelAsync" accept=".xlsx,.xls" style="display:none" />
+    </label>
     <button class="btn btn-sm fw-semibold"
             style="background:#183963;color:#fff;border:none"
             @onclick="() => _mostrarFormulario = !_mostrarFormulario">
-        <i class="bi-plus-lg me-1"></i>Nuevo Compromiso
+        <i class="bi-plus-lg me-1"></i>Nueva Orden de Compra
     </button>
 </div>
 
@@ -65,26 +105,23 @@
 {
     <div class="card mb-4" style="border:1px solid #183963">
         <div class="card-header text-white fw-semibold" style="background:#183963">
-            Registrar nuevo compromiso / RQ
+            Registrar orden de compra
         </div>
         <div class="card-body">
             <EditForm Model="_form" OnValidSubmit="GuardarAsync">
                 <DataAnnotationsValidator />
                 <div class="row g-2">
-                    <div class="col-md-2">
-                        <label class="form-label small">Código RQ *</label>
-                        <InputText class="form-control form-control-sm" @bind-Value="_form.Codigo" placeholder="RQ-001" />
-                        <ValidationMessage For="() => _form.Codigo" />
+                    <div class="col-md-1">
+                        <label class="form-label small">Moneda</label>
+                        <select class="form-select form-select-sm" @bind="_form.Moneda">
+                            <option value="COP">COP</option>
+                            <option value="USD">USD</option>
+                        </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small">Proveedor *</label>
-                        <InputText class="form-control form-control-sm" @bind-Value="_form.Proveedor" />
-                        <ValidationMessage For="() => _form.Proveedor" />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">Partida (opcional)</label>
+                        <label class="form-label small">Código rubro (presupuesto) *</label>
                         <select class="form-select form-select-sm" @bind="_form.PartidaId">
-                            <option value="">— Sin partida —</option>
+                            <option value="">— Seleccionar rubro —</option>
                             @foreach (var p in _partidas)
                             {
                                 <option value="@p.Id">@p.Codigo — @p.Descripcion</option>
@@ -92,30 +129,43 @@
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label small">Valor COP *</label>
+                        <label class="form-label small"># Orden de compra *</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.Codigo" placeholder="OC-001 o XXX" />
+                        <ValidationMessage For="() => _form.Codigo" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Proveedor *</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.Proveedor" />
+                        <ValidationMessage For="() => _form.Proveedor" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small">Descripción del servicio</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.DescripcionServicio" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Valor total OC (COP) *</label>
                         <InputNumber class="form-control form-control-sm" @bind-Value="_form.Valor" />
                         <ValidationMessage For="() => _form.Valor" />
                     </div>
-                    <div class="col-md-1">
-                        <label class="form-label small">Fecha</label>
+                    <div class="col-md-2">
+                        <label class="form-label small"># Factura</label>
+                        <InputText class="form-control form-control-sm" @bind-Value="_form.NumeroFactura" placeholder="FAC-001" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Fecha factura</label>
+                        <InputDate class="form-control form-control-sm" @bind-Value="_form.FechaFactura" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Total factura (COP)</label>
+                        <InputNumber class="form-control form-control-sm" @bind-Value="_form.ValorFactura" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Saldo por pagar (COP)</label>
+                        <InputNumber class="form-control form-control-sm" @bind-Value="_form.SaldoPorPagar" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Fecha OC</label>
                         <InputDate class="form-control form-control-sm" @bind-Value="_form.Fecha" />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">F. Vencimiento</label>
-                        <InputDate class="form-control form-control-sm" @bind-Value="_form.FechaVencimiento" />
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label small">Prioridad</label>
-                        <InputSelect class="form-select form-select-sm" @bind-Value="_form.Prioridad">
-                            <option value="Baja">Baja</option>
-                            <option value="Normal">Normal</option>
-                            <option value="Alta">Alta</option>
-                            <option value="Urgente">Urgente</option>
-                        </InputSelect>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small">Observaciones</label>
-                        <InputText class="form-control form-control-sm" @bind-Value="_form.Observaciones" />
                     </div>
                     <div class="col-12 d-flex gap-2">
                         <button type="submit" class="btn btn-sm"
@@ -131,21 +181,21 @@
     </div>
 }
 
-<!-- Mensaje éxito -->
+<!-- Mensaje -->
 @if (!string.IsNullOrEmpty(_mensaje))
 {
-    <div class="alert alert-success alert-dismissible py-2 mb-3">
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
         @_mensaje
         <button class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
     </div>
 }
 
-<!-- Tabla compromisos -->
+<!-- Tabla órdenes de compra -->
 @if (!_compromisos.Any())
 {
     <div class="card border-0 shadow-sm text-center py-5">
         <i class="bi-file-earmark-text display-4 mb-3" style="color:#dde3ed"></i>
-        <p class="text-muted small">No hay compromisos registrados en este proyecto.</p>
+        <p class="text-muted small">No hay órdenes de compra registradas. Impórtalas desde el archivo de tesorería o regístralas manualmente.</p>
     </div>
 }
 else
@@ -153,63 +203,76 @@ else
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 small">
-                <thead style="background:#183963;color:white;font-size:.72rem">
+                <thead style="font-size:.72rem;border-bottom:2px solid #183963">
                     <tr>
-                        <th class="ps-3">CÓDIGO</th>
-                        <th>PROVEEDOR</th>
-                        <th>PARTIDA</th>
-                        <th class="text-end">VALOR COP</th>
-                        <th>FECHA</th>
-                        <th>F. VENCIMIENTO</th>
-                        <th>PRIORIDAD</th>
-                        <th>ESTADO</th>
-                        <th>OBSERVACIONES</th>
+                        <th class="ps-3" style="color:#183963">MONEDA</th>
+                        <th style="color:#183963">CÓD. RUBRO</th>
+                        <th style="color:#183963"># ORDEN COMPRA</th>
+                        <th style="color:#183963">PROVEEDOR</th>
+                        <th style="color:#183963">DESCRIPCIÓN DEL SERVICIO</th>
+                        <th style="color:#183963"># FACTURA</th>
+                        <th style="color:#183963">FECHA FACTURA</th>
+                        <th class="text-end" style="color:#183963">TOTAL FACTURA</th>
+                        <th class="text-end pe-3" style="color:#183963">SALDO POR PAGAR</th>
+                        <th style="color:#183963">ESTADO</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var c in _compromisos.OrderByDescending(c => c.Fecha))
+                    @foreach (var c in _compromisos.OrderBy(c => c.Partida?.Codigo ?? "zzz").ThenBy(c => c.Codigo))
                     {
-                        var (eBg, eFg) = ColorEstado(c.Estado);
-                        var vencido = c.FechaVencimiento.HasValue && c.FechaVencimiento.Value < DateTime.Today
-                                        && c.Estado != EstadoCompromiso.Pagado && c.Estado != EstadoCompromiso.Cancelado;
-                        <tr style="border-bottom:1px solid #f0f3f8;@(vencido ? "background:#fff5f5" : "")">
-                            <td class="ps-3 fw-semibold" style="color:#183963">@c.Codigo</td>
-                            <td>@c.Proveedor</td>
+                        var pagada = EstaPagada(c);
+                        var enProceso = EsEnProceso(c);
+                        <tr style="border-bottom:1px solid #f0f3f8;@(pagada ? "background:#eaf6e4" : "")">
+                            <td class="ps-3">
+                                <select class="form-select form-select-sm py-0"
+                                        style="font-size:.7rem;width:72px;font-weight:600;color:@(c.Moneda == "USD" ? "#6ABF4B" : "#183963");border-color:#D9D9D6"
+                                        value="@c.Moneda"
+                                        @onchange="e => CambiarMonedaAsync(c, e.Value?.ToString())">
+                                    <option value="COP">COP</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </td>
                             <td>
                                 @if (c.Partida is not null)
                                 {
-                                    <span class="badge" style="background:#D9D9D6;color:#111921;font-size:.65rem">@c.Partida.Codigo</span>
+                                    <span class="badge" style="background:#183963;color:#fff;font-size:.68rem">@c.Partida.Codigo</span>
                                 }
                                 else { <span class="text-muted">—</span> }
                             </td>
-                            <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(c.Valor)</td>
-                            <td style="white-space:nowrap">@c.Fecha.ToString("dd/MM/yyyy")</td>
-                            <td style="white-space:nowrap;color:@(vencido ? "#dc3545" : "inherit");font-weight:@(vencido ? "bold" : "normal")">
-                                @(c.FechaVencimiento.HasValue ? c.FechaVencimiento.Value.ToString("dd/MM/yyyy") : "—")
-                                @if (vencido) { <i class="bi-exclamation-triangle-fill ms-1"></i> }
+                            <td class="fw-semibold" style="color:@(enProceso ? "#fd7e14" : "#183963")">
+                                @c.Codigo
+                                @if (enProceso)
+                                {
+                                    <i class="bi-arrow-repeat ms-1" title="En proceso — sin consecutivo"></i>
+                                }
+                            </td>
+                            <td>@c.Proveedor</td>
+                            <td class="text-muted" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                                title="@c.DescripcionServicio">@(c.DescripcionServicio ?? "—")</td>
+                            <td>@(c.NumeroFactura ?? "—")</td>
+                            <td style="white-space:nowrap">@(c.FechaFactura?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td class="text-end fw-semibold" style="color:#183963">
+                                @(c.ValorFactura > 0 ? FormatMoneda(c, c.ValorFactura) : "—")
+                            </td>
+                            <td class="text-end pe-3 fw-semibold" style="color:@(c.SaldoPorPagar > 0 ? "#c69500" : "#6ABF4B")">
+                                @(c.SaldoPorPagar > 0 ? FormatMoneda(c, c.SaldoPorPagar) : FormatMoneda(c, 0))
                             </td>
                             <td>
-                                <span class="badge rounded-pill" style="background:@ColorPrioridad(c.Prioridad);color:#fff;font-size:.65rem">
-                                    @c.Prioridad
-                                </span>
+                                @if (pagada)
+                                {
+                                    <span class="badge rounded-pill" style="background:#6ABF4B;color:#fff;font-size:.65rem">✓ Pagada</span>
+                                }
+                                else if (enProceso)
+                                {
+                                    <span class="badge rounded-pill" style="background:#fd7e14;color:#fff;font-size:.65rem">En proceso</span>
+                                }
+                                else
+                                {
+                                    <span class="badge rounded-pill" style="background:#ffc107;color:#212529;font-size:.65rem">Pendiente</span>
+                                }
                             </td>
-                            <td>
-                                <select class="form-select form-select-sm py-0"
-                                        style="font-size:.72rem;border-color:@eBg;color:@eBg;min-width:110px"
-                                        value="@((int)c.Estado)"
-                                        @onchange="e => CambiarEstadoAsync(c, e.Value?.ToString())">
-                                    @foreach (EstadoCompromiso est in Enum.GetValues<EstadoCompromiso>())
-                                    {
-                                        <option value="@((int)est)">@LabelEstado(est)</option>
-                                    }
-                                </select>
-                            </td>
-                            <td class="text-muted" style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                                title="@c.Observaciones">
-                                @(c.Observaciones ?? "—")
-                            </td>
-                            <td class="pe-2">
+                            <td class="pe-2 text-end" style="white-space:nowrap">
                                 @if (_confirmandoEliminar == c.Id)
                                 {
                                     <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(c.Id)">✓</button>
@@ -222,6 +285,14 @@ else
                             </td>
                         </tr>
                     }
+                    <tr class="fw-bold">
+                        <td class="ps-3 py-2" colspan="7" style="background:#183963;color:white">
+                            <span style="letter-spacing:1px">TOTAL (COP)</span>
+                        </td>
+                        <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(_compromisos.Sum(c => EnCOP(c, c.ValorFactura)))</td>
+                        <td class="text-end pe-3 py-2" style="background:#183963;color:white">@FormatCOP(TotalPendiente)</td>
+                        <td colspan="2" style="background:#183963"></td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -235,18 +306,36 @@ else
     private List<Partida> _partidas = [];
     private bool _mostrarFormulario;
     private string? _mensaje;
+    private bool _mensajeError;
     private int? _confirmandoEliminar;
 
     private CompromisoForm _form = new();
+    private Proyecto? _proyecto;
+
+    private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
+    private decimal EnCOP(CompromisoCosto c, decimal v) => c.Moneda == "USD" ? v * TRM : v;
+    private string FormatMoneda(CompromisoCosto c, decimal v) =>
+        (c.Moneda == "USD" ? "US$ " : "$") + v.ToString("N0", _co);
+
+    private decimal TotalOC => _compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => EnCOP(c, c.Valor));
+    private decimal TotalPendiente => _compromisos.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => EnCOP(c, c.SaldoPorPagar));
+    private decimal TotalPagado => Math.Max(TotalOC - TotalPendiente, 0);
+    private int EnProceso => _compromisos.Count(EsEnProceso);
+
+    private static bool EsEnProceso(CompromisoCosto c) =>
+        string.IsNullOrWhiteSpace(c.Codigo) || c.Codigo.Contains("XXX", StringComparison.OrdinalIgnoreCase);
+
+    private static bool EstaPagada(CompromisoCosto c) =>
+        c.SaldoPorPagar <= 0 && (c.ValorFactura > 0 || c.Valor > 0) && !EsEnProceso(c);
 
     protected override async Task OnInitializedAsync() => await CargarAsync();
 
     private async Task CargarAsync()
     {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         _compromisos = await Db.CompromisoCostos
             .Include(c => c.Partida)
             .Where(c => c.ProyectoId == ProyectoId)
-            .OrderByDescending(c => c.Fecha)
             .ToListAsync();
 
         _partidas = await Db.Partidas
@@ -258,30 +347,43 @@ else
 
     private async Task GuardarAsync()
     {
-        Db.CompromisoCostos.Add(new CompromisoCosto
+        var nuevo = new CompromisoCosto
         {
-            ProyectoId      = ProyectoId,
-            Codigo          = _form.Codigo,
-            Proveedor       = _form.Proveedor,
-            PartidaId       = _form.PartidaId == 0 ? null : _form.PartidaId,
-            Valor           = _form.Valor,
-            Fecha           = _form.Fecha,
-            FechaVencimiento = _form.FechaVencimiento == default ? null : _form.FechaVencimiento,
-            Prioridad       = _form.Prioridad,
-            Observaciones   = _form.Observaciones
-        });
+            ProyectoId          = ProyectoId,
+            Codigo              = _form.Codigo,
+            Moneda              = _form.Moneda,
+            Proveedor           = _form.Proveedor,
+            PartidaId           = _form.PartidaId == 0 ? null : _form.PartidaId,
+            Valor               = _form.Valor,
+            Fecha               = _form.Fecha,
+            DescripcionServicio = string.IsNullOrWhiteSpace(_form.DescripcionServicio) ? null : _form.DescripcionServicio,
+            NumeroFactura       = string.IsNullOrWhiteSpace(_form.NumeroFactura) ? null : _form.NumeroFactura,
+            FechaFactura        = _form.FechaFactura == default ? null : _form.FechaFactura,
+            ValorFactura        = _form.ValorFactura,
+            SaldoPorPagar       = _form.SaldoPorPagar
+        };
+        nuevo.Estado = EstadoDe(nuevo);
+        Db.CompromisoCostos.Add(nuevo);
         await Db.SaveChangesAsync();
         _form = new CompromisoForm();
         _mostrarFormulario = false;
-        _mensaje = "Compromiso registrado correctamente.";
+        _mensaje = "Orden de compra registrada correctamente.";
+        _mensajeError = false;
         await CargarAsync();
     }
 
-    private async Task CambiarEstadoAsync(CompromisoCosto c, string? val)
+    private static EstadoCompromiso EstadoDe(CompromisoCosto c)
     {
-        if (int.TryParse(val, out var v))
+        if (EsEnProceso(c)) return EstadoCompromiso.EnProceso;
+        if (EstaPagada(c)) return EstadoCompromiso.Pagado;
+        return EstadoCompromiso.Pendiente;
+    }
+
+    private async Task CambiarMonedaAsync(CompromisoCosto c, string? moneda)
+    {
+        if (moneda is "COP" or "USD" && c.Moneda != moneda)
         {
-            c.Estado = (EstadoCompromiso)v;
+            c.Moneda = moneda;
             Db.CompromisoCostos.Update(c);
             await Db.SaveChangesAsync();
         }
@@ -297,50 +399,246 @@ else
         await CargarAsync();
     }
 
-    private static (string Bg, string Fg) ColorEstado(EstadoCompromiso e) => e switch
+    private async Task ImportarExcelAsync(InputFileChangeEventArgs e)
     {
-        EstadoCompromiso.Pendiente  => ("#ffc107", "#212529"),
-        EstadoCompromiso.Aprobado   => ("#0d6efd", "#fff"),
-        EstadoCompromiso.EnProceso  => ("#fd7e14", "#fff"),
-        EstadoCompromiso.Pagado     => ("#6ABF4B", "#fff"),
-        EstadoCompromiso.Vencido    => ("#dc3545", "#fff"),
-        EstadoCompromiso.Cancelado  => ("#6c757d", "#fff"),
-        _                           => ("#D9D9D6", "#111921")
-    };
+        try
+        {
+            using var ms = new System.IO.MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
 
-    private static string LabelEstado(EstadoCompromiso e) => e switch
-    {
-        EstadoCompromiso.Pendiente  => "Pendiente",
-        EstadoCompromiso.Aprobado   => "Aprobado",
-        EstadoCompromiso.EnProceso  => "En Proceso",
-        EstadoCompromiso.Pagado     => "Pagado",
-        EstadoCompromiso.Vencido    => "Vencido",
-        EstadoCompromiso.Cancelado  => "Cancelado",
-        _                           => e.ToString()
-    };
+            using var workbook = new XLWorkbook(ms);
+            var ws = workbook.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+            if (lastRow < 2)
+            {
+                _mensaje = "El archivo no tiene filas de datos.";
+                _mensajeError = true;
+                return;
+            }
 
-    private static string ColorPrioridad(string p) => p switch
+            int headerRow = 0;
+            int colRubro = 0, colOC = 0, colProveedor = 0, colDescripcion = 0,
+                colFactura = 0, colFechaFactura = 0, colTotal = 0, colSaldo = 0, colMoneda = 0;
+
+            for (int r = 1; r <= Math.Min(8, lastRow) && headerRow == 0; r++)
+            {
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var texto = Normalizar(ws.Cell(r, c).GetString());
+                    if (texto.Contains("proveedor")) { headerRow = r; break; }
+                }
+            }
+
+            if (headerRow == 0)
+            {
+                _mensaje = "No se encontró la fila de encabezado (columna 'Proveedor').";
+                _mensajeError = true;
+                return;
+            }
+
+            for (int c = 1; c <= lastCol; c++)
+            {
+                var texto = Normalizar(ws.Cell(headerRow, c).GetString());
+                if (string.IsNullOrEmpty(texto)) continue;
+                if (colRubro == 0 && (texto.Contains("rubro") || texto == "codigo" || texto.Contains("cod. rubro") || texto.Contains("codigo rubro"))) colRubro = c;
+                else if (colOC == 0 && (texto.Contains("orden") || texto == "oc" || texto.Contains("# oc") || texto.Contains("no. oc"))) colOC = c;
+                else if (colProveedor == 0 && texto.Contains("proveedor")) colProveedor = c;
+                else if (colDescripcion == 0 && (texto.Contains("descripcion") || texto.Contains("servicio") || texto.Contains("concepto"))) colDescripcion = c;
+                else if (colFechaFactura == 0 && texto.Contains("fecha") && texto.Contains("factura")) colFechaFactura = c;
+                else if (colFactura == 0 && texto.Contains("factura") && !texto.Contains("fecha") && !texto.Contains("total") && !texto.Contains("valor")) colFactura = c;
+                else if (colTotal == 0 && (texto.Contains("total") || texto.Contains("valor"))) colTotal = c;
+                else if (colSaldo == 0 && (texto.Contains("saldo") || texto.Contains("pendiente"))) colSaldo = c;
+                else if (colMoneda == 0 && (texto.Contains("moneda") || texto.Contains("divisa"))) colMoneda = c;
+            }
+
+            if (colProveedor == 0 || colTotal == 0)
+            {
+                _mensaje = "El archivo debe tener al menos las columnas 'Proveedor' y 'Total/Valor'.";
+                _mensajeError = true;
+                return;
+            }
+
+            int importados = 0, actualizados = 0;
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                var proveedor = ws.Cell(row, colProveedor).GetString().Trim();
+                var codigoOC = colOC > 0 ? ws.Cell(row, colOC).GetString().Trim() : "";
+                var total = LeerMonto(ws.Cell(row, colTotal));
+
+                if (string.IsNullOrEmpty(proveedor) && string.IsNullOrEmpty(codigoOC)) continue;
+                if (Normalizar(proveedor) == "total") continue;
+
+                var rubro = colRubro > 0 ? ws.Cell(row, colRubro).GetString().Trim() : "";
+                var partida = string.IsNullOrEmpty(rubro) ? null
+                    : _partidas.FirstOrDefault(p => string.Equals(p.Codigo, rubro, StringComparison.OrdinalIgnoreCase));
+
+                var numFactura = colFactura > 0 ? ws.Cell(row, colFactura).GetString().Trim() : "";
+                DateTime? fechaFactura = null;
+                if (colFechaFactura > 0)
+                {
+                    var celdaF = ws.Cell(row, colFechaFactura);
+                    if (celdaF.DataType == XLDataType.DateTime) fechaFactura = celdaF.GetDateTime();
+                    else if (DateTime.TryParse(celdaF.GetString().Trim(), _co, System.Globalization.DateTimeStyles.None, out var pf)) fechaFactura = pf;
+                }
+                var saldo = colSaldo > 0 ? LeerMonto(ws.Cell(row, colSaldo)) : null;
+                var descripcion = colDescripcion > 0 ? ws.Cell(row, colDescripcion).GetString().Trim() : "";
+                var moneda = colMoneda > 0 && Normalizar(ws.Cell(row, colMoneda).GetString()).Contains("usd") ? "USD" : "COP";
+
+                var existente = !string.IsNullOrEmpty(codigoOC) && !codigoOC.Contains("XXX", StringComparison.OrdinalIgnoreCase)
+                    ? _compromisos.FirstOrDefault(c => string.Equals(c.Codigo, codigoOC, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(c.NumeroFactura ?? "", numFactura, StringComparison.OrdinalIgnoreCase))
+                    : null;
+
+                if (existente is not null)
+                {
+                    existente.Moneda = moneda;
+                    existente.Proveedor = string.IsNullOrEmpty(proveedor) ? existente.Proveedor : proveedor;
+                    if (partida is not null) existente.PartidaId = partida.Id;
+                    if (!string.IsNullOrEmpty(descripcion)) existente.DescripcionServicio = descripcion;
+                    if (!string.IsNullOrEmpty(numFactura)) existente.NumeroFactura = numFactura;
+                    if (fechaFactura.HasValue) existente.FechaFactura = fechaFactura;
+                    if (total.HasValue) { existente.ValorFactura = total.Value; existente.Valor = total.Value; }
+                    if (saldo.HasValue) existente.SaldoPorPagar = saldo.Value;
+                    existente.Estado = EstadoDe(existente);
+                    Db.CompromisoCostos.Update(existente);
+                    actualizados++;
+                }
+                else
+                {
+                    var nuevo = new CompromisoCosto
+                    {
+                        ProyectoId          = ProyectoId,
+                        Codigo              = string.IsNullOrEmpty(codigoOC) ? "XXX" : codigoOC,
+                        Moneda              = moneda,
+                        Proveedor           = proveedor,
+                        PartidaId           = partida?.Id,
+                        Valor               = total ?? 0,
+                        Fecha               = fechaFactura ?? DateTime.Today,
+                        DescripcionServicio = string.IsNullOrEmpty(descripcion) ? null : descripcion,
+                        NumeroFactura       = string.IsNullOrEmpty(numFactura) ? null : numFactura,
+                        FechaFactura        = fechaFactura,
+                        ValorFactura        = total ?? 0,
+                        SaldoPorPagar       = saldo ?? total ?? 0
+                    };
+                    nuevo.Estado = EstadoDe(nuevo);
+                    Db.CompromisoCostos.Add(nuevo);
+                    importados++;
+                }
+            }
+
+            if (importados == 0 && actualizados == 0)
+            {
+                _mensaje = "No se importó ninguna orden de compra. Verifica el formato del archivo.";
+                _mensajeError = true;
+                return;
+            }
+
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+            _mensaje = $"{importados} órdenes importadas, {actualizados} actualizadas desde el archivo de tesorería.";
+            _mensajeError = false;
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"Error al importar: {ex.Message}";
+            _mensajeError = true;
+        }
+    }
+
+    private async Task ExportarExcelAsync()
     {
-        "Urgente" => "#dc3545",
-        "Alta"    => "#fd7e14",
-        "Normal"  => "#183963",
-        "Baja"    => "#6c757d",
-        _         => "#183963"
-    };
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("Órdenes de Compra");
+
+        string[] encabezados = ["Moneda", "Cód. Rubro", "# Orden Compra", "Proveedor",
+            "Descripción del Servicio", "# Factura", "Fecha Factura", "Total Factura", "Saldo por Pagar", "Estado"];
+        for (int i = 0; i < encabezados.Length; i++)
+        {
+            var celda = ws.Cell(1, i + 1);
+            celda.Value = encabezados[i];
+            celda.Style.Font.Bold = true;
+            celda.Style.Font.FontColor = XLColor.White;
+            celda.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+        }
+
+        int fila = 2;
+        foreach (var c in _compromisos.OrderBy(c => c.Partida?.Codigo ?? "zzz").ThenBy(c => c.Codigo))
+        {
+            ws.Cell(fila, 1).Value = c.Moneda;
+            ws.Cell(fila, 2).Value = c.Partida?.Codigo ?? "";
+            ws.Cell(fila, 3).Value = c.Codigo;
+            ws.Cell(fila, 4).Value = c.Proveedor;
+            ws.Cell(fila, 5).Value = c.DescripcionServicio ?? "";
+            ws.Cell(fila, 6).Value = c.NumeroFactura ?? "";
+            if (c.FechaFactura.HasValue)
+            {
+                ws.Cell(fila, 7).Value = c.FechaFactura.Value;
+                ws.Cell(fila, 7).Style.DateFormat.Format = "dd/MM/yyyy";
+            }
+            ws.Cell(fila, 8).Value = c.ValorFactura;
+            ws.Cell(fila, 8).Style.NumberFormat.Format = "#,##0";
+            ws.Cell(fila, 9).Value = c.SaldoPorPagar;
+            ws.Cell(fila, 9).Style.NumberFormat.Format = "#,##0";
+            ws.Cell(fila, 10).Value = EstaPagada(c) ? "Pagada" : EsEnProceso(c) ? "En proceso" : "Pendiente";
+            if (EstaPagada(c))
+                ws.Range(fila, 1, fila, 10).Style.Fill.BackgroundColor = XLColor.FromHtml("#eaf6e4");
+            fila++;
+        }
+
+        ws.Cell(fila, 1).Value = "TOTAL (COP)";
+        ws.Cell(fila, 8).Value = _compromisos.Sum(c => EnCOP(c, c.ValorFactura));
+        ws.Cell(fila, 9).Value = TotalPendiente;
+        var rTotal = ws.Range(fila, 1, fila, 10);
+        rTotal.Style.Font.Bold = true;
+        rTotal.Style.Font.FontColor = XLColor.White;
+        rTotal.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+        ws.Cell(fila, 8).Style.NumberFormat.Format = "#,##0";
+        ws.Cell(fila, 9).Style.NumberFormat.Format = "#,##0";
+
+        ws.Columns().AdjustToContents();
+
+        using var ms = new System.IO.MemoryStream();
+        workbook.SaveAs(ms);
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        var nombre = $"Ordenes_Compra_{(_proyecto?.Nombre ?? "Proyecto").Replace(" ", "_")}_{DateTime.Today:yyyyMMdd}.xlsx";
+
+        await JS.InvokeVoidAsync("downloadFile", nombre, base64,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private static string Normalizar(string s) => s.Trim().ToLowerInvariant()
+        .Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
+
+    private static decimal? LeerMonto(IXLCell celda)
+    {
+        if (celda.IsEmpty()) return null;
+        if (celda.DataType == XLDataType.Number) return (decimal)celda.GetDouble();
+        var texto = celda.GetString().Trim().Replace("$", "").Replace(" ", "").Trim();
+        if (string.IsNullOrEmpty(texto) || texto == "-") return null;
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any, _co, out var vCO)) return vCO;
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var vInv)) return vInv;
+        return null;
+    }
 
     private static readonly System.Globalization.CultureInfo _co = new("es-CO");
     private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+    private static string FormatUSD(decimal v) => "US$ " + v.ToString("N0", _co);
 
     private sealed class CompromisoForm
     {
         [Required] public string Codigo    { get; set; } = string.Empty;
         [Required] public string Proveedor { get; set; } = string.Empty;
+        public string Moneda { get; set; } = "COP";
         public int? PartidaId { get; set; }
         [Range(1, double.MaxValue, ErrorMessage = "El valor debe ser mayor que 0")]
         public decimal Valor { get; set; }
-        public DateTime Fecha            { get; set; } = DateTime.Today;
-        public DateTime FechaVencimiento { get; set; }
-        public string Prioridad          { get; set; } = "Normal";
-        public string? Observaciones     { get; set; }
+        public DateTime Fecha { get; set; } = DateTime.Today;
+        public string? DescripcionServicio { get; set; }
+        public string? NumeroFactura { get; set; }
+        public DateTime FechaFactura { get; set; }
+        public decimal ValorFactura { get; set; }
+        public decimal SaldoPorPagar { get; set; }
     }
 }

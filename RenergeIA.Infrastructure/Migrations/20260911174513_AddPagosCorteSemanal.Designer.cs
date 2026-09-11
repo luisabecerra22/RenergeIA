@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RenergeIA.Infrastructure.Data;
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911174513_AddPagosCorteSemanal")]
+    partial class AddPagosCorteSemanal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -350,10 +353,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<string>("DescripcionServicio")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<int>("Estado")
                         .HasColumnType("integer");
 
@@ -363,23 +362,11 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<DateTime?>("FechaFactura")
-                        .HasColumnType("timestamp without time zone");
-
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<DateTime?>("FechaVencimiento")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Moneda")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<string>("NumeroFactura")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Observaciones")
                         .HasColumnType("text");
@@ -400,13 +387,7 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<int>("ProyectoId")
                         .HasColumnType("integer");
 
-                    b.Property<decimal>("SaldoPorPagar")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<decimal>("Valor")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ValorFactura")
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");

@@ -1,6 +1,7 @@
 @inject RenergeIADbContext Db
 @inject CostoService CostoSvc
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
 @using ClosedXML.Excel
 
 @if (_proyecto is null)
@@ -210,11 +211,24 @@ else
             </div>
         </div>
 
-        <div class="card mb-4" style="border:1px solid #D9D9D6">
+        <div class="card mb-4" style="border:1px solid #D9D9D6;overflow:hidden">
             <div class="card-header text-white d-flex justify-content-between align-items-center"
                  style="background:#183963">
-                <span class="fw-semibold">Actividades Presupuestadas</span>
-                @if (_hayCAmbios)
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn"
+                                style="@(_vistaActiva == "presupuesto" ? "background:#6ABF4B;color:#fff;border:none" : "background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5)")"
+                                @onclick='() => _vistaActiva = "presupuesto"'>
+                            Actividades Presupuestadas
+                        </button>
+                        <button class="btn"
+                                style="@(_vistaActiva == "pagos" ? "background:#6ABF4B;color:#fff;border:none" : "background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.5)")"
+                                @onclick='() => _vistaActiva = "pagos"'>
+                            Flujo de Caja
+                        </button>
+                    </div>
+                </div>
+                @if (_vistaActiva == "presupuesto" && _hayCAmbios)
                 {
                     <button class="btn btn-sm fw-semibold"
                             style="background:#6ABF4B;color:#fff;border:none"
@@ -223,6 +237,15 @@ else
                     </button>
                 }
             </div>
+
+            @if (_vistaActiva == "pagos")
+            {
+                <div class="card-body p-3">
+                    <CostosPagos ProyectoId="ProyectoId" />
+                </div>
+            }
+            else
+            {
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0" style="table-layout:fixed;width:100%">
                     <colgroup>
@@ -261,7 +284,7 @@ else
                                 var hijos           = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
                                 var presupCap       = hijos.Sum(s => s.MontoPresupuestado);
                                 var ejecutadoCap    = hijos.Sum(s => s.ValorEjecutado);
-                                var comprometidoCap = hijos.Sum(s => s.MontoComprometido);
+                                var comprometidoCap = hijos.Sum(ComprometidoMO);
                                 var pendienteCap    = presupCap - comprometidoCap - ejecutadoCap;
                                 var pctCap          = presupCap > 0 ? Math.Round(ejecutadoCap / presupCap * 100, 1) : 0m;
                                 var (aTexto, aBg, aFg) = AlertaCosto(presupCap, comprometidoCap, ejecutadoCap);
@@ -298,7 +321,7 @@ else
                             {
                                 var presup         = p.MontoPresupuestado;
                                 var ejecutado      = p.ValorEjecutado;
-                                var comprometido   = p.MontoComprometido;
+                                var comprometido   = ComprometidoMO(p);
                                 var pendiente      = presup - comprometido - ejecutado;
                                 var pct            = presup > 0 ? Math.Round(ejecutado / presup * 100, 1) : 0m;
                                 var sobreEjecucion = ejecutado > presup && presup > 0;
@@ -333,12 +356,9 @@ else
                                                font-weight:@(sobreEjecucion ? "bold" : "normal")">
                                         @pct.ToString("F0")%
                                     </td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm text-center"
-                                               style="color:#6c757d"
-                                               value="@comprometido.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
-                                               @onchange="e => CambiarComprometido(p, e.Value?.ToString())"
-                                               min="0" step="0.01" />
+                                    <td class="text-center small fw-semibold" style="color:#6c757d"
+                                        title="Suma de saldos por pagar de las órdenes de compra con este rubro (Compromisos)">
+                                        @(comprometido > 0 ? $"{prefijo}{comprometido.ToString("N2", _culturesCO)}" : "—")
                                     </td>
                                     <td class="text-center small fw-semibold" style="color:@(pendiente < 0 ? "#dc3545" : "#183963")">
                                         @prefijo@pendiente.ToString("N2", _culturesCO)
@@ -369,6 +389,7 @@ else
                     </tbody>
                 </table>
             </div>
+            }
         </div>
 
         @if (_partidaSeleccionada is not null)
@@ -478,6 +499,7 @@ else
     private List<Partida> _subPartidas = [];
     private Dictionary<int, Partida> _padresDict = [];
     private List<CategoriaResumen> _resumenCategorias = [];
+    private Dictionary<int, decimal> _saldosOC = [];
 
     private bool _cargando;
     private bool _confirmandoPlantilla;
@@ -496,6 +518,7 @@ else
 
     private CostoFormModel _formCosto = new();
     private string _moneda = "COP";
+    private string _vistaActiva = "presupuesto";
 
     protected override async Task OnInitializedAsync()
     {
@@ -508,6 +531,14 @@ else
         _partidas    = await CostoSvc.ObtenerPartidasConCostosAsync(ProyectoId);
         _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)).ToList();
         _padresDict  = _partidas.Where(p => p.EsPrincipal).ToDictionary(p => p.Id);
+
+        _saldosOC = (await Db.CompromisoCostos.AsNoTracking()
+                .Where(c => c.ProyectoId == ProyectoId && c.PartidaId != null)
+                .Select(c => new { c.PartidaId, c.SaldoPorPagar, c.Moneda })
+                .ToListAsync())
+            .GroupBy(x => x.PartidaId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Moneda == "USD" ? x.SaldoPorPagar * TRM : x.SaldoPorPagar));
+
         CalcularTotales();
         CalcularResumenCategorias();
         _hayCAmbios = false;
@@ -519,8 +550,11 @@ else
     private decimal AUSD(Partida p) => p.MonedaOriginal == "COP" ? p.MontoPresupuestado / TRM : p.MontoPresupuestado;
     private decimal EjecACOP(Partida p) => p.MonedaOriginal == "USD" ? p.ValorEjecutado * TRM : p.ValorEjecutado;
     private decimal EjecAUSD(Partida p) => p.MonedaOriginal == "COP" ? p.ValorEjecutado / TRM : p.ValorEjecutado;
-    private decimal CompACOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoComprometido * TRM : p.MontoComprometido;
-    private decimal CompAUSD(Partida p) => p.MonedaOriginal == "COP" ? p.MontoComprometido / TRM : p.MontoComprometido;
+    // Comprometido = suma de saldos por pagar de las órdenes de compra (Compromisos) por rubro
+    private decimal SaldoOCCOP(Partida p) => _saldosOC.TryGetValue(p.Id, out var s) ? s : 0m;
+    private decimal ComprometidoMO(Partida p) => p.MonedaOriginal == "USD" ? SaldoOCCOP(p) / TRM : SaldoOCCOP(p);
+    private decimal CompACOP(Partida p) => SaldoOCCOP(p);
+    private decimal CompAUSD(Partida p) => SaldoOCCOP(p) / TRM;
 
     private void CalcularTotales()
     {
@@ -619,17 +653,6 @@ else
             System.Globalization.CultureInfo.InvariantCulture, out var montoMostrado))
         {
             p.ValorEjecutado = Math.Max(montoMostrado, 0);
-            CalcularTotales(); CalcularResumenCategorias();
-            _hayCAmbios = true;
-        }
-    }
-
-    private void CambiarComprometido(Partida p, string? valor)
-    {
-        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var montoMostrado))
-        {
-            p.MontoComprometido = Math.Max(montoMostrado, 0);
             CalcularTotales(); CalcularResumenCategorias();
             _hayCAmbios = true;
         }

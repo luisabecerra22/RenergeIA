@@ -40,10 +40,6 @@ else
     {
         <CostosPresupuesto ProyectoId="ProyectoId" />
     }
-    else if (_tabActivo == "ejecutado")
-    {
-        <CostosEjecutado ProyectoId="ProyectoId" />
-    }
     else if (_tabActivo == "compromisos")
     {
         <CostosCompromisos ProyectoId="ProyectoId" />
@@ -73,7 +69,6 @@ else
     private static readonly TabInfo[] _tabs =
     [
         new("presupuesto",  "Presupuesto",      "bi-table"),
-        new("ejecutado",    "Real / Ejecutado",  "bi-receipt"),
         new("compromisos",  "Compromisos",       "bi-file-earmark-text"),
         new("dashboard",    "Dashboard",         "bi-bar-chart-line"),
         new("comparativo",  "Comparativo",       "bi-arrows-angle-expand"),

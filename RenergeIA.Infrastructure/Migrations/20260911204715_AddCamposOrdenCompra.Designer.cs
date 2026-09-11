@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RenergeIA.Infrastructure.Data;
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911204715_AddCamposOrdenCompra")]
+    partial class AddCamposOrdenCompra
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -371,11 +374,6 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     b.Property<DateTime?>("FechaVencimiento")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Moneda")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
 
                     b.Property<string>("NumeroFactura")
                         .HasMaxLength(100)

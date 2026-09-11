@@ -18,4 +18,11 @@ public class CompromisoCosto : EntidadBase
     public EstadoCompromiso Estado { get; set; } = EstadoCompromiso.Pendiente;
     public string Prioridad { get; set; } = "Normal";
     public string? Observaciones { get; set; }
+
+    public string Moneda { get; set; } = "COP";
+    public string? DescripcionServicio { get; set; }
+    public string? NumeroFactura { get; set; }
+    public DateTime? FechaFactura { get; set; }
+    public decimal ValorFactura { get; set; }
+    public decimal SaldoPorPagar { get; set; }
 }

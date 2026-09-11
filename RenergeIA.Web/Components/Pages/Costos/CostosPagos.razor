@@ -1,0 +1,592 @@
+@inject RenergeIADbContext Db
+@using Microsoft.EntityFrameworkCore
+@using ClosedXML.Excel
+
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+    <div class="d-flex align-items-center gap-1">
+        <label class="form-label mb-0 small fw-semibold" style="color:#183963;white-space:nowrap">Fecha inicio:</label>
+        <input type="date" class="form-control form-control-sm" style="width:150px"
+               value="@_fechaInicio.ToString("yyyy-MM-dd")"
+               @onchange="CambiarFechaInicio" />
+    </div>
+    <div class="d-flex align-items-center gap-1">
+        <label class="form-label mb-0 small fw-semibold" style="color:#183963;white-space:nowrap">Fecha fin:</label>
+        <input type="date" class="form-control form-control-sm" style="width:150px"
+               value="@_fechaFin.ToString("yyyy-MM-dd")"
+               @onchange="CambiarFechaFin" />
+    </div>
+    <span class="badge" style="background:#D9D9D6;color:#111921;font-size:0.75rem">
+        @_columnas.Count cortes semanales
+    </span>
+
+    @if (_hayCambios)
+    {
+        <button class="btn btn-sm fw-semibold"
+                style="background:#6ABF4B;color:#fff;border:none"
+                @onclick="GuardarCambiosAsync">
+            💾 Guardar cambios
+        </button>
+    }
+
+    <label class="btn btn-sm btn-outline-primary mb-0 ms-auto" title="Importar pagos desde Excel (.xlsx)">
+        <i class="bi-upload me-1"></i>Importar Excel
+        <InputFile OnChange="ImportarExcelPagosAsync" accept=".xlsx,.xls" style="display:none" />
+    </label>
+</div>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
+        @_mensaje
+        <button type="button" class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+@if (!_partidas.Any())
+{
+    <div class="text-center py-4 text-muted">
+        No hay actividades presupuestadas. Cargue la plantilla EPC primero.
+    </div>
+}
+else
+{
+    <div class="table-responsive" style="max-height:70vh;overflow:auto">
+        <table class="table table-sm align-middle mb-0" style="min-width:max-content">
+            <thead style="background:#183963;color:white;position:sticky;top:0;z-index:2">
+                <tr>
+                    <th class="text-center" style="position:sticky;left:0;z-index:3;background:#183963;color:white;min-width:42px">#</th>
+                    <th class="text-center" style="position:sticky;left:42px;z-index:3;background:#183963;color:white;min-width:82px">Código</th>
+                    <th style="position:sticky;left:124px;z-index:3;background:#183963;color:white;min-width:200px">Descripción</th>
+                    @foreach (var fecha in _columnas)
+                    {
+                        <th class="text-center" style="min-width:110px;font-size:0.72rem;white-space:nowrap;color:white;background:#183963">
+                            @fecha.ToString("dd/MM/yy")
+                        </th>
+                    }
+                    <th class="text-center fw-bold" style="min-width:120px;background:#111921;color:white">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in PartidasOrdenadas())
+                {
+                    if (p.EsPrincipal)
+                    {
+                        var hijos = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
+                        <tr style="background:#D9D9D6">
+                            <td class="text-center fw-bold" style="color:#111921;position:sticky;left:0;background:#D9D9D6">@p.Numero</td>
+                            <td class="text-center" style="position:sticky;left:42px;background:#D9D9D6">
+                                <span class="badge" style="background:#183963;font-size:0.68rem">@p.Codigo</span>
+                            </td>
+                            <td class="fw-bold text-uppercase" style="position:sticky;left:124px;background:#D9D9D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
+                                title="@p.Descripcion">@p.Descripcion</td>
+                            @foreach (var fecha in _columnas)
+                            {
+                                var subtotal = hijos.Sum(h => ObtenerMontoCelda(h.Id, fecha));
+                                <td class="text-center fw-bold" style="color:#183963;font-size:0.8rem;background:#D9D9D6">
+                                    @(subtotal != 0 ? FormatCOP(subtotal) : "—")
+                                </td>
+                            }
+                            @{
+                                var totalCat = hijos.Sum(h => _columnas.Sum(f => ObtenerMontoCelda(h.Id, f)));
+                            }
+                            <td class="text-center fw-bold" style="background:#D9D9D6;color:#183963">
+                                @(totalCat != 0 ? FormatCOP(totalCat) : "—")
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        var totalFila = _columnas.Sum(f => ObtenerMontoCelda(p.Id, f));
+                        <tr style="border-bottom:1px solid #D9D9D6">
+                            <td class="text-center small" style="color:#6c757d;position:sticky;left:0;background:#fff">@p.Numero</td>
+                            <td class="text-center" style="position:sticky;left:42px;background:#fff">
+                                <small class="fw-semibold" style="color:#183963">@p.Codigo</small>
+                            </td>
+                            <td class="ps-3" style="position:sticky;left:124px;background:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
+                                title="@p.Descripcion">@p.Descripcion</td>
+                            @foreach (var fecha in _columnas)
+                            {
+                                var monto = ObtenerMontoCelda(p.Id, fecha);
+                                var tieneDatos = TienePagos(p.Id, fecha);
+                                <td class="text-center p-0" style="position:relative">
+                                    <div class="d-flex align-items-center">
+                                        <input type="number" class="form-control form-control-sm text-center border-0"
+                                               style="font-size:0.78rem;@(monto > 0 ? "color:#183963;font-weight:600" : "color:#adb5bd")"
+                                               value="@(monto != 0 ? monto.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                               placeholder="—"
+                                               @onfocus="() => {}"
+                                               @onchange="e => CambiarMontoCelda(p.Id, fecha, e.Value?.ToString())"
+                                               min="0" step="1" />
+                                        @if (tieneDatos)
+                                        {
+                                            <button class="btn p-0 border-0" style="font-size:0.6rem;position:absolute;right:2px;top:2px;color:#183963"
+                                                    @onclick="() => AbrirDetalle(p, fecha)"
+                                                    title="Ver detalle de pagos">🔍</button>
+                                        }
+                                    </div>
+                                </td>
+                            }
+                            <td class="text-center fw-bold" style="background:#f8f9fa;color:@(totalFila > 0 ? "#183963" : "#adb5bd")">
+                                @(totalFila != 0 ? FormatCOP(totalFila) : "—")
+                            </td>
+                        </tr>
+                    }
+                }
+                <tr class="fw-bold" style="background:#183963;color:white">
+                    <td class="text-center py-2" style="position:sticky;left:0;background:#183963;color:white" colspan="3">
+                        <span style="font-size:0.9rem;letter-spacing:1px">TOTAL FLUJO DE CAJA</span>
+                    </td>
+                    @foreach (var fecha in _columnas)
+                    {
+                        var totalCol = _subPartidas.Sum(sp => ObtenerMontoCelda(sp.Id, fecha));
+                        <td class="text-center py-2" style="font-size:0.8rem;background:#183963;color:white">
+                            @(totalCol != 0 ? FormatCOP(totalCol) : "—")
+                        </td>
+                    }
+                    @{
+                        var granTotal = _subPartidas.Sum(sp => _columnas.Sum(f => ObtenerMontoCelda(sp.Id, f)));
+                    }
+                    <td class="text-center py-2" style="background:#111921;color:white;font-size:0.9rem">
+                        @(granTotal != 0 ? FormatCOP(granTotal) : "$0")
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_detallePartida is not null)
+{
+    <div class="card mt-3" style="border:2px solid #183963">
+        <div class="card-header text-white d-flex justify-content-between align-items-center" style="background:#183963">
+            <strong>Detalle de pagos — @_detallePartida.Codigo: @_detallePartida.Descripcion — Corte @_detalleFecha.ToString("dd/MM/yyyy")</strong>
+            <button class="btn-close btn-close-white btn-sm" @onclick="CerrarDetalle"></button>
+        </div>
+        <div class="card-body">
+            <h6 class="mb-3" style="color:#183963">Agregar pago</h6>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label small">Descripción</label>
+                    <input type="text" class="form-control form-control-sm" @bind="_formPago.Descripcion" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Monto COP *</label>
+                    <input type="number" class="form-control form-control-sm" @bind="_formPago.Monto" min="0" step="1" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Factura</label>
+                    <input type="text" class="form-control form-control-sm" @bind="_formPago.NumeroFactura" placeholder="FAC-001" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Proveedor</label>
+                    <input type="text" class="form-control form-control-sm" @bind="_formPago.Proveedor" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-sm w-100" style="background:#183963;color:white;border:none"
+                            @onclick="AgregarPagoDetalleAsync">+ Agregar</button>
+                </div>
+            </div>
+
+            @{
+                var pagosDetalle = ObtenerPagosDetalle(_detallePartida.Id, _detalleFecha);
+            }
+            @if (pagosDetalle.Any())
+            {
+                <hr />
+                <h6 class="mb-2" style="color:#183963">Pagos registrados</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead style="background:#183963;color:white">
+                            <tr>
+                                <th>Descripción</th>
+                                <th class="text-end">Monto COP</th>
+                                <th>Factura</th>
+                                <th>Proveedor</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pg in pagosDetalle)
+                            {
+                                <tr style="border-bottom:1px solid #D9D9D6">
+                                    <td class="small">@(pg.Descripcion ?? "—")</td>
+                                    <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(pg.Monto)</td>
+                                    <td class="small text-muted">@(pg.NumeroFactura ?? "—")</td>
+                                    <td class="small text-muted">@(pg.Proveedor ?? "—")</td>
+                                    <td class="text-center">
+                                        @if (_confirmandoEliminar == pg.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarPagoAsync(pg.Id)">✓</button>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">×</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = pg.Id">✕</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            <tr class="fw-bold" style="background:#f8f9fa">
+                                <td>Total</td>
+                                <td class="text-end" style="color:#183963">@FormatCOP(pagosDetalle.Sum(pg => pg.Monto))</td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<Partida> _partidas = [];
+    private List<Partida> _subPartidas = [];
+
+    private DateTime _fechaInicio;
+    private DateTime _fechaFin;
+    private List<DateTime> _columnas = [];
+
+    private List<PagoCorteSemanal> _pagos = [];
+    private Dictionary<(int PartidaId, DateTime Fecha), decimal> _montosEditados = [];
+    private bool _hayCambios;
+    private string? _mensaje;
+    private bool _mensajeError;
+
+    private Partida? _detallePartida;
+    private DateTime _detalleFecha;
+    private PagoFormModel _formPago = new();
+    private int? _confirmandoEliminar;
+
+    private static readonly System.Globalization.CultureInfo _culturesCO = new("es-CO");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
+        if (_proyecto is not null)
+        {
+            _fechaInicio = _proyecto.FechaInicioPagos ?? _proyecto.FechaInicioPlaneada;
+            _fechaFin = _proyecto.FechaFinPagos ?? _proyecto.FechaFinPlaneada;
+        }
+        GenerarColumnas();
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _partidas = await Db.Partidas
+            .Where(p => p.ProyectoId == ProyectoId)
+            .OrderBy(p => p.Nivel).ThenBy(p => p.Numero)
+            .ToListAsync();
+        _subPartidas = _partidas.Where(p => !p.EsPrincipal).ToList();
+
+        _pagos = await Db.PagosCorteSemanal
+            .Where(p => p.ProyectoId == ProyectoId)
+            .ToListAsync();
+
+        _montosEditados.Clear();
+        _hayCambios = false;
+    }
+
+    private void GenerarColumnas()
+    {
+        _columnas.Clear();
+        if (_fechaInicio >= _fechaFin) return;
+        var fecha = _fechaInicio;
+        while (fecha <= _fechaFin)
+        {
+            _columnas.Add(fecha);
+            fecha = fecha.AddDays(7);
+        }
+    }
+
+    private decimal ObtenerMontoCelda(int partidaId, DateTime fechaCorte)
+    {
+        var key = (partidaId, fechaCorte);
+        if (_montosEditados.TryGetValue(key, out var editado))
+            return editado;
+        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).Sum(p => p.Monto);
+    }
+
+    private bool TienePagos(int partidaId, DateTime fechaCorte)
+    {
+        return _pagos.Any(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte);
+    }
+
+    private List<PagoCorteSemanal> ObtenerPagosDetalle(int partidaId, DateTime fechaCorte)
+    {
+        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).ToList();
+    }
+
+    private void CambiarMontoCelda(int partidaId, DateTime fechaCorte, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var monto))
+        {
+            var existentes = _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).ToList();
+            if (existentes.Count == 0)
+            {
+                var nuevo = new PagoCorteSemanal
+                {
+                    ProyectoId = ProyectoId,
+                    PartidaId = partidaId,
+                    FechaCorte = fechaCorte,
+                    Monto = Math.Max(monto, 0)
+                };
+                Db.PagosCorteSemanal.Add(nuevo);
+                _pagos.Add(nuevo);
+            }
+            else if (existentes.Count == 1)
+            {
+                existentes[0].Monto = Math.Max(monto, 0);
+                Db.PagosCorteSemanal.Update(existentes[0]);
+            }
+            else
+            {
+                _montosEditados[(partidaId, fechaCorte)] = Math.Max(monto, 0);
+            }
+            _hayCambios = true;
+        }
+    }
+
+    private async Task GuardarCambiosAsync()
+    {
+        if (_proyecto is not null)
+        {
+            _proyecto.FechaInicioPagos = _fechaInicio;
+            _proyecto.FechaFinPagos = _fechaFin;
+            Db.Proyectos.Update(_proyecto);
+        }
+        await Db.SaveChangesAsync();
+        _mensaje = "Flujo de caja guardado correctamente.";
+        _mensajeError = false;
+        await CargarAsync();
+    }
+
+    private void CambiarFechaInicio(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var f))
+        {
+            _fechaInicio = f;
+            GenerarColumnas();
+            _hayCambios = true;
+        }
+    }
+
+    private void CambiarFechaFin(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var f))
+        {
+            _fechaFin = f;
+            GenerarColumnas();
+            _hayCambios = true;
+        }
+    }
+
+    private IEnumerable<Partida> PartidasOrdenadas()
+    {
+        foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)))
+        {
+            yield return principal;
+            foreach (var hijo in _subPartidas.Where(p => p.PadreId == principal.Id).OrderBy(p => ParseNumero(p.Numero)))
+                yield return hijo;
+        }
+    }
+
+    private void AbrirDetalle(Partida p, DateTime fecha)
+    {
+        _detallePartida = p;
+        _detalleFecha = fecha;
+        _formPago = new PagoFormModel();
+        _confirmandoEliminar = null;
+    }
+
+    private void CerrarDetalle()
+    {
+        _detallePartida = null;
+    }
+
+    private async Task AgregarPagoDetalleAsync()
+    {
+        if (_detallePartida is null || _formPago.Monto <= 0) return;
+        var nuevo = new PagoCorteSemanal
+        {
+            ProyectoId = ProyectoId,
+            PartidaId = _detallePartida.Id,
+            FechaCorte = _detalleFecha,
+            Monto = _formPago.Monto,
+            Descripcion = string.IsNullOrWhiteSpace(_formPago.Descripcion) ? null : _formPago.Descripcion,
+            NumeroFactura = string.IsNullOrWhiteSpace(_formPago.NumeroFactura) ? null : _formPago.NumeroFactura,
+            Proveedor = string.IsNullOrWhiteSpace(_formPago.Proveedor) ? null : _formPago.Proveedor
+        };
+        Db.PagosCorteSemanal.Add(nuevo);
+        await Db.SaveChangesAsync();
+        await CargarAsync();
+        _detallePartida = _subPartidas.FirstOrDefault(p => p.Id == _detallePartida.Id);
+        _formPago = new PagoFormModel();
+    }
+
+    private async Task EliminarPagoAsync(int id)
+    {
+        var pago = await Db.PagosCorteSemanal.FindAsync(id);
+        if (pago is null) return;
+        Db.PagosCorteSemanal.Remove(pago);
+        await Db.SaveChangesAsync();
+        _confirmandoEliminar = null;
+        var idPartida = _detallePartida?.Id;
+        await CargarAsync();
+        _detallePartida = idPartida.HasValue ? _subPartidas.FirstOrDefault(p => p.Id == idPartida) : null;
+    }
+
+    private async Task ImportarExcelPagosAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var workbook = new XLWorkbook(ms);
+            var ws = workbook.Worksheets.First();
+            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+            var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+            if (lastRow < 2 || lastCol < 4)
+            {
+                _mensaje = "El archivo no tiene suficientes filas o columnas.";
+                _mensajeError = true;
+                return;
+            }
+
+            int headerRow = 0;
+            int colCodigo = 0;
+            for (int r = 1; r <= Math.Min(5, lastRow) && headerRow == 0; r++)
+            {
+                for (int c = 1; c <= lastCol; c++)
+                {
+                    var texto = ws.Cell(r, c).GetString().Trim().ToLowerInvariant()
+                        .Replace("á", "a").Replace("é", "e").Replace("í", "i").Replace("ó", "o").Replace("ú", "u");
+                    if (texto.Contains("codigo")) { colCodigo = c; headerRow = r; break; }
+                }
+            }
+
+            if (headerRow == 0 || colCodigo == 0)
+            {
+                _mensaje = "No se encontró la columna 'Código' en las primeras filas.";
+                _mensajeError = true;
+                return;
+            }
+
+            var fechasCol = new Dictionary<int, DateTime>();
+            for (int c = colCodigo + 1; c <= lastCol; c++)
+            {
+                var celda = ws.Cell(headerRow, c);
+                DateTime? fecha = null;
+
+                if (celda.DataType == XLDataType.DateTime)
+                    fecha = celda.GetDateTime();
+                else if (DateTime.TryParse(celda.GetString().Trim(), _culturesCO, System.Globalization.DateTimeStyles.None, out var parsed))
+                    fecha = parsed;
+                else if (DateTime.TryParse(celda.GetString().Trim(), out var parsed2))
+                    fecha = parsed2;
+
+                if (fecha.HasValue)
+                    fechasCol[c] = fecha.Value.Date;
+            }
+
+            if (!fechasCol.Any())
+            {
+                _mensaje = "No se encontraron columnas con fechas válidas en la fila de encabezado.";
+                _mensajeError = true;
+                return;
+            }
+
+            int importados = 0, noEncontrados = 0;
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                var codigo = ws.Cell(row, colCodigo).GetString().Trim();
+                if (string.IsNullOrEmpty(codigo) || codigo.Equals("TOTAL", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var partida = _subPartidas.FirstOrDefault(p =>
+                    string.Equals(p.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
+                if (partida is null) { noEncontrados++; continue; }
+
+                foreach (var (col, fecha) in fechasCol)
+                {
+                    var monto = LeerMonto(ws.Cell(row, col));
+                    if (monto is null or 0) continue;
+
+                    var existente = _pagos.FirstOrDefault(p => p.PartidaId == partida.Id && p.FechaCorte == fecha);
+                    if (existente is not null)
+                    {
+                        existente.Monto = monto.Value;
+                        Db.PagosCorteSemanal.Update(existente);
+                    }
+                    else
+                    {
+                        var nuevo = new PagoCorteSemanal
+                        {
+                            ProyectoId = ProyectoId,
+                            PartidaId = partida.Id,
+                            FechaCorte = fecha,
+                            Monto = monto.Value
+                        };
+                        Db.PagosCorteSemanal.Add(nuevo);
+                    }
+                    importados++;
+                }
+            }
+
+            if (importados == 0)
+            {
+                _mensaje = "No se importó ningún pago. Verifica que los códigos coincidan y las columnas tengan fechas.";
+                _mensajeError = true;
+                return;
+            }
+
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+
+            var resumen = $"{importados} pagos importados desde Excel.";
+            if (noEncontrados > 0) resumen += $" {noEncontrados} códigos no encontrados.";
+            _mensaje = resumen;
+            _mensajeError = false;
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"Error al importar: {ex.Message}";
+            _mensajeError = true;
+        }
+    }
+
+    private static decimal? LeerMonto(IXLCell celda)
+    {
+        if (celda.IsEmpty()) return null;
+        if (celda.DataType == XLDataType.Number) return (decimal)celda.GetDouble();
+        var texto = celda.GetString().Trim().Replace("$", "").Replace(" ", "").Trim();
+        if (string.IsNullOrEmpty(texto) || texto == "-") return null;
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any, _culturesCO, out var vCO)) return vCO;
+        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var vInv)) return vInv;
+        return null;
+    }
+
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _culturesCO);
+
+    private static double ParseNumero(string? num)
+    {
+        if (string.IsNullOrEmpty(num)) return 0;
+        return double.TryParse(num, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+    }
+
+    private sealed class PagoFormModel
+    {
+        public decimal Monto { get; set; }
+        public string? Descripcion { get; set; }
+        public string? NumeroFactura { get; set; }
+        public string? Proveedor { get; set; }
+    }
+}

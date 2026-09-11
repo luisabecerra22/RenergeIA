@@ -28,4 +28,5 @@ public class Partida : EntidadBase
 
     public ICollection<CostoReal> CostosReales { get; set; } = [];
     public ICollection<Partida> SubPartidas { get; set; } = [];
+    public ICollection<PagoCorteSemanal> PagosCorteSemanal { get; set; } = [];
 }

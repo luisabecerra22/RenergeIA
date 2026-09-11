@@ -41,6 +41,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<InformeConsolidado> InformesConsolidados => Set<InformeConsolidado>();
     public DbSet<LineaConsolidado> LineasConsolidado => Set<LineaConsolidado>();
     public DbSet<FlujoCajaSemanal> FlujosCajaSemanal => Set<FlujoCajaSemanal>();
+    public DbSet<PagoCorteSemanal> PagosCorteSemanal => Set<PagoCorteSemanal>();
 
     // HSEQ
     public DbSet<ChecklistAuditoria> ChecklistsAuditoria => Set<ChecklistAuditoria>();
@@ -179,10 +180,29 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Codigo).HasMaxLength(50);
             e.Property(c => c.Proveedor).HasMaxLength(200);
             e.Property(c => c.Prioridad).HasMaxLength(20);
+            e.Property(c => c.Moneda).HasMaxLength(3);
+            e.Property(c => c.DescripcionServicio).HasMaxLength(500);
+            e.Property(c => c.NumeroFactura).HasMaxLength(100);
+            e.Property(c => c.ValorFactura).HasColumnType("decimal(18,2)");
+            e.Property(c => c.SaldoPorPagar).HasColumnType("decimal(18,2)");
             e.HasOne(c => c.Proyecto).WithMany()
              .HasForeignKey(c => c.ProyectoId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(c => c.Partida).WithMany()
              .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // PagoCorteSemanal
+        modelBuilder.Entity<PagoCorteSemanal>(e =>
+        {
+            e.ToTable("PagosCorteSemanal");
+            e.Property(p => p.Monto).HasColumnType("decimal(18,2)");
+            e.Property(p => p.Descripcion).HasMaxLength(500);
+            e.Property(p => p.NumeroFactura).HasMaxLength(100);
+            e.Property(p => p.Proveedor).HasMaxLength(200);
+            e.HasOne(p => p.Proyecto).WithMany(pr => pr.PagosCorteSemanal)
+             .HasForeignKey(p => p.ProyectoId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(p => p.Partida).WithMany(pa => pa.PagosCorteSemanal)
+             .HasForeignKey(p => p.PartidaId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // RegistroClima

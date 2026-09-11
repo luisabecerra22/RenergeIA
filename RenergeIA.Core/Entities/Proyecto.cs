@@ -25,6 +25,9 @@ public class Proyecto : EntidadBase
     public string? Descripcion { get; set; }
     public int MesInicialHistograma  { get; set; } = 1;
     public int AnioInicialHistograma { get; set; } = 2025;
+    public DateTime? FechaInicioPagos { get; set; }
+    public DateTime? FechaFinPagos { get; set; }
+
     public bool Eliminado { get; set; }
     public DateTime? FechaEliminacion { get; set; }
 
@@ -42,4 +45,5 @@ public class Proyecto : EntidadBase
     public ICollection<RecursoEquipo> RecursosEquipo { get; set; } = [];
     public ICollection<DocumentoControl> DocumentosControl { get; set; } = [];
     public ICollection<InformeConsolidado> InformesConsolidados { get; set; } = [];
+    public ICollection<PagoCorteSemanal> PagosCorteSemanal { get; set; } = [];
 }
