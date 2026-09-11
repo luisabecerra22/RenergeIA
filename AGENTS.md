@@ -2,6 +2,8 @@
 
 > Crea un archivo CLAUDE.md, AGENTS.md y GEMINI.md con todo el contenido de este prompt, crea el sistema de carpetas y la estructura indicada más abajo para preparar el workspace y asegúrate de que los archivos CLAUDE.md, AGENTS.md y GEMINI.md estén siempre iguales, asía eu si haces un cambio o registras un aprendizaje en uno de estos tres archivos, deberás replicarlo en los demás para que el sistema cargue en cualquier entorno de IA agéntica.
 
+> 📌 **RETOMAR EL PROYECTO / TRASPASO A OTRA CUENTA:** lee primero **`TRASPASO-Y-ESTADO.md`** en la raíz del repo. Ahí está el estado actual, los pendientes, el rumbo y cómo desplegar los DOS proyectos (RenergeIA .NET y `evaluacion-hse/`). La memoria automática de Claude NO se comparte entre cuentas: toda la trazabilidad viva vive en archivos del repo.
+
 ## Aprendizajes del Agente (Mejora Continua)
 
 > **INSTRUCCIÓN CRÍTICA — LEER PRIMERO:** Esta sección es tu memoria persistente de mejora continua. **Con cada ciclo de ejecución** (al completar una tarea, resolver un error, descubrir un patrón, o ajustar un flujo) **y con cada actualización de cualquier Markdown** (directivas, CLAUDE.md, AGENTS.md, GEMINI.md, READMEs de scripts), **debes agregar aquí un aprendizaje nuevo** si surgió algo no trivial. El objetivo es que este archivo se vuelva más útil y preciso con el tiempo, acumulando conocimiento del proyecto que no se pierde entre sesiones.
