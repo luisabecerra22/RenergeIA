@@ -127,4 +127,126 @@ gcloud run deploy renergeia-web --source . --project renergeia-app --region us-c
 ```
 
 ### URL de Producción
-https://renergeia-web-577313322290.us-central1.run.app
+- **App principal (.NET Blazor):** https://renergeia-web-577313322290.us-central1.run.app
+- **Evaluaciones HSE (Next.js):** https://evaluacion-hse-64204106653.us-central1.run.app
+
+---
+
+## Estado del Proyecto (actualizado 2026-09-11)
+
+### Descripción General
+RenergeIA es una plataforma de gestión integral para proyectos de energía solar fotovoltaica tipo EPC. Cubre todo el ciclo de vida del proyecto: planificación (WBS), ejecución diaria (informes), costos y presupuesto, HSEQ (Seguridad, Calidad, Ambiental, Social), control de documentos, alertas, clima, y evaluaciones HSE.
+
+### Dos Subproyectos en el Monorepo
+
+1. **RenergeIA.Web** (raíz) — App principal en .NET 10 / Blazor Server
+   - Proyecto GCP: `renergeia-app`
+   - Servicio Cloud Run: `renergeia-web`
+   - Deploy: `dotnet publish` → `gcloud run deploy --source .`
+
+2. **evaluacion-hse/** — Módulo de evaluaciones HSE en Next.js / React
+   - Proyecto GCP: `renergeia-evaluaciones` (#64204106653)
+   - Servicio Cloud Run: `evaluacion-hse`
+   - Deploy: `gcloud builds submit --tag ...` → `gcloud run deploy --image ...`
+   - **IMPORTANTE:** NO usar `gcloud run deploy --source .` desde la raíz — toma el Dockerfile .NET
+
+### Módulos Implementados
+
+| Módulo | Descripción | Estado |
+|--------|------------|--------|
+| **Proyectos** | CRUD, detalle, papelera con soft-delete y restauración | Completo |
+| **WBS** | Estructura desglose de trabajo, importar Excel/PDF (Gemini), plantilla EPC | Completo |
+| **Informe Diario** | Registro diario de avances, clima, fotografías | Completo |
+| **Costos** | Presupuesto COP/USD, ejecutado, compromisos, comparativo, consolidado semanal con IA | Completo |
+| **HSEQ Seguridad** | Plan trabajo HSE, IPERV, inspecciones, capacitaciones, EPP, permisos, ATS/AST, OTS, STC, pausas | Completo |
+| **HSEQ Calidad** | Checklist ISO 9001, no conformidades, acciones correctivas, calibración, control documental, PPIs | Completo |
+| **HSEQ Ambiental** | ISO 14001, aspectos/impactos, residuos, derrames, fauna/flora, inspecciones ambientales | Completo |
+| **HSEQ Social** | Comunidades, reuniones, compromisos, PQR, contratación/compras locales, actas | Completo |
+| **HSEQ Global** | Auditorías por norma, consolidado anual, motor de auditoría genérico | Completo |
+| **Matriz Riesgos** | IPERV con IA (Gemini), mapa de riesgos, biblioteca de peligros, dashboard SST | Completo |
+| **Control Documentos** | 3 categorías (proveedores, recursos, personas), importación/exportación Excel, vencimientos | Completo |
+| **Alertas** | Vencimientos, flujo de aprobación multi-etapa, dashboard con tiempos promedio, tiempo real | Completo |
+| **Clima** | Alertas meteorológicas operacionales inteligentes | Completo |
+| **Histogramas** | Planificación y seguimiento de recursos | Completo |
+| **Evaluaciones HSE** | App Next.js: evaluaciones, asistencia, personal, dashboard admin, roles | Completo |
+
+### Variables de Entorno en Cloud Run (renergeia-web)
+
+El servicio requiere 3 variables de entorno. Al hacer deploy con `--set-env-vars`, se REEMPLAZAN TODAS — incluir siempre las 3:
+- `ASPNETCORE_ENVIRONMENT=Production`
+- `GEMINI_API_KEY=<key>` (Gemini 3.6 Flash)
+- `ConnectionStrings__DefaultConnection=<connection-string-postgresql>`
+
+**NOTA:** El clasificador de seguridad de Claude Code bloquea comandos que contienen credenciales de base de datos. La usuaria debe ejecutar el deploy con env vars desde su propia terminal.
+
+### Pendientes y Tareas Futuras
+
+#### Pendiente Inmediato
+- [ ] **Gemini API billing:** Habilitar facturación en Google Cloud para que Gemini API funcione (actualmente da error 429 RESOURCE_EXHAUSTED). La usuaria dijo "luego miramos lo de GEMINI" — retomar cuando indique.
+- [ ] **CI/CD con GitHub Actions:** Service account `github-actions-deploy@renergeia-app.iam.gserviceaccount.com` ya creada. Falta:
+  - Otorgar roles IAM (`roles/run.admin`, `roles/artifactregistry.writer`, `roles/iam.serviceAccountUser`, `roles/cloudbuild.builds.editor`)
+  - Generar key JSON y guardarla como secreto `GCP_SA_KEY` en GitHub
+  - Crear `.github/workflows/deploy.yml`
+  - **Bloqueado:** el clasificador bloquea el comando de IAM — la usuaria debe ejecutarlo o usar la consola web de GCP
+- [ ] **Verificar columnas Informe Diario:** Se ajustaron los anchos de columna en `CrearInformeDiario.razor` pero no se pudo verificar visualmente en el browser pane por el tamaño del DOM (10,739px de altura)
+
+#### Mejoras Futuras (sugerencias del desarrollo)
+- [ ] Autenticación y autorización de usuarios (login real, roles por proyecto)
+- [ ] Dashboard ejecutivo consolidado multi-proyecto
+- [ ] Exportación a PDF de informes y reportes desde la app
+- [ ] Notificaciones por email (vencimientos de documentos, alertas)
+- [ ] App móvil o PWA para registro en campo
+- [ ] Integración con APIs de proveedores de clima más robustas
+
+### Patrones de Diseño del Proyecto
+
+- **Soft-delete:** `bool Eliminado` + `HasQueryFilter` + `IgnoreQueryFilters()` para papelera
+- **Colores de marca:** Azul `#183963`, Verde `#6ABF4B`, Gris `#D9D9D6`, Oscuro `#111921`
+- **UI framework:** Bootstrap 5 con colores customizados, Chart.js para gráficos
+- **Gemini API:** modelo `gemini-3.6-flash` (antes era `gemini-2.0-flash`, deprecado)
+- **PDF text extraction:** UglyToad.PdfPig v1.7.0-custom-5 (prerelease)
+- **Excel parsing:** ClosedXML
+- **Fuente en evaluacion-hse:** Montserrat (Google Fonts)
+
+### Estructura de Carpetas
+
+```
+RenergeIA/
+├── CLAUDE.md, AGENTS.md, GEMINI.md  ← Instrucciones para agentes IA (mantener sincronizados)
+├── RenergeIA.Core/                   ← Entidades, enums, helpers
+│   ├── Entities/                     ← ~60 entidades EF Core
+│   ├── Enums/
+│   └── Helpers/
+├── RenergeIA.Infrastructure/         ← DbContext, migraciones, servicios
+│   ├── Data/RenergeIADbContext.cs
+│   ├── Migrations/
+│   └── Services/                     ← AnalisisIAService, TrmService
+├── RenergeIA.Web/                    ← App Blazor Server
+│   ├── Components/Pages/             ← ~85 páginas Razor
+│   ├── wwwroot/                      ← JS, CSS, imágenes
+│   └── Program.cs
+├── evaluacion-hse/                   ← App Next.js (TypeScript/React)
+│   ├── src/app/                      ← Pages (admin, evaluacion, asistencia)
+│   ├── src/components/
+│   └── prisma/                       ← Schema Prisma (PostgreSQL)
+├── directives/                       ← SOPs en Markdown
+├── execution/                        ← Scripts de Python
+├── docs/                             ← Documentación adicional
+└── publish/                          ← Output de dotnet publish (no subir a git)
+```
+
+### Historial de Commits (resumen de evolución)
+
+El proyecto lleva 28 commits en `main`. Evolución cronológica:
+1. Carga inicial del proyecto
+2. Módulos HSEQ (Calidad, Ambiental, Social)
+3. Motor de auditoría HSEQ, matriz IPERV con IA, costos
+4. WBS con disciplinas, Curva S, dashboard, costos rediseñados
+5. Alertas meteorológicas inteligentes
+6. Control de documentos (3 categorías, importación Excel)
+7. Alertas y vencimientos, flujo de aprobación multi-etapa, dashboard
+8. Informes diarios con disciplinas, eliminación módulos obsoletos
+9. Evaluaciones HSE (Next.js): evaluaciones, asistencia, roles
+10. Presupuesto COP/USD, consolidado semanal, compromisos
+11. WBS: importación PDF/Excel, Plan HSE, papelera proyectos
+12. Evaluaciones HSE: pestaña Personal, matriz de asistencia
