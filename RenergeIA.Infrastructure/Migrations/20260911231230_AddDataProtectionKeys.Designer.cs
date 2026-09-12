@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RenergeIA.Infrastructure.Data;
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911231230_AddDataProtectionKeys")]
+    partial class AddDataProtectionKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3488,73 +3491,6 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("ItemsHistogramaReal", (string)null);
                 });
 
-            modelBuilder.Entity("RenergeIA.Core.Entities.LineaBOM", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("CantidadBOM")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("CantidadReal")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Concepto")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("CostoTotalBOM")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("CostoUnitarioBOM")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Descripcion")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime?>("FechaModificacion")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Fuente")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("MonedaCosto")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("character varying(3)");
-
-                    b.Property<int>("ProyectoId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Unidad")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<decimal>("ValorReal")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProyectoId", "Codigo");
-
-                    b.ToTable("LineasBOM", (string)null);
-                });
-
             modelBuilder.Entity("RenergeIA.Core.Entities.LineaConsolidado", b =>
                 {
                     b.Property<int>("Id")
@@ -3920,51 +3856,6 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     b.Property<int>("AnioInicialHistograma")
                         .HasColumnType("integer");
-
-                    b.Property<string>("BomAlcance")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("BomCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoPlenoCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoPlenoPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenPct")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomObrasCivilesCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomObrasCivilesPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomPrecioUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTotalIvaCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTotalIvaPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTrm")
-                        .HasColumnType("numeric");
 
                     b.Property<decimal>("CapacidadKWp")
                         .HasColumnType("decimal(10,2)");
@@ -5151,17 +5042,6 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("HistogramaReal");
-                });
-
-            modelBuilder.Entity("RenergeIA.Core.Entities.LineaBOM", b =>
-                {
-                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
-                        .WithMany()
-                        .HasForeignKey("ProyectoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Proyecto");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.LineaConsolidado", b =>

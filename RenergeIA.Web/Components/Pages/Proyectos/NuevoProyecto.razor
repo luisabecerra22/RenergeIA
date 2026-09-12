@@ -4,6 +4,8 @@
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
 @inject HistogramaService HistSvc
+@using ClosedXML.Excel
+@using RenergeIA.Web.Services
 
 <PageTitle>Nuevo Proyecto — RenergeIA</PageTitle>
 
@@ -12,7 +14,53 @@
     <h1 class="h3 mb-0">Nuevo Proyecto</h1>
 </div>
 
+<div class="card shadow-sm mb-3" style="max-width:700px;border:2px solid #183963">
+    <div class="card-header text-white fw-semibold" style="background:#183963">
+        Paso 1 — Cargar la BOM de la oferta (recomendado)
+    </div>
+    <div class="card-body py-3">
+        <p class="small text-muted mb-2">
+            Sube el archivo BOM del proyecto (.xlsx). Se leerá la hoja <strong>Ejecutivo</strong> para prellenar
+            los datos del proyecto y la ficha de la oferta, y al guardar se cargará automáticamente el
+            comparativo <strong>BOM vs Real</strong> en Costos. Todo queda editable antes de guardar.
+        </p>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <label class="btn btn-sm fw-semibold mb-0" style="background:#6ABF4B;color:#fff;border:none">
+                <i class="bi-upload me-1"></i>@(_fichaBom is null ? "Cargar BOM" : "Cargar otra BOM")
+                <InputFile OnChange="CargarBomAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
+            </label>
+            @if (_cargandoBom)
+            {
+                <span class="spinner-border spinner-border-sm" style="color:#183963"></span>
+            }
+            @if (_fichaBom is not null)
+            {
+                <span class="badge" style="background:#e8f5e2;color:#183963;font-size:0.75rem">
+                    ✓ @_bomNombreArchivo — @_fichaBom.Codigo · @_fichaBom.Nombre
+                    @(_fichaBom.PotenciaMWp is not null ? $" · {_fichaBom.PotenciaMWp:N4} MWp" : "")
+                    @(_fichaBom.CostoCOP is not null ? $" · Costo ${_fichaBom.CostoCOP:N0}" : "")
+                </span>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(_bomMensaje))
+        {
+            <div class="alert @(_bomError ? "alert-danger" : "alert-success") py-2 mt-2 mb-0 small">@_bomMensaje</div>
+        }
+        @if (!string.IsNullOrEmpty(_dupMensaje) && !_mostrarConfirmDuplicado)
+        {
+            <div class="alert alert-warning py-2 mt-2 mb-0 small">
+                <strong>⚠ Proyecto posiblemente repetido:</strong> @_dupMensaje
+                Valida si esta es la BOM correcta — un proyecto repetido genera confusiones y problemas para el personal.
+                Si no corresponde, corrige el código y el nombre antes de guardar.
+            </div>
+        }
+    </div>
+</div>
+
 <div class="card shadow-sm" style="max-width: 700px;">
+    <div class="card-header fw-semibold" style="background:#f0f3f8;color:#183963">
+        @(_fichaBom is null ? "Datos del proyecto" : "Paso 2 — Revisa y completa los datos (estado, ubicación y fechas)")
+    </div>
     <div class="card-body">
         <EditForm Model="_form" OnValidSubmit="GuardarAsync">
             <DataAnnotationsValidator />
@@ -53,8 +101,24 @@
                     <ValidationMessage For="() => _form.Pais" class="text-danger small" />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Capacidad (kWp) *</label>
-                    <InputNumber class="form-control" @bind-Value="_form.CapacidadKWp" min="0.01" />
+                    <label class="form-label">Capacidad *</label>
+                    <div class="input-group">
+                        <InputNumber class="form-control" @bind-Value="_form.CapacidadKWp" min="0.0001" />
+                        <select class="form-select" style="max-width:95px;font-weight:600;color:#183963"
+                                value="@_form.UnidadCapacidad"
+                                @onchange="e => CambiarUnidadCapacidad(e.Value?.ToString())">
+                            <option value="kWp">kWp</option>
+                            <option value="MWp">MWp</option>
+                        </select>
+                    </div>
+                    @if (_form.CapacidadKWp > 0)
+                    {
+                        <div class="form-text" style="color:#183963">
+                            = @(_form.UnidadCapacidad == "MWp"
+                                ? $"{(_form.CapacidadKWp * 1000m).ToString("N1")} kWp"
+                                : $"{(_form.CapacidadKWp / 1000m).ToString("N4")} MWp")
+                        </div>
+                    }
                     <ValidationMessage For="() => _form.CapacidadKWp" class="text-danger small" />
                 </div>
                 <div class="col-md-6">
@@ -78,6 +142,29 @@
                 </div>
             </div>
 
+            @if (_mostrarConfirmDuplicado)
+            {
+                <div class="alert alert-danger mt-4 mb-0">
+                    <strong>⚠ Proyecto repetido:</strong> @_dupMensaje<br />
+                    Un proyecto repetido genera <strong>confusiones y problemas para el personal</strong> en campo y en los reportes.
+                    Valida si cargaste la <strong>BOM correcta</strong>:
+                    <div class="d-flex gap-2 mt-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-danger"
+                                @onclick="ConfirmarDuplicadoYGuardarAsync">
+                            Sí, es la BOM correcta — crear de todas formas
+                        </button>
+                        <button type="button" class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none"
+                                @onclick="ReiniciarParaCargarBomCorrecta">
+                            No era la correcta — cargar la BOM correcta
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                @onclick="() => _mostrarConfirmDuplicado = false">
+                            Voy a corregir los datos
+                        </button>
+                    </div>
+                </div>
+            }
+
             <div class="mt-4 d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Guardar proyecto</button>
                 <a href="/proyectos" class="btn btn-outline-secondary">Cancelar</a>
@@ -89,8 +176,138 @@
 @code {
     private readonly FormModel _form = new();
 
+    private BomParser.FichaBom? _fichaBom;
+    private byte[]? _bomBytes;
+    private string? _bomNombreArchivo;
+    private string? _bomMensaje;
+    private bool _bomError;
+    private bool _cargandoBom;
+
+    private string? _dupMensaje;
+    private bool _mostrarConfirmDuplicado;
+    private string? _dupConfirmadoPara;
+
+    private string ClaveDuplicado => $"{_form.Codigo.Trim().ToLowerInvariant()}|{_form.Nombre.Trim().ToLowerInvariant()}";
+
+    private async Task<string?> BuscarDuplicadoAsync()
+    {
+        var cod = _form.Codigo.Trim().ToLower();
+        var nom = _form.Nombre.Trim().ToLower();
+        if (string.IsNullOrEmpty(cod) && string.IsNullOrEmpty(nom)) return null;
+
+        var existente = await Db.Proyectos.IgnoreQueryFilters().AsNoTracking()
+            .Where(p => (cod != "" && p.Codigo.ToLower() == cod) || (nom != "" && p.Nombre.ToLower() == nom))
+            .Select(p => new { p.Codigo, p.Nombre, p.Eliminado, p.Estado })
+            .FirstOrDefaultAsync();
+        if (existente is null) return null;
+
+        var donde = existente.Eliminado
+            ? "está en la papelera"
+            : $"ya existe (estado: {EnumDisplay.Mostrar(existente.Estado)})";
+        return $"El proyecto \"{existente.Codigo} — {existente.Nombre}\" {donde}. ";
+    }
+
+    private async Task ConfirmarDuplicadoYGuardarAsync()
+    {
+        _dupConfirmadoPara = ClaveDuplicado;
+        _mostrarConfirmDuplicado = false;
+        await GuardarAsync();
+    }
+
+    private void CambiarUnidadCapacidad(string? nueva)
+    {
+        if (nueva is not ("kWp" or "MWp") || nueva == _form.UnidadCapacidad) return;
+        if (_form.CapacidadKWp > 0)
+        {
+            _form.CapacidadKWp = nueva == "kWp"
+                ? Math.Round(_form.CapacidadKWp * 1000m, 1)
+                : Math.Round(_form.CapacidadKWp / 1000m, 4);
+        }
+        _form.UnidadCapacidad = nueva;
+    }
+
+    private void ReiniciarParaCargarBomCorrecta()
+    {
+        _fichaBom = null;
+        _bomBytes = null;
+        _bomNombreArchivo = null;
+        _mostrarConfirmDuplicado = false;
+        _dupMensaje = null;
+        _dupConfirmadoPara = null;
+        _bomMensaje = "Carga la BOM correcta en el Paso 1 con el botón 'Cargar BOM'. Los datos del formulario se actualizarán con la nueva BOM.";
+        _bomError = false;
+    }
+
+    private async Task CargarBomAsync(InputFileChangeEventArgs e)
+    {
+        _cargandoBom = true;
+        _bomMensaje = null;
+        StateHasChanged();
+        try
+        {
+            using var ms = new System.IO.MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 60 * 1024 * 1024).CopyToAsync(ms);
+            _bomBytes = ms.ToArray();
+            _bomNombreArchivo = e.File.Name;
+
+            ms.Position = 0;
+            using var workbook = new XLWorkbook(ms);
+            _fichaBom = BomParser.ParseEjecutivo(workbook);
+
+            if (_fichaBom is null)
+            {
+                _bomMensaje = "No se encontró la hoja 'Ejecutivo' con datos válidos en el archivo. Puedes digitar los datos manualmente.";
+                _bomError = true;
+                _bomBytes = null;
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(_fichaBom.Codigo)) _form.Codigo = _fichaBom.Codigo;
+            if (!string.IsNullOrEmpty(_fichaBom.Nombre)) _form.Nombre = _fichaBom.Nombre;
+            if (!string.IsNullOrEmpty(_fichaBom.Cliente)) _form.Cliente = _fichaBom.Cliente;
+            if (!string.IsNullOrEmpty(_fichaBom.Pais)) _form.Pais = _fichaBom.Pais;
+            if (_fichaBom.PotenciaMWp is > 0)
+            {
+                _form.CapacidadKWp = Math.Round(_fichaBom.PotenciaMWp.Value, 4);
+                _form.UnidadCapacidad = "MWp";
+            }
+            if (_fichaBom.PrecioUSD is > 0) _form.PresupuestoContractual = Math.Round(_fichaBom.PrecioUSD.Value, 0);
+            if (!string.IsNullOrEmpty(_fichaBom.Alcance) && string.IsNullOrEmpty(_form.Descripcion))
+                _form.Descripcion = $"Alcance: {_fichaBom.Alcance}";
+
+            var (lineas, _, _) = BomParser.ParseLineas(workbook, 0);
+            _bomMensaje = $"BOM leída correctamente: {_fichaBom.Codigo} — {_fichaBom.Nombre}. " +
+                          $"Se prellenaron los datos y al guardar se cargarán {lineas.Count} líneas al comparativo BOM vs Real. " +
+                          "Completa estado, ubicación y fechas.";
+            _bomError = false;
+
+            _dupConfirmadoPara = null;
+            _mostrarConfirmDuplicado = false;
+            _dupMensaje = await BuscarDuplicadoAsync();
+        }
+        catch (Exception ex)
+        {
+            _bomMensaje = $"Error al leer la BOM: {ex.Message}";
+            _bomError = true;
+            _fichaBom = null;
+            _bomBytes = null;
+        }
+        finally
+        {
+            _cargandoBom = false;
+        }
+    }
+
     private async Task GuardarAsync()
     {
+        var dup = await BuscarDuplicadoAsync();
+        if (dup is not null && _dupConfirmadoPara != ClaveDuplicado)
+        {
+            _dupMensaje = dup;
+            _mostrarConfirmDuplicado = true;
+            return;
+        }
+
         var proyecto = new Proyecto
         {
             Codigo = _form.Codigo,
@@ -98,7 +315,7 @@
             Cliente = _form.Cliente,
             Ubicacion = _form.Ubicacion,
             Pais = _form.Pais,
-            CapacidadKWp = _form.CapacidadKWp,
+            CapacidadKWp = _form.UnidadCapacidad == "MWp" ? _form.CapacidadKWp * 1000m : _form.CapacidadKWp,
             PresupuestoContractual = _form.PresupuestoContractual,
             FechaInicioPlaneada = _form.FechaInicioPlaneada,
             FechaFinPlaneada = _form.FechaFinPlaneada,
@@ -106,8 +323,47 @@
             Descripcion = _form.Descripcion
         };
 
+        if (_fichaBom is not null)
+        {
+            proyecto.BomAlcance               = _fichaBom.Alcance;
+            proyecto.BomTrm                   = _fichaBom.Trm;
+            proyecto.BomCostoCOP              = _fichaBom.CostoCOP;
+            proyecto.BomPrecioCOP             = _fichaBom.PrecioCOP;
+            proyecto.BomMargenCOP             = _fichaBom.MargenCOP;
+            proyecto.BomMargenPct             = _fichaBom.MargenPct;
+            proyecto.BomCostoUSD              = _fichaBom.CostoUSD;
+            proyecto.BomPrecioUSD             = _fichaBom.PrecioUSD;
+            proyecto.BomMargenUSD             = _fichaBom.MargenUSD;
+            proyecto.BomObrasCivilesPrecioCOP = _fichaBom.ObrasCivilesPrecio;
+            proyecto.BomCostoPlenoPrecioCOP   = _fichaBom.CostoPlenoPrecio;
+            proyecto.BomTotalIvaPrecioCOP     = _fichaBom.TotalIvaPrecio;
+            proyecto.BomObrasCivilesCostoCOP  = _fichaBom.ObrasCivilesCosto;
+            proyecto.BomCostoPlenoCostoCOP    = _fichaBom.CostoPlenoCosto;
+            proyecto.BomTotalIvaCostoCOP      = _fichaBom.TotalIvaCosto;
+            if (_fichaBom.Trm is > 0) proyecto.TasaCambioCOPUSD = _fichaBom.Trm.Value;
+        }
+
         Db.Proyectos.Add(proyecto);
         await Db.SaveChangesAsync();
+
+        if (_bomBytes is not null)
+        {
+            try
+            {
+                using var ms = new System.IO.MemoryStream(_bomBytes);
+                using var workbook = new XLWorkbook(ms);
+                var (lineas, _, _) = BomParser.ParseLineas(workbook, proyecto.Id);
+                if (lineas.Count > 0)
+                {
+                    Db.LineasBOM.AddRange(lineas);
+                    await Db.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // La creación del proyecto no debe fallar por las líneas BOM; se pueden reimportar en Costos
+            }
+        }
 
         await HistSvc.CrearOActualizarAsync(proyecto.Id, TipoHistograma.Personal,
             HistogramaService.PlantillaPersonalPorCapacidad(proyecto.CapacidadKWp));
@@ -136,8 +392,10 @@
         [Required(ErrorMessage = "El país es obligatorio")]
         public string Pais { get; set; } = string.Empty;
 
-        [Range(0.01, double.MaxValue, ErrorMessage = "La capacidad debe ser mayor a 0")]
+        [Range(0.0001, double.MaxValue, ErrorMessage = "La capacidad debe ser mayor a 0")]
         public decimal CapacidadKWp { get; set; }
+
+        public string UnidadCapacidad { get; set; } = "kWp";
 
         [Range(0.01, double.MaxValue, ErrorMessage = "El presupuesto debe ser mayor a 0")]
         public decimal PresupuestoContractual { get; set; }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RenergeIA.Infrastructure.Data;
@@ -12,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<RenergeIADbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Persistir claves de DataProtection en la BD: sin esto, cada deploy de Cloud Run
+// genera claves nuevas y las cookies antiforgery/login previas dan HTTP 400
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<RenergeIADbContext>()
+    .SetApplicationName("RenergeIA");
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -42,6 +49,7 @@ builder.Services.AddScoped<ChecklistISO9001Service>();
 builder.Services.AddScoped<NormaChecklistService>();
 builder.Services.AddScoped<IAInspeccionService>();
 builder.Services.AddScoped<ControlIngresoService>();
+builder.Services.AddScoped<CambiosPendientesService>();
 builder.Services.AddSingleton<ControlIngresoNotifier>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<TrmService>(c => c.BaseAddress = new Uri("https://www.datos.gov.co/"));

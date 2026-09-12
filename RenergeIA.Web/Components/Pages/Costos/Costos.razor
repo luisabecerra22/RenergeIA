@@ -2,6 +2,8 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@inject RenergeIA.Web.Services.CambiosPendientesService CambiosPendientes
 
 <PageTitle>Costos — @(_nombreProyecto ?? "Proyecto")</PageTitle>
 
@@ -29,7 +31,7 @@ else
                     style="@(activa
                         ? "background:#183963;color:#fff;border:none;border-radius:10px;padding:8px 18px"
                         : "background:#fff;color:#183963;border:1px solid #D9D9D6;border-radius:10px;padding:8px 18px")"
-                    @onclick="() => _tabActivo = tab.Key">
+                    @onclick="() => CambiarTabAsync(tab.Key)">
                 <i class="@tab.Icono"></i>
                 <span>@tab.Label</span>
             </button>
@@ -48,9 +50,9 @@ else
     {
         <CostosDashboard ProyectoId="ProyectoId" />
     }
-    else if (_tabActivo == "comparativo")
+    else if (_tabActivo == "bom")
     {
-        <CostosComparativo ProyectoId="ProyectoId" />
+        <CostosBOM ProyectoId="ProyectoId" />
     }
     else if (_tabActivo == "consolidado")
     {
@@ -71,7 +73,7 @@ else
         new("presupuesto",  "Presupuesto",      "bi-table"),
         new("compromisos",  "Compromisos",       "bi-file-earmark-text"),
         new("dashboard",    "Dashboard",         "bi-bar-chart-line"),
-        new("comparativo",  "Comparativo",       "bi-arrows-angle-expand"),
+        new("bom",          "BOM vs Real",       "bi-clipboard-data"),
         new("consolidado",  "Consolidado",       "bi-journal-text"),
     ];
 
@@ -79,5 +81,19 @@ else
     {
         var proy = await Db.Proyectos.FindAsync(ProyectoId);
         _nombreProyecto = proy?.Nombre ?? "Proyecto";
+    }
+
+    private async Task CambiarTabAsync(string key)
+    {
+        if (key == _tabActivo) return;
+        if (CambiosPendientes.HayCambios)
+        {
+            var salir = await JS.InvokeAsync<bool>("confirm",
+                $"Tienes cambios sin guardar en {CambiosPendientes.Origen ?? "esta vista"}. ¿Salir sin guardar?");
+            if (!salir) return;
+            CambiosPendientes.Limpiar();
+            try { await JS.InvokeVoidAsync("setUnsavedGuard", false); } catch { }
+        }
+        _tabActivo = key;
     }
 }

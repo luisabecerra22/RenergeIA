@@ -84,6 +84,11 @@
 <div class="d-flex justify-content-end gap-2 mb-3">
     @if (_compromisos.Any())
     {
+        <button class="btn btn-sm @(_filtroAplicado is not null ? "" : "btn-outline-secondary")" title="Filtrar órdenes de compra"
+                style="@(_filtroAplicado is not null ? "background:#6ABF4B;color:#fff;border:none" : "")"
+                @onclick="() => _mostrarFiltros = !_mostrarFiltros">
+            <i class="bi-funnel me-1"></i>Filtros
+        </button>
         <button class="btn btn-sm btn-outline-success" title="Exportar órdenes de compra a Excel (.xlsx)"
                 @onclick="ExportarExcelAsync">
             <i class="bi-download me-1"></i>Exportar Excel
@@ -95,17 +100,77 @@
     </label>
     <button class="btn btn-sm fw-semibold"
             style="background:#183963;color:#fff;border:none"
-            @onclick="() => _mostrarFormulario = !_mostrarFormulario">
+            @onclick="NuevaOC">
         <i class="bi-plus-lg me-1"></i>Nueva Orden de Compra
     </button>
 </div>
+
+<!-- Panel de filtros -->
+@if (_mostrarFiltros)
+{
+    <div class="card mb-3" style="border:1px solid #183963">
+        <div class="card-header py-1 fw-semibold small text-white" style="background:#183963">
+            <i class="bi-funnel me-1"></i>Filtrar órdenes de compra
+        </div>
+        <div class="card-body py-2">
+            <div class="row g-2">
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Cód. rubro</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.Rubro" placeholder="Ej: PASP-001" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0"># Orden compra</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.OC" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Proveedor</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.Proveedor" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Descripción servicio</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.Descripcion" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0"># Factura</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.Factura" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Estado</label>
+                    <select class="form-select form-select-sm" @bind="_filtro.Estado">
+                        <option value="">— Todos —</option>
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="Pagada">Pagada</option>
+                        <option value="EnProceso">En proceso</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Fecha factura desde</label>
+                    <input type="date" class="form-control form-control-sm" @bind="_filtro.FechaDesde" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Fecha factura hasta</label>
+                    <input type="date" class="form-control form-control-sm" @bind="_filtro.FechaHasta" />
+                </div>
+                <div class="col d-flex align-items-end gap-2">
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none"
+                            @onclick="AplicarFiltros">
+                        <i class="bi-check-lg me-1"></i>Aplicar filtros
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LimpiarFiltros">
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <!-- Formulario nuevo -->
 @if (_mostrarFormulario)
 {
     <div class="card mb-4" style="border:1px solid #183963">
         <div class="card-header text-white fw-semibold" style="background:#183963">
-            Registrar orden de compra
+            @(_editandoId is null ? "Registrar orden de compra" : "Editar orden de compra")
         </div>
         <div class="card-body">
             <EditForm Model="_form" OnValidSubmit="GuardarAsync">
@@ -173,7 +238,7 @@
                             💾 Guardar
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary"
-                                @onclick="() => _mostrarFormulario = false">Cancelar</button>
+                                @onclick="CancelarFormulario">Cancelar</button>
                     </div>
                 </div>
             </EditForm>
@@ -200,6 +265,16 @@
 }
 else
 {
+    var listaFiltrada = Filtrados().OrderBy(c => c.Partida?.Codigo ?? "zzz").ThenBy(c => c.Codigo).ToList();
+
+    @if (_filtroAplicado is not null)
+    {
+        <div class="mb-2 small text-muted">
+            <i class="bi-funnel-fill me-1" style="color:#6ABF4B"></i>
+            Mostrando <strong>@listaFiltrada.Count</strong> de @_compromisos.Count órdenes de compra
+        </div>
+    }
+
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 small">
@@ -219,7 +294,7 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var c in _compromisos.OrderBy(c => c.Partida?.Codigo ?? "zzz").ThenBy(c => c.Codigo))
+                    @foreach (var c in listaFiltrada)
                     {
                         var pagada = EstaPagada(c);
                         var enProceso = EsEnProceso(c);
@@ -275,12 +350,15 @@ else
                             <td class="pe-2 text-end" style="white-space:nowrap">
                                 @if (_confirmandoEliminar == c.Id)
                                 {
-                                    <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(c.Id)">✓</button>
-                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">×</button>
+                                    <button class="btn btn-danger btn-sm py-0 px-1" title="Confirmar eliminación" @onclick="() => EliminarAsync(c.Id)">✓</button>
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Cancelar" @onclick="() => _confirmandoEliminar = null">×</button>
                                 }
                                 else
                                 {
-                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = c.Id">✕</button>
+                                    <button class="btn btn-outline-primary btn-sm py-0 px-1 me-1" title="Editar"
+                                            style="border-color:#183963;color:#183963"
+                                            @onclick="() => IniciarEdicion(c)"><i class="bi-pencil"></i></button>
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Eliminar" @onclick="() => _confirmandoEliminar = c.Id">✕</button>
                                 }
                             </td>
                         </tr>
@@ -289,8 +367,8 @@ else
                         <td class="ps-3 py-2" colspan="7" style="background:#183963;color:white">
                             <span style="letter-spacing:1px">TOTAL (COP)</span>
                         </td>
-                        <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(_compromisos.Sum(c => EnCOP(c, c.ValorFactura)))</td>
-                        <td class="text-end pe-3 py-2" style="background:#183963;color:white">@FormatCOP(TotalPendiente)</td>
+                        <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(c => EnCOP(c, c.ValorFactura)))</td>
+                        <td class="text-end pe-3 py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Where(c => c.Estado != EstadoCompromiso.Cancelado).Sum(c => EnCOP(c, c.SaldoPorPagar)))</td>
                         <td colspan="2" style="background:#183963"></td>
                     </tr>
                 </tbody>
@@ -311,6 +389,10 @@ else
 
     private CompromisoForm _form = new();
     private Proyecto? _proyecto;
+    private int? _editandoId;
+    private bool _mostrarFiltros;
+    private FiltroModel _filtro = new();
+    private FiltroModel? _filtroAplicado;
 
     private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
     private decimal EnCOP(CompromisoCosto c, decimal v) => c.Moneda == "USD" ? v * TRM : v;
@@ -347,29 +429,121 @@ else
 
     private async Task GuardarAsync()
     {
-        var nuevo = new CompromisoCosto
+        var numFact = string.IsNullOrWhiteSpace(_form.NumeroFactura) ? null : _form.NumeroFactura.Trim();
+        if (numFact is not null && _compromisos.Any(c => c.Id != (_editandoId ?? 0)
+            && string.Equals(c.NumeroFactura, numFact, StringComparison.OrdinalIgnoreCase)))
         {
-            ProyectoId          = ProyectoId,
-            Codigo              = _form.Codigo,
-            Moneda              = _form.Moneda,
-            Proveedor           = _form.Proveedor,
-            PartidaId           = _form.PartidaId == 0 ? null : _form.PartidaId,
-            Valor               = _form.Valor,
-            Fecha               = _form.Fecha,
-            DescripcionServicio = string.IsNullOrWhiteSpace(_form.DescripcionServicio) ? null : _form.DescripcionServicio,
-            NumeroFactura       = string.IsNullOrWhiteSpace(_form.NumeroFactura) ? null : _form.NumeroFactura,
-            FechaFactura        = _form.FechaFactura == default ? null : _form.FechaFactura,
-            ValorFactura        = _form.ValorFactura,
-            SaldoPorPagar       = _form.SaldoPorPagar
-        };
-        nuevo.Estado = EstadoDe(nuevo);
-        Db.CompromisoCostos.Add(nuevo);
+            _mensaje = $"El número de factura '{numFact}' ya está registrado en otra orden de compra. Los números de factura no se pueden repetir.";
+            _mensajeError = true;
+            return;
+        }
+
+        CompromisoCosto entidad;
+        if (_editandoId is int idEdicion)
+        {
+            entidad = _compromisos.First(c => c.Id == idEdicion);
+        }
+        else
+        {
+            entidad = new CompromisoCosto { ProyectoId = ProyectoId };
+            Db.CompromisoCostos.Add(entidad);
+        }
+
+        entidad.Codigo              = _form.Codigo;
+        entidad.Moneda              = _form.Moneda;
+        entidad.Proveedor           = _form.Proveedor;
+        entidad.PartidaId           = _form.PartidaId == 0 ? null : _form.PartidaId;
+        entidad.Valor               = _form.Valor;
+        entidad.Fecha               = _form.Fecha;
+        entidad.DescripcionServicio = string.IsNullOrWhiteSpace(_form.DescripcionServicio) ? null : _form.DescripcionServicio;
+        entidad.NumeroFactura       = numFact;
+        entidad.FechaFactura        = _form.FechaFactura == default ? null : _form.FechaFactura;
+        entidad.ValorFactura        = _form.ValorFactura;
+        entidad.SaldoPorPagar       = _form.SaldoPorPagar;
+        entidad.Estado              = EstadoDe(entidad);
+
+        if (_editandoId is not null) Db.CompromisoCostos.Update(entidad);
         await Db.SaveChangesAsync();
-        _form = new CompromisoForm();
-        _mostrarFormulario = false;
-        _mensaje = "Orden de compra registrada correctamente.";
+
+        _mensaje = _editandoId is null
+            ? "Orden de compra registrada correctamente."
+            : "Orden de compra actualizada correctamente.";
         _mensajeError = false;
+        _form = new CompromisoForm();
+        _editandoId = null;
+        _mostrarFormulario = false;
         await CargarAsync();
+    }
+
+    private void NuevaOC()
+    {
+        if (_mostrarFormulario && _editandoId is null) { _mostrarFormulario = false; return; }
+        _editandoId = null;
+        _form = new CompromisoForm();
+        _mostrarFormulario = true;
+    }
+
+    private void IniciarEdicion(CompromisoCosto c)
+    {
+        _editandoId = c.Id;
+        _form = new CompromisoForm
+        {
+            Codigo              = c.Codigo,
+            Moneda              = c.Moneda,
+            Proveedor           = c.Proveedor,
+            PartidaId           = c.PartidaId,
+            Valor               = c.Valor,
+            Fecha               = c.Fecha,
+            DescripcionServicio = c.DescripcionServicio,
+            NumeroFactura       = c.NumeroFactura,
+            FechaFactura        = c.FechaFactura ?? default,
+            ValorFactura        = c.ValorFactura,
+            SaldoPorPagar       = c.SaldoPorPagar
+        };
+        _mostrarFormulario = true;
+    }
+
+    private void CancelarFormulario()
+    {
+        _mostrarFormulario = false;
+        _editandoId = null;
+        _form = new CompromisoForm();
+    }
+
+    private void AplicarFiltros() => _filtroAplicado = _filtro.Clone();
+
+    private void LimpiarFiltros()
+    {
+        _filtro = new FiltroModel();
+        _filtroAplicado = null;
+    }
+
+    private IEnumerable<CompromisoCosto> Filtrados()
+    {
+        var f = _filtroAplicado;
+        if (f is null) return _compromisos;
+        IEnumerable<CompromisoCosto> q = _compromisos;
+        if (!string.IsNullOrWhiteSpace(f.Rubro))
+            q = q.Where(c => (c.Partida?.Codigo ?? "").Contains(f.Rubro.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.OC))
+            q = q.Where(c => c.Codigo.Contains(f.OC.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.Proveedor))
+            q = q.Where(c => c.Proveedor.Contains(f.Proveedor.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.Descripcion))
+            q = q.Where(c => (c.DescripcionServicio ?? "").Contains(f.Descripcion.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.Factura))
+            q = q.Where(c => (c.NumeroFactura ?? "").Contains(f.Factura.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (f.FechaDesde.HasValue)
+            q = q.Where(c => c.FechaFactura.HasValue && c.FechaFactura.Value.Date >= f.FechaDesde.Value.Date);
+        if (f.FechaHasta.HasValue)
+            q = q.Where(c => c.FechaFactura.HasValue && c.FechaFactura.Value.Date <= f.FechaHasta.Value.Date);
+        if (f.Estado == "Pendiente")
+            q = q.Where(c => !EstaPagada(c) && !EsEnProceso(c));
+        else if (f.Estado == "Pagada")
+            q = q.Where(EstaPagada);
+        else if (f.Estado == "EnProceso")
+            q = q.Where(EsEnProceso);
+        return q;
     }
 
     private static EstadoCompromiso EstadoDe(CompromisoCosto c)
@@ -460,7 +634,8 @@ else
                 return;
             }
 
-            int importados = 0, actualizados = 0;
+            int importados = 0, actualizados = 0, duplicados = 0;
+            var facturasVistas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int row = headerRow + 1; row <= lastRow; row++)
             {
                 var proveedor = ws.Cell(row, colProveedor).GetString().Trim();
@@ -507,6 +682,14 @@ else
                 }
                 else
                 {
+                    if (!string.IsNullOrEmpty(numFactura) &&
+                        (_compromisos.Any(x => string.Equals(x.NumeroFactura, numFactura, StringComparison.OrdinalIgnoreCase))
+                         || !facturasVistas.Add(numFactura)))
+                    {
+                        duplicados++;
+                        continue;
+                    }
+
                     var nuevo = new CompromisoCosto
                     {
                         ProyectoId          = ProyectoId,
@@ -537,7 +720,9 @@ else
 
             await Db.SaveChangesAsync();
             await CargarAsync();
-            _mensaje = $"{importados} órdenes importadas, {actualizados} actualizadas desde el archivo de tesorería.";
+            var resumen = $"{importados} órdenes importadas, {actualizados} actualizadas desde el archivo de tesorería.";
+            if (duplicados > 0) resumen += $" {duplicados} omitidas por número de factura repetido.";
+            _mensaje = resumen;
             _mensajeError = false;
         }
         catch (Exception ex)
@@ -625,6 +810,19 @@ else
     private static readonly System.Globalization.CultureInfo _co = new("es-CO");
     private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
     private static string FormatUSD(decimal v) => "US$ " + v.ToString("N0", _co);
+
+    private sealed class FiltroModel
+    {
+        public string? Rubro { get; set; }
+        public string? OC { get; set; }
+        public string? Proveedor { get; set; }
+        public string? Descripcion { get; set; }
+        public string? Factura { get; set; }
+        public DateTime? FechaDesde { get; set; }
+        public DateTime? FechaHasta { get; set; }
+        public string Estado { get; set; } = "";
+        public FiltroModel Clone() => (FiltroModel)MemberwiseClone();
+    }
 
     private sealed class CompromisoForm
     {

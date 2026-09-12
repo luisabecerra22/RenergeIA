@@ -8,28 +8,69 @@
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
                 <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                <div class="fw-bold fs-6">@FormatCOP(_totalPresupuesto)</div>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.88rem">@FormatCOP(_totalPresupuesto)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(255,255,255,0.35);height:26px"></div>
+                    <div>
+                        <div class="fw-bold" style="font-size:0.88rem">@FormatUSD(_totalPresupuesto / TRM)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                    </div>
+                </div>
                 <div class="small" style="opacity:0.8">Presupuesto Total</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff;border-radius:14px">
                 <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                <div class="fw-bold fs-6">@FormatCOP(_totalEjecutado)</div>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.88rem">@FormatCOP(_totalEjecutado)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(255,255,255,0.35);height:26px"></div>
+                    <div>
+                        <div class="fw-bold" style="font-size:0.88rem">@FormatUSD(_totalEjecutado / TRM)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                    </div>
+                </div>
                 <div class="small" style="opacity:0.8">Total Ejecutado</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
                 <i class="bi-file-earmark-text mb-1" style="font-size:1.5rem;color:#fd7e14"></i>
-                <div class="fw-bold fs-6" style="color:#fd7e14">@FormatCOP(_totalCompromisos)</div>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:#fd7e14;font-size:0.88rem">@FormatCOP(_totalCompromisos)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:26px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:#fd7e14;font-size:0.88rem">@FormatUSD(_totalCompromisos / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
                 <div class="small text-muted">Compromisos Activos</div>
+                <div class="text-muted" style="font-size:0.6rem">Saldos por pagar de OC</div>
             </div>
         </div>
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_totalExposicion > _totalPresupuesto ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)");border-radius:14px">
                 <i class="bi-graph-up-arrow mb-1" style="font-size:1.5rem;color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")"></i>
-                <div class="fw-bold fs-6" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963")">@FormatCOP(_totalExposicion)</div>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963");font-size:0.88rem">@FormatCOP(_totalExposicion)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:26px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:@(_totalExposicion > _totalPresupuesto ? "#dc3545" : "#183963");font-size:0.88rem">@FormatUSD(_totalExposicion / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
                 <div class="small text-muted">Exposición Total</div>
             </div>
         </div>
@@ -48,7 +89,7 @@ else
 {
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header fw-semibold py-2" style="background:#183963;color:#fff">
-            <i class="bi-arrows-angle-expand me-2"></i>Comparativo por Categoría
+            <i class="bi-arrows-angle-expand me-2"></i>Comparativo por Categoría (valores en COP)
         </div>
         <div class="table-responsive">
             <table class="table align-middle mb-0 small">
@@ -151,8 +192,16 @@ else
     private decimal _totalExposicion;
     private decimal _pctEjecTotal;
 
+    private Proyecto? _proyecto;
+    private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
+    private decimal ACOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoPresupuestado * TRM : p.MontoPresupuestado;
+    private decimal EjecACOP(Partida p) => p.MonedaOriginal == "USD" ? p.ValorEjecutado * TRM : p.ValorEjecutado;
+    private decimal SaldoCOP(CompromisoCosto c) => c.Moneda == "USD" ? c.SaldoPorPagar * TRM : c.SaldoPorPagar;
+
     protected override async Task OnInitializedAsync()
     {
+        _proyecto = await Db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == ProyectoId);
+
         var principales = await Db.Partidas.AsNoTracking()
             .Where(p => p.ProyectoId == ProyectoId && p.EsPrincipal)
             .ToListAsync();
@@ -163,18 +212,17 @@ else
 
         var compromisos = await Db.CompromisoCostos.AsNoTracking()
             .Where(c => c.ProyectoId == ProyectoId
-                     && c.Estado != EstadoCompromiso.Cancelado
-                     && c.Estado != EstadoCompromiso.Pagado)
+                     && c.Estado != EstadoCompromiso.Cancelado)
             .ToListAsync();
 
         _filas = principales.Select(p =>
         {
             var subs   = subPartidas.Where(s => s.PadreId == p.Id).ToList();
-            var presup = subs.Sum(s => s.MontoPresupuestado);
-            var ejec   = subs.Sum(s => s.ValorEjecutado);
+            var presup = subs.Sum(ACOP);
+            var ejec   = subs.Sum(EjecACOP);
             var subIds = subs.Select(s => s.Id).ToHashSet();
             var comp   = compromisos.Where(c => c.PartidaId.HasValue && subIds.Contains(c.PartidaId.Value))
-                                    .Sum(c => c.Valor);
+                                    .Sum(SaldoCOP);
             return new FilaComparativo(p.Codigo, p.Descripcion, presup, ejec, comp, ejec + comp);
         }).Where(f => f.Presupuesto > 0 || f.Ejecutado > 0).ToList();
 
@@ -195,6 +243,7 @@ else
 
     private static readonly System.Globalization.CultureInfo _co = new("es-CO");
     private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+    private static string FormatUSD(decimal v) => "US$ " + v.ToString("N0", _co);
 
     private record FilaComparativo(
         string Codigo, string Nombre,

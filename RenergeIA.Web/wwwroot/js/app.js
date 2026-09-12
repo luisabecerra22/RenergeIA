@@ -1,5 +1,9 @@
 window.imprimirPagina = function () { window.print(); };
 
+window.setUnsavedGuard = function (on) {
+    window.onbeforeunload = on ? function (e) { e.preventDefault(); e.returnValue = ''; return ''; } : null;
+};
+
 window.downloadFile = function (fileName, base64Content, mimeType) {
     const blob = base64ToBlob(base64Content, mimeType);
     const url = URL.createObjectURL(blob);

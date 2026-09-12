@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -7,9 +8,11 @@ using RenergeIA.Infrastructure.Identity;
 
 namespace RenergeIA.Infrastructure.Data;
 
-public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
+public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProtectionKeyContext
 {
     public RenergeIADbContext(DbContextOptions<RenergeIADbContext> options) : base(options) { }
+
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<CronogramaVersion> CronogramasVersion => Set<CronogramaVersion>();
@@ -22,6 +25,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Partida> Partidas => Set<Partida>();
     public DbSet<CostoReal> CostosReales => Set<CostoReal>();
     public DbSet<CompromisoCosto> CompromisoCostos => Set<CompromisoCosto>();
+    public DbSet<FlujoCajaExclusion> FlujoCajaExclusiones => Set<FlujoCajaExclusion>();
+    public DbSet<LineaBOM> LineasBOM => Set<LineaBOM>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -191,11 +196,44 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>
              .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
         });
 
+        // LineaBOM
+        modelBuilder.Entity<LineaBOM>(e =>
+        {
+            e.ToTable("LineasBOM");
+            e.Property(x => x.Codigo).HasMaxLength(20);
+            e.Property(x => x.Fuente).HasMaxLength(30);
+            e.Property(x => x.Concepto).HasMaxLength(20);
+            e.Property(x => x.Descripcion).HasMaxLength(300);
+            e.Property(x => x.Unidad).HasMaxLength(50);
+            e.Property(x => x.MonedaCosto).HasMaxLength(3);
+            e.Property(x => x.CantidadBOM).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CostoUnitarioBOM).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CostoTotalBOM).HasColumnType("decimal(18,2)");
+            e.Property(x => x.CantidadReal).HasColumnType("decimal(18,2)");
+            e.Property(x => x.ValorReal).HasColumnType("decimal(18,2)");
+            e.HasIndex(x => new { x.ProyectoId, x.Codigo });
+            e.HasOne(x => x.Proyecto).WithMany()
+             .HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // FlujoCajaExclusion
+        modelBuilder.Entity<FlujoCajaExclusion>(e =>
+        {
+            e.ToTable("FlujoCajaExclusiones");
+            e.Property(x => x.Moneda).HasMaxLength(3);
+            e.HasIndex(x => new { x.ProyectoId, x.PartidaId, x.Moneda }).IsUnique();
+            e.HasOne(x => x.Proyecto).WithMany()
+             .HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Partida).WithMany()
+             .HasForeignKey(x => x.PartidaId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         // PagoCorteSemanal
         modelBuilder.Entity<PagoCorteSemanal>(e =>
         {
             e.ToTable("PagosCorteSemanal");
             e.Property(p => p.Monto).HasColumnType("decimal(18,2)");
+            e.Property(p => p.Moneda).HasMaxLength(3).HasDefaultValue("COP");
             e.Property(p => p.Descripcion).HasMaxLength(500);
             e.Property(p => p.NumeroFactura).HasMaxLength(100);
             e.Property(p => p.Proveedor).HasMaxLength(200);

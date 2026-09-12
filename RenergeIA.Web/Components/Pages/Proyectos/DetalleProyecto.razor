@@ -28,7 +28,7 @@ else
                         <dt class="col-5">Cliente</dt><dd class="col-7">@_proyecto.Cliente</dd>
                         <dt class="col-5">Ubicación</dt><dd class="col-7">@_proyecto.Ubicacion</dd>
                         <dt class="col-5">País</dt><dd class="col-7">@_proyecto.Pais</dd>
-                        <dt class="col-5">Capacidad</dt><dd class="col-7">@_proyecto.CapacidadKWp kWp</dd>
+                        <dt class="col-5">Capacidad</dt><dd class="col-7">@_proyecto.CapacidadKWp.ToString("N1") kWp (@((_proyecto.CapacidadKWp / 1000m).ToString("N4")) MWp)</dd>
                         <dt class="col-5">Presupuesto</dt><dd class="col-7">@($"USD {_proyecto.PresupuestoContractual:N0}")</dd>
                     </dl>
                 </div>
@@ -52,6 +52,72 @@ else
             </div>
         </div>
     </div>
+
+    @if (_proyecto.BomCostoCOP is not null || _proyecto.BomPrecioCOP is not null)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header text-white d-flex align-items-center gap-2" style="background:#183963">
+                <i class="bi-clipboard-data"></i><strong>Ficha de la Oferta (BOM)</strong>
+                @if (_proyecto.BomTrm is not null)
+                {
+                    <span class="badge ms-auto" style="background:#6ABF4B">TRM BOM: $@_proyecto.BomTrm.Value.ToString("N0")</span>
+                }
+                @if (!string.IsNullOrEmpty(_proyecto.BomAlcance))
+                {
+                    <span class="badge" style="background:#D9D9D6;color:#111921">Alcance: @_proyecto.BomAlcance</span>
+                }
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-3 small">
+                        <thead>
+                            <tr style="border-bottom:2px solid #183963">
+                                <th style="color:#183963"></th>
+                                <th class="text-end" style="color:#183963">COSTO</th>
+                                <th class="text-end" style="color:#183963">PRECIO (VENTA)</th>
+                                <th class="text-end" style="color:#6ABF4B">MARGEN</th>
+                                <th class="text-end" style="color:#6ABF4B">MARGEN %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="fw-semibold">COP</td>
+                                <td class="text-end">@FmtCOP(_proyecto.BomCostoCOP)</td>
+                                <td class="text-end fw-semibold" style="color:#183963">@FmtCOP(_proyecto.BomPrecioCOP)</td>
+                                <td class="text-end" style="color:#6ABF4B">@FmtCOP(_proyecto.BomMargenCOP)</td>
+                                <td class="text-end" style="color:#6ABF4B">@(_proyecto.BomMargenPct?.ToString("N1") ?? "—")%</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-semibold">USD</td>
+                                <td class="text-end">@FmtUSD(_proyecto.BomCostoUSD)</td>
+                                <td class="text-end fw-semibold" style="color:#183963">@FmtUSD(_proyecto.BomPrecioUSD)</td>
+                                <td class="text-end" style="color:#6ABF4B">@FmtUSD(_proyecto.BomMargenUSD)</td>
+                                <td class="text-end" style="color:#6ABF4B">@(_proyecto.BomMargenPct?.ToString("N1") ?? "—")%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="row g-3 small">
+                    <div class="col-md-6">
+                        <div class="border rounded p-2" style="background:#f8faff">
+                            <div class="fw-semibold mb-1" style="color:#183963">Desglose PRECIO (COP)</div>
+                            <div class="d-flex justify-content-between"><span>Obras civiles</span><span>@FmtCOP(_proyecto.BomObrasCivilesPrecioCOP)</span></div>
+                            <div class="d-flex justify-content-between"><span>Costo pleno</span><span>@FmtCOP(_proyecto.BomCostoPlenoPrecioCOP)</span></div>
+                            <div class="d-flex justify-content-between fw-bold" style="color:#183963"><span>Total con IVA</span><span>@FmtCOP(_proyecto.BomTotalIvaPrecioCOP)</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-2" style="background:#f7fcf4">
+                            <div class="fw-semibold mb-1" style="color:#5aa83e">Desglose COSTO (COP)</div>
+                            <div class="d-flex justify-content-between"><span>Obras civiles</span><span>@FmtCOP(_proyecto.BomObrasCivilesCostoCOP)</span></div>
+                            <div class="d-flex justify-content-between"><span>Costo pleno</span><span>@FmtCOP(_proyecto.BomCostoPlenoCostoCOP)</span></div>
+                            <div class="d-flex justify-content-between fw-bold" style="color:#5aa83e"><span>Total con IVA</span><span>@FmtCOP(_proyecto.BomTotalIvaCostoCOP)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 
     @if (!string.IsNullOrEmpty(_proyecto.Descripcion))
     {
@@ -143,6 +209,10 @@ else
         await Db.SaveChangesAsync();
         Navigation.NavigateTo("/proyectos");
     }
+
+    private static readonly System.Globalization.CultureInfo _coFmt = new("es-CO");
+    private static string FmtCOP(decimal? v) => v is null ? "—" : "$" + v.Value.ToString("N0", _coFmt);
+    private static string FmtUSD(decimal? v) => v is null ? "—" : "US$ " + v.Value.ToString("N0", _coFmt);
 
     private static string BadgeClass(EstadoProyecto estado) => estado switch
     {

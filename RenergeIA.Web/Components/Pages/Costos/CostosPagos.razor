@@ -19,6 +19,24 @@
         @_columnas.Count cortes semanales
     </span>
 
+    <div class="btn-group btn-group-sm" role="group">
+        <button class="btn fw-semibold"
+                style="@(_monedaVista == "COP" ? "background:#183963;color:#fff;border:none" : "background:#fff;color:#183963;border:1px solid #D9D9D6")"
+                @onclick='() => CambiarMonedaVista("COP")'>Pesos (COP)</button>
+        <button class="btn fw-semibold"
+                style="@(_monedaVista == "USD" ? "background:#6ABF4B;color:#fff;border:none" : "background:#fff;color:#183963;border:1px solid #D9D9D6")"
+                @onclick='() => CambiarMonedaVista("USD")'>Dólares (USD)</button>
+    </div>
+
+    @if (ExcluidasVista.Count > 0)
+    {
+        <button class="btn btn-sm btn-outline-secondary"
+                title="Ver actividades desactivadas en esta vista"
+                @onclick="() => _mostrarDesactivadas = !_mostrarDesactivadas">
+            <i class="bi-eye-slash me-1"></i>Desactivadas (@ExcluidasVista.Count)
+        </button>
+    }
+
     @if (_hayCambios)
     {
         <button class="btn btn-sm fw-semibold"
@@ -39,6 +57,31 @@
     <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
         @_mensaje
         <button type="button" class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+@if (_mostrarDesactivadas && ExcluidasVista.Count > 0)
+{
+    <div class="card mb-3" style="border:1px solid #D9D9D6">
+        <div class="card-header py-1 small fw-semibold" style="background:#f0f3f8;color:#183963">
+            <i class="bi-eye-slash me-1"></i>Actividades desactivadas en la vista @(_monedaVista == "USD" ? "Dólares" : "Pesos")
+        </div>
+        <div class="card-body py-2">
+            @foreach (var pId in ExcluidasVista)
+            {
+                var part = _subPartidas.FirstOrDefault(p => p.Id == pId);
+                if (part is null) { continue; }
+                <div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f0f3f8">
+                    <span class="badge" style="background:#183963;font-size:0.65rem">@part.Codigo</span>
+                    <span class="small">@part.Descripcion</span>
+                    <button class="btn btn-sm py-0 px-2" style="background:#6ABF4B;color:#fff;border:none;font-size:0.7rem"
+                            title="Volver a mostrar esta actividad en la vista @_monedaVista"
+                            @onclick="() => ActivarPartida(pId)">
+                        <i class="bi-eye me-1"></i>Activar
+                    </button>
+                </div>
+            }
+        </div>
     </div>
 }
 
@@ -71,7 +114,7 @@ else
                 {
                     if (p.EsPrincipal)
                     {
-                        var hijos = _subPartidas.Where(s => s.PadreId == p.Id).ToList();
+                        var hijos = HijosActivos(p.Id);
                         <tr style="background:#D9D9D6">
                             <td class="text-center fw-bold" style="color:#111921;position:sticky;left:0;background:#D9D9D6">@p.Numero</td>
                             <td class="text-center" style="position:sticky;left:42px;background:#D9D9D6">
@@ -83,14 +126,14 @@ else
                             {
                                 var subtotal = hijos.Sum(h => ObtenerMontoCelda(h.Id, fecha));
                                 <td class="text-center fw-bold" style="color:#183963;font-size:0.8rem;background:#D9D9D6">
-                                    @(subtotal != 0 ? FormatCOP(subtotal) : "—")
+                                    @(subtotal != 0 ? FormatMon(subtotal) : "—")
                                 </td>
                             }
                             @{
                                 var totalCat = hijos.Sum(h => _columnas.Sum(f => ObtenerMontoCelda(h.Id, f)));
                             }
                             <td class="text-center fw-bold" style="background:#D9D9D6;color:#183963">
-                                @(totalCat != 0 ? FormatCOP(totalCat) : "—")
+                                @(totalCat != 0 ? FormatMon(totalCat) : "—")
                             </td>
                         </tr>
                     }
@@ -102,8 +145,16 @@ else
                             <td class="text-center" style="position:sticky;left:42px;background:#fff">
                                 <small class="fw-semibold" style="color:#183963">@p.Codigo</small>
                             </td>
-                            <td class="ps-3" style="position:sticky;left:124px;background:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
-                                title="@p.Descripcion">@p.Descripcion</td>
+                            <td class="ps-3" style="position:sticky;left:124px;background:#fff;color:#111921">
+                                <div class="d-flex align-items-center justify-content-between gap-1">
+                                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px" title="@p.Descripcion">@p.Descripcion</span>
+                                    <button class="btn p-0 border-0" style="font-size:0.72rem;color:#adb5bd;line-height:1"
+                                            title="Desactivar esta actividad en la vista @(_monedaVista == "USD" ? "Dólares" : "Pesos") — se puede reactivar desde 'Desactivadas'"
+                                            @onclick="() => DesactivarPartida(p.Id)">
+                                        <i class="bi-eye-slash"></i>
+                                    </button>
+                                </div>
+                            </td>
                             @foreach (var fecha in _columnas)
                             {
                                 var monto = ObtenerMontoCelda(p.Id, fecha);
@@ -127,27 +178,27 @@ else
                                 </td>
                             }
                             <td class="text-center fw-bold" style="background:#f8f9fa;color:@(totalFila > 0 ? "#183963" : "#adb5bd")">
-                                @(totalFila != 0 ? FormatCOP(totalFila) : "—")
+                                @(totalFila != 0 ? FormatMon(totalFila) : "—")
                             </td>
                         </tr>
                     }
                 }
                 <tr class="fw-bold" style="background:#183963;color:white">
                     <td class="text-center py-2" style="position:sticky;left:0;background:#183963;color:white" colspan="3">
-                        <span style="font-size:0.9rem;letter-spacing:1px">TOTAL FLUJO DE CAJA</span>
+                        <span style="font-size:0.9rem;letter-spacing:1px">TOTAL FLUJO DE CAJA (@_monedaVista)</span>
                     </td>
                     @foreach (var fecha in _columnas)
                     {
-                        var totalCol = _subPartidas.Sum(sp => ObtenerMontoCelda(sp.Id, fecha));
+                        var totalCol = SubPartidasActivas.Sum(sp => ObtenerMontoCelda(sp.Id, fecha));
                         <td class="text-center py-2" style="font-size:0.8rem;background:#183963;color:white">
-                            @(totalCol != 0 ? FormatCOP(totalCol) : "—")
+                            @(totalCol != 0 ? FormatMon(totalCol) : "—")
                         </td>
                     }
                     @{
-                        var granTotal = _subPartidas.Sum(sp => _columnas.Sum(f => ObtenerMontoCelda(sp.Id, f)));
+                        var granTotal = SubPartidasActivas.Sum(sp => _columnas.Sum(f => ObtenerMontoCelda(sp.Id, f)));
                     }
                     <td class="text-center py-2" style="background:#111921;color:white;font-size:0.9rem">
-                        @(granTotal != 0 ? FormatCOP(granTotal) : "$0")
+                        @(granTotal != 0 ? FormatMon(granTotal) : FormatMon(0))
                     </td>
                 </tr>
             </tbody>
@@ -170,7 +221,7 @@ else
                     <input type="text" class="form-control form-control-sm" @bind="_formPago.Descripcion" />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small">Monto COP *</label>
+                    <label class="form-label small">Monto (@_monedaVista) *</label>
                     <input type="number" class="form-control form-control-sm" @bind="_formPago.Monto" min="0" step="1" />
                 </div>
                 <div class="col-md-2">
@@ -199,7 +250,7 @@ else
                         <thead style="background:#183963;color:white">
                             <tr>
                                 <th>Descripción</th>
-                                <th class="text-end">Monto COP</th>
+                                <th class="text-end">Monto (@_monedaVista)</th>
                                 <th>Factura</th>
                                 <th>Proveedor</th>
                                 <th></th>
@@ -210,7 +261,7 @@ else
                             {
                                 <tr style="border-bottom:1px solid #D9D9D6">
                                     <td class="small">@(pg.Descripcion ?? "—")</td>
-                                    <td class="text-end fw-semibold" style="color:#183963">@FormatCOP(pg.Monto)</td>
+                                    <td class="text-end fw-semibold" style="color:#183963">@FormatMon(pg.Monto)</td>
                                     <td class="small text-muted">@(pg.NumeroFactura ?? "—")</td>
                                     <td class="small text-muted">@(pg.Proveedor ?? "—")</td>
                                     <td class="text-center">
@@ -228,7 +279,7 @@ else
                             }
                             <tr class="fw-bold" style="background:#f8f9fa">
                                 <td>Total</td>
-                                <td class="text-end" style="color:#183963">@FormatCOP(pagosDetalle.Sum(pg => pg.Monto))</td>
+                                <td class="text-end" style="color:#183963">@FormatMon(pagosDetalle.Sum(pg => pg.Monto))</td>
                                 <td colspan="3"></td>
                             </tr>
                         </tbody>
@@ -251,7 +302,55 @@ else
     private List<DateTime> _columnas = [];
 
     private List<PagoCorteSemanal> _pagos = [];
-    private Dictionary<(int PartidaId, DateTime Fecha), decimal> _montosEditados = [];
+    private Dictionary<(int PartidaId, DateTime Fecha, string Moneda), decimal> _montosEditados = [];
+
+    private string _monedaVista = "COP";
+    private bool _mostrarDesactivadas;
+    private List<FlujoCajaExclusion> _exclusiones = [];
+
+    private HashSet<int> ExcluidasVista =>
+        _exclusiones.Where(e => e.Moneda == _monedaVista).Select(e => e.PartidaId).ToHashSet();
+
+    private bool EsDeVista(PagoCorteSemanal p) =>
+        _monedaVista == "USD" ? p.Moneda == "USD" : p.Moneda != "USD";
+
+    private List<Partida> HijosActivos(int padreId)
+    {
+        var excl = ExcluidasVista;
+        return _subPartidas.Where(p => p.PadreId == padreId && !excl.Contains(p.Id)).ToList();
+    }
+
+    private List<Partida> SubPartidasActivas
+    {
+        get { var excl = ExcluidasVista; return _subPartidas.Where(p => !excl.Contains(p.Id)).ToList(); }
+    }
+
+    private void CambiarMonedaVista(string moneda)
+    {
+        _monedaVista = moneda;
+        _mostrarDesactivadas = false;
+        _detallePartida = null;
+    }
+
+    private void DesactivarPartida(int partidaId)
+    {
+        if (_exclusiones.Any(e => e.PartidaId == partidaId && e.Moneda == _monedaVista)) return;
+        var ex = new FlujoCajaExclusion { ProyectoId = ProyectoId, PartidaId = partidaId, Moneda = _monedaVista };
+        Db.FlujoCajaExclusiones.Add(ex);
+        _exclusiones.Add(ex);
+        _hayCambios = true;
+        if (_detallePartida?.Id == partidaId) _detallePartida = null;
+    }
+
+    private void ActivarPartida(int partidaId)
+    {
+        var ex = _exclusiones.FirstOrDefault(e => e.PartidaId == partidaId && e.Moneda == _monedaVista);
+        if (ex is null) return;
+        Db.FlujoCajaExclusiones.Remove(ex);
+        _exclusiones.Remove(ex);
+        _hayCambios = true;
+        if (ExcluidasVista.Count == 0) _mostrarDesactivadas = false;
+    }
     private bool _hayCambios;
     private string? _mensaje;
     private bool _mensajeError;
@@ -287,6 +386,10 @@ else
             .Where(p => p.ProyectoId == ProyectoId)
             .ToListAsync();
 
+        _exclusiones = await Db.FlujoCajaExclusiones
+            .Where(e => e.ProyectoId == ProyectoId)
+            .ToListAsync();
+
         _montosEditados.Clear();
         _hayCambios = false;
     }
@@ -305,20 +408,20 @@ else
 
     private decimal ObtenerMontoCelda(int partidaId, DateTime fechaCorte)
     {
-        var key = (partidaId, fechaCorte);
+        var key = (partidaId, fechaCorte, _monedaVista);
         if (_montosEditados.TryGetValue(key, out var editado))
             return editado;
-        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).Sum(p => p.Monto);
+        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).Sum(p => p.Monto);
     }
 
     private bool TienePagos(int partidaId, DateTime fechaCorte)
     {
-        return _pagos.Any(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte);
+        return _pagos.Any(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p));
     }
 
     private List<PagoCorteSemanal> ObtenerPagosDetalle(int partidaId, DateTime fechaCorte)
     {
-        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).ToList();
+        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
     }
 
     private void CambiarMontoCelda(int partidaId, DateTime fechaCorte, string? valor)
@@ -326,7 +429,7 @@ else
         if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
             System.Globalization.CultureInfo.InvariantCulture, out var monto))
         {
-            var existentes = _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte).ToList();
+            var existentes = _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
             if (existentes.Count == 0)
             {
                 var nuevo = new PagoCorteSemanal
@@ -334,6 +437,7 @@ else
                     ProyectoId = ProyectoId,
                     PartidaId = partidaId,
                     FechaCorte = fechaCorte,
+                    Moneda = _monedaVista,
                     Monto = Math.Max(monto, 0)
                 };
                 Db.PagosCorteSemanal.Add(nuevo);
@@ -346,7 +450,7 @@ else
             }
             else
             {
-                _montosEditados[(partidaId, fechaCorte)] = Math.Max(monto, 0);
+                _montosEditados[(partidaId, fechaCorte, _monedaVista)] = Math.Max(monto, 0);
             }
             _hayCambios = true;
         }
@@ -388,10 +492,16 @@ else
 
     private IEnumerable<Partida> PartidasOrdenadas()
     {
+        var excl = ExcluidasVista;
         foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)))
         {
+            var hijos = _subPartidas
+                .Where(p => p.PadreId == principal.Id && !excl.Contains(p.Id))
+                .OrderBy(p => ParseNumero(p.Numero))
+                .ToList();
+            if (hijos.Count == 0) continue;
             yield return principal;
-            foreach (var hijo in _subPartidas.Where(p => p.PadreId == principal.Id).OrderBy(p => ParseNumero(p.Numero)))
+            foreach (var hijo in hijos)
                 yield return hijo;
         }
     }
@@ -417,6 +527,7 @@ else
             ProyectoId = ProyectoId,
             PartidaId = _detallePartida.Id,
             FechaCorte = _detalleFecha,
+            Moneda = _monedaVista,
             Monto = _formPago.Monto,
             Descripcion = string.IsNullOrWhiteSpace(_formPago.Descripcion) ? null : _formPago.Descripcion,
             NumeroFactura = string.IsNullOrWhiteSpace(_formPago.NumeroFactura) ? null : _formPago.NumeroFactura,
@@ -519,7 +630,7 @@ else
                     var monto = LeerMonto(ws.Cell(row, col));
                     if (monto is null or 0) continue;
 
-                    var existente = _pagos.FirstOrDefault(p => p.PartidaId == partida.Id && p.FechaCorte == fecha);
+                    var existente = _pagos.FirstOrDefault(p => p.PartidaId == partida.Id && p.FechaCorte == fecha && EsDeVista(p));
                     if (existente is not null)
                     {
                         existente.Monto = monto.Value;
@@ -532,6 +643,7 @@ else
                             ProyectoId = ProyectoId,
                             PartidaId = partida.Id,
                             FechaCorte = fecha,
+                            Moneda = _monedaVista,
                             Monto = monto.Value
                         };
                         Db.PagosCorteSemanal.Add(nuevo);
@@ -573,7 +685,7 @@ else
         return null;
     }
 
-    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _culturesCO);
+    private string FormatMon(decimal v) => (_monedaVista == "USD" ? "US$ " : "$") + v.ToString("N0", _culturesCO);
 
     private static double ParseNumero(string? num)
     {

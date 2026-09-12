@@ -28,6 +28,22 @@ public class Proyecto : EntidadBase
     public DateTime? FechaInicioPagos { get; set; }
     public DateTime? FechaFinPagos { get; set; }
 
+    public string? BomAlcance { get; set; }
+    public decimal? BomTrm { get; set; }
+    public decimal? BomCostoCOP { get; set; }
+    public decimal? BomPrecioCOP { get; set; }
+    public decimal? BomMargenCOP { get; set; }
+    public decimal? BomMargenPct { get; set; }
+    public decimal? BomCostoUSD { get; set; }
+    public decimal? BomPrecioUSD { get; set; }
+    public decimal? BomMargenUSD { get; set; }
+    public decimal? BomObrasCivilesPrecioCOP { get; set; }
+    public decimal? BomCostoPlenoPrecioCOP { get; set; }
+    public decimal? BomTotalIvaPrecioCOP { get; set; }
+    public decimal? BomObrasCivilesCostoCOP { get; set; }
+    public decimal? BomCostoPlenoCostoCOP { get; set; }
+    public decimal? BomTotalIvaCostoCOP { get; set; }
+
     public bool Eliminado { get; set; }
     public DateTime? FechaEliminacion { get; set; }
 

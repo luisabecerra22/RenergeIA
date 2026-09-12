@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using RenergeIA.Infrastructure.Data;
@@ -11,9 +12,11 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Infrastructure.Migrations
 {
     [DbContext(typeof(RenergeIADbContext))]
-    partial class RenergeIADbContextModelSnapshot : ModelSnapshot
+    [Migration("20260912134656_AddLineasBOM")]
+    partial class AddLineasBOM
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3920,51 +3923,6 @@ namespace RenergeIA.Infrastructure.Migrations
 
                     b.Property<int>("AnioInicialHistograma")
                         .HasColumnType("integer");
-
-                    b.Property<string>("BomAlcance")
-                        .HasColumnType("text");
-
-                    b.Property<decimal?>("BomCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoPlenoCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoPlenoPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomCostoUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenPct")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomMargenUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomObrasCivilesCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomObrasCivilesPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomPrecioUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTotalIvaCostoCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTotalIvaPrecioCOP")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("BomTrm")
-                        .HasColumnType("numeric");
 
                     b.Property<decimal>("CapacidadKWp")
                         .HasColumnType("decimal(10,2)");

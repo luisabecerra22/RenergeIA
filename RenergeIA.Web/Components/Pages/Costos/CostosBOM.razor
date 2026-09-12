@@ -1,0 +1,580 @@
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@inject RenergeIA.Web.Services.CambiosPendientesService CambiosPendientes
+@using Microsoft.EntityFrameworkCore
+@using ClosedXML.Excel
+@implements IAsyncDisposable
+
+<!-- KPIs -->
+<SeccionDash Titulo="BOM vs Real" Icono="bi-clipboard-data">
+    <div class="row row-cols-1 row-cols-md-3 g-3 mb-3">
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
+                <i class="bi-clipboard-data mb-1" style="font-size:1.4rem;opacity:0.8"></i>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="font-size:0.95rem">@FormatCOP(TotalBOM)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(255,255,255,0.35);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="font-size:0.95rem">@FormatUSD(TotalBOM / TRM)</div>
+                        <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                    </div>
+                </div>
+                <div class="small" style="opacity:0.8">Costo Total BOM</div>
+                <div style="font-size:0.62rem;opacity:0.6">Lo presupuestado en la oferta</div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%);border-radius:14px">
+                <i class="bi-cart-check mb-1" style="font-size:1.4rem;color:#6ABF4B"></i>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:#5aa83e;font-size:0.95rem">@FormatCOP(TotalReal)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:#5aa83e;font-size:0.95rem">@FormatUSD(TotalReal / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
+                <div class="small text-muted">Costo Real</div>
+                <div class="text-muted" style="font-size:0.62rem">Lo realmente ejecutado / comprado</div>
+            </div>
+        </div>
+        <div class="col">
+            @{ var dif = TotalBOM - TotalReal; }
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(dif >= 0 ? "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)" : "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)");border-radius:14px">
+                <i class="bi-arrow-left-right mb-1" style="font-size:1.4rem;color:@(dif >= 0 ? "#183963" : "#dc3545")"></i>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+                    <div>
+                        <div class="fw-bold" style="color:@(dif >= 0 ? "#183963" : "#dc3545");font-size:0.95rem">@FormatCOP(dif)</div>
+                        <div class="text-muted" style="font-size:0.6rem">COP</div>
+                    </div>
+                    <div style="border-left:1px solid rgba(0,0,0,0.15);height:28px"></div>
+                    <div>
+                        <div class="fw-bold" style="color:@(dif >= 0 ? "#183963" : "#dc3545");font-size:0.95rem">@FormatUSD(dif / TRM)</div>
+                        <div class="text-muted" style="font-size:0.6rem">USD</div>
+                    </div>
+                </div>
+                <div class="small text-muted">Diferencia</div>
+                <div class="text-muted" style="font-size:0.62rem">@(dif >= 0 ? "A favor (BOM − Real)" : "Desfase (Real supera la BOM)")</div>
+            </div>
+        </div>
+    </div>
+</SeccionDash>
+
+@if (_hayCambios)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-3 py-2 mb-3">
+        <span><strong>⚠ Tienes cambios sin guardar.</strong> Recuerda guardarlos antes de salir de esta vista.</span>
+        <button class="btn btn-sm fw-semibold ms-auto" style="background:#6ABF4B;color:#fff;border:none"
+                @onclick="GuardarCambiosAsync">
+            💾 Guardar ahora
+        </button>
+    </div>
+}
+
+<!-- Acciones -->
+<div class="d-flex justify-content-end gap-2 mb-3 align-items-center">
+    @if (_lineas.Any())
+    {
+        <span class="badge me-auto" style="background:#D9D9D6;color:#111921">@_lineas.Count líneas BOM · @_lineas.Select(l => l.Codigo).Distinct().Count() códigos</span>
+        <button class="btn btn-sm @(_filtroAplicado is not null ? "" : "btn-outline-secondary")" title="Filtrar líneas BOM"
+                style="@(_filtroAplicado is not null ? "background:#6ABF4B;color:#fff;border:none" : "")"
+                @onclick="() => _mostrarFiltros = !_mostrarFiltros">
+            <i class="bi-funnel me-1"></i>Filtros
+        </button>
+        <button class="btn btn-sm btn-outline-success" title="Exportar el comparativo BOM vs Real a Excel (.xlsx)"
+                @onclick="ExportarExcelAsync">
+            <i class="bi-download me-1"></i>Exportar Excel
+        </button>
+    }
+    @if (_hayCambios)
+    {
+        <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none"
+                @onclick="GuardarCambiosAsync">
+            💾 Guardar cambios
+        </button>
+    }
+    <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
+           title="Importar el archivo BOM del proyecto (.xlsx) — lee las hojas General, Sum PPAL y Rend MAT">
+        <i class="bi-upload me-1"></i>Importar BOM
+        <InputFile OnChange="ImportarBOMAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
+    </label>
+</div>
+
+<!-- Panel de filtros -->
+@if (_mostrarFiltros)
+{
+    <div class="card mb-3" style="border:1px solid #183963">
+        <div class="card-header py-1 fw-semibold small text-white" style="background:#183963">
+            <i class="bi-funnel me-1"></i>Filtrar comparativo BOM vs Real
+        </div>
+        <div class="card-body py-2">
+            <div class="row g-2">
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Código</label>
+                    <select class="form-select form-select-sm" @bind="_filtro.Codigo">
+                        <option value="">— Todos —</option>
+                        @foreach (var cod in _lineas.Select(l => l.Codigo).Distinct().OrderBy(c => c))
+                        {
+                            <option value="@cod">@cod</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Fuente</label>
+                    <select class="form-select form-select-sm" @bind="_filtro.Fuente">
+                        <option value="">— Todas —</option>
+                        <option value="General">General</option>
+                        <option value="Sum PPAL">Sum PPAL</option>
+                        <option value="Rend MAT">Rend MAT</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">Concepto</label>
+                    <select class="form-select form-select-sm" @bind="_filtro.Concepto">
+                        <option value="">— Todos —</option>
+                        <option value="PER">PER (Personal)</option>
+                        <option value="MAQ">MAQ (Maquinaria)</option>
+                        <option value="MAT">MAT (Materiales)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-0">Descripción</label>
+                    <input class="form-control form-control-sm" @bind="_filtro.Descripcion" placeholder="Ej: cable, tubo, gerente..." />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-0">Diferencia</label>
+                    <select class="form-select form-select-sm" @bind="_filtro.TipoDif">
+                        <option value="">— Todas las líneas —</option>
+                        <option value="desfase">Con desfase (Real &gt; BOM)</option>
+                        <option value="favor">A favor (Real &le; BOM)</option>
+                        <option value="conreal">Solo con real digitado</option>
+                        <option value="sinreal">Sin real digitado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-0">Diferencia mínima (COP)</label>
+                    <input type="number" class="form-control form-control-sm" @bind="_filtro.MontoMin"
+                           placeholder="Ej: 1000000" min="0" step="1" />
+                </div>
+                <div class="col d-flex align-items-end gap-2">
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none"
+                            @onclick="AplicarFiltros">
+                        <i class="bi-check-lg me-1"></i>Aplicar filtros
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LimpiarFiltros">
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
+        @_mensaje
+        <button type="button" class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+@if (_importando)
+{
+    <div class="text-center py-4">
+        <span class="spinner-border" style="color:#183963"></span>
+        <p class="mt-2 text-muted small">Importando BOM...</p>
+    </div>
+}
+else if (!_lineas.Any())
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <i class="bi-clipboard-data display-4 mb-3" style="color:#dde3ed"></i>
+        <p class="text-muted small mb-1">No hay líneas BOM cargadas para este proyecto.</p>
+        <p class="text-muted small">Importa el archivo BOM de la oferta (hojas General, Sum PPAL y Rend MAT).</p>
+    </div>
+}
+else
+{
+    var listaFiltrada = Filtrados().ToList();
+
+    @if (_filtroAplicado is not null)
+    {
+        <div class="mb-2 small text-muted">
+            <i class="bi-funnel-fill me-1" style="color:#6ABF4B"></i>
+            Mostrando <strong>@listaFiltrada.Count</strong> de @_lineas.Count líneas BOM
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive" style="max-height:72vh;overflow:auto">
+            <table class="table table-sm align-middle mb-0 small">
+                <thead style="font-size:.7rem;position:sticky;top:0;z-index:2;background:#fff;border-bottom:2px solid #183963">
+                    <tr>
+                        <th class="ps-3" style="color:#183963">CÓDIGO</th>
+                        <th style="color:#183963">FUENTE</th>
+                        <th style="color:#183963">CONCEPTO</th>
+                        <th style="color:#183963">DESCRIPCIÓN</th>
+                        <th style="color:#183963">UND</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">CANT. BOM</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">CU BOM</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">TOTAL BOM (COP)</th>
+                        <th class="text-end" style="color:#5aa83e;background:#f2faee">CANT. REAL</th>
+                        <th class="text-end" style="color:#5aa83e;background:#f2faee">VALOR REAL (COP)</th>
+                        <th class="text-end pe-3" style="color:#183963">DIFERENCIA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var grupo in listaFiltrada.GroupBy(l => l.Codigo).OrderBy(g => g.Key))
+                    {
+                        var subBOM  = grupo.Sum(l => l.CostoTotalBOM);
+                        var subReal = grupo.Sum(l => l.ValorReal);
+                        var subDif  = subBOM - subReal;
+                        <tr style="background:#D9D9D6">
+                            <td class="ps-3" colspan="5">
+                                <span class="badge" style="background:#183963;font-size:.7rem">@grupo.Key</span>
+                                <span class="ms-2 fw-semibold" style="color:#111921;font-size:.72rem">@grupo.Count() concepto(s)</span>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end fw-bold" style="color:#183963">@FormatCOP(subBOM)</td>
+                            <td></td>
+                            <td class="text-end fw-bold" style="color:#5aa83e">@(subReal != 0 ? FormatCOP(subReal) : "—")</td>
+                            <td class="text-end pe-3 fw-bold" style="color:@(subDif >= 0 ? "#183963" : "#dc3545")">@FormatCOP(subDif)</td>
+                        </tr>
+                        @foreach (var l in grupo.OrderBy(x => x.Fuente).ThenBy(x => x.Descripcion))
+                        {
+                            var difLinea = l.CostoTotalBOM - l.ValorReal;
+                            <tr style="border-bottom:1px solid #f0f3f8">
+                                <td class="ps-3"></td>
+                                <td><span class="badge" style="background:@ColorFuente(l.Fuente);color:#fff;font-size:.62rem">@l.Fuente</span></td>
+                                <td class="text-muted" style="font-size:.7rem">@(l.Concepto ?? "—")</td>
+                                <td style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@l.Descripcion">@l.Descripcion</td>
+                                <td class="text-muted" style="font-size:.7rem">@(l.Unidad ?? "—")</td>
+                                <td class="text-end" style="background:#f8faff">@(l.CantidadBOM != 0 ? l.CantidadBOM.ToString("N2", _co) : "—")</td>
+                                <td class="text-end" style="background:#f8faff;white-space:nowrap">
+                                    @(l.CostoUnitarioBOM != 0 ? PrefijoMoneda(l.MonedaCosto) + l.CostoUnitarioBOM.ToString("N0", _co) : "—")
+                                </td>
+                                <td class="text-end fw-semibold" style="background:#f8faff;color:#183963">@FormatCOP(l.CostoTotalBOM)</td>
+                                <td class="text-end p-0" style="background:#f7fcf4">
+                                    <input type="number" class="form-control form-control-sm text-end border-0"
+                                           style="font-size:.75rem;background:transparent"
+                                           value="@(l.CantidadReal != 0 ? l.CantidadReal.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                           placeholder="—" min="0" step="any"
+                                           @onchange="e => CambiarCantidadRealAsync(l, e.Value?.ToString())" />
+                                </td>
+                                <td class="text-end p-0" style="background:#f7fcf4">
+                                    <input type="number" class="form-control form-control-sm text-end border-0"
+                                           style="font-size:.75rem;background:transparent;font-weight:600;color:#5aa83e"
+                                           value="@(l.ValorReal != 0 ? l.ValorReal.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                           placeholder="—" min="0" step="1"
+                                           @onchange="e => CambiarValorRealAsync(l, e.Value?.ToString())" />
+                                </td>
+                                <td class="text-end pe-3 fw-semibold" style="color:@(l.ValorReal == 0 ? "#adb5bd" : difLinea >= 0 ? "#183963" : "#dc3545")">
+                                    @(l.ValorReal != 0 ? FormatCOP(difLinea) : "—")
+                                </td>
+                            </tr>
+                        }
+                    }
+                    <tr class="fw-bold">
+                        <td class="ps-3 py-2" colspan="7" style="background:#183963;color:white">
+                            <span style="letter-spacing:1px">TOTAL BOM vs REAL (COP)</span>
+                        </td>
+                        <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(l => l.CostoTotalBOM))</td>
+                        <td style="background:#183963"></td>
+                        <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(l => l.ValorReal))</td>
+                        <td class="text-end pe-3 py-2" style="background:#111921;color:@(listaFiltrada.Sum(l => l.CostoTotalBOM) - listaFiltrada.Sum(l => l.ValorReal) >= 0 ? "#6ABF4B" : "#ff6b6b")">
+                            @FormatCOP(listaFiltrada.Sum(l => l.CostoTotalBOM) - listaFiltrada.Sum(l => l.ValorReal))
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private Proyecto? _proyecto;
+    private List<LineaBOM> _lineas = [];
+    private bool _hayCambios;
+    private bool _importando;
+    private string? _mensaje;
+    private bool _mensajeError;
+    private bool _mostrarFiltros;
+    private FiltroModel _filtro = new();
+    private FiltroModel? _filtroAplicado;
+
+    private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
+    private decimal TotalBOM => _lineas.Sum(l => l.CostoTotalBOM);
+    private decimal TotalReal => _lineas.Sum(l => l.ValorReal);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyecto = await Db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == ProyectoId);
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _lineas = await Db.LineasBOM
+            .Where(l => l.ProyectoId == ProyectoId)
+            .ToListAsync();
+        _hayCambios = false;
+    }
+
+    private async Task CambiarCantidadRealAsync(LineaBOM l, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            l.CantidadReal = Math.Max(v, 0);
+        else if (string.IsNullOrWhiteSpace(valor))
+            l.CantidadReal = 0;
+        else return;
+
+        Db.LineasBOM.Update(l);
+        await MarcarCambiosAsync();
+    }
+
+    private async Task CambiarValorRealAsync(LineaBOM l, string? valor)
+    {
+        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            l.ValorReal = Math.Max(v, 0);
+        else if (string.IsNullOrWhiteSpace(valor))
+            l.ValorReal = 0;
+        else return;
+
+        Db.LineasBOM.Update(l);
+        await MarcarCambiosAsync();
+    }
+
+    private async Task MarcarCambiosAsync()
+    {
+        _hayCambios = true;
+        CambiosPendientes.Marcar("BOM vs Real");
+        try { await JS.InvokeVoidAsync("setUnsavedGuard", true); } catch { }
+    }
+
+    private async Task LimpiarCambiosAsync()
+    {
+        _hayCambios = false;
+        CambiosPendientes.Limpiar();
+        try { await JS.InvokeVoidAsync("setUnsavedGuard", false); } catch { }
+    }
+
+    private async Task GuardarCambiosAsync()
+    {
+        await Db.SaveChangesAsync();
+        _mensaje = "Comparativo BOM guardado correctamente.";
+        _mensajeError = false;
+        await CargarAsync();
+        await LimpiarCambiosAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        CambiosPendientes.Limpiar();
+        try { await JS.InvokeVoidAsync("setUnsavedGuard", false); } catch { }
+    }
+
+    private void AplicarFiltros() => _filtroAplicado = _filtro.Clone();
+
+    private void LimpiarFiltros()
+    {
+        _filtro = new FiltroModel();
+        _filtroAplicado = null;
+    }
+
+    private IEnumerable<LineaBOM> Filtrados()
+    {
+        var f = _filtroAplicado;
+        if (f is null) return _lineas;
+        IEnumerable<LineaBOM> q = _lineas;
+        if (!string.IsNullOrWhiteSpace(f.Codigo))
+            q = q.Where(l => string.Equals(l.Codigo, f.Codigo.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.Fuente))
+            q = q.Where(l => l.Fuente == f.Fuente);
+        if (!string.IsNullOrWhiteSpace(f.Concepto))
+            q = q.Where(l => string.Equals(l.Concepto?.Trim(), f.Concepto, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(f.Descripcion))
+            q = q.Where(l => l.Descripcion.Contains(f.Descripcion.Trim(), StringComparison.OrdinalIgnoreCase));
+        q = f.TipoDif switch
+        {
+            "desfase" => q.Where(l => l.ValorReal > l.CostoTotalBOM),
+            "favor"   => q.Where(l => l.ValorReal != 0 && l.ValorReal <= l.CostoTotalBOM),
+            "conreal" => q.Where(l => l.ValorReal != 0 || l.CantidadReal != 0),
+            "sinreal" => q.Where(l => l.ValorReal == 0 && l.CantidadReal == 0),
+            _         => q
+        };
+        if (f.MontoMin is > 0)
+            q = q.Where(l => l.ValorReal != 0 && Math.Abs(l.CostoTotalBOM - l.ValorReal) >= f.MontoMin.Value);
+        return q;
+    }
+
+    private async Task ExportarExcelAsync()
+    {
+        using var workbook = new XLWorkbook();
+        var ws = workbook.Worksheets.Add("BOM vs Real");
+
+        string[] encabezados = ["Código", "Fuente", "Concepto", "Descripción", "Unidad",
+            "Cant. BOM", "CU BOM", "Moneda CU", "Total BOM (COP)", "Cant. Real", "Valor Real (COP)", "Diferencia (COP)"];
+        for (int i = 0; i < encabezados.Length; i++)
+        {
+            var celda = ws.Cell(1, i + 1);
+            celda.Value = encabezados[i];
+            celda.Style.Font.Bold = true;
+            celda.Style.Font.FontColor = XLColor.White;
+            celda.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+        }
+
+        int fila = 2;
+        foreach (var grupo in Filtrados().GroupBy(l => l.Codigo).OrderBy(g => g.Key))
+        {
+            ws.Cell(fila, 1).Value = grupo.Key;
+            ws.Cell(fila, 9).Value = grupo.Sum(l => l.CostoTotalBOM);
+            ws.Cell(fila, 11).Value = grupo.Sum(l => l.ValorReal);
+            ws.Cell(fila, 12).Value = grupo.Sum(l => l.CostoTotalBOM) - grupo.Sum(l => l.ValorReal);
+            var rGrupo = ws.Range(fila, 1, fila, 12);
+            rGrupo.Style.Font.Bold = true;
+            rGrupo.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9D9D6");
+            fila++;
+
+            foreach (var l in grupo.OrderBy(x => x.Fuente).ThenBy(x => x.Descripcion))
+            {
+                ws.Cell(fila, 1).Value = l.Codigo;
+                ws.Cell(fila, 2).Value = l.Fuente;
+                ws.Cell(fila, 3).Value = l.Concepto ?? "";
+                ws.Cell(fila, 4).Value = l.Descripcion;
+                ws.Cell(fila, 5).Value = l.Unidad ?? "";
+                ws.Cell(fila, 6).Value = l.CantidadBOM;
+                ws.Cell(fila, 7).Value = l.CostoUnitarioBOM;
+                ws.Cell(fila, 8).Value = l.MonedaCosto;
+                ws.Cell(fila, 9).Value = l.CostoTotalBOM;
+                ws.Cell(fila, 10).Value = l.CantidadReal;
+                ws.Cell(fila, 11).Value = l.ValorReal;
+                ws.Cell(fila, 12).Value = l.CostoTotalBOM - l.ValorReal;
+                if (l.ValorReal > l.CostoTotalBOM)
+                    ws.Range(fila, 1, fila, 12).Style.Fill.BackgroundColor = XLColor.FromHtml("#fde8e8");
+                fila++;
+            }
+        }
+
+        var lista = Filtrados().ToList();
+        ws.Cell(fila, 1).Value = "TOTAL";
+        ws.Cell(fila, 9).Value = lista.Sum(l => l.CostoTotalBOM);
+        ws.Cell(fila, 11).Value = lista.Sum(l => l.ValorReal);
+        ws.Cell(fila, 12).Value = lista.Sum(l => l.CostoTotalBOM) - lista.Sum(l => l.ValorReal);
+        var rTotal = ws.Range(fila, 1, fila, 12);
+        rTotal.Style.Font.Bold = true;
+        rTotal.Style.Font.FontColor = XLColor.White;
+        rTotal.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
+
+        foreach (var col in new[] { 6, 7, 9, 10, 11, 12 })
+            ws.Column(col).Style.NumberFormat.Format = "#,##0";
+        ws.Columns().AdjustToContents();
+
+        using var ms = new System.IO.MemoryStream();
+        workbook.SaveAs(ms);
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        var nombre = $"BOM_vs_Real_{(_proyecto?.Nombre ?? "Proyecto").Replace(" ", "_")}_{DateTime.Today:yyyyMMdd}.xlsx";
+        await JS.InvokeVoidAsync("downloadFile", nombre, base64,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private sealed class FiltroModel
+    {
+        public string? Codigo { get; set; }
+        public string Fuente { get; set; } = "";
+        public string Concepto { get; set; } = "";
+        public string? Descripcion { get; set; }
+        public string TipoDif { get; set; } = "";
+        public decimal? MontoMin { get; set; }
+        public FiltroModel Clone() => (FiltroModel)MemberwiseClone();
+    }
+
+    // ==================== IMPORTADOR BOM ====================
+
+    private async Task ImportarBOMAsync(InputFileChangeEventArgs e)
+    {
+        _importando = true;
+        StateHasChanged();
+        try
+        {
+            using var ms = new System.IO.MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 60 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            using var workbook = new XLWorkbook(ms);
+
+            var (nuevas, hojasLeidas, hojasFaltantes) = RenergeIA.Web.Services.BomParser.ParseLineas(workbook, ProyectoId);
+
+            if (nuevas.Count == 0)
+            {
+                _mensaje = "No se encontraron líneas válidas. Verifica que el archivo tenga las hojas General, Sum PPAL y Rend MAT con la columna Check.";
+                _mensajeError = true;
+                return;
+            }
+
+            // Conservar cantidades/valores reales ya digitados (match por fuente + código + descripción)
+            var previas = await Db.LineasBOM.Where(l => l.ProyectoId == ProyectoId).ToListAsync();
+            foreach (var nueva in nuevas)
+            {
+                var previa = previas.FirstOrDefault(p =>
+                    p.Fuente == nueva.Fuente &&
+                    string.Equals(p.Codigo, nueva.Codigo, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(p.Descripcion, nueva.Descripcion, StringComparison.OrdinalIgnoreCase));
+                if (previa is not null)
+                {
+                    nueva.CantidadReal = previa.CantidadReal;
+                    nueva.ValorReal = previa.ValorReal;
+                }
+            }
+
+            Db.LineasBOM.RemoveRange(previas);
+            Db.LineasBOM.AddRange(nuevas);
+            await Db.SaveChangesAsync();
+            await CargarAsync();
+
+            var resumen = $"BOM importada: {nuevas.Count} líneas desde {string.Join(", ", hojasLeidas)}.";
+            if (hojasFaltantes.Count > 0) resumen += $" No leídas: {string.Join(", ", hojasFaltantes)}.";
+            var conservadas = nuevas.Count(n => n.ValorReal != 0 || n.CantidadReal != 0);
+            if (conservadas > 0) resumen += $" Se conservaron valores reales de {conservadas} líneas.";
+            _mensaje = resumen;
+            _mensajeError = false;
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"Error al importar la BOM: {ex.Message}";
+            _mensajeError = true;
+        }
+        finally
+        {
+            _importando = false;
+        }
+    }
+
+    private static string ColorFuente(string fuente) => fuente switch
+    {
+        "General"  => "#183963",
+        "Sum PPAL" => "#6ABF4B",
+        "Rend MAT" => "#fd7e14",
+        _          => "#6c757d"
+    };
+
+    private static string PrefijoMoneda(string m) => m switch
+    {
+        "USD" => "US$ ",
+        "EUR" => "€ ",
+        _     => "$"
+    };
+
+    private static readonly System.Globalization.CultureInfo _co = new("es-CO");
+    private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+    private static string FormatUSD(decimal v) => "US$ " + v.ToString("N0", _co);
+}

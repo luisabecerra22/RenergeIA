@@ -19,28 +19,69 @@ else
             <div class="col">
                 <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
                     <i class="bi-wallet2 mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                    <div class="fw-bold fs-6">@FormatCOP(_presupuestoTotal)</div>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <div>
+                            <div class="fw-bold" style="font-size:0.88rem">@FormatCOP(_presupuestoTotal)</div>
+                            <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                        </div>
+                        <div style="border-left:1px solid rgba(255,255,255,0.35);height:26px"></div>
+                        <div>
+                            <div class="fw-bold" style="font-size:0.88rem">@FormatUSD(_presupuestoTotal / TRM)</div>
+                            <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                        </div>
+                    </div>
                     <div class="small" style="opacity:0.8">Presupuesto Total</div>
                 </div>
             </div>
             <div class="col">
                 <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#6ABF4B 0%,#5aa83e 100%);color:#fff;border-radius:14px">
                     <i class="bi-receipt mb-1" style="font-size:1.5rem;opacity:0.8"></i>
-                    <div class="fw-bold fs-6">@FormatCOP(_ejecutadoTotal)</div>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <div>
+                            <div class="fw-bold" style="font-size:0.88rem">@FormatCOP(_ejecutadoTotal)</div>
+                            <div style="font-size:0.6rem;opacity:0.7">COP</div>
+                        </div>
+                        <div style="border-left:1px solid rgba(255,255,255,0.35);height:26px"></div>
+                        <div>
+                            <div class="fw-bold" style="font-size:0.88rem">@FormatUSD(_ejecutadoTotal / TRM)</div>
+                            <div style="font-size:0.6rem;opacity:0.7">USD</div>
+                        </div>
+                    </div>
                     <div class="small" style="opacity:0.8">Total Ejecutado</div>
                 </div>
             </div>
             <div class="col">
                 <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
                     <i class="bi-file-earmark-text mb-1" style="font-size:1.5rem;color:#fd7e14"></i>
-                    <div class="fw-bold fs-6" style="color:#fd7e14">@FormatCOP(_compromisosActivos)</div>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <div>
+                            <div class="fw-bold" style="color:#fd7e14;font-size:0.88rem">@FormatCOP(_compromisosActivos)</div>
+                            <div class="text-muted" style="font-size:0.6rem">COP</div>
+                        </div>
+                        <div style="border-left:1px solid rgba(0,0,0,0.15);height:26px"></div>
+                        <div>
+                            <div class="fw-bold" style="color:#fd7e14;font-size:0.88rem">@FormatUSD(_compromisosActivos / TRM)</div>
+                            <div class="text-muted" style="font-size:0.6rem">USD</div>
+                        </div>
+                    </div>
                     <div class="small text-muted">Compromisos Activos</div>
+                    <div class="text-muted" style="font-size:0.6rem">Saldos por pagar de OC</div>
                 </div>
             </div>
             <div class="col">
                 <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_exposicion > _presupuestoTotal ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)");border-radius:14px">
                     <i class="bi-graph-up-arrow mb-1" style="font-size:1.5rem;color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")"></i>
-                    <div class="fw-bold fs-6" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963")">@FormatCOP(_exposicion)</div>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <div>
+                            <div class="fw-bold" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963");font-size:0.88rem">@FormatCOP(_exposicion)</div>
+                            <div class="text-muted" style="font-size:0.6rem">COP</div>
+                        </div>
+                        <div style="border-left:1px solid rgba(0,0,0,0.15);height:26px"></div>
+                        <div>
+                            <div class="fw-bold" style="color:@(_exposicion > _presupuestoTotal ? "#dc3545" : "#183963");font-size:0.88rem">@FormatUSD(_exposicion / TRM)</div>
+                            <div class="text-muted" style="font-size:0.6rem">USD</div>
+                        </div>
+                    </div>
                     <div class="small text-muted">Exposición Total</div>
                 </div>
             </div>
@@ -54,7 +95,17 @@ else
             <div class="col">
                 <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:@(_saldoDisponible < 0 ? "linear-gradient(135deg,#fde8e8 0%,#f8d0d0 100%)" : "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)");border-radius:14px">
                     <i class="bi-safe mb-1" style="font-size:1.5rem;color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")"></i>
-                    <div class="fw-bold fs-6" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B")">@FormatCOP(_saldoDisponible)</div>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <div>
+                            <div class="fw-bold" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B");font-size:0.88rem">@FormatCOP(_saldoDisponible)</div>
+                            <div class="text-muted" style="font-size:0.6rem">COP</div>
+                        </div>
+                        <div style="border-left:1px solid rgba(0,0,0,0.15);height:26px"></div>
+                        <div>
+                            <div class="fw-bold" style="color:@(_saldoDisponible < 0 ? "#dc3545" : "#6ABF4B");font-size:0.88rem">@FormatUSD(_saldoDisponible / TRM)</div>
+                            <div class="text-muted" style="font-size:0.6rem">USD</div>
+                        </div>
+                    </div>
                     <div class="small text-muted">Saldo Disponible</div>
                 </div>
             </div>
@@ -138,8 +189,16 @@ else
     private string[] _estadoLabels    = [];
     private int[]    _estadoConteo    = [];
 
+    private Proyecto? _proyecto;
+    private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
+    private decimal ACOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoPresupuestado * TRM : p.MontoPresupuestado;
+    private decimal EjecACOP(Partida p) => p.MonedaOriginal == "USD" ? p.ValorEjecutado * TRM : p.ValorEjecutado;
+    private decimal SaldoCOP(CompromisoCosto c) => c.Moneda == "USD" ? c.SaldoPorPagar * TRM : c.SaldoPorPagar;
+
     protected override async Task OnInitializedAsync()
     {
+        _proyecto = await Db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == ProyectoId);
+
         var partidas = await Db.Partidas.AsNoTracking()
             .Include(p => p.CostosReales)
             .Include(p => p.SubPartidas).ThenInclude(s => s.CostosReales)
@@ -157,12 +216,11 @@ else
 
         var todosLosReales = subPartidas.SelectMany(p => p.CostosReales).ToList();
 
-        _presupuestoTotal    = subPartidas.Sum(p => p.MontoPresupuestado);
-        _ejecutadoTotal      = subPartidas.Sum(p => p.ValorEjecutado);
+        _presupuestoTotal    = subPartidas.Sum(ACOP);
+        _ejecutadoTotal      = subPartidas.Sum(EjecACOP);
         _compromisosActivos  = compromisos
-            .Where(c => c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado
-                     && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Pagado)
-            .Sum(c => c.Valor);
+            .Where(c => c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado)
+            .Sum(SaldoCOP);
         _exposicion          = _ejecutadoTotal + _compromisosActivos;
         _pctEjecucion        = _presupuestoTotal > 0 ? _ejecutadoTotal / _presupuestoTotal * 100 : 0;
         _saldoDisponible     = _presupuestoTotal - _exposicion;
@@ -175,16 +233,15 @@ else
         // Datos gráfica 1: por categoría
         _categoriaLabels = partidas.Select(p => p.Codigo).ToArray();
         _presupCat = partidas.Select(p =>
-            subPartidas.Where(s => s.PadreId == p.Id).Sum(s => s.MontoPresupuestado)).ToArray();
+            subPartidas.Where(s => s.PadreId == p.Id).Sum(ACOP)).ToArray();
         _ejecutadoCat = partidas.Select(p =>
-            subPartidas.Where(s => s.PadreId == p.Id).Sum(s => s.ValorEjecutado)).ToArray();
+            subPartidas.Where(s => s.PadreId == p.Id).Sum(EjecACOP)).ToArray();
         _compromisosCat = partidas.Select(p =>
         {
             var subIds = subPartidas.Where(s => s.PadreId == p.Id).Select(s => s.Id).ToHashSet();
             return compromisos.Where(c => c.PartidaId.HasValue && subIds.Contains(c.PartidaId.Value)
-                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado
-                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Pagado)
-                              .Sum(c => c.Valor);
+                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado)
+                              .Sum(SaldoCOP);
         }).ToArray();
 
         // Datos gráfica 2: por tipo
@@ -254,4 +311,5 @@ else
 
     private static readonly System.Globalization.CultureInfo _co = new("es-CO");
     private static string FormatCOP(decimal v) => "$" + v.ToString("N0", _co);
+    private static string FormatUSD(decimal v) => "US$ " + v.ToString("N0", _co);
 }
