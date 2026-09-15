@@ -40,6 +40,11 @@ else
             <i class="bi-upload me-1"></i>Importar Excel
             <InputFile OnChange="ImportarExcelAsync" accept=".xlsx,.xls" style="display:none" />
         </label>
+        <label class="btn btn-sm mb-0" style="background:#183963;color:#fff;border:none"
+               title="Importar la Codificación del proyecto (.xlsx): crea el presupuesto por rubros con disciplinas como categorías (hojas COD COP/USD y PPTO COP/USD)">
+            <i class="bi-diagram-3 me-1"></i>Importar Codificación
+            <InputFile OnChange="LeerCodificacionAsync" accept=".xlsx,.xls" style="display:none" />
+        </label>
         @if (_partidas.Any())
         {
             <button class="btn btn-sm btn-outline-secondary" @onclick="ConfirmarPlantilla">↻ Recargar plantilla</button>
@@ -51,6 +56,22 @@ else
                     @onclick="CargarPlantillaAsync">📋 Cargar plantilla EPC</button>
         }
     </div>
+
+    @if (_codifPendiente is not null)
+    {
+        var nCop = _codifPendiente.Count(r => r.Moneda == "COP");
+        var nUsd = _codifPendiente.Count(r => r.Moneda == "USD");
+        <div class="alert alert-warning d-flex align-items-center gap-3 mb-4 py-2 flex-wrap">
+            <span>
+                <strong>Codificación leída:</strong> @nCop rubros COP y @nUsd rubros USD en
+                @_codifPendiente.Select(r => r.Disciplina).Distinct().Count() disciplinas.
+                <strong>¡Atención!</strong> Esto reemplazará todas las partidas actuales del presupuesto
+                (y los pagos del flujo de caja asociados).
+            </span>
+            <button class="btn btn-warning btn-sm" @onclick="ConfirmarCodificacionAsync">Confirmar e importar</button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _codifPendiente = null">Cancelar</button>
+        </div>
+    }
 
     @if (_confirmandoPlantilla)
     {
@@ -503,6 +524,7 @@ else
 
     private bool _cargando;
     private bool _confirmandoPlantilla;
+    private List<CodificacionParser.RubroCodificacion>? _codifPendiente;
     private bool _hayCAmbios;
     private string? _mensajeGuardado;
     private bool _mensajeEsError;
@@ -529,7 +551,7 @@ else
     private async Task CargarAsync()
     {
         _partidas    = await CostoSvc.ObtenerPartidasConCostosAsync(ProyectoId);
-        _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)).ToList();
+        _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => OrdenNumero(p.Numero)).ToList();
         _padresDict  = _partidas.Where(p => p.EsPrincipal).ToDictionary(p => p.Id);
 
         _saldosOC = (await Db.CompromisoCostos.AsNoTracking()
@@ -570,7 +592,7 @@ else
     {
         _resumenCategorias = _partidas
             .Where(p => p.EsPrincipal)
-            .OrderBy(p => ParseNumero(p.Numero))
+            .OrderBy(p => OrdenNumero(p.Numero))
             .Select(principal =>
             {
                 var hijos        = _subPartidas.Where(p => p.PadreId == principal.Id).ToList();
@@ -589,10 +611,10 @@ else
 
     private IEnumerable<Partida> PartidasOrdenadas()
     {
-        foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)))
+        foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => OrdenNumero(p.Numero)))
         {
             yield return principal;
-            foreach (var hijo in _subPartidas.Where(p => p.PadreId == principal.Id))
+            foreach (var hijo in _subPartidas.Where(p => p.PadreId == principal.Id).OrderBy(p => OrdenNumero(p.Numero)))
                 yield return hijo;
         }
     }
@@ -795,6 +817,58 @@ else
         _cargando = false;
     }
 
+    private async Task LeerCodificacionAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var ms = new System.IO.MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            using var workbook = new XLWorkbook(ms);
+            var rubros = CodificacionParser.Parse(workbook);
+            if (rubros.Count == 0)
+            {
+                _mensajeGuardado = "No se encontraron rubros. Verifica que el archivo tenga las hojas COD COP/USD y PPTO COP/USD.";
+                _mensajeEsError = true;
+                _codifPendiente = null;
+                return;
+            }
+            _codifPendiente = rubros;
+            _mensajeGuardado = null;
+        }
+        catch (Exception ex)
+        {
+            _mensajeGuardado = $"Error al leer la Codificación: {ex.Message}";
+            _mensajeEsError = true;
+        }
+    }
+
+    private async Task ConfirmarCodificacionAsync()
+    {
+        if (_codifPendiente is null) return;
+        _cargando = true;
+        StateHasChanged();
+        try
+        {
+            await CostoSvc.CargarDesdeCodificacionAsync(ProyectoId, _codifPendiente);
+            var nCop = _codifPendiente.Count(r => r.Moneda == "COP");
+            var nUsd = _codifPendiente.Count(r => r.Moneda == "USD");
+            _mensajeGuardado = $"Presupuesto cargado desde la Codificación: {nCop} rubros COP y {nUsd} rubros USD.";
+            _mensajeEsError = false;
+            _codifPendiente = null;
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _mensajeGuardado = $"Error al importar la Codificación: {ex.Message}";
+            _mensajeEsError = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
     private void AbrirCostos(Partida p)
     {
         _partidaSeleccionada      = p;
@@ -860,6 +934,17 @@ else
         if (string.IsNullOrEmpty(num)) return 0;
         return double.TryParse(num, System.Globalization.NumberStyles.Any,
             System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+    }
+
+    // Orden numérico por segmentos: "1.10" va después de "1.9" (no después de "1.1")
+    private static (int, int) OrdenNumero(string? num)
+    {
+        if (string.IsNullOrEmpty(num)) return (0, 0);
+        var partes = num.Split('.');
+        int.TryParse(partes[0], out var mayor);
+        var menor = 0;
+        if (partes.Length > 1) int.TryParse(partes[1], out menor);
+        return (mayor, menor);
     }
 
     private record CategoriaResumen(

@@ -96,6 +96,11 @@ using (var scope = app.Services.CreateScope())
     var controlIngresoSvc = scope.ServiceProvider.GetRequiredService<ControlIngresoService>();
     await controlIngresoSvc.SembrarCatalogoAsync();
     await controlIngresoSvc.SembrarEtapasFaltantesAsync();
+
+    await CodificacionSeeder.SeedLaSoberanaAsync(db);
+    await CodificacionSeeder.RepararRubrosTesoreriaAsync(db);
+    await CodificacionSeeder.ActualizarPlantillasViejasAsync(db);
+    await WbsMantenimiento.LimpiarVersionesDuplicadasAsync(db);
 }
 
 app.Run();

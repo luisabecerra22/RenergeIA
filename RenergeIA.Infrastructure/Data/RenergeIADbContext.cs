@@ -27,6 +27,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<CompromisoCosto> CompromisoCostos => Set<CompromisoCosto>();
     public DbSet<FlujoCajaExclusion> FlujoCajaExclusiones => Set<FlujoCajaExclusion>();
     public DbSet<LineaBOM> LineasBOM => Set<LineaBOM>();
+    public DbSet<MapeoCodigoTesoreria> MapeosCodigoTesoreria => Set<MapeoCodigoTesoreria>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -194,6 +195,15 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
              .HasForeignKey(c => c.ProyectoId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(c => c.Partida).WithMany()
              .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // MapeoCodigoTesoreria
+        modelBuilder.Entity<MapeoCodigoTesoreria>(e =>
+        {
+            e.ToTable("MapeosCodigoTesoreria");
+            e.Property(x => x.CodigoTesoreria).HasMaxLength(20);
+            e.Property(x => x.Rubro).HasMaxLength(20);
+            e.HasIndex(x => x.CodigoTesoreria).IsUnique();
         });
 
         // LineaBOM

@@ -46,11 +46,74 @@
         </button>
     }
 
-    <label class="btn btn-sm btn-outline-primary mb-0 ms-auto" title="Importar pagos desde Excel (.xlsx)">
+    <label class="btn btn-sm btn-outline-primary mb-0" title="Importar pagos desde Excel (.xlsx)">
         <i class="bi-upload me-1"></i>Importar Excel
         <InputFile OnChange="ImportarExcelPagosAsync" accept=".xlsx,.xls" style="display:none" />
     </label>
+    <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
+           title="Actualizar el flujo de caja desde el Forecast Control de tesorería (.xlsx) — reemplaza los datos con el corte más reciente">
+        <i class="bi-cloud-arrow-up me-1"></i>Importar Tesorería
+        <InputFile OnChange="LeerTesoreriaAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
+    </label>
 </div>
+
+@if (_tesoPendiente is not null)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-3 mb-3 py-2 flex-wrap">
+        <span>
+            <strong>Tesorería leída (@_tesoArchivo):</strong>
+            @_tesoPendiente.Movimientos.Count movimientos ·
+            @_tesoPendiente.CodigosEncontrados.Count códigos ·
+            cortes @(_tesoPendiente.PrimerCorte?.ToString("dd/MM/yy")) — @(_tesoPendiente.UltimoCorte?.ToString("dd/MM/yy")).
+            <strong>¡Atención!</strong> Esto reemplaza TODO el flujo de caja con la información de este corte (no suma ni duplica).
+        </span>
+        <button class="btn btn-warning btn-sm" @onclick="ConfirmarTesoreriaAsync">Confirmar y actualizar</button>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="() => _tesoPendiente = null">Cancelar</button>
+    </div>
+}
+
+@if (_tesoNoMapeados.Count > 0)
+{
+    <div class="card mb-3" style="border:1px solid #fd7e14;max-width:950px">
+        <div class="card-header py-1 small fw-semibold text-white" style="background:#fd7e14">
+            ⚠ Subcódigos de tesorería sin equivalencia (@_tesoNoMapeados.Count) — clasifícalos para incluirlos en el flujo
+        </div>
+        <div class="card-body py-2">
+            @foreach (var item in _tesoNoMapeados)
+            {
+                var totCop = item.Value.Where(m => m.Moneda == "COP").Sum(m => m.Monto);
+                var totUsd = item.Value.Where(m => m.Moneda == "USD").Sum(m => m.Monto);
+                <div class="d-flex align-items-center gap-2 py-1 flex-wrap" style="border-bottom:1px solid #f0f3f8">
+                    <span class="badge" style="background:#fd7e14;font-size:0.7rem">@item.Key</span>
+                    <span class="small text-muted">@item.Value.Count mov.</span>
+                    @if (totCop != 0)
+                    {
+                        <span class="small fw-semibold" style="color:#183963">$@totCop.ToString("N0", _culturesCO) COP</span>
+                    }
+                    @if (totUsd != 0)
+                    {
+                        <span class="small fw-semibold" style="color:#6ABF4B">US$ @totUsd.ToString("N0", _culturesCO)</span>
+                    }
+                    <select class="form-select form-select-sm" style="max-width:360px"
+                            value="@(_clasifSeleccion.GetValueOrDefault(item.Key, ""))"
+                            @onchange='e => _clasifSeleccion[item.Key] = e.Value?.ToString() ?? ""'>
+                        <option value="">— Elegir código destino —</option>
+                        @foreach (var p in _subPartidas.Where(s => !s.Codigo.Contains('-'))
+                            .GroupBy(s => s.Codigo).Select(g => g.First()).OrderBy(s => s.Codigo))
+                        {
+                            <option value="@p.Codigo">@p.Codigo — @p.Descripcion</option>
+                        }
+                    </select>
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none"
+                            disabled="@string.IsNullOrEmpty(_clasifSeleccion.GetValueOrDefault(item.Key))"
+                            @onclick="() => ClasificarSubcodigoAsync(item.Key)">
+                        Clasificar e incluir
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @if (!string.IsNullOrEmpty(_mensaje))
 {
@@ -69,7 +132,7 @@
         <div class="card-body py-2">
             @foreach (var pId in ExcluidasVista)
             {
-                var part = _subPartidas.FirstOrDefault(p => p.Id == pId);
+                var part = _partidas.FirstOrDefault(p => p.Id == pId);
                 if (part is null) { continue; }
                 <div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f0f3f8">
                     <span class="badge" style="background:#183963;font-size:0.65rem">@part.Codigo</span>
@@ -99,7 +162,8 @@ else
                 <tr>
                     <th class="text-center" style="position:sticky;left:0;z-index:3;background:#183963;color:white;min-width:42px">#</th>
                     <th class="text-center" style="position:sticky;left:42px;z-index:3;background:#183963;color:white;min-width:82px">Código</th>
-                    <th style="position:sticky;left:124px;z-index:3;background:#183963;color:white;min-width:200px">Descripción</th>
+                    <th style="position:sticky;left:124px;z-index:3;background:#183963;color:white;min-width:320px;resize:horizontal;overflow:hidden"
+                        title="Arrastra la esquina inferior derecha para ajustar el ancho">Descripción</th>
                     @foreach (var fecha in _columnas)
                     {
                         <th class="text-center" style="min-width:110px;font-size:0.72rem;white-space:nowrap;color:white;background:#183963">
@@ -110,46 +174,41 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var p in PartidasOrdenadas())
+                @foreach (var cat in CategoriasFlujo())
                 {
-                    if (p.EsPrincipal)
-                    {
-                        var hijos = HijosActivos(p.Id);
-                        <tr style="background:#D9D9D6">
-                            <td class="text-center fw-bold" style="color:#111921;position:sticky;left:0;background:#D9D9D6">@p.Numero</td>
-                            <td class="text-center" style="position:sticky;left:42px;background:#D9D9D6">
-                                <span class="badge" style="background:#183963;font-size:0.68rem">@p.Codigo</span>
+                    var hijos = HijosFlujo(cat.Id);
+                    <tr style="background:#D9D9D6">
+                        <td class="text-center fw-bold" style="color:#111921;position:sticky;left:0;background:#D9D9D6">@cat.Numero</td>
+                        <td class="text-center" style="position:sticky;left:42px;background:#D9D9D6"></td>
+                        <td class="fw-bold text-uppercase" style="position:sticky;left:124px;background:#D9D9D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
+                            title="@cat.Descripcion">@cat.Descripcion</td>
+                        @foreach (var fecha in _columnas)
+                        {
+                            var subtotal = hijos.Sum(h => ObtenerMontoCelda(h.Id, fecha));
+                            <td class="text-center fw-bold" style="color:#183963;font-size:0.8rem;background:#D9D9D6">
+                                @(subtotal != 0 ? FormatMon(subtotal) : "—")
                             </td>
-                            <td class="fw-bold text-uppercase" style="position:sticky;left:124px;background:#D9D9D6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#111921"
-                                title="@p.Descripcion">@p.Descripcion</td>
-                            @foreach (var fecha in _columnas)
-                            {
-                                var subtotal = hijos.Sum(h => ObtenerMontoCelda(h.Id, fecha));
-                                <td class="text-center fw-bold" style="color:#183963;font-size:0.8rem;background:#D9D9D6">
-                                    @(subtotal != 0 ? FormatMon(subtotal) : "—")
-                                </td>
-                            }
-                            @{
-                                var totalCat = hijos.Sum(h => _columnas.Sum(f => ObtenerMontoCelda(h.Id, f)));
-                            }
-                            <td class="text-center fw-bold" style="background:#D9D9D6;color:#183963">
-                                @(totalCat != 0 ? FormatMon(totalCat) : "—")
-                            </td>
-                        </tr>
-                    }
-                    else
+                        }
+                        @{
+                            var totalCat = hijos.Sum(h => _columnas.Sum(f => ObtenerMontoCelda(h.Id, f)));
+                        }
+                        <td class="text-center fw-bold" style="background:#D9D9D6;color:#183963">
+                            @(totalCat != 0 ? FormatMon(totalCat) : "—")
+                        </td>
+                    </tr>
+                    @foreach (var p in hijos)
                     {
                         var totalFila = _columnas.Sum(f => ObtenerMontoCelda(p.Id, f));
                         <tr style="border-bottom:1px solid #D9D9D6">
                             <td class="text-center small" style="color:#6c757d;position:sticky;left:0;background:#fff">@p.Numero</td>
                             <td class="text-center" style="position:sticky;left:42px;background:#fff">
-                                <small class="fw-semibold" style="color:#183963">@p.Codigo</small>
+                                <span class="badge" style="background:#183963;font-size:0.68rem">@p.Codigo</span>
                             </td>
-                            <td class="ps-3" style="position:sticky;left:124px;background:#fff;color:#111921">
+                            <td class="ps-2" style="position:sticky;left:124px;background:#fff;color:#111921">
                                 <div class="d-flex align-items-center justify-content-between gap-1">
-                                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px" title="@p.Descripcion">@p.Descripcion</span>
+                                    <span style="font-size:0.76rem;line-height:1.15" title="@p.Descripcion">@p.Descripcion</span>
                                     <button class="btn p-0 border-0" style="font-size:0.72rem;color:#adb5bd;line-height:1"
-                                            title="Desactivar esta actividad en la vista @(_monedaVista == "USD" ? "Dólares" : "Pesos") — se puede reactivar desde 'Desactivadas'"
+                                            title="Desactivar este código en la vista @(_monedaVista == "USD" ? "Dólares" : "Pesos") — se puede reactivar desde 'Desactivadas'"
                                             @onclick="() => DesactivarPartida(p.Id)">
                                         <i class="bi-eye-slash"></i>
                                     </button>
@@ -165,7 +224,6 @@ else
                                                style="font-size:0.78rem;@(monto > 0 ? "color:#183963;font-weight:600" : "color:#adb5bd")"
                                                value="@(monto != 0 ? monto.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) : "")"
                                                placeholder="—"
-                                               @onfocus="() => {}"
                                                @onchange="e => CambiarMontoCelda(p.Id, fecha, e.Value?.ToString())"
                                                min="0" step="1" />
                                         @if (tieneDatos)
@@ -189,13 +247,13 @@ else
                     </td>
                     @foreach (var fecha in _columnas)
                     {
-                        var totalCol = SubPartidasActivas.Sum(sp => ObtenerMontoCelda(sp.Id, fecha));
+                        var totalCol = SubsActivasFlujo().Sum(sp => ObtenerMontoCelda(sp.Id, fecha));
                         <td class="text-center py-2" style="font-size:0.8rem;background:#183963;color:white">
                             @(totalCol != 0 ? FormatMon(totalCol) : "—")
                         </td>
                     }
                     @{
-                        var granTotal = SubPartidasActivas.Sum(sp => _columnas.Sum(f => ObtenerMontoCelda(sp.Id, f)));
+                        var granTotal = SubsActivasFlujo().Sum(sp => _columnas.Sum(f => ObtenerMontoCelda(sp.Id, f)));
                     }
                     <td class="text-center py-2" style="background:#111921;color:white;font-size:0.9rem">
                         @(granTotal != 0 ? FormatMon(granTotal) : FormatMon(0))
@@ -314,15 +372,13 @@ else
     private bool EsDeVista(PagoCorteSemanal p) =>
         _monedaVista == "USD" ? p.Moneda == "USD" : p.Moneda != "USD";
 
-    private List<Partida> HijosActivos(int padreId)
+    // El flujo de caja trabaja solo con los códigos principales; los pagos históricos
+    // registrados sobre sub-partidas se suman hacia su código principal
+    private HashSet<int> IdsDe(int principalId)
     {
-        var excl = ExcluidasVista;
-        return _subPartidas.Where(p => p.PadreId == padreId && !excl.Contains(p.Id)).ToList();
-    }
-
-    private List<Partida> SubPartidasActivas
-    {
-        get { var excl = ExcluidasVista; return _subPartidas.Where(p => !excl.Contains(p.Id)).ToList(); }
+        var ids = new HashSet<int> { principalId };
+        foreach (var h in _subPartidas.Where(s => s.PadreId == principalId)) ids.Add(h.Id);
+        return ids;
     }
 
     private void CambiarMonedaVista(string moneda)
@@ -411,17 +467,20 @@ else
         var key = (partidaId, fechaCorte, _monedaVista);
         if (_montosEditados.TryGetValue(key, out var editado))
             return editado;
-        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).Sum(p => p.Monto);
+        var ids = IdsDe(partidaId);
+        return _pagos.Where(p => ids.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p)).Sum(p => p.Monto);
     }
 
     private bool TienePagos(int partidaId, DateTime fechaCorte)
     {
-        return _pagos.Any(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p));
+        var ids = IdsDe(partidaId);
+        return _pagos.Any(p => ids.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p));
     }
 
     private List<PagoCorteSemanal> ObtenerPagosDetalle(int partidaId, DateTime fechaCorte)
     {
-        return _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
+        var ids = IdsDe(partidaId);
+        return _pagos.Where(p => ids.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
     }
 
     private void CambiarMontoCelda(int partidaId, DateTime fechaCorte, string? valor)
@@ -429,7 +488,8 @@ else
         if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
             System.Globalization.CultureInfo.InvariantCulture, out var monto))
         {
-            var existentes = _pagos.Where(p => p.PartidaId == partidaId && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
+            var idsCelda = IdsDe(partidaId);
+            var existentes = _pagos.Where(p => idsCelda.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
             if (existentes.Count == 0)
             {
                 var nuevo = new PagoCorteSemanal
@@ -490,19 +550,195 @@ else
         }
     }
 
-    private IEnumerable<Partida> PartidasOrdenadas()
+    // Flujo de caja = mismo listado que Actividades Presupuestadas:
+    // categorías como filas de subtotal + códigos (sin subdetalles "-001") como filas de captura
+    private IEnumerable<Partida> CategoriasFlujo()
+    {
+        return _partidas
+            .Where(p => p.EsPrincipal)
+            .OrderBy(p => OrdenNumero(p.Numero))
+            .Where(c => HijosFlujo(c.Id).Count > 0);
+    }
+
+    private List<Partida> HijosFlujo(int padreId)
     {
         var excl = ExcluidasVista;
-        foreach (var principal in _partidas.Where(p => p.EsPrincipal).OrderBy(p => ParseNumero(p.Numero)))
+        return _subPartidas
+            .Where(p => p.PadreId == padreId && !p.Codigo.Contains('-') && !excl.Contains(p.Id))
+            .OrderBy(p => OrdenNumero(p.Numero))
+            .ToList();
+    }
+
+    private List<Partida> SubsActivasFlujo()
+    {
+        var excl = ExcluidasVista;
+        return _subPartidas
+            .Where(p => !p.Codigo.Contains('-') && !excl.Contains(p.Id))
+            .ToList();
+    }
+
+    private TesoreriaParser.ResultadoTesoreria? _tesoPendiente;
+    private string? _tesoArchivo;
+    private List<KeyValuePair<string, List<TesoreriaParser.MovimientoTesoreria>>> _tesoNoMapeados = [];
+    private readonly Dictionary<string, string> _clasifSeleccion = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task ClasificarSubcodigoAsync(string subcodigo)
+    {
+        if (!_clasifSeleccion.TryGetValue(subcodigo, out var rubro) || string.IsNullOrEmpty(rubro)) return;
+        var destino = _subPartidas.FirstOrDefault(p => !p.Codigo.Contains('-') &&
+            string.Equals(p.Codigo, rubro, StringComparison.OrdinalIgnoreCase));
+        var item = _tesoNoMapeados.FirstOrDefault(x => string.Equals(x.Key, subcodigo, StringComparison.OrdinalIgnoreCase));
+        if (destino is null || item.Value is null) return;
+
+        // Guardar la equivalencia para futuras importaciones
+        var mapeo = await Db.MapeosCodigoTesoreria.FirstOrDefaultAsync(m => m.CodigoTesoreria == subcodigo.ToUpper());
+        if (mapeo is null)
+            Db.MapeosCodigoTesoreria.Add(new MapeoCodigoTesoreria { CodigoTesoreria = subcodigo.ToUpperInvariant(), Rubro = destino.Codigo.ToUpperInvariant() });
+        else
         {
-            var hijos = _subPartidas
-                .Where(p => p.PadreId == principal.Id && !excl.Contains(p.Id))
-                .OrderBy(p => ParseNumero(p.Numero))
-                .ToList();
-            if (hijos.Count == 0) continue;
-            yield return principal;
-            foreach (var hijo in hijos)
-                yield return hijo;
+            mapeo.Rubro = destino.Codigo.ToUpperInvariant();
+            Db.MapeosCodigoTesoreria.Update(mapeo);
+        }
+
+        // Incluir los movimientos pendientes de ese subcódigo
+        foreach (var grupo in item.Value.GroupBy(m => (m.FechaCorte, m.Moneda)))
+        {
+            var monto = grupo.Sum(m => m.Monto);
+            if (monto == 0) continue;
+            Db.PagosCorteSemanal.Add(new PagoCorteSemanal
+            {
+                ProyectoId = ProyectoId,
+                PartidaId = destino.Id,
+                FechaCorte = grupo.Key.FechaCorte,
+                Moneda = grupo.Key.Moneda,
+                Monto = monto,
+                Descripcion = $"Tesorería {subcodigo}"
+            });
+        }
+        await Db.SaveChangesAsync();
+
+        _tesoNoMapeados.Remove(item);
+        _clasifSeleccion.Remove(subcodigo);
+        await CargarAsync();
+        _mensaje = $"Subcódigo {subcodigo.ToUpperInvariant()} clasificado en {destino.Codigo} — valores incluidos. La equivalencia quedó guardada para futuras importaciones.";
+        _mensajeError = false;
+    }
+
+    private async Task LeerTesoreriaAsync(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var ms = new System.IO.MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            using var workbook = new XLWorkbook(ms);
+            var res = TesoreriaParser.Parse(workbook);
+            if (res.Movimientos.Count == 0)
+            {
+                _mensaje = "No se encontraron movimientos de egresos en el archivo. Verifica que sea el Forecast Control correcto.";
+                _mensajeError = true;
+                _tesoPendiente = null;
+                return;
+            }
+            _tesoPendiente = res;
+            _tesoArchivo = e.File.Name;
+            _mensaje = null;
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"Error al leer la tesorería: {ex.Message}";
+            _mensajeError = true;
+        }
+    }
+
+    private async Task ConfirmarTesoreriaAsync()
+    {
+        if (_tesoPendiente is null) return;
+        try
+        {
+            // Destinos: los códigos del listado (sub-partidas sin consecutivo "-")
+            var porCodigo = _subPartidas
+                .Where(p => !p.Codigo.Contains('-'))
+                .GroupBy(p => p.Codigo.ToUpperInvariant())
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // Mapeos personalizados guardados (clasificaciones hechas por la usuaria)
+            var mapeosDb = (await Db.MapeosCodigoTesoreria.AsNoTracking().ToListAsync())
+                .GroupBy(m => m.CodigoTesoreria.ToUpperInvariant())
+                .ToDictionary(g => g.Key, g => g.First().Rubro.ToUpperInvariant());
+
+            string RubroDe(string codigo)
+            {
+                if (CodificacionSeeder.MapaCodigoARubro.TryGetValue(codigo, out var r)) return r.ToUpperInvariant();
+                if (mapeosDb.TryGetValue(codigo.ToUpperInvariant(), out var m)) return m;
+                return codigo.ToUpperInvariant();
+            }
+
+            // Agregar por (código destino, corte, moneda); los subcódigos sin equivalencia NO se cargan
+            var celdas = new Dictionary<(int PartidaId, DateTime Fecha, string Moneda), decimal>();
+            var noMapeados = new Dictionary<string, List<TesoreriaParser.MovimientoTesoreria>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var mov in _tesoPendiente.Movimientos)
+            {
+                if (!porCodigo.TryGetValue(RubroDe(mov.Codigo), out var destino))
+                {
+                    if (!noMapeados.TryGetValue(mov.Codigo, out var lista))
+                        noMapeados[mov.Codigo] = lista = [];
+                    lista.Add(mov);
+                    continue;
+                }
+                var key = (destino.Id, mov.FechaCorte, mov.Moneda);
+                celdas[key] = celdas.GetValueOrDefault(key) + mov.Monto;
+            }
+            _tesoNoMapeados = noMapeados.OrderBy(k => k.Key).ToList();
+            _clasifSeleccion.Clear();
+
+            // Reemplazo total: el corte más reciente trae todo el histórico actualizado
+            var pagosPrevios = await Db.PagosCorteSemanal.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
+            Db.PagosCorteSemanal.RemoveRange(pagosPrevios);
+            foreach (var ((pid, fecha, mon), monto) in celdas)
+            {
+                if (monto == 0) continue;
+                Db.PagosCorteSemanal.Add(new PagoCorteSemanal
+                {
+                    ProyectoId = ProyectoId,
+                    PartidaId = pid,
+                    FechaCorte = fecha,
+                    Moneda = mon,
+                    Monto = monto,
+                    Descripcion = $"Tesorería {_tesoArchivo}"
+                });
+            }
+
+            // Ampliar el rango de fechas del flujo para cubrir los cortes importados
+            if (_proyecto is not null && _tesoPendiente.PrimerCorte.HasValue && _tesoPendiente.UltimoCorte.HasValue)
+            {
+                var min = _tesoPendiente.PrimerCorte.Value;
+                var max = _tesoPendiente.UltimoCorte.Value;
+                if (_proyecto.FechaInicioPagos is null || _proyecto.FechaInicioPagos > min) _proyecto.FechaInicioPagos = min;
+                if (_proyecto.FechaFinPagos is null || _proyecto.FechaFinPagos < max) _proyecto.FechaFinPagos = max;
+                Db.Proyectos.Update(_proyecto);
+                _fechaInicio = _proyecto.FechaInicioPagos!.Value;
+                _fechaFin = _proyecto.FechaFinPagos!.Value;
+                GenerarColumnas();
+            }
+
+            await Db.SaveChangesAsync();
+
+            var resumen = $"Flujo de caja actualizado desde tesorería: {celdas.Count(c => c.Value != 0)} valores " +
+                          $"({_tesoPendiente.Movimientos.Count} movimientos de {_tesoPendiente.CodigosEncontrados.Count} códigos).";
+            if (_tesoNoMapeados.Count > 0)
+                resumen += $" ⚠ {_tesoNoMapeados.Count} subcódigos sin equivalencia NO se cargaron: " +
+                           $"{string.Join(", ", _tesoNoMapeados.Select(x => x.Key))} — clasifícalos abajo para incluirlos.";
+            _tesoPendiente = null;
+            _tesoArchivo = null;
+            await CargarAsync();
+            _mensaje = resumen;
+            _mensajeError = false;
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"Error al actualizar desde tesorería: {ex.Message}";
+            _mensajeError = true;
         }
     }
 
@@ -536,7 +772,7 @@ else
         Db.PagosCorteSemanal.Add(nuevo);
         await Db.SaveChangesAsync();
         await CargarAsync();
-        _detallePartida = _subPartidas.FirstOrDefault(p => p.Id == _detallePartida.Id);
+        _detallePartida = _partidas.FirstOrDefault(p => p.Id == _detallePartida.Id);
         _formPago = new PagoFormModel();
     }
 
@@ -549,7 +785,7 @@ else
         _confirmandoEliminar = null;
         var idPartida = _detallePartida?.Id;
         await CargarAsync();
-        _detallePartida = idPartida.HasValue ? _subPartidas.FirstOrDefault(p => p.Id == idPartida) : null;
+        _detallePartida = idPartida.HasValue ? _partidas.FirstOrDefault(p => p.Id == idPartida) : null;
     }
 
     private async Task ImportarExcelPagosAsync(InputFileChangeEventArgs e)
@@ -621,8 +857,10 @@ else
                 var codigo = ws.Cell(row, colCodigo).GetString().Trim();
                 if (string.IsNullOrEmpty(codigo) || codigo.Equals("TOTAL", StringComparison.OrdinalIgnoreCase)) continue;
 
-                var partida = _subPartidas.FirstOrDefault(p =>
-                    string.Equals(p.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
+                var partida = _partidas.FirstOrDefault(p => p.EsPrincipal &&
+                        string.Equals(p.Codigo, codigo, StringComparison.OrdinalIgnoreCase))
+                    ?? _subPartidas.FirstOrDefault(p =>
+                        string.Equals(p.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
                 if (partida is null) { noEncontrados++; continue; }
 
                 foreach (var (col, fecha) in fechasCol)
@@ -692,6 +930,17 @@ else
         if (string.IsNullOrEmpty(num)) return 0;
         return double.TryParse(num, System.Globalization.NumberStyles.Any,
             System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0;
+    }
+
+    // Orden numérico por segmentos: "1.10" va después de "1.9" (no después de "1.1")
+    private static (int, int) OrdenNumero(string? num)
+    {
+        if (string.IsNullOrEmpty(num)) return (0, 0);
+        var partes = num.Split('.');
+        int.TryParse(partes[0], out var mayor);
+        var menor = 0;
+        if (partes.Length > 1) int.TryParse(partes[1], out menor);
+        return (mayor, menor);
     }
 
     private sealed class PagoFormModel

@@ -304,6 +304,45 @@ public static class BomParser
 
     private static readonly System.Globalization.CultureInfo _co = new("es-CO");
 
+    public static (Dictionary<string, string> Dps, Dictionary<string, string> Apoyos) ParseCatalogos(XLWorkbook wb)
+    {
+        var dps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var apoyos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var ws = wb.Worksheets.FirstOrDefault(w => string.Equals(w.Name.Trim(), "Listas", StringComparison.OrdinalIgnoreCase));
+        if (ws is null) return (dps, apoyos);
+
+        var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
+        var lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+
+        int cDp = 0, cDepto = 0, cTipo = 0, cApoyo = 0;
+        for (int c = 1; c <= lastCol; c++)
+        {
+            var h = Norm(ws.Cell(1, c).GetString());
+            if (h == "dp" && cDp == 0) cDp = c;
+            else if (h.StartsWith("departamento") && cDepto == 0) cDepto = c;
+            else if (h == "tipo" && cTipo == 0) cTipo = c;
+            else if (h == "apoyo" && cApoyo == 0) cApoyo = c;
+        }
+
+        for (int r = 2; r <= lastRow; r++)
+        {
+            if (cDp > 0 && cDepto > 0)
+            {
+                var cod = ws.Cell(r, cDp).GetString().Trim().ToUpperInvariant();
+                var nom = ws.Cell(r, cDepto).GetString().Trim();
+                if (cod.Length == 2 && !string.IsNullOrEmpty(nom) && !dps.ContainsKey(cod)) dps[cod] = nom;
+            }
+            if (cTipo > 0 && cApoyo > 0)
+            {
+                var cod = ws.Cell(r, cTipo).GetString().Trim().ToUpperInvariant();
+                var nom = ws.Cell(r, cApoyo).GetString().Trim();
+                if (cod.Length == 2 && !string.IsNullOrEmpty(nom) && !apoyos.ContainsKey(cod)) apoyos[cod] = nom;
+            }
+        }
+        return (dps, apoyos);
+    }
+
     public static decimal? Num(IXLCell celda)
     {
         if (celda.IsEmpty()) return null;

@@ -1,9 +1,14 @@
-**/bin/
-**/obj/
+﻿RenergeIA.Core/bin/
+RenergeIA.Core/obj/
+RenergeIA.Infrastructure/bin/
+RenergeIA.Infrastructure/obj/
+RenergeIA.Web/bin/
+RenergeIA.Web/obj/
 **/.vs/
 **/node_modules/
 **/.git/
-**/wwwroot/uploads/
+RenergeIA.Web/wwwroot/uploads/
 *.md
 ngrok.exe
 docs/
+evaluacion-hse/

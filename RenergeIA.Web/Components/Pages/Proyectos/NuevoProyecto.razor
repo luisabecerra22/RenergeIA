@@ -4,6 +4,7 @@
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
 @inject HistogramaService HistSvc
+@inject CostoService CostoSvc
 @using ClosedXML.Excel
 @using RenergeIA.Web.Services
 
@@ -357,6 +358,26 @@
                 {
                     Db.LineasBOM.AddRange(lineas);
                     await Db.SaveChangesAsync();
+
+                    // Presupuesto automático por rubro desde la BOM (categorías = departamentos)
+                    var (dps, apoyos) = BomParser.ParseCatalogos(workbook);
+                    var rubrosBom = lineas
+                        .Where(l => l.Codigo.Length >= 4)
+                        .GroupBy(l => l.Codigo)
+                        .Select(g =>
+                        {
+                            var dp = g.Key[..2];
+                            var apoyo = g.Key.Length >= 4 ? g.Key.Substring(2, 2) : "";
+                            var dpNombre = dps.TryGetValue(dp, out var dn) ? dn : "Otros";
+                            var apoyoNombre = apoyos.TryGetValue(apoyo, out var an) ? an : g.Key;
+                            return new CodificacionParser.RubroCodificacion(
+                                "COP", g.Key, $"{dpNombre} — {apoyoNombre}", dpNombre,
+                                g.Sum(l => l.CostoTotalBOM));
+                        })
+                        .Where(r => r.Presupuesto > 0)
+                        .ToList();
+                    if (rubrosBom.Count > 0)
+                        await CostoSvc.CargarDesdeCodificacionAsync(proyecto.Id, rubrosBom);
                 }
             }
             catch

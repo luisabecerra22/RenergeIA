@@ -27,148 +27,222 @@ public class CostoService(RenergeIADbContext db)
         return Math.Round(CostoEjecutado(p) / presup * 100, 1);
     }
 
-    public async Task CargarPlantillaEstandarAsync(int proyectoId)
+    private async Task EliminarPartidasProyectoAsync(int proyectoId)
     {
-        var existentes = await db.Partidas.AnyAsync(p => p.ProyectoId == proyectoId);
-        if (existentes)
-        {
-            var todas = await db.Partidas.Where(p => p.ProyectoId == proyectoId).ToListAsync();
-            db.Partidas.RemoveRange(todas);
-            await db.SaveChangesAsync();
-        }
+        var pagos = await db.PagosCorteSemanal.Where(p => p.ProyectoId == proyectoId).ToListAsync();
+        if (pagos.Count > 0) db.PagosCorteSemanal.RemoveRange(pagos);
+        var exclusiones = await db.FlujoCajaExclusiones.Where(e => e.ProyectoId == proyectoId).ToListAsync();
+        if (exclusiones.Count > 0) db.FlujoCajaExclusiones.RemoveRange(exclusiones);
+        var todas = await db.Partidas.Where(p => p.ProyectoId == proyectoId).ToListAsync();
+        if (todas.Count > 0) db.Partidas.RemoveRange(todas);
+        await db.SaveChangesAsync();
+    }
 
-        var principales = PlantillaEstandar();
-        foreach (var (principal, subs) in principales)
+    public async Task CargarDesdeCodificacionAsync(int proyectoId, List<CodificacionParser.RubroCodificacion> rubros)
+    {
+        await EliminarPartidasProyectoAsync(proyectoId);
+
+        // Se respeta el orden de llegada (el orden del catálogo / archivo)
+        var categorias = rubros.GroupBy(r => r.Disciplina).ToList();
+
+        int numCat = 0;
+        foreach (var grupo in categorias)
         {
-            principal.ProyectoId = proyectoId;
+            numCat++;
+            var principal = new Partida
+            {
+                ProyectoId = proyectoId,
+                Numero = numCat.ToString(),
+                Codigo = CodigoDisciplina(grupo.Key),
+                Descripcion = grupo.Key.ToUpperInvariant(),
+                Unidad = "Global",
+                Nivel = 1,
+                EsPrincipal = true
+            };
             db.Partidas.Add(principal);
             await db.SaveChangesAsync();
 
-            foreach (var sub in subs)
+            int numSub = 0;
+            foreach (var r in grupo)
             {
-                sub.ProyectoId = proyectoId;
-                sub.PadreId = principal.Id;
-                db.Partidas.Add(sub);
+                numSub++;
+                db.Partidas.Add(new Partida
+                {
+                    ProyectoId = proyectoId,
+                    PadreId = principal.Id,
+                    Numero = $"{numCat}.{numSub}",
+                    Codigo = r.Rubro,
+                    Descripcion = r.Actividad,
+                    Unidad = "Global",
+                    CantidadPresupuestada = 1,
+                    PrecioUnitario = r.Presupuesto,
+                    MonedaOriginal = r.Moneda,
+                    Nivel = 2,
+                    EsPrincipal = false
+                });
             }
             await db.SaveChangesAsync();
         }
     }
 
-    private static List<(Partida Principal, List<Partida> Subs)> PlantillaEstandar()
+    public static string CodigoDisciplina(string disciplina)
     {
-        static Partida P(string num, string codigo, string desc, string unidad = "Global", decimal cant = 1, decimal precio = 0) =>
-            new() { Numero = num, Codigo = codigo, Descripcion = desc, Unidad = unidad, CantidadPresupuestada = cant, PrecioUnitario = precio, Nivel = 1, EsPrincipal = true };
-
-        static Partida S(string num, string codigo, string desc, string unidad = "Global", decimal cant = 1, decimal precio = 0) =>
-            new() { Numero = num, Codigo = codigo, Descripcion = desc, Unidad = unidad, CantidadPresupuestada = cant, PrecioUnitario = precio, Nivel = 2, EsPrincipal = false };
-
-        return
-        [
-            (P("1","PASP","SUMINISTROS PRINCIPALES"), [
-                S("1.1","PASP-001","Módulos fotovoltaicos","Un",1,0),
-                S("1.2","PASP-002","Inversores string","Un",1,0),
-                S("1.3","PASP-003","Estructura soporte fija","kg",1,0),
-                S("1.4","PASP-004","Cable DC solar","m",1,0),
-                S("1.5","PASP-005","Cable AC BT","m",1,0),
-                S("1.6","PASP-006","Cable MT","m",1,0),
-                S("1.7","PASP-007","Transformador MT/BT","Un",1,0),
-                S("1.8","PASP-008","Tablero AC principal","Un",1,0),
-                S("1.9","PASP-009","Sistema SCADA","Global",1,0),
-                S("1.10","PASP-010","Sistema CCTV","Global",1,0),
-                S("1.11","PASP-011","Estación meteorológica","Un",1,0),
-                S("1.12","PASP-012","Sistema de puesta a tierra","Global",1,0),
-                S("1.13","PASP-013","Protecciones MT","Global",1,0),
-                S("1.14","PASP-014","Celdas MT","Un",1,0),
-                S("1.15","PASP-015","Banco de baterías (si aplica)","Un",1,0),
-                S("1.16","PASP-016","Sistema de monitoreo remoto","Global",1,0),
-                S("1.17","PASP-017","Medidor bidireccional","Un",1,0),
-                S("1.18","PASP-018","Materiales auxiliares y consumibles","Global",1,0),
-                S("1.19","PASP-019","Flete y aduanas","Global",1,0),
-                S("1.20","PASP-020","Seguros de transporte","Global",1,0),
-            ]),
-            (P("2","ESSP","TRABAJOS CIVILES"), [
-                S("2.1","ESSP-001","Replanteo y descapote","m²",1,0),
-                S("2.2","ESSP-002","Limpieza y nivelación del terreno","m²",1,0),
-                S("2.3","ESSP-003","Hincado de perfiles","Un",1,0),
-                S("2.4","ESSP-004","Excavación zanjas","m³",1,0),
-                S("2.5","ESSP-005","Relleno y compactación zanjas","m³",1,0),
-                S("2.6","ESSP-006","Construcción vías internas","m²",1,0),
-                S("2.7","ESSP-007","Cimentación caseta eléctrica","m³",1,0),
-                S("2.8","ESSP-008","Edificio de control","m²",1,0),
-                S("2.9","ESSP-009","Caseta de inversores","m²",1,0),
-                S("2.10","ESSP-010","Cerramiento perimetral","m",1,0),
-                S("2.11","ESSP-011","Pórtico de entrada","Un",1,0),
-                S("2.12","ESSP-012","Señalización","Global",1,0),
-                S("2.13","ESSP-013","Drenajes pluviales","ml",1,0),
-                S("2.14","ESSP-014","Instalaciones hidrosanitarias","Global",1,0),
-                S("2.15","ESSP-015","Obras de paisajismo","Global",1,0),
-                S("2.16","ESSP-016","Pruebas de suelos","Global",1,0),
-                S("2.17","ESSP-017","Pull out test","Un",1,0),
-                S("2.18","ESSP-018","Concreto plintos y pedestales","m³",1,0),
-                S("2.19","ESSP-019","Limpieza final de obra civil","Global",1,0),
-            ]),
-            (P("3","MTTC","INSTALACIÓN MECÁNICA"), [
-                S("3.1","MTTC-001","Montaje estructura soporte","kg",1,0),
-                S("3.2","MTTC-002","Instalación módulos fotovoltaicos","Un",1,0),
-                S("3.3","MTTC-003","Montaje inversores string","Un",1,0),
-                S("3.4","MTTC-004","Montaje transformador","Un",1,0),
-                S("3.5","MTTC-005","Montaje tableros AC","Un",1,0),
-                S("3.6","MTTC-006","Montaje celdas MT","Un",1,0),
-                S("3.7","MTTC-007","Instalación sistema CCTV","Global",1,0),
-                S("3.8","MTTC-008","Instalación estación meteorológica","Un",1,0),
-                S("3.9","MTTC-009","Montaje bandejas portacables","m",1,0),
-                S("3.10","MTTC-010","Instalación tubería conduit","m",1,0),
-                S("3.11","MTTC-011","Montaje sistema puesta a tierra","Global",1,0),
-                S("3.12","MTTC-012","Instalación equipos sala control","Global",1,0),
-                S("3.13","MTTC-013","Pruebas mecánicas precomisionado","Global",1,0),
-                S("3.14","MTTC-014","Torque final conexiones","Global",1,0),
-                S("3.15","MTTC-015","Limpieza módulos","Global",1,0),
-                S("3.16","MTTC-016","Retiro sobrantes obra mecánica","Global",1,0),
-            ]),
-            (P("4","HCSP","HOT COMMISSIONING"), [
-                S("4.1","HCSP-001","Pruebas de energización y comisionamiento","Global",1,0),
-            ]),
-            (P("5","CTSP","INSTALACIÓN ELÉCTRICA"), [
-                S("5.1","CTSP-001","Cableado DC string - combiner box","m",1,0),
-                S("5.2","CTSP-002","Cableado DC combiner box - inversor","m",1,0),
-                S("5.3","CTSP-003","Cableado AC inversor - tablero BT","m",1,0),
-                S("5.4","CTSP-004","Cableado BT tablero - transformador","m",1,0),
-                S("5.5","CTSP-005","Cableado MT transformador - celda","m",1,0),
-                S("5.6","CTSP-006","Cableado MT celda - punto de entrega","m",1,0),
-                S("5.7","CTSP-007","Conexionado tableros de control","Global",1,0),
-                S("5.8","CTSP-008","Conexionado medidor bidireccional","Un",1,0),
-                S("5.9","CTSP-009","Instalación pararrayos","Un",1,0),
-                S("5.10","CTSP-010","Red de tierra fisica","m",1,0),
-                S("5.11","CTSP-011","Pruebas eléctricas - megado y continuidad","Global",1,0),
-                S("5.12","CTSP-012","Pruebas de polaridad DC","Global",1,0),
-                S("5.13","CTSP-013","Retiro sobrantes obra eléctrica","Global",1,0),
-            ]),
-            (P("6","CCSP","CCTV"), [
-                S("6.1","CCSP-001","Cámaras PTZ perimetral","Un",1,0),
-                S("6.2","CCSP-002","DVR / NVR central","Un",1,0),
-                S("6.3","CCSP-003","Cableado y ducterías CCTV","Global",1,0),
-                S("6.4","CCSP-004","Configuración y pruebas CCTV","Global",1,0),
-            ]),
-            (P("7","SCSP","SCADA"), [
-                S("7.1","SCSP-001","Software SCADA licencia","Global",1,0),
-                S("7.2","SCSP-002","Configuración y puesta en marcha SCADA","Global",1,0),
-                S("7.3","SCSP-003","Capacitación sistema SCADA","Global",1,0),
-            ]),
-            (P("8","EMSP","ESTACIONES METEOROLÓGICAS"), [
-                S("8.1","EMSP-001","Estación meteorológica completa","Un",1,0),
-                S("8.2","EMSP-002","Integración con SCADA","Global",1,0),
-            ]),
-            (P("9","CGSP","COSTOS GENERALES"), [
-                S("9.1","CGSP-001","Ingeniero residente","mes",1,0),
-                S("9.2","CGSP-002","Supervisor HSE","mes",1,0),
-                S("9.3","CGSP-003","Operario de planta","mes",1,0),
-                S("9.4","CGSP-004","Vehículo de campo","mes",1,0),
-                S("9.5","CGSP-005","Herramientas y EPP","Global",1,0),
-                S("9.6","CGSP-006","Equipos de medición y prueba","Global",1,0),
-                S("9.7","CGSP-007","Gestión ambiental y permisos","Global",1,0),
-                S("9.8","CGSP-008","Seguros de construcción","Global",1,0),
-                S("9.9","CGSP-009","Gastos administrativos de obra","Global",1,0),
-            ]),
-        ];
+        var norm = disciplina.Trim().ToUpperInvariant();
+        return norm switch
+        {
+            "SUMINISTROS PRINCIPALES"     => "SUM",
+            "TRABAJOS CIVILES"            => "TC",
+            "INSTALACIÓN MECÁNICA"        => "IM",
+            "HOT COMMISSIONING"           => "HC",
+            "INSTALACIÓN ELÉCTRICA"       => "IE",
+            "CCTV"                        => "CCTV",
+            "SCADA"                       => "SCADA",
+            "ESTACIONES METEOROLÓGICAS"   => "EM",
+            "COSTOS GENERALES"            => "CG",
+            "ESTUDIOS"                    => "EST",
+            _ => DerivarIniciales(disciplina)
+        };
     }
+
+    private static string DerivarIniciales(string disciplina)
+    {
+        var palabras = disciplina.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => p.Length > 2 || p.ToUpperInvariant() == p)
+            .ToArray();
+        if (palabras.Length == 0) return "OTR";
+        var iniciales = string.Concat(palabras.Select(p => char.ToUpperInvariant(p[0])));
+        return iniciales.Length >= 2 ? iniciales[..Math.Min(4, iniciales.Length)]
+                                     : palabras[0][..Math.Min(3, palabras[0].Length)].ToUpperInvariant();
+    }
+
+    public async Task CargarPlantillaEstandarAsync(int proyectoId)
+    {
+        var existentes = await db.Partidas.AnyAsync(p => p.ProyectoId == proyectoId);
+        if (existentes)
+        {
+            await EliminarPartidasProyectoAsync(proyectoId);
+        }
+
+        var rubros = CatalogoMaestro
+            .Select(c => new CodificacionParser.RubroCodificacion("COP", c.Codigo, c.Descripcion, c.Categoria, 0m))
+            .ToList();
+        await CargarDesdeCodificacionAsync(proyectoId, rubros);
+    }
+
+    // Catálogo maestro de códigos del módulo de costos (listado definido por la usuaria 2026-09-14).
+    // Estos son los códigos que salen en Presupuesto y Flujo de Caja.
+    public static readonly (string Categoria, string Codigo, string Descripcion)[] CatalogoMaestro =
+    [
+        ("Suministros principales", "PASP", "Suministro de Paneles"),
+        ("Suministros principales", "ESSP", "Suministro de Estructuras"),
+        ("Suministros principales", "CTSP", "Suministro de Centro de transformación"),
+        ("Suministros principales", "CISP", "Suministro de Centro de Inversión"),
+        ("Suministros principales", "DSSP", "Suministro de Estación de Entrega"),
+        ("Suministros principales", "SISP", "Suministro de String inverter"),
+        ("Suministros principales", "SBSP", "Suministro de String box"),
+        ("Suministros principales", "MTSP", "Suministro de Media tensión"),
+        ("Suministros principales", "BTSP", "Suministro de Baja tensión"),
+        ("Suministros principales", "SOSP", "Suministro de Solar"),
+        ("Suministros principales", "CMSP", "Suministro de Comunicación"),
+        ("Suministros principales", "CCSP", "Suministro de CCTV"),
+        ("Suministros principales", "EMSP", "Suministro de Estación meterológica"),
+        ("Suministros principales", "SCSP", "Suministro de Sistema SCADA"),
+        ("Suministros principales", "PTSP", "Suministro de Sistema puesta a tierra"),
+        ("Suministros principales", "UPSP", "Suministro de Sistema UPS"),
+        ("Suministros principales", "SHSP", "Suministro de Contenedores"),
+        ("Suministros principales", "TBSP", "Suministro de Tableros baja tensión"),
+        ("Suministros principales", "CASP", "Suministro de Accesorios cableado"),
+        ("Suministros principales", "VASP", "Suministro de Varios-Cimentaciones"),
+
+        ("Trabajos civiles", "SPSP", "Suministro de Preparación de sitio"),
+        ("Trabajos civiles", "IRSP", "Suministro de Caminos internos"),
+        ("Trabajos civiles", "SDSP", "Suministro de Sistema de drenaje"),
+        ("Trabajos civiles", "VPSP", "Suministro de Vallado perimetral"),
+        ("Trabajos civiles", "CTTC", "Trabajo civil de Centro de transformación"),
+        ("Trabajos civiles", "CITC", "Trabajo civil de Centro de inversión"),
+        ("Trabajos civiles", "DSTC", "Trabajo civil de Estación de Entrega"),
+        ("Trabajos civiles", "SITC", "Trabajo civil de String inverter"),
+        ("Trabajos civiles", "SBTC", "Trabajo civil de String box"),
+        ("Trabajos civiles", "MTTC", "Trabajo civil de Media tensión"),
+        ("Trabajos civiles", "BTTC", "Trabajo civil de Baja tensión"),
+        ("Trabajos civiles", "SOTC", "Trabajo civil de Solar"),
+        ("Trabajos civiles", "SPTC", "Trabajo civil de Preparación de sitio"),
+        ("Trabajos civiles", "CMTC", "Trabajo civil de Preparación de sitio"),
+        ("Trabajos civiles", "MOTC", "Trabajo civil de Movimiento de tierras"),
+        ("Trabajos civiles", "ARTC", "Trabajo civil de Camino de acceso"),
+        ("Trabajos civiles", "IRTC", "Trabajo civil de Caminos internos"),
+        ("Trabajos civiles", "SDTC", "Trabajo civil de Sistema de drenaje"),
+        ("Trabajos civiles", "SHTC", "Trabajo civil de Contenedores"),
+
+        ("Instalación mecánica", "PAIM", "Instalación mecánica de Paneles"),
+        ("Instalación mecánica", "ESIM", "Instalación mecánica de Estructuras"),
+        ("Instalación mecánica", "ESTC", "Instalación mecánica de Estructuras (Hincado)"),
+        ("Instalación mecánica", "CTIM", "Instalación mecánica de Centro de transformación"),
+        ("Instalación mecánica", "CIIM", "Instalación mecánica de Centro de inversión"),
+
+        ("Hot Commissioning", "HC", "Hot Commissioning"),
+
+        ("Instalación Eléctrica", "PAIE", "Instalación Eléctrica de Paneles"),
+        ("Instalación Eléctrica", "CTIE", "Instalación Eléctrica de Centro de transformación"),
+        ("Instalación Eléctrica", "CIIE", "Instalación Eléctrica de Centro de inversión"),
+        ("Instalación Eléctrica", "DSIE", "Instalación Eléctrica de Estación de Entrega"),
+        ("Instalación Eléctrica", "MTIE", "Instalación Eléctrica de Media tensión"),
+        ("Instalación Eléctrica", "BTIE", "Instalación Eléctrica de Baja tensión"),
+        ("Instalación Eléctrica", "SOIE", "Conexionado Eléctrica de Solar"),
+        ("Instalación Eléctrica", "CMIE", "Instalación Eléctrica de Comunicación"),
+        ("Instalación Eléctrica", "FCIE", "Instalación Eléctrica de Fuerza y control"),
+        ("Instalación Eléctrica", "PTIE", "Instalación Eléctrica de Sistema puesta a tierra"),
+        ("Instalación Eléctrica", "UPIE", "Instalación Eléctrica de Sistema UPS"),
+        ("Instalación Eléctrica", "SHIE", "Instalación Eléctrica de Contenedores"),
+        ("Instalación Eléctrica", "CAIE", "Instalación Eléctrica de Accesorios cableado"),
+        ("Instalación Eléctrica", "DSIM", "Instalación mecánica de Estación de Entrega"),
+        ("Instalación Eléctrica", "SIIM", "Instalación mecánica de String inverter"),
+        ("Instalación Eléctrica", "SBIM", "Instalación mecánica de String box"),
+        ("Instalación Eléctrica", "MTIM", "Instalación mecánica de Media tensión"),
+        ("Instalación Eléctrica", "BTIM", "Instalación mecánica de Baja tensión"),
+        ("Instalación Eléctrica", "SOIM", "Tendido mecánica de Solar"),
+        ("Instalación Eléctrica", "CMIM", "Instalación mecánica de Comunicación"),
+        ("Instalación Eléctrica", "FCIM", "Instalación mecánica de Fuerza y control"),
+        ("Instalación Eléctrica", "UPIM", "Instalación mecánica de Sistema UPS"),
+        ("Instalación Eléctrica", "SHIM", "Instalación mecánica de Contenedores"),
+        ("Instalación Eléctrica", "TBIM", "Instalación mecánica de Tableros baja tensión"),
+        ("Instalación Eléctrica", "CC", "Instalación mecánica de Cold commisioning"),
+
+        ("CCTV", "CCIM", "Instalación mecánica de CCTV"),
+        ("CCTV", "CCIE", "Instalación Eléctrica de CCTV"),
+        ("CCTV", "CCTC", "Instalación Eléctrica de CCTV"),
+        ("CCTV", "CCHC", "Hot commisioning de CCTV"),
+
+        ("SCADA", "SCIM", "Instalación mecánica de Sistema SCADA"),
+        ("SCADA", "SCIE", "Instalación Eléctrica de Sistema SCADA"),
+        ("SCADA", "SCHC", "Hot commisioning de Sistema SCADA"),
+
+        ("Estaciones meteorológicas", "EMIM", "Instalación mecánica de Estación meterológica"),
+        ("Estaciones meteorológicas", "EMIE", "Instalación Eléctrica de Estación meterológica"),
+
+        ("Costos generales", "CGPE", "Costos generales de Permisos"),
+        ("Costos generales", "CGIN", "Costos generales de Ingeniería"),
+        ("Costos generales", "CGES", "Costos generales de Estudios"),
+        ("Costos generales", "CGPO", "Costos generales de Pólizas"),
+        ("Costos generales", "CGST", "Costos generales de Personal de gestión del proyecto"),
+        ("Costos generales", "CGPR", "Costos generales de Trabajo preliminar"),
+        ("Costos generales", "CGCG", "Costos generales de Costo general"),
+        ("Costos generales", "CGHS", "Costos generales de Seguridad y salud en el trabajo"),
+        ("Costos generales", "CGHC", "Costos generales de Hot commisioning"),
+
+        ("Estudios", "CGAF", "Aprovechamiento Forestal y Ahuyentamiento"),
+        ("Estudios", "CGAR", "Arqueologo"),
+        ("Estudios", "CGTO", "Topografía (límites, curvas de nivel, objetos)"),
+        ("Estudios", "CGPOT", "Prueba de extracción"),
+        ("Estudios", "CGGEO", "Estudio de suelos"),
+        ("Estudios", "CGHI", "Estudio hidrológico"),
+        ("Estudios", "CGCO", "Estudio de corrosividad DIN 50929"),
+        ("Estudios", "CGCP", "Estudio Coordinación de Protecciones"),
+        ("Estudios", "CGRM", "Modelo RMS"),
+        ("Estudios", "CGRA", "Modelo RMS de Auditoría en campo"),
+        ("Estudios", "CGPQ", "Estudio Curva PQ"),
+        ("Estudios", "CGAE", "Estudio arco eléctrico"),
+        ("Estudios", "CGEA", "Estudio armónico"),
+        ("Estudios", "CGEP", "Estudio Puesta a tierra"),
+    ];
 }

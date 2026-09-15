@@ -40,8 +40,16 @@ else
                     <i class="bi bi-file-earmark-pdf me-1"></i>Cronograma PDF
                     <InputFile OnChange="OnPdfSeleccionado" accept=".pdf" style="display:none" />
                 </label>
+                <label class="btn btn-sm mb-0" style="cursor:pointer;background:#183963;color:#fff;border:none">
+                    <i class="bi bi-diagram-3 me-1"></i>Cronograma Project (.mpp)
+                    <InputFile OnChange="OnMppInicialSeleccionado" accept=".mpp" style="display:none" />
+                </label>
                 <a href="/proyectos/@ProyectoId/wbs/nueva" class="btn btn-outline-primary btn-sm">+ Nueva actividad</a>
             </div>
+            @if (!string.IsNullOrEmpty(_mppMensaje))
+            {
+                <div class="alert @(_mppError ? "alert-danger" : "alert-success") py-2 mt-3 mb-0 small">@_mppMensaje</div>
+            }
         </div>
     }
     else
@@ -80,9 +88,23 @@ else
 
         @if (!_esVersionVigente)
         {
-            <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3" style="font-size:0.87rem">
+            <div class="alert alert-secondary d-flex align-items-center gap-2 py-2 mb-3 flex-wrap" style="font-size:0.87rem">
                 <span>🔒</span>
-                <span>Esta es una versión histórica del cronograma. <strong>Solo consulta</strong> — no se pueden modificar fechas ni avances.</span>
+                <span>Esta es una versión histórica del cronograma. <strong>Solo consulta</strong> — para editarla, actívala como vigente.</span>
+                @if (_confirmandoActivar)
+                {
+                    <span class="fw-semibold ms-2">¿Activar "@_versionSeleccionada?.Nombre" como vigente? La versión vigente actual (@_versionVigente?.Nombre) pasará a Histórica.</span>
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none"
+                            @onclick="ActivarComoVigenteAsync">✓ Sí, activar</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmandoActivar = false">Cancelar</button>
+                }
+                else
+                {
+                    <button class="btn btn-sm fw-semibold ms-auto" style="background:#183963;color:#fff;border:none"
+                            @onclick="() => _confirmandoActivar = true">
+                        ★ Activar como vigente
+                    </button>
+                }
             </div>
         }
 
@@ -350,6 +372,20 @@ else
                               placeholder="Ej: Ajuste de alcance por condiciones climáticas adversas..."
                               @bind="_motivoReprogramacion"
                               disabled="@_creandoReprogramacion"></textarea>
+                    <label class="form-label fw-semibold mt-3">Cargar cronograma desde Project (opcional)</label>
+                    <div class="small text-muted mb-1">
+                        Si cargas un archivo <strong>.mpp</strong>, la nueva versión se crea con las actividades del Project.
+                        Si no cargas nada, se copian las actividades de la versión actual.
+                    </div>
+                    <InputFile OnChange="OnMppReprogramacionSeleccionado" accept=".mpp" disabled="@_creandoReprogramacion" />
+                    @if (_mppReprogramacion is not null)
+                    {
+                        <div class="small mt-1" style="color:#6ABF4B">
+                            ✓ @_mppNombreArchivo — @_mppReprogramacion.Count actividades leídas del Project
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2 text-danger" style="font-size:0.75rem"
+                                    @onclick="() => { _mppReprogramacion = null; _mppNombreArchivo = null; }">quitar</button>
+                        </div>
+                    }
                     @if (_errorReprogramacion is not null)
                     {
                         <div class="text-danger small mt-2">@_errorReprogramacion</div>
@@ -620,13 +656,43 @@ else
             }
         }
 
+        // Auto-reparar: si ninguna versión quedó marcada como vigente, promover la más reciente
+        // (sin vigente, la página oculta los botones y el cronograma queda bloqueado)
+        if (_versiones.Any() && !_versiones.Any(v => v.EsVigente))
+        {
+            var masReciente = _versiones.OrderByDescending(v => v.NumeroVersion).ThenByDescending(v => v.Id).First();
+            masReciente.EsVigente = true;
+            Db.CronogramasVersion.Update(masReciente);
+            await Db.SaveChangesAsync();
+        }
+
         _versionVigente      = _versiones.FirstOrDefault(v => v.EsVigente);
         _versionSeleccionada = _versionVigente ?? _versiones.LastOrDefault();
         _versionSeleccionadaId = _versionSeleccionada?.Id ?? 0;
     }
 
+    private bool _confirmandoActivar;
+
+    private async Task ActivarComoVigenteAsync()
+    {
+        if (_versionSeleccionada is null || _versionSeleccionada.EsVigente) return;
+        if (_versionVigente is not null)
+        {
+            _versionVigente.EsVigente = false;
+            Db.CronogramasVersion.Update(_versionVigente);
+        }
+        _versionSeleccionada.EsVigente = true;
+        Db.CronogramasVersion.Update(_versionSeleccionada);
+        await Db.SaveChangesAsync();
+
+        _confirmandoActivar = false;
+        _versionVigente = _versionSeleccionada;
+        StateHasChanged();
+    }
+
     private async Task OnVersionChange(ChangeEventArgs e)
     {
+        _confirmandoActivar = false;
         if (!int.TryParse(e.Value?.ToString(), out var id)) return;
         _versionSeleccionadaId = id;
         _versionSeleccionada   = _versiones.FirstOrDefault(v => v.Id == id);
@@ -872,6 +938,143 @@ else
 
     // ── Crear reprogramación ──────────────────────────────────────────────────
 
+    // ── Importación de Microsoft Project (.mpp) ──────────────────────────────
+
+    private List<MppParser.TareaMpp>? _mppReprogramacion;
+    private string? _mppNombreArchivo;
+    private string? _mppMensaje;
+    private bool _mppError;
+
+    private static async Task<List<MppParser.TareaMpp>> LeerMppAsync(InputFileChangeEventArgs e)
+    {
+        using var ms = new System.IO.MemoryStream();
+        await e.File.OpenReadStream(maxAllowedSize: 60 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+        return MppParser.Parse(ms);
+    }
+
+    private async Task OnMppInicialSeleccionado(InputFileChangeEventArgs e)
+    {
+        _cargando = true;
+        _mppMensaje = null;
+        StateHasChanged();
+        try
+        {
+            var tareas = await LeerMppAsync(e);
+            if (tareas.Count == 0)
+            {
+                _mppMensaje = "No se encontraron actividades en el archivo de Project.";
+                _mppError = true;
+                return;
+            }
+
+            var authState = await AuthState.GetAuthenticationStateAsync();
+            var usuario = authState.User.Identity?.Name ?? "Sistema";
+
+            // Reutilizar la versión inicial si ya existe (nunca duplicar "Actividades Inicial")
+            var inicial = await Db.CronogramasVersion.FirstOrDefaultAsync(v =>
+                v.ProyectoId == ProyectoId && v.Nombre == "Actividades Inicial");
+            if (inicial is null)
+            {
+                inicial = new CronogramaVersion
+                {
+                    ProyectoId    = ProyectoId,
+                    Nombre        = "Actividades Inicial",
+                    NumeroVersion = 0,
+                    EsVigente     = true,
+                    CreadoPor     = usuario
+                };
+                Db.CronogramasVersion.Add(inicial);
+                await Db.SaveChangesAsync();
+            }
+            else if (!await Db.CronogramasVersion.AnyAsync(v => v.ProyectoId == ProyectoId && v.EsVigente))
+            {
+                inicial.EsVigente = true;
+                Db.CronogramasVersion.Update(inicial);
+                await Db.SaveChangesAsync();
+            }
+
+            var creadas = await CrearActividadesDesdeMppAsync(tareas, inicial.Id);
+
+            await InicializarVersionesAsync();
+            await CargarActividadesAsync();
+            _mppMensaje = $"Cronograma cargado desde Project: {creadas} actividades.";
+            _mppError = false;
+        }
+        catch (Exception ex)
+        {
+            _mppMensaje = $"Error al leer el archivo de Project: {ex.InnerException?.Message ?? ex.Message}";
+            _mppError = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task OnMppReprogramacionSeleccionado(InputFileChangeEventArgs e)
+    {
+        _errorReprogramacion = null;
+        try
+        {
+            var tareas = await LeerMppAsync(e);
+            if (tareas.Count == 0)
+            {
+                _errorReprogramacion = "El archivo de Project no contiene actividades.";
+                _mppReprogramacion = null;
+                return;
+            }
+            _mppReprogramacion = tareas;
+            _mppNombreArchivo = e.File.Name;
+        }
+        catch (Exception ex)
+        {
+            _errorReprogramacion = $"Error al leer el .mpp: {ex.InnerException?.Message ?? ex.Message}";
+            _mppReprogramacion = null;
+        }
+    }
+
+    private async Task<int> CrearActividadesDesdeMppAsync(List<MppParser.TareaMpp> tareas, int versionId)
+    {
+        var ultimoPorNivel = new Dictionary<int, ActividadWBS>();
+        int creadas = 0;
+        foreach (var t in tareas)
+        {
+            ActividadWBS? padre = null;
+            if (t.Nivel > 1)
+            {
+                for (var n = t.Nivel - 1; n >= 1 && padre is null; n--)
+                    ultimoPorNivel.TryGetValue(n, out padre);
+            }
+
+            var actividad = new ActividadWBS
+            {
+                ProyectoId          = ProyectoId,
+                CronogramaVersionId = versionId,
+                CodigoWBS           = t.Codigo,
+                Nombre              = t.Nombre,
+                NivelWBS            = t.Nivel,
+                FechaInicioPlaneada = t.Inicio ?? t.Fin ?? DateTime.Today,
+                FechaFinPlaneada    = t.Fin ?? t.Inicio ?? DateTime.Today,
+                AvanceReal          = t.Avance,
+                AvancePlanificado   = 0,
+                Estado              = t.Avance >= 100 ? EstadoActividad.Completada
+                                    : t.Avance > 0   ? EstadoActividad.EnProgreso
+                                    : EstadoActividad.Pendiente,
+                Activo              = true,
+                ActividadPadreId    = padre?.Id
+            };
+            Db.ActividadesWBS.Add(actividad);
+            await Db.SaveChangesAsync();
+
+            ultimoPorNivel[t.Nivel] = actividad;
+            foreach (var k in ultimoPorNivel.Keys.Where(k => k > t.Nivel).ToList())
+                ultimoPorNivel.Remove(k);
+            creadas++;
+        }
+        return creadas;
+    }
+
     private async Task CrearReprogramacionAsync()
     {
         _errorReprogramacion = null;
@@ -912,7 +1115,26 @@ else
             Db.CronogramasVersion.Add(nuevaVersion);
             await Db.SaveChangesAsync();
 
-            // 2. Duplicar actividades (1ª pasada: sin padre, para obtener IDs)
+            // 2. Actividades de la nueva versión: desde el .mpp cargado, o copiando la versión actual
+            if (_mppReprogramacion is { Count: > 0 })
+            {
+                await CrearActividadesDesdeMppAsync(_mppReprogramacion, nuevaVersion.Id);
+                _mppReprogramacion = null;
+                _mppNombreArchivo = null;
+
+                _versiones = await Db.CronogramasVersion
+                    .Where(v => v.ProyectoId == ProyectoId)
+                    .OrderBy(v => v.NumeroVersion)
+                    .ToListAsync();
+                _versionVigente = nuevaVersion;
+                _versionSeleccionada = nuevaVersion;
+                _versionSeleccionadaId = nuevaVersion.Id;
+                await CargarActividadesAsync();
+                _mostrarModalReprogramacion = false;
+                return;
+            }
+
+            // 2b. Duplicar actividades (1ª pasada: sin padre, para obtener IDs)
             var actividadesOrigen = await Db.ActividadesWBS
                 .Where(a => a.ProyectoId == ProyectoId && a.CronogramaVersionId == _versionVigente.Id)
                 .ToListAsync();

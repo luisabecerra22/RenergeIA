@@ -222,9 +222,10 @@ else
                         <th style="color:#183963">DESCRIPCIÓN</th>
                         <th style="color:#183963">UND</th>
                         <th class="text-end" style="color:#183963;background:#f0f4ff">CANT. BOM</th>
-                        <th class="text-end" style="color:#183963;background:#f0f4ff">CU BOM</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">COSTO UNITARIO BOM</th>
                         <th class="text-end" style="color:#183963;background:#f0f4ff">TOTAL BOM (COP)</th>
                         <th class="text-end" style="color:#5aa83e;background:#f2faee">CANT. REAL</th>
+                        <th class="text-end" style="color:#fd7e14;background:#fff8f0">DIF. CANT.</th>
                         <th class="text-end" style="color:#5aa83e;background:#f2faee">VALOR REAL (COP)</th>
                         <th class="text-end pe-3" style="color:#183963">DIFERENCIA</th>
                     </tr>
@@ -244,6 +245,7 @@ else
                             <td></td>
                             <td class="text-end fw-bold" style="color:#183963">@FormatCOP(subBOM)</td>
                             <td></td>
+                            <td></td>
                             <td class="text-end fw-bold" style="color:#5aa83e">@(subReal != 0 ? FormatCOP(subReal) : "—")</td>
                             <td class="text-end pe-3 fw-bold" style="color:@(subDif >= 0 ? "#183963" : "#dc3545")">@FormatCOP(subDif)</td>
                         </tr>
@@ -255,7 +257,13 @@ else
                                 <td><span class="badge" style="background:@ColorFuente(l.Fuente);color:#fff;font-size:.62rem">@l.Fuente</span></td>
                                 <td class="text-muted" style="font-size:.7rem">@(l.Concepto ?? "—")</td>
                                 <td style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@l.Descripcion">@l.Descripcion</td>
-                                <td class="text-muted" style="font-size:.7rem">@(l.Unidad ?? "—")</td>
+                                <td class="p-0" style="min-width:60px">
+                                    <input type="text" class="form-control form-control-sm border-0 text-muted"
+                                           style="font-size:.7rem;background:transparent"
+                                           value="@l.Unidad" placeholder="—" maxlength="50"
+                                           title="Unidad de medida — editable si la BOM no la trae"
+                                           @onchange="e => CambiarUnidadAsync(l, e.Value?.ToString())" />
+                                </td>
                                 <td class="text-end" style="background:#f8faff">@(l.CantidadBOM != 0 ? l.CantidadBOM.ToString("N2", _co) : "—")</td>
                                 <td class="text-end" style="background:#f8faff;white-space:nowrap">
                                     @(l.CostoUnitarioBOM != 0 ? PrefijoMoneda(l.MonedaCosto) + l.CostoUnitarioBOM.ToString("N0", _co) : "—")
@@ -267,6 +275,12 @@ else
                                            value="@(l.CantidadReal != 0 ? l.CantidadReal.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "")"
                                            placeholder="—" min="0" step="any"
                                            @onchange="e => CambiarCantidadRealAsync(l, e.Value?.ToString())" />
+                                </td>
+                                @{
+                                    var difCant = l.CantidadBOM - l.CantidadReal;
+                                }
+                                <td class="text-end fw-semibold" style="background:#fffcf8;font-size:.75rem;color:@(l.CantidadReal == 0 ? "#adb5bd" : difCant >= 0 ? "#183963" : "#dc3545")">
+                                    @(l.CantidadReal != 0 ? difCant.ToString("N2", _co) : "—")
                                 </td>
                                 <td class="text-end p-0" style="background:#f7fcf4">
                                     <input type="number" class="form-control form-control-sm text-end border-0"
@@ -286,6 +300,7 @@ else
                             <span style="letter-spacing:1px">TOTAL BOM vs REAL (COP)</span>
                         </td>
                         <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(l => l.CostoTotalBOM))</td>
+                        <td style="background:#183963"></td>
                         <td style="background:#183963"></td>
                         <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(l => l.ValorReal))</td>
                         <td class="text-end pe-3 py-2" style="background:#111921;color:@(listaFiltrada.Sum(l => l.CostoTotalBOM) - listaFiltrada.Sum(l => l.ValorReal) >= 0 ? "#6ABF4B" : "#ff6b6b")">
@@ -351,6 +366,13 @@ else
             l.ValorReal = 0;
         else return;
 
+        Db.LineasBOM.Update(l);
+        await MarcarCambiosAsync();
+    }
+
+    private async Task CambiarUnidadAsync(LineaBOM l, string? valor)
+    {
+        l.Unidad = string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
         Db.LineasBOM.Update(l);
         await MarcarCambiosAsync();
     }
@@ -424,7 +446,7 @@ else
         var ws = workbook.Worksheets.Add("BOM vs Real");
 
         string[] encabezados = ["Código", "Fuente", "Concepto", "Descripción", "Unidad",
-            "Cant. BOM", "CU BOM", "Moneda CU", "Total BOM (COP)", "Cant. Real", "Valor Real (COP)", "Diferencia (COP)"];
+            "Cant. BOM", "Costo Unitario BOM", "Moneda CU", "Total BOM (COP)", "Cant. Real", "Dif. Cantidad", "Valor Real (COP)", "Diferencia (COP)"];
         for (int i = 0; i < encabezados.Length; i++)
         {
             var celda = ws.Cell(1, i + 1);
@@ -439,9 +461,9 @@ else
         {
             ws.Cell(fila, 1).Value = grupo.Key;
             ws.Cell(fila, 9).Value = grupo.Sum(l => l.CostoTotalBOM);
-            ws.Cell(fila, 11).Value = grupo.Sum(l => l.ValorReal);
-            ws.Cell(fila, 12).Value = grupo.Sum(l => l.CostoTotalBOM) - grupo.Sum(l => l.ValorReal);
-            var rGrupo = ws.Range(fila, 1, fila, 12);
+            ws.Cell(fila, 12).Value = grupo.Sum(l => l.ValorReal);
+            ws.Cell(fila, 13).Value = grupo.Sum(l => l.CostoTotalBOM) - grupo.Sum(l => l.ValorReal);
+            var rGrupo = ws.Range(fila, 1, fila, 13);
             rGrupo.Style.Font.Bold = true;
             rGrupo.Style.Fill.BackgroundColor = XLColor.FromHtml("#D9D9D6");
             fila++;
@@ -458,10 +480,11 @@ else
                 ws.Cell(fila, 8).Value = l.MonedaCosto;
                 ws.Cell(fila, 9).Value = l.CostoTotalBOM;
                 ws.Cell(fila, 10).Value = l.CantidadReal;
-                ws.Cell(fila, 11).Value = l.ValorReal;
-                ws.Cell(fila, 12).Value = l.CostoTotalBOM - l.ValorReal;
+                ws.Cell(fila, 11).Value = l.CantidadBOM - l.CantidadReal;
+                ws.Cell(fila, 12).Value = l.ValorReal;
+                ws.Cell(fila, 13).Value = l.CostoTotalBOM - l.ValorReal;
                 if (l.ValorReal > l.CostoTotalBOM)
-                    ws.Range(fila, 1, fila, 12).Style.Fill.BackgroundColor = XLColor.FromHtml("#fde8e8");
+                    ws.Range(fila, 1, fila, 13).Style.Fill.BackgroundColor = XLColor.FromHtml("#fde8e8");
                 fila++;
             }
         }
@@ -469,14 +492,14 @@ else
         var lista = Filtrados().ToList();
         ws.Cell(fila, 1).Value = "TOTAL";
         ws.Cell(fila, 9).Value = lista.Sum(l => l.CostoTotalBOM);
-        ws.Cell(fila, 11).Value = lista.Sum(l => l.ValorReal);
-        ws.Cell(fila, 12).Value = lista.Sum(l => l.CostoTotalBOM) - lista.Sum(l => l.ValorReal);
-        var rTotal = ws.Range(fila, 1, fila, 12);
+        ws.Cell(fila, 12).Value = lista.Sum(l => l.ValorReal);
+        ws.Cell(fila, 13).Value = lista.Sum(l => l.CostoTotalBOM) - lista.Sum(l => l.ValorReal);
+        var rTotal = ws.Range(fila, 1, fila, 13);
         rTotal.Style.Font.Bold = true;
         rTotal.Style.Font.FontColor = XLColor.White;
         rTotal.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
 
-        foreach (var col in new[] { 6, 7, 9, 10, 11, 12 })
+        foreach (var col in new[] { 6, 7, 9, 10, 11, 12, 13 })
             ws.Column(col).Style.NumberFormat.Format = "#,##0";
         ws.Columns().AdjustToContents();
 
@@ -533,6 +556,8 @@ else
                 {
                     nueva.CantidadReal = previa.CantidadReal;
                     nueva.ValorReal = previa.ValorReal;
+                    if (string.IsNullOrEmpty(nueva.Unidad) && !string.IsNullOrEmpty(previa.Unidad))
+                        nueva.Unidad = previa.Unidad;
                 }
             }
 
