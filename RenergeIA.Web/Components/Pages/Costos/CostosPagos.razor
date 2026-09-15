@@ -1,4 +1,5 @@
 @inject RenergeIADbContext Db
+@inject CostoService CostoSvc
 @using Microsoft.EntityFrameworkCore
 @using ClosedXML.Excel
 
@@ -55,7 +56,40 @@
         <i class="bi-cloud-arrow-up me-1"></i>Importar Tesorería
         <InputFile OnChange="LeerTesoreriaAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
     </label>
+    @if (_mapeosGuardados.Count > 0)
+    {
+        <button class="btn btn-sm btn-outline-secondary"
+                title="Clasificaciones de subcódigos de tesorería guardadas — se aplican automáticamente en cada importación"
+                @onclick="() => _mostrarMapeos = !_mostrarMapeos">
+            <i class="bi-link-45deg me-1"></i>Equivalencias guardadas (@_mapeosGuardados.Count)
+        </button>
+    }
 </div>
+
+@if (_mostrarMapeos && _mapeosGuardados.Count > 0)
+{
+    <div class="card mb-3" style="border:1px solid #D9D9D6;max-width:520px">
+        <div class="card-header py-1 small fw-semibold" style="background:#f0f3f8;color:#183963">
+            <i class="bi-link-45deg me-1"></i>Equivalencias guardadas (se aplican solas en cada importación)
+        </div>
+        <div class="card-body py-2">
+            @foreach (var m in _mapeosGuardados.OrderBy(x => x.CodigoTesoreria))
+            {
+                <div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f0f3f8">
+                    <span class="badge" style="background:#fd7e14;font-size:0.7rem">@m.CodigoTesoreria</span>
+                    <span class="small text-muted">→</span>
+                    <span class="badge" style="background:#183963;font-size:0.7rem">@m.Rubro</span>
+                    <span class="small text-muted flex-grow-1">
+                        @(_subPartidas.FirstOrDefault(s => s.Codigo.Equals(m.Rubro, StringComparison.OrdinalIgnoreCase))?.Descripcion
+                          ?? "⚠ ese código no existe en el presupuesto")
+                    </span>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Eliminar esta equivalencia"
+                            @onclick="() => EliminarMapeoAsync(m.Id)">✕</button>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @if (_tesoPendiente is not null)
 {
@@ -220,12 +254,11 @@ else
                                 var tieneDatos = TienePagos(p.Id, fecha);
                                 <td class="text-center p-0" style="position:relative">
                                     <div class="d-flex align-items-center">
-                                        <input type="number" class="form-control form-control-sm text-center border-0"
+                                        <input type="text" inputmode="numeric" class="form-control form-control-sm text-center border-0"
                                                style="font-size:0.78rem;@(monto > 0 ? "color:#183963;font-weight:600" : "color:#adb5bd")"
-                                               value="@(monto != 0 ? monto.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) : "")"
+                                               value="@(monto != 0 ? FormatMon(monto) : "")"
                                                placeholder="—"
-                                               @onchange="e => CambiarMontoCelda(p.Id, fecha, e.Value?.ToString())"
-                                               min="0" step="1" />
+                                               @onchange="e => CambiarMontoCelda(p.Id, fecha, e.Value?.ToString())" />
                                         @if (tieneDatos)
                                         {
                                             <button class="btn p-0 border-0" style="font-size:0.6rem;position:absolute;right:2px;top:2px;color:#183963"
@@ -374,10 +407,17 @@ else
 
     // El flujo de caja trabaja solo con los códigos principales; los pagos históricos
     // registrados sobre sub-partidas se suman hacia su código principal
-    private HashSet<int> IdsDe(int principalId)
+    private HashSet<int> IdsDe(int partidaId)
     {
-        var ids = new HashSet<int> { principalId };
-        foreach (var h in _subPartidas.Where(s => s.PadreId == principalId)) ids.Add(h.Id);
+        var ids = new HashSet<int> { partidaId };
+        var fila = _partidas.FirstOrDefault(p => p.Id == partidaId);
+        if (fila is not null && !fila.EsPrincipal)
+        {
+            foreach (var mismo in _subPartidas.Where(s => s.Codigo.Equals(fila.Codigo, StringComparison.OrdinalIgnoreCase)))
+                ids.Add(mismo.Id);
+        }
+        foreach (var h in _subPartidas.Where(s => s.PadreId is int padre && ids.Contains(padre)).ToList())
+            ids.Add(h.Id);
         return ids;
     }
 
@@ -432,6 +472,8 @@ else
 
     private async Task CargarAsync()
     {
+        // Cada guardado/importación del flujo actualiza el Ejecutado de Actividades Presupuestadas
+        await CostoSvc.SincronizarEjecutadoDesdeFlujoAsync(ProyectoId);
         _partidas = await Db.Partidas
             .Where(p => p.ProyectoId == ProyectoId)
             .OrderBy(p => p.Nivel).ThenBy(p => p.Numero)
@@ -445,6 +487,8 @@ else
         _exclusiones = await Db.FlujoCajaExclusiones
             .Where(e => e.ProyectoId == ProyectoId)
             .ToListAsync();
+
+        _mapeosGuardados = await Db.MapeosCodigoTesoreria.AsNoTracking().ToListAsync();
 
         _montosEditados.Clear();
         _hayCambios = false;
@@ -483,11 +527,24 @@ else
         return _pagos.Where(p => ids.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
     }
 
+    // Acepta valores digitados con o sin formato: "5757075", "$5.757.075", "US$ 1.234,50"
+    private static decimal? ParseMontoDigitado(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return 0m;
+        var t = valor.Replace("US$", "", StringComparison.OrdinalIgnoreCase)
+                     .Replace("$", "").Replace(" ", "").Trim();
+        if (t.Length == 0) return 0m;
+        t = t.Replace(".", "").Replace(",", ".");
+        return decimal.TryParse(t, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+    }
+
     private void CambiarMontoCelda(int partidaId, DateTime fechaCorte, string? valor)
     {
-        if (decimal.TryParse(valor, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var monto))
+        var parseado = ParseMontoDigitado(valor);
+        if (parseado is not null)
         {
+            var monto = parseado.Value;
             var idsCelda = IdsDe(partidaId);
             var existentes = _pagos.Where(p => idsCelda.Contains(p.PartidaId) && p.FechaCorte == fechaCorte && EsDeVista(p)).ToList();
             if (existentes.Count == 0)
@@ -563,9 +620,12 @@ else
     private List<Partida> HijosFlujo(int padreId)
     {
         var excl = ExcluidasVista;
+        // Una sola fila por código aunque exista en COP y USD: la vista Pesos/Dólares separa los montos
         return _subPartidas
             .Where(p => p.PadreId == padreId && !p.Codigo.Contains('-') && !excl.Contains(p.Id))
             .OrderBy(p => OrdenNumero(p.Numero))
+            .GroupBy(p => p.Codigo.ToUpperInvariant())
+            .Select(g => g.First())
             .ToList();
     }
 
@@ -574,6 +634,8 @@ else
         var excl = ExcluidasVista;
         return _subPartidas
             .Where(p => !p.Codigo.Contains('-') && !excl.Contains(p.Id))
+            .GroupBy(p => p.Codigo.ToUpperInvariant())
+            .Select(g => g.First())
             .ToList();
     }
 
@@ -581,6 +643,20 @@ else
     private string? _tesoArchivo;
     private List<KeyValuePair<string, List<TesoreriaParser.MovimientoTesoreria>>> _tesoNoMapeados = [];
     private readonly Dictionary<string, string> _clasifSeleccion = new(StringComparer.OrdinalIgnoreCase);
+
+    private List<MapeoCodigoTesoreria> _mapeosGuardados = [];
+    private bool _mostrarMapeos;
+
+    private async Task EliminarMapeoAsync(int id)
+    {
+        var m = await Db.MapeosCodigoTesoreria.FindAsync(id);
+        if (m is null) return;
+        Db.MapeosCodigoTesoreria.Remove(m);
+        await Db.SaveChangesAsync();
+        _mapeosGuardados = await Db.MapeosCodigoTesoreria.AsNoTracking().ToListAsync();
+        _mensaje = $"Equivalencia {m.CodigoTesoreria} → {m.Rubro} eliminada. En la próxima importación se pedirá clasificarlo de nuevo.";
+        _mensajeError = false;
+    }
 
     private async Task ClasificarSubcodigoAsync(string subcodigo)
     {
@@ -667,11 +743,15 @@ else
                 .GroupBy(m => m.CodigoTesoreria.ToUpperInvariant())
                 .ToDictionary(g => g.Key, g => g.First().Rubro.ToUpperInvariant());
 
+            // Prioridad: 1) clasificación guardada por la usuaria, 2) tabla de Codificación
+            // (solo si ese código existe en el presupuesto), 3) el mismo código
             string RubroDe(string codigo)
             {
-                if (CodificacionSeeder.MapaCodigoARubro.TryGetValue(codigo, out var r)) return r.ToUpperInvariant();
-                if (mapeosDb.TryGetValue(codigo.ToUpperInvariant(), out var m)) return m;
-                return codigo.ToUpperInvariant();
+                var cod = codigo.ToUpperInvariant();
+                if (mapeosDb.TryGetValue(cod, out var m)) return m;
+                if (CodificacionSeeder.MapaCodigoARubro.TryGetValue(cod, out var r) && porCodigo.ContainsKey(r.ToUpperInvariant()))
+                    return r.ToUpperInvariant();
+                return cod;
             }
 
             // Agregar por (código destino, corte, moneda); los subcódigos sin equivalencia NO se cargan

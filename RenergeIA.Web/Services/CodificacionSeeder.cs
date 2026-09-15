@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RenergeIA.Core.Entities;
 using RenergeIA.Infrastructure.Data;
 using static RenergeIA.Web.Services.CodificacionParser;
 
@@ -58,7 +59,7 @@ public static class CodificacionSeeder
         {"CMFO","CMIE"},{"CMIM","CMIM"},{"CMSC","CMTC"},{"CMSP","CMSP"},{"CMST","CMIM"},{"CTAG","CTIM"},{"CTSH","CTIM"},
         {"DSSP","DSSP"},{"DSTM","DSSP"},{"EMIM","EMIM"},{"ESBA","ESTC"},{"ESCO","ESTC"},{"ESDC","ESTC"},{"ESET","ESTC"},
         {"ESHI","ESTC"},{"ESIM","ESIM"},{"ESSH","EMIM"},{"ESTC","ESTC"},{"ESTCS","ESTC"},{"ESTH","ESIM"},{"ESTL","ESTC"},
-        {"ESTM","ESTC"},{"FCIE","FCIE"},{"HSDO","CGHS"},{"HSEP","CGHS"},{"HSMT","CGHS"},{"IRSP","IRSP"},{"LTSP","LTMT"},
+        {"ESTM","ESTC"},{"FCIE","FCIE"},{"HSDO","CGHS"},{"HSEP","CGHS"},{"HSMT","CGHS"},{"IRSP","IRSP"},{"LTSP","LTSP"},
         {"MABS","CGHS"},{"MACA","CGHS"},{"MADR","CGHS"},{"MAPS","CGHS"},{"MTIE","MTIE"},{"MTIM","MTIM"},{"MTME","MTSP"},
         {"MTPP","CGHS"},{"MTSC","MTTC"},{"MTSH","MTIM"},{"MTSP","MTSP"},{"MTST","MTIM"},{"MTTC","MTTC"},{"MTTU","MTIE"},
         {"PADE","PAIM"},{"PAIE","PAIE"},{"PAIM","PAIM"},{"PASH","PAIM"},{"PECI","CGHS"},{"PEEB","CGHS"},{"PEPA","CGHS"},
@@ -130,6 +131,59 @@ public static class CodificacionSeeder
         var svc = new CostoService(db);
         foreach (var proyectoId in proyectosViejos)
             await svc.CargarPlantillaEstandarAsync(proyectoId);
+    }
+
+    // Agrega a los proyectos existentes los códigos nuevos del catálogo maestro que les falten,
+    // dentro de su categoría y al final de la numeración (no toca valores existentes)
+    public static async Task AgregarCodigosFaltantesCatalogoAsync(RenergeIADbContext db)
+    {
+        var principales = await db.Partidas.Where(p => p.EsPrincipal).ToListAsync();
+        var subs = await db.Partidas.Where(p => !p.EsPrincipal).ToListAsync();
+        var huboCambios = false;
+
+        foreach (var proyectoId in principales.Select(p => p.ProyectoId).Distinct())
+        {
+            var subsProyecto = subs.Where(s => s.ProyectoId == proyectoId).ToList();
+            // Solo proyectos que ya usan el catálogo maestro (tienen códigos sin consecutivo "-")
+            if (!subsProyecto.Any(s => !s.Codigo.Contains('-'))) continue;
+
+            foreach (var grupo in CostoService.CatalogoMaestro.GroupBy(c => c.Categoria))
+            {
+                var padre = principales.FirstOrDefault(p => p.ProyectoId == proyectoId &&
+                    string.Equals(p.Descripcion.Trim(), grupo.Key, StringComparison.OrdinalIgnoreCase));
+                if (padre is null) continue;
+
+                foreach (var (_, codigo, descripcion) in grupo)
+                {
+                    if (subsProyecto.Any(s => s.Codigo.Equals(codigo, StringComparison.OrdinalIgnoreCase))) continue;
+
+                    var siguiente = subsProyecto
+                        .Where(s => s.PadreId == padre.Id)
+                        .Select(s => int.TryParse(s.Numero?.Split('.').LastOrDefault(), out var n) ? n : 0)
+                        .DefaultIfEmpty(0).Max() + 1;
+
+                    var nueva = new Partida
+                    {
+                        ProyectoId = proyectoId,
+                        PadreId = padre.Id,
+                        Numero = $"{padre.Numero}.{siguiente}",
+                        Codigo = codigo,
+                        Descripcion = descripcion,
+                        Unidad = "Global",
+                        CantidadPresupuestada = 1,
+                        PrecioUnitario = 0,
+                        MonedaOriginal = "COP",
+                        Nivel = 2,
+                        EsPrincipal = false
+                    };
+                    db.Partidas.Add(nueva);
+                    subsProyecto.Add(nueva);
+                    huboCambios = true;
+                }
+            }
+        }
+
+        if (huboCambios) await db.SaveChangesAsync();
     }
 
     public static async Task SeedLaSoberanaAsync(RenergeIADbContext db)

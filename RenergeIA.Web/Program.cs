@@ -100,6 +100,7 @@ using (var scope = app.Services.CreateScope())
     await CodificacionSeeder.SeedLaSoberanaAsync(db);
     await CodificacionSeeder.RepararRubrosTesoreriaAsync(db);
     await CodificacionSeeder.ActualizarPlantillasViejasAsync(db);
+    await CodificacionSeeder.AgregarCodigosFaltantesCatalogoAsync(db);
     await WbsMantenimiento.LimpiarVersionesDuplicadasAsync(db);
 }
 

@@ -27,6 +27,77 @@ public class CostoService(RenergeIADbContext db)
         return Math.Round(CostoEjecutado(p) / presup * 100, 1);
     }
 
+    // Ejecutado de cada código = suma de su fila en el Flujo de Caja desde el inicio hasta la semana
+    // anterior a la actual, respetando la moneda de la partida. Usa ExecuteUpdate para no arrastrar cambios
+    // pendientes (sin guardar) del contexto compartido.
+    public async Task SincronizarEjecutadoDesdeFlujoAsync(int proyectoId)
+    {
+        var proyecto = await db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == proyectoId);
+        var trm = proyecto is { TasaCambioCOPUSD: > 0 } ? proyecto.TasaCambioCOPUSD : 4000m;
+
+        var partidas = await db.Partidas.Where(p => p.ProyectoId == proyectoId).ToListAsync();
+        var porId = partidas.ToDictionary(p => p.Id);
+        var codigos = partidas.Where(p => !p.EsPrincipal && !p.Codigo.Contains('-')).ToList();
+
+        // Código de flujo al que pertenece un pago (subdetalles "-001" suben a su código padre)
+        string? CodigoDe(int partidaId)
+        {
+            if (!porId.TryGetValue(partidaId, out var pa) || pa.EsPrincipal) return null;
+            if (!pa.Codigo.Contains('-')) return pa.Codigo.ToUpperInvariant();
+            return pa.PadreId is int padre && porId.TryGetValue(padre, out var pp) && !pp.EsPrincipal
+                ? pp.Codigo.ToUpperInvariant() : null;
+        }
+
+        // Total del flujo desde el inicio hasta la semana anterior a la actual (hora Colombia):
+        // se excluyen los cortes de la semana en curso y los futuros
+        var limite = InicioSemanaActual();
+        var totales = (await db.PagosCorteSemanal.AsNoTracking()
+                .Where(p => p.ProyectoId == proyectoId && p.FechaCorte < limite)
+                .Select(p => new { p.PartidaId, p.Monto, p.Moneda })
+                .ToListAsync())
+            .Select(p => new { Codigo = CodigoDe(p.PartidaId), p.Monto, Moneda = p.Moneda == "USD" ? "USD" : "COP" })
+            .Where(p => p.Codigo is not null)
+            .GroupBy(p => (p.Codigo!, p.Moneda))
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
+
+        foreach (var p in codigos)
+        {
+            var codigo = p.Codigo.ToUpperInvariant();
+            var hermanos = codigos.Where(c => c.Codigo.Equals(codigo, StringComparison.OrdinalIgnoreCase)).ToList();
+            var monedaPropia = p.MonedaOriginal == "USD" ? "USD" : "COP";
+            var otraMoneda = monedaPropia == "USD" ? "COP" : "USD";
+
+            // Pagos en la moneda de la partida: directo. Pagos en la otra moneda: solo si el código
+            // NO tiene una partida en esa moneda (si la tiene, le pertenecen a ella); se convierten con la TRM.
+            var nuevo = totales.GetValueOrDefault((codigo, monedaPropia));
+            var esPrimeraDeSuMoneda = hermanos.First(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == monedaPropia).Id == p.Id;
+            if (!esPrimeraDeSuMoneda) nuevo = 0;
+
+            if (esPrimeraDeSuMoneda && !hermanos.Any(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == otraMoneda))
+            {
+                var otro = totales.GetValueOrDefault((codigo, otraMoneda));
+                nuevo += monedaPropia == "USD" ? otro / trm : otro * trm;
+            }
+            nuevo = Math.Round(nuevo, 2);
+            if (p.ValorEjecutado == nuevo) continue;
+
+            await db.Partidas.Where(x => x.Id == p.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValorEjecutado, nuevo));
+
+            var prop = db.Entry(p).Property(x => x.ValorEjecutado);
+            prop.CurrentValue = nuevo;
+            prop.OriginalValue = nuevo;
+            prop.IsModified = false;
+        }
+    }
+
+    // Lunes de la semana en curso en hora de Colombia (UTC-5)
+    public static DateTime InicioSemanaActual()
+    {
+        var hoy = DateTime.UtcNow.AddHours(-5).Date;
+        return hoy.AddDays(-(((int)hoy.DayOfWeek + 6) % 7));
+    }
+
     private async Task EliminarPartidasProyectoAsync(int proyectoId)
     {
         var pagos = await db.PagosCorteSemanal.Where(p => p.ProyectoId == proyectoId).ToListAsync();
@@ -153,6 +224,7 @@ public class CostoService(RenergeIADbContext db)
         ("Suministros principales", "TBSP", "Suministro de Tableros baja tensión"),
         ("Suministros principales", "CASP", "Suministro de Accesorios cableado"),
         ("Suministros principales", "VASP", "Suministro de Varios-Cimentaciones"),
+        ("Suministros principales", "LTSP", "Suministro de Línea de Media Tensión"),
 
         ("Trabajos civiles", "SPSP", "Suministro de Preparación de sitio"),
         ("Trabajos civiles", "IRSP", "Suministro de Caminos internos"),
