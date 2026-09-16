@@ -2,7 +2,7 @@
 
 > **Propósito:** que cualquier persona o cuenta de IA (Claude u otra) retome el trabajo sin perder el hilo.
 > Aquí está **dónde vamos, qué está hecho, qué queda pendiente y hacia dónde queremos llegar**.
-> **Última actualización:** 2026-09-11.
+> **Última actualización:** 2026-09-16.
 
 ---
 
@@ -46,6 +46,8 @@ El repo `github.com/luisabecerra22/RenergeIA` (rama `main`, **público**) contie
 ### RenergeIA (.NET) — resumen
 - Plataforma EPC con módulos de Proyectos, WBS (con versiones de cronograma), Informe Diario, Documentos, Costos, Histogramas, Clima, HSEQ (Calidad/Ambiental/Social/Seguridad), Dashboard, Alertas.
 - Detalle completo en `GUIA_DE_DESARROLLO.md` (32 secciones) y `docs/`.
+- **Manual de usuario** (para quien usa la app): `docs/manual/README.md`, un capítulo por módulo con paso a paso y "Qué hacer en caso de…". Sus notas "⚠ Por confirmar" son decisiones o fallas pendientes de revisar.
+- **Documentos (sept. 2026):** carga de la Planificación Documental FO-SI-GC-002-1 por proyecto sin duplicar, alertas de días sin atender (amarillo 4 / rojo 8), responsables internos por área, validación y Redline/As-Built.
 - Versión en producción al momento de este traspaso: v38 (Cloud Run `renergeia-web`).
 
 ---
@@ -110,7 +112,13 @@ Estado: la **service account `github-actions-deploy@renergeia-app.iam.gserviceac
 - [ ] Crear `.github/workflows/deploy.yml` que haga `dotnet publish` + deploy a Cloud Run en cada push a `main`.
 - **Nota:** el paso de roles IAM fue **bloqueado por el clasificador de seguridad**; la usuaria debe autorizarlo/ejecutarlo (su terminal o la consola web de GCP → IAM & Admin).
 
+### RenergeIA (.NET) — Documentos
+- [ ] Lectura automática de la planificación documental desde **SharePoint** (requiere registrar una app en Microsoft 365 / Graph con permiso de solo lectura).
+- [ ] Notificaciones por correo a los responsables de documentos en rojo.
+- [ ] Confirmar con la usuaria la regla cuando app y Excel difieren (hoy gana lo editado en la app, con opción "Usar Excel").
+
 ### Documentación / repo
+- [ ] Revisar con la usuaria los "⚠ Por confirmar" del manual de usuario (`docs/manual/`) y completar el manual a medida que cambien los módulos.
 - [ ] El repo es **público** → el manual con contraseñas queda **fuera** (en `.gitignore`). Si se quiere versionar el manual, pasar a un repo **privado** o quitarle la tabla de contraseñas.
 
 ---
