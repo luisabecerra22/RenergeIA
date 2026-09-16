@@ -27,9 +27,8 @@ public class CostoService(RenergeIADbContext db)
         return Math.Round(CostoEjecutado(p) / presup * 100, 1);
     }
 
-    // Ejecutado de cada código = suma de su fila en el Flujo de Caja desde el inicio hasta la semana
-    // anterior a la actual, respetando la moneda de la partida. Usa ExecuteUpdate para no arrastrar cambios
-    // pendientes (sin guardar) del contexto compartido.
+    // Ejecutado y Comprometido de cada código salen del Flujo de Caja, respetando la moneda de la partida.
+    // Usa ExecuteUpdate para no arrastrar cambios pendientes (sin guardar) del contexto compartido.
     public async Task SincronizarEjecutadoDesdeFlujoAsync(int proyectoId)
     {
         var proyecto = await db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == proyectoId);
@@ -48,17 +47,20 @@ public class CostoService(RenergeIADbContext db)
                 ? pp.Codigo.ToUpperInvariant() : null;
         }
 
-        // Total del flujo desde el inicio hasta la semana anterior a la actual (hora Colombia):
-        // se excluyen los cortes de la semana en curso y los futuros
+        // Corte = lunes de la semana en curso (hora Colombia).
+        // Ejecutado    = flujo ANTES del corte (ya pagado, hasta la semana anterior)
+        // Comprometido = flujo DESDE el corte en adelante (por pagar)
         var limite = InicioSemanaActual();
-        var totales = (await db.PagosCorteSemanal.AsNoTracking()
-                .Where(p => p.ProyectoId == proyectoId && p.FechaCorte < limite)
-                .Select(p => new { p.PartidaId, p.Monto, p.Moneda })
+        var pagos = (await db.PagosCorteSemanal.AsNoTracking()
+                .Where(p => p.ProyectoId == proyectoId)
+                .Select(p => new { p.PartidaId, p.Monto, p.Moneda, p.FechaCorte })
                 .ToListAsync())
-            .Select(p => new { Codigo = CodigoDe(p.PartidaId), p.Monto, Moneda = p.Moneda == "USD" ? "USD" : "COP" })
+            .Select(p => new { Codigo = CodigoDe(p.PartidaId), p.Monto, Moneda = p.Moneda == "USD" ? "USD" : "COP", Pasado = p.FechaCorte < limite })
             .Where(p => p.Codigo is not null)
-            .GroupBy(p => (p.Codigo!, p.Moneda))
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
+            .ToList();
+
+        var totEjec = pagos.Where(p => p.Pasado).GroupBy(p => (p.Codigo!, p.Moneda)).ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
+        var totComp = pagos.Where(p => !p.Pasado).GroupBy(p => (p.Codigo!, p.Moneda)).ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
 
         foreach (var p in codigos)
         {
@@ -66,28 +68,40 @@ public class CostoService(RenergeIADbContext db)
             var hermanos = codigos.Where(c => c.Codigo.Equals(codigo, StringComparison.OrdinalIgnoreCase)).ToList();
             var monedaPropia = p.MonedaOriginal == "USD" ? "USD" : "COP";
             var otraMoneda = monedaPropia == "USD" ? "COP" : "USD";
+            var esPrimeraDeSuMoneda = hermanos.First(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == monedaPropia).Id == p.Id;
+            var codigoSoloEnSuMoneda = !hermanos.Any(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == otraMoneda);
 
             // Pagos en la moneda de la partida: directo. Pagos en la otra moneda: solo si el código
             // NO tiene una partida en esa moneda (si la tiene, le pertenecen a ella); se convierten con la TRM.
-            var nuevo = totales.GetValueOrDefault((codigo, monedaPropia));
-            var esPrimeraDeSuMoneda = hermanos.First(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == monedaPropia).Id == p.Id;
-            if (!esPrimeraDeSuMoneda) nuevo = 0;
-
-            if (esPrimeraDeSuMoneda && !hermanos.Any(h => (h.MonedaOriginal == "USD" ? "USD" : "COP") == otraMoneda))
+            decimal Calcular(Dictionary<(string, string), decimal> tot)
             {
-                var otro = totales.GetValueOrDefault((codigo, otraMoneda));
-                nuevo += monedaPropia == "USD" ? otro / trm : otro * trm;
+                if (!esPrimeraDeSuMoneda) return 0m;
+                var valor = tot.GetValueOrDefault((codigo, monedaPropia));
+                if (codigoSoloEnSuMoneda)
+                {
+                    var otro = tot.GetValueOrDefault((codigo, otraMoneda));
+                    valor += monedaPropia == "USD" ? otro / trm : otro * trm;
+                }
+                return Math.Round(valor, 2);
             }
-            nuevo = Math.Round(nuevo, 2);
-            if (p.ValorEjecutado == nuevo) continue;
+
+            var ejec = Calcular(totEjec);
+            var comp = Calcular(totComp);
+            if (p.ValorEjecutado == ejec && p.MontoComprometido == comp) continue;
 
             await db.Partidas.Where(x => x.Id == p.Id)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.ValorEjecutado, nuevo));
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.ValorEjecutado, ejec)
+                    .SetProperty(x => x.MontoComprometido, comp));
 
-            var prop = db.Entry(p).Property(x => x.ValorEjecutado);
-            prop.CurrentValue = nuevo;
-            prop.OriginalValue = nuevo;
-            prop.IsModified = false;
+            var entry = db.Entry(p);
+            foreach (var (nombre, valor) in new[] { (nameof(Partida.ValorEjecutado), ejec), (nameof(Partida.MontoComprometido), comp) })
+            {
+                var prop = entry.Property(nombre);
+                prop.CurrentValue = valor;
+                prop.OriginalValue = valor;
+                prop.IsModified = false;
+            }
         }
     }
 

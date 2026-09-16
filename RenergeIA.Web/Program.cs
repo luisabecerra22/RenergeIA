@@ -43,6 +43,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<InformeDiarioService>();
 builder.Services.AddScoped<DocumentoService>();
 builder.Services.AddScoped<CostoService>();
+builder.Services.AddScoped<TesoreriaImportService>();
 builder.Services.AddScoped<HistogramaService>();
 builder.Services.AddScoped<HomeDashboardService>();
 builder.Services.AddScoped<ChecklistISO9001Service>();

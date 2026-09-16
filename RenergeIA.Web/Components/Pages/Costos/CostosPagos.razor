@@ -51,11 +51,7 @@
         <i class="bi-upload me-1"></i>Importar Excel
         <InputFile OnChange="ImportarExcelPagosAsync" accept=".xlsx,.xls" style="display:none" />
     </label>
-    <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
-           title="Actualizar el flujo de caja desde el Forecast Control de tesorería (.xlsx) — reemplaza los datos con el corte más reciente">
-        <i class="bi-cloud-arrow-up me-1"></i>Importar Tesorería
-        <InputFile OnChange="LeerTesoreriaAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
-    </label>
+    <ImportarTesoreria ProyectoId="ProyectoId" OnImportado="OnTesoreriaImportadaAsync" />
     @if (_mapeosGuardados.Count > 0)
     {
         <button class="btn btn-sm btn-outline-secondary"
@@ -88,21 +84,6 @@
                 </div>
             }
         </div>
-    </div>
-}
-
-@if (_tesoPendiente is not null)
-{
-    <div class="alert alert-warning d-flex align-items-center gap-3 mb-3 py-2 flex-wrap">
-        <span>
-            <strong>Tesorería leída (@_tesoArchivo):</strong>
-            @_tesoPendiente.Movimientos.Count movimientos ·
-            @_tesoPendiente.CodigosEncontrados.Count códigos ·
-            cortes @(_tesoPendiente.PrimerCorte?.ToString("dd/MM/yy")) — @(_tesoPendiente.UltimoCorte?.ToString("dd/MM/yy")).
-            <strong>¡Atención!</strong> Esto reemplaza TODO el flujo de caja con la información de este corte (no suma ni duplica).
-        </span>
-        <button class="btn btn-warning btn-sm" @onclick="ConfirmarTesoreriaAsync">Confirmar y actualizar</button>
-        <button class="btn btn-outline-secondary btn-sm" @onclick="() => _tesoPendiente = null">Cancelar</button>
     </div>
 }
 
@@ -639,8 +620,6 @@ else
             .ToList();
     }
 
-    private TesoreriaParser.ResultadoTesoreria? _tesoPendiente;
-    private string? _tesoArchivo;
     private List<KeyValuePair<string, List<TesoreriaParser.MovimientoTesoreria>>> _tesoNoMapeados = [];
     private readonly Dictionary<string, string> _clasifSeleccion = new(StringComparer.OrdinalIgnoreCase);
 
@@ -700,126 +679,28 @@ else
         _mensajeError = false;
     }
 
-    private async Task LeerTesoreriaAsync(InputFileChangeEventArgs e)
+    private async Task OnTesoreriaImportadaAsync(TesoreriaImportService.Resultado r)
     {
-        try
+        _tesoNoMapeados = r.NoMapeados;
+        _clasifSeleccion.Clear();
+
+        if (_proyecto is not null)
         {
-            using var ms = new System.IO.MemoryStream();
-            await e.File.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024).CopyToAsync(ms);
-            ms.Position = 0;
-            using var workbook = new XLWorkbook(ms);
-            var res = TesoreriaParser.Parse(workbook);
-            if (res.Movimientos.Count == 0)
-            {
-                _mensaje = "No se encontraron movimientos de egresos en el archivo. Verifica que sea el Forecast Control correcto.";
-                _mensajeError = true;
-                _tesoPendiente = null;
-                return;
-            }
-            _tesoPendiente = res;
-            _tesoArchivo = e.File.Name;
-            _mensaje = null;
+            if (_proyecto.FechaInicioPagos.HasValue) _fechaInicio = _proyecto.FechaInicioPagos.Value;
+            if (_proyecto.FechaFinPagos.HasValue) _fechaFin = _proyecto.FechaFinPagos.Value;
+            GenerarColumnas();
         }
-        catch (Exception ex)
-        {
-            _mensaje = $"Error al leer la tesorería: {ex.Message}";
-            _mensajeError = true;
-        }
-    }
+        await CargarAsync();
 
-    private async Task ConfirmarTesoreriaAsync()
-    {
-        if (_tesoPendiente is null) return;
-        try
-        {
-            // Destinos: los códigos del listado (sub-partidas sin consecutivo "-")
-            var porCodigo = _subPartidas
-                .Where(p => !p.Codigo.Contains('-'))
-                .GroupBy(p => p.Codigo.ToUpperInvariant())
-                .ToDictionary(g => g.Key, g => g.First());
-
-            // Mapeos personalizados guardados (clasificaciones hechas por la usuaria)
-            var mapeosDb = (await Db.MapeosCodigoTesoreria.AsNoTracking().ToListAsync())
-                .GroupBy(m => m.CodigoTesoreria.ToUpperInvariant())
-                .ToDictionary(g => g.Key, g => g.First().Rubro.ToUpperInvariant());
-
-            // Prioridad: 1) clasificación guardada por la usuaria, 2) tabla de Codificación
-            // (solo si ese código existe en el presupuesto), 3) el mismo código
-            string RubroDe(string codigo)
-            {
-                var cod = codigo.ToUpperInvariant();
-                if (mapeosDb.TryGetValue(cod, out var m)) return m;
-                if (CodificacionSeeder.MapaCodigoARubro.TryGetValue(cod, out var r) && porCodigo.ContainsKey(r.ToUpperInvariant()))
-                    return r.ToUpperInvariant();
-                return cod;
-            }
-
-            // Agregar por (código destino, corte, moneda); los subcódigos sin equivalencia NO se cargan
-            var celdas = new Dictionary<(int PartidaId, DateTime Fecha, string Moneda), decimal>();
-            var noMapeados = new Dictionary<string, List<TesoreriaParser.MovimientoTesoreria>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var mov in _tesoPendiente.Movimientos)
-            {
-                if (!porCodigo.TryGetValue(RubroDe(mov.Codigo), out var destino))
-                {
-                    if (!noMapeados.TryGetValue(mov.Codigo, out var lista))
-                        noMapeados[mov.Codigo] = lista = [];
-                    lista.Add(mov);
-                    continue;
-                }
-                var key = (destino.Id, mov.FechaCorte, mov.Moneda);
-                celdas[key] = celdas.GetValueOrDefault(key) + mov.Monto;
-            }
-            _tesoNoMapeados = noMapeados.OrderBy(k => k.Key).ToList();
-            _clasifSeleccion.Clear();
-
-            // Reemplazo total: el corte más reciente trae todo el histórico actualizado
-            var pagosPrevios = await Db.PagosCorteSemanal.Where(p => p.ProyectoId == ProyectoId).ToListAsync();
-            Db.PagosCorteSemanal.RemoveRange(pagosPrevios);
-            foreach (var ((pid, fecha, mon), monto) in celdas)
-            {
-                if (monto == 0) continue;
-                Db.PagosCorteSemanal.Add(new PagoCorteSemanal
-                {
-                    ProyectoId = ProyectoId,
-                    PartidaId = pid,
-                    FechaCorte = fecha,
-                    Moneda = mon,
-                    Monto = monto,
-                    Descripcion = $"Tesorería {_tesoArchivo}"
-                });
-            }
-
-            // Ampliar el rango de fechas del flujo para cubrir los cortes importados
-            if (_proyecto is not null && _tesoPendiente.PrimerCorte.HasValue && _tesoPendiente.UltimoCorte.HasValue)
-            {
-                var min = _tesoPendiente.PrimerCorte.Value;
-                var max = _tesoPendiente.UltimoCorte.Value;
-                if (_proyecto.FechaInicioPagos is null || _proyecto.FechaInicioPagos > min) _proyecto.FechaInicioPagos = min;
-                if (_proyecto.FechaFinPagos is null || _proyecto.FechaFinPagos < max) _proyecto.FechaFinPagos = max;
-                Db.Proyectos.Update(_proyecto);
-                _fechaInicio = _proyecto.FechaInicioPagos!.Value;
-                _fechaFin = _proyecto.FechaFinPagos!.Value;
-                GenerarColumnas();
-            }
-
-            await Db.SaveChangesAsync();
-
-            var resumen = $"Flujo de caja actualizado desde tesorería: {celdas.Count(c => c.Value != 0)} valores " +
-                          $"({_tesoPendiente.Movimientos.Count} movimientos de {_tesoPendiente.CodigosEncontrados.Count} códigos).";
-            if (_tesoNoMapeados.Count > 0)
-                resumen += $" ⚠ {_tesoNoMapeados.Count} subcódigos sin equivalencia NO se cargaron: " +
-                           $"{string.Join(", ", _tesoNoMapeados.Select(x => x.Key))} — clasifícalos abajo para incluirlos.";
-            _tesoPendiente = null;
-            _tesoArchivo = null;
-            await CargarAsync();
-            _mensaje = resumen;
-            _mensajeError = false;
-        }
-        catch (Exception ex)
-        {
-            _mensaje = $"Error al actualizar desde tesorería: {ex.Message}";
-            _mensajeError = true;
-        }
+        var resumen = $"Flujo de caja y Compromisos actualizados desde tesorería: {r.ValoresFlujo} valores en el flujo · " +
+                      $"{r.OcsNuevas + r.OcsActualizadas} órdenes de compra.";
+        if (r.FacturasSinCodigo > 0)
+            resumen += $" ⚠ {r.FacturasSinCodigo} facturas sin código asignado (asígnalas en Compromisos).";
+        if (_tesoNoMapeados.Count > 0)
+            resumen += $" ⚠ {_tesoNoMapeados.Count} subcódigos sin equivalencia NO se cargaron al flujo: " +
+                       $"{string.Join(", ", _tesoNoMapeados.Select(x => x.Key))} — clasifícalos abajo para incluirlos.";
+        _mensaje = resumen;
+        _mensajeError = false;
     }
 
     private void AbrirDetalle(Partida p, DateTime fecha)

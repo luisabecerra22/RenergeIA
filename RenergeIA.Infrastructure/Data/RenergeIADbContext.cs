@@ -28,6 +28,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<FlujoCajaExclusion> FlujoCajaExclusiones => Set<FlujoCajaExclusion>();
     public DbSet<LineaBOM> LineasBOM => Set<LineaBOM>();
     public DbSet<MapeoCodigoTesoreria> MapeosCodigoTesoreria => Set<MapeoCodigoTesoreria>();
+    public DbSet<HitoCompromiso> HitosCompromiso => Set<HitoCompromiso>();
+    public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -191,10 +193,40 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(c => c.NumeroFactura).HasMaxLength(100);
             e.Property(c => c.ValorFactura).HasColumnType("decimal(18,2)");
             e.Property(c => c.SaldoPorPagar).HasColumnType("decimal(18,2)");
+            e.Property(c => c.ValorPagado).HasColumnType("decimal(18,2)");
+            e.Property(c => c.Origen).HasMaxLength(20).HasDefaultValue("Manual");
+            e.Property(c => c.Grupo).HasMaxLength(20).HasDefaultValue("OC");
+            e.Property(c => c.ClaveTesoreria).HasMaxLength(400);
+            e.HasMany(c => c.Hitos).WithOne(h => h.CompromisoCosto)
+             .HasForeignKey(h => h.CompromisoCostoId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(c => c.Proyecto).WithMany()
              .HasForeignKey(c => c.ProyectoId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(c => c.Partida).WithMany()
              .HasForeignKey(c => c.PartidaId).IsRequired(false).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // HitoCompromiso
+        modelBuilder.Entity<HitoCompromiso>(e =>
+        {
+            e.ToTable("HitosCompromiso");
+            e.Property(h => h.Periodo).HasMaxLength(120);
+            e.Property(h => h.Codigo).HasMaxLength(20);
+            e.Property(h => h.Descripcion).HasMaxLength(400);
+            e.Property(h => h.Detalle).HasMaxLength(300);
+            e.Property(h => h.Documento).HasMaxLength(120);
+            foreach (var campo in new[] { nameof(HitoCompromiso.Subtotal), nameof(HitoCompromiso.Iva), nameof(HitoCompromiso.Importe),
+                                          nameof(HitoCompromiso.RetFuente), nameof(HitoCompromiso.RetIca), nameof(HitoCompromiso.TotalPagar) })
+                e.Property(campo).HasColumnType("decimal(18,2)");
+        });
+
+        // AsignacionTesoreria
+        modelBuilder.Entity<AsignacionTesoreria>(e =>
+        {
+            e.ToTable("AsignacionesTesoreria");
+            e.Property(a => a.Tipo).HasMaxLength(20);
+            e.Property(a => a.Clave).HasMaxLength(600);
+            e.Property(a => a.Valor).HasMaxLength(100);
+            e.HasIndex(a => new { a.ProyectoId, a.Tipo, a.Clave }).IsUnique();
         });
 
         // MapeoCodigoTesoreria

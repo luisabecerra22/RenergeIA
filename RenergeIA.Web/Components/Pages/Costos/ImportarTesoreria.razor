@@ -1,0 +1,156 @@
+@inject TesoreriaImportService TesoreriaSvc
+@using RenergeIA.Web.Services
+
+<label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
+       title="Actualizar Flujo de Caja y Compromisos desde el Forecast Control de tesorería (.xlsx)">
+    @if (_leyendo)
+    {
+        <span class="spinner-border spinner-border-sm me-1"></span><span>Leyendo…</span>
+    }
+    else
+    {
+        <i class="bi-cloud-arrow-up me-1"></i><span>Importar Tesorería</span>
+    }
+    <InputFile OnChange="LeerAsync" accept=".xlsx,.xlsm,.xls" style="display:none" disabled="@(_leyendo || _aplicando)" />
+</label>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger py-1 px-2 mb-0 small">@_error</div>
+}
+
+@if (_vista is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:620px">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-cloud-arrow-up me-2"></i>Importar archivo de tesorería</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="Cancelar" disabled="@_aplicando"></button>
+                </div>
+                <div class="modal-body small">
+                    <div class="mb-2"><strong>Archivo:</strong> @_vista.Archivo</div>
+                    <div class="mb-2">
+                        <strong>Fecha de corte del documento:</strong>
+                        @(_vista.FechaDocumento?.ToString("dd/MM/yyyy") ?? "no se encontró en el nombre")
+                        @if (_vista.FechaCargada.HasValue)
+                        {
+                            <span class="text-muted"> · último cargado: @_vista.FechaCargada.Value.ToString("dd/MM/yyyy")</span>
+                        }
+                    </div>
+
+                    @if (_vista.EsAnterior)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <strong>⚠ Documento desactualizado.</strong> Este archivo tiene corte
+                            <strong>@_vista.FechaDocumento!.Value.ToString("dd/MM/yyyy")</strong>, anterior al documento ya cargado
+                            (<strong>@_vista.FechaCargada!.Value.ToString("dd/MM/yyyy")</strong>@(string.IsNullOrEmpty(_vista.ArchivoCargado) ? "" : $" — {_vista.ArchivoCargado}")).
+                            El documento vigente tiene información más actualizada. Revisa que estés cargando el archivo correcto antes de reemplazarlo.
+                        </div>
+                    }
+                    else if (_vista.SinFecha)
+                    {
+                        <div class="alert alert-warning py-2">
+                            <strong>⚠ No se pudo validar la fecha.</strong> El nombre del archivo no trae la fecha de corte (formato MM.DD.AAAA).
+                            Confirma que es el documento más reciente.
+                        </div>
+                    }
+
+                    <ul class="mb-2">
+                        <li><strong>Flujo de Caja:</strong> @_vista.Flujo.Movimientos.Count movimientos de @_vista.Flujo.CodigosEncontrados.Count códigos
+                            (cortes @(_vista.Flujo.PrimerCorte?.ToString("dd/MM/yy")) — @(_vista.Flujo.UltimoCorte?.ToString("dd/MM/yy")))</li>
+                        <li><strong>Compromisos:</strong> @_vista.Ocs órdenes de compra
+                            @if (_vista.OcsEnProceso > 0) { <span>· @_vista.OcsEnProceso sin consecutivo (XXX)</span> }</li>
+                        @if (_vista.FacturasSinCodigo > 0)
+                        {
+                            <li class="text-danger"><strong>Se encontraron @_vista.FacturasSinCodigo facturas sin código asignado</strong> — deberás asignarlas manualmente en Compromisos.</li>
+                        }
+                    </ul>
+                    <div class="alert alert-secondary py-2 mb-0">
+                        Esto <strong>reemplaza</strong> el Flujo de Caja y actualiza las órdenes de compra de tesorería con este corte
+                        (no suma ni duplica). Las órdenes digitadas a mano se conservan.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Cancelar" disabled="@_aplicando">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold @(_vista.EsAnterior ? "btn-danger" : "")"
+                            style="@(_vista.EsAnterior ? "" : "background:#6ABF4B;color:#fff;border:none")"
+                            @onclick="AplicarAsync" disabled="@_aplicando">
+                        @if (_aplicando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span><span>Actualizando…</span>
+                        }
+                        else if (_vista.EsAnterior)
+                        {
+                            <span>Reemplazar de todas formas</span>
+                        }
+                        else
+                        {
+                            <span>Confirmar y actualizar</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public EventCallback<TesoreriaImportService.Resultado> OnImportado { get; set; }
+
+    private TesoreriaImportService.VistaPrevia? _vista;
+    private bool _leyendo;
+    private bool _aplicando;
+    private string? _error;
+
+    private async Task LeerAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _leyendo = true;
+        StateHasChanged();
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024);
+            var vista = await TesoreriaSvc.LeerAsync(ProyectoId, stream, e.File.Name);
+            if (vista.Flujo.Movimientos.Count == 0 && vista.Bloques.Count == 0)
+            {
+                _error = "No se encontraron egresos ni órdenes de compra. Verifica que sea el Forecast Control correcto.";
+                return;
+            }
+            _vista = vista;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error al leer el archivo: {ex.Message}";
+        }
+        finally
+        {
+            _leyendo = false;
+        }
+    }
+
+    private async Task AplicarAsync()
+    {
+        if (_vista is null) return;
+        _aplicando = true;
+        StateHasChanged();
+        try
+        {
+            var resultado = await TesoreriaSvc.AplicarAsync(ProyectoId, _vista);
+            _vista = null;
+            await OnImportado.InvokeAsync(resultado);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error al importar: {ex.InnerException?.Message ?? ex.Message}";
+            _vista = null;
+        }
+        finally
+        {
+            _aplicando = false;
+        }
+    }
+
+    private void Cancelar() => _vista = null;
+}

@@ -193,7 +193,8 @@ else
     private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
     private decimal ACOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoPresupuestado * TRM : p.MontoPresupuestado;
     private decimal EjecACOP(Partida p) => p.MonedaOriginal == "USD" ? p.ValorEjecutado * TRM : p.ValorEjecutado;
-    private decimal SaldoCOP(CompromisoCosto c) => c.Moneda == "USD" ? c.SaldoPorPagar * TRM : c.SaldoPorPagar;
+    // Comprometido = flujo de caja pendiente por pagar de cada rubro (mismo dato del Presupuesto)
+    private decimal CompCOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoComprometido * TRM : p.MontoComprometido;
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,9 +219,7 @@ else
 
         _presupuestoTotal    = subPartidas.Sum(ACOP);
         _ejecutadoTotal      = subPartidas.Sum(EjecACOP);
-        _compromisosActivos  = compromisos
-            .Where(c => c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado)
-            .Sum(SaldoCOP);
+        _compromisosActivos  = subPartidas.Sum(CompCOP);
         _exposicion          = _ejecutadoTotal + _compromisosActivos;
         _pctEjecucion        = _presupuestoTotal > 0 ? _ejecutadoTotal / _presupuestoTotal * 100 : 0;
         _saldoDisponible     = _presupuestoTotal - _exposicion;
@@ -237,12 +236,7 @@ else
         _ejecutadoCat = partidas.Select(p =>
             subPartidas.Where(s => s.PadreId == p.Id).Sum(EjecACOP)).ToArray();
         _compromisosCat = partidas.Select(p =>
-        {
-            var subIds = subPartidas.Where(s => s.PadreId == p.Id).Select(s => s.Id).ToHashSet();
-            return compromisos.Where(c => c.PartidaId.HasValue && subIds.Contains(c.PartidaId.Value)
-                                       && c.Estado != RenergeIA.Core.Enums.EstadoCompromiso.Cancelado)
-                              .Sum(SaldoCOP);
-        }).ToArray();
+            subPartidas.Where(s => s.PadreId == p.Id).Sum(CompCOP)).ToArray();
 
         // Datos gráfica 2: por tipo
         var porTipo = todosLosReales.GroupBy(c => c.TipoCosto)

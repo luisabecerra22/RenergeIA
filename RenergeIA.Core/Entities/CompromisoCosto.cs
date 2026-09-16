@@ -25,4 +25,13 @@ public class CompromisoCosto : EntidadBase
     public DateTime? FechaFactura { get; set; }
     public decimal ValorFactura { get; set; }
     public decimal SaldoPorPagar { get; set; }
+
+    // "Manual" (digitada en la app) o "Tesoreria" (importada del Forecast Control)
+    public string Origen { get; set; } = "Manual";
+    // "OC", "Salarios", "Impuestos" o "Proyectado"
+    public string Grupo { get; set; } = "OC";
+    public string? ClaveTesoreria { get; set; }
+    public decimal ValorPagado { get; set; }
+
+    public ICollection<HitoCompromiso> Hitos { get; set; } = [];
 }

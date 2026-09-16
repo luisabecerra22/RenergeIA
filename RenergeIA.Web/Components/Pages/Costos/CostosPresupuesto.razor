@@ -378,7 +378,7 @@ else
                                         @pct.ToString("F0")%
                                     </td>
                                     <td class="text-center small fw-semibold" style="color:#6c757d"
-                                        title="Suma de saldos por pagar de las órdenes de compra con este rubro (Compromisos)">
+                                        title="Flujo de Caja de este código desde la semana en curso en adelante (por pagar)">
                                         @(comprometido > 0 ? $"{prefijo}{comprometido.ToString("N2", _culturesCO)}" : "—")
                                     </td>
                                     <td class="text-center small fw-semibold" style="color:@(pendiente < 0 ? "#dc3545" : "#183963")">
@@ -520,7 +520,6 @@ else
     private List<Partida> _subPartidas = [];
     private Dictionary<int, Partida> _padresDict = [];
     private List<CategoriaResumen> _resumenCategorias = [];
-    private Dictionary<int, decimal> _saldosOC = [];
 
     private bool _cargando;
     private bool _confirmandoPlantilla;
@@ -562,13 +561,6 @@ else
         _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => OrdenNumero(p.Numero)).ToList();
         _padresDict  = _partidas.Where(p => p.EsPrincipal).ToDictionary(p => p.Id);
 
-        _saldosOC = (await Db.CompromisoCostos.AsNoTracking()
-                .Where(c => c.ProyectoId == ProyectoId && c.PartidaId != null)
-                .Select(c => new { c.PartidaId, c.SaldoPorPagar, c.Moneda })
-                .ToListAsync())
-            .GroupBy(x => x.PartidaId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Moneda == "USD" ? x.SaldoPorPagar * TRM : x.SaldoPorPagar));
-
         CalcularTotales();
         CalcularResumenCategorias();
         _hayCAmbios = false;
@@ -580,11 +572,9 @@ else
     private decimal AUSD(Partida p) => p.MonedaOriginal == "COP" ? p.MontoPresupuestado / TRM : p.MontoPresupuestado;
     private decimal EjecACOP(Partida p) => p.MonedaOriginal == "USD" ? p.ValorEjecutado * TRM : p.ValorEjecutado;
     private decimal EjecAUSD(Partida p) => p.MonedaOriginal == "COP" ? p.ValorEjecutado / TRM : p.ValorEjecutado;
-    // Comprometido = suma de saldos por pagar de las órdenes de compra (Compromisos) por rubro
-    private decimal SaldoOCCOP(Partida p) => _saldosOC.TryGetValue(p.Id, out var s) ? s : 0m;
-    private decimal ComprometidoMO(Partida p) => p.MonedaOriginal == "USD" ? SaldoOCCOP(p) / TRM : SaldoOCCOP(p);
-    private decimal CompACOP(Partida p) => SaldoOCCOP(p);
-    private decimal CompAUSD(Partida p) => SaldoOCCOP(p) / TRM;
+    // Comprometido = flujo de caja desde la semana en curso en adelante (por pagar), en moneda de la partida
+    private decimal ComprometidoMO(Partida p) => p.MontoComprometido;
+    private decimal CompACOP(Partida p) => p.MonedaOriginal == "USD" ? p.MontoComprometido * TRM : p.MontoComprometido;
 
     // Vista por moneda: "COP" = solo actividades en pesos, "USD" = solo en dólares,
     // "AMBAS" = todas, consolidadas en COP (las USD se convierten con la TRM del proyecto)
@@ -762,12 +752,6 @@ else
 
                 if (partida.CantidadPresupuestada <= 0) partida.CantidadPresupuestada = 1;
                 partida.PrecioUnitario = Math.Max(presup.Value, 0) / partida.CantidadPresupuestada;
-
-                if (colComprometido > 0)
-                {
-                    var comprometido = LeerMonto(ws.Cell(row, colComprometido));
-                    if (comprometido is not null) partida.MontoComprometido = Math.Max(comprometido.Value, 0);
-                }
 
                 actualizados++;
             }

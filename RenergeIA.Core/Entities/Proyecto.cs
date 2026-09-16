@@ -27,6 +27,8 @@ public class Proyecto : EntidadBase
     public int AnioInicialHistograma { get; set; } = 2025;
     public DateTime? FechaInicioPagos { get; set; }
     public DateTime? FechaFinPagos { get; set; }
+    public DateTime? FechaCorteTesoreria { get; set; }
+    public string? ArchivoTesoreria { get; set; }
 
     public string? BomAlcance { get; set; }
     public decimal? BomTrm { get; set; }

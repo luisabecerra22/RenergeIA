@@ -16,6 +16,10 @@
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Plantillas\Cronograma_EPC_Template.mpp" LogicalName="Plantilla.CronogramaEPC.mpp" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
