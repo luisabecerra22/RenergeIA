@@ -3,6 +3,9 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject HistogramaService HistSvc
+@inject PersonalHistogramaService PersonalSvc
+@using ClosedXML.Excel
+@using System.Globalization
 @inject IJSRuntime JS
 
 <PageTitle>Histogramas — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
@@ -52,7 +55,7 @@ else
             <select class="form-select form-select-sm" style="width:90px"
                     value="@_proyecto.AnioInicialHistograma"
                     @onchange="CambiarAnioInicialAsync">
-                @for (int a = 2025; a <= 2055; a++)
+                @for (int a = 2020; a <= 2055; a++)
                 {
                     var anio = a;
                     <option value="@anio" selected="@(anio == _proyecto.AnioInicialHistograma)">@anio</option>
@@ -113,7 +116,96 @@ else
         <!-- ══════════════════ SUB-TAB: PLANIFICADO ══════════════════ -->
         @if (_subTab == "Planificado")
         {
-            @if (_plantillaActual is null || !_plantillaActual.Items.Any())
+            @if (_tabActiva == TipoHistograma.Personal)
+            {
+            @if (NominaFueraDeVentana)
+            {
+                <div class="alert alert-warning py-2 small d-flex align-items-center gap-2 flex-wrap mb-3">
+                    <span>⚠ La nómina tiene datos de <strong>@NombreMesLargo(_nomina!.PrimerMes!.Value.Mes) @_nomina.PrimerMes.Value.Anio</strong>
+                    a <strong>@NombreMesLargo(_nomina.UltimoMes!.Value.Mes) @_nomina.UltimoMes.Value.Anio</strong>, fuera del período que estás viendo.</span>
+                    <button class="btn btn-sm fw-semibold py-0" style="background:#183963;color:#fff;border:none" @onclick="IrAPeriodoNominaAsync">Ver ese período</button>
+                </div>
+            }
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <span class="small" style="color:#111921">
+                        Usa los mismos nombres de cargo de la nómina. Importa el personal ofertado desde el BOM y luego ajústalo a mano.
+                    </span>
+                    <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
+                           title="Lee la hoja H PER del BOM y toma el máximo semanal de cada mes">
+                        @if (_leyendoBom)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi-upload me-1"></i>
+                        }
+                        Importar desde BOM (H PER)
+                        <InputFile OnChange="LeerBomAsync" accept=".xlsx,.xlsm" style="display:none" />
+                    </label>
+                </div>
+                @if (!string.IsNullOrEmpty(_bomError))
+                {
+                    <div class="alert alert-danger py-2 small">@_bomError</div>
+                }
+                @if (_bom is not null)
+                {
+                    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+                        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header text-white" style="background:#183963">
+                                    <h6 class="modal-title">Importar personal planificado desde el BOM</h6>
+                                    <button class="btn-close btn-close-white" @onclick="() => _bom = null"></button>
+                                </div>
+                                <div class="modal-body small">
+                                    <p class="mb-2">
+                                        Se encontraron <strong>@_bom.Cargos.Count cargos</strong> con personal en la hoja H PER.
+                                        Cada mes toma el <strong>máximo semanal</strong>. Indica a qué cargo de la nómina corresponde cada uno
+                                        (si lo dejas vacío conserva el nombre del BOM). Las equivalencias quedan recordadas.
+                                    </p>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <label class="fw-semibold mb-0" style="color:#183963">Semana 1 inicia el</label>
+                                        <input type="date" class="form-control form-control-sm" style="width:160px" @bind="_bomFecha" />
+                                        <span class="text-muted">(del BOM: @_bom.FechaInicio?.ToString("dd/MM/yyyy"))</span>
+                                    </div>
+                                    <datalist id="cargos-nomina">
+                                        @foreach (var c in CargosParaAsignar())
+                                        {
+                                            <option value="@c"></option>
+                                        }
+                                    </datalist>
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead style="color:#183963">
+                                            <tr><th>Cargo en el BOM</th><th class="text-center">Semanas</th><th class="text-center">Pico</th><th>Cargo en la nómina</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var cargo in _bom.Cargos)
+                                            {
+                                                <tr>
+                                                    <td>@cargo.Nombre</td>
+                                                    <td class="text-center">@cargo.SemanasConPersonal</td>
+                                                    <td class="text-center fw-semibold">@cargo.Pico.ToString("0.##")</td>
+                                                    <td>
+                                                        <input class="form-control form-control-sm" list="cargos-nomina" placeholder="(igual al BOM)"
+                                                               value="@_bomAsignacion.GetValueOrDefault(cargo.Nombre)"
+                                                               @onchange="e => _bomAsignacion[cargo.Nombre] = e.Value?.ToString()" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="modal-footer">
+                                    <span class="me-auto text-danger small">Reemplaza todo el personal planificado actual.</span>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _bom = null">Cancelar</button>
+                                    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="AplicarBomAsync">Importar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            @if (!_items.Any())
             {
                 <div class="card shadow-sm text-center py-5">
                     <p style="color:#111921" class="mb-1">
@@ -257,7 +349,7 @@ else
                                         <td><input type="number" class="form-control form-control-sm text-center" @bind="item.Mes11" min="0" style="width:58px" /></td>
                                         <td><input type="number" class="form-control form-control-sm text-center" @bind="item.Mes12" min="0" style="width:58px" /></td>
                                         <td class="text-center fw-bold">@total</td>
-                                        <td><button class="btn btn-sm btn-outline-danger" @onclick="() => _items.Remove(item)">✕</button></td>
+                                        <td><button class="btn btn-sm btn-outline-danger" @onclick="() => QuitarFilaPlan(item)">✕</button></td>
                                     </tr>
                                 }
                                 <tr class="table-light fw-bold">
@@ -279,7 +371,139 @@ else
         }
 
         <!-- ══════════════════ SUB-TAB: REAL ══════════════════ -->
-        @if (_subTab == "Real")
+        @if (_subTab == "Real" && _tabActiva == TipoHistograma.Personal)
+        {
+            @if (NominaFueraDeVentana)
+            {
+                <div class="alert alert-warning py-2 small d-flex align-items-center gap-2 flex-wrap mb-3">
+                    <span>⚠ La nómina tiene datos de <strong>@NombreMesLargo(_nomina!.PrimerMes!.Value.Mes) @_nomina.PrimerMes.Value.Anio</strong>
+                    a <strong>@NombreMesLargo(_nomina.UltimoMes!.Value.Mes) @_nomina.UltimoMes.Value.Anio</strong>, fuera del período que estás viendo.</span>
+                    <button class="btn btn-sm fw-semibold py-0" style="background:#183963;color:#fff;border:none" @onclick="IrAPeriodoNominaAsync">Ver ese período</button>
+                </div>
+            }
+            <div class="alert py-2 small mb-3" style="background:#eef1f6;color:#183963;border:none">
+                <i class="bi-info-circle me-1"></i>
+                Se calcula desde la <strong>nómina de tesorería</strong> (Costos → Compromisos → Salarios): personas distintas por cargo y mes;
+                la I y II quincena del mismo mes cuentan una sola vez. No incluye primas, seguridad social ni liquidaciones.
+                @if (_nomina?.UltimoMes is { } um)
+                {
+                    <span>Última nómina: <strong>@NombreMesLargo(um.Mes) @um.Anio</strong>.</span>
+                }
+                Puedes ajustar una celda: queda en <span style="color:#b35900;font-weight:600">naranja</span> y se conserva al volver a importar.
+            </div>
+
+            @if (_nomina is { Pendientes.Count: > 0 })
+            {
+                <div class="card mb-3" style="border:1px solid #fd7e14">
+                    <div class="card-header py-2 fw-semibold small" style="background:#fff3e0;color:#b35900">
+                        ⚠ @_nomina.Pendientes.Count posible(s) nombre(s) repetido(s) — ¿es la misma persona? Mientras no confirmes, se cuentan como personas distintas.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 small align-middle">
+                            <tbody>
+                                @foreach (var par in _nomina.Pendientes)
+                                {
+                                    <tr>
+                                        <td><strong>@par.A</strong><div class="text-muted" style="font-size:.7rem">@par.CargosA</div></td>
+                                        <td class="text-center text-muted">≈</td>
+                                        <td><strong>@par.B</strong><div class="text-muted" style="font-size:.7rem">@par.CargosB</div></td>
+                                        <td class="text-end text-nowrap">
+                                            <button class="btn btn-sm py-0 me-1" style="background:#6ABF4B;color:#fff;border:none" @onclick="() => DecidirParAsync(par, true)">Sí, unificar</button>
+                                            <button class="btn btn-sm btn-outline-secondary py-0" @onclick="() => DecidirParAsync(par, false)">No, son distintas</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Distribución mensual — Personal Real</strong>
+                    <button class="btn btn-sm btn-primary" @onclick="GuardarRealAsync">Guardar cambios</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Cargo</th>
+                                @for (int pos = 1; pos <= 12; pos++)
+                                {
+                                    var p = pos;
+                                    var esHoyTh = EsPosicionActual(p);
+                                    <th class="text-center" style="width:70px;@(esHoyTh ? "background:#4a6741 !important" : "")">
+                                        @NombreMesCorto(MesEnPosicion(p))<br>
+                                        <span style="font-size:0.65em;font-weight:400;opacity:0.85">@AnoEnPosicion(p)</span>
+                                    </th>
+                                }
+                                <th class="text-center">Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!_itemsReal.Any())
+                            {
+                                <tr><td colspan="15" class="text-center text-muted py-4">No hay nómina cargada. Importa el archivo de tesorería en Costos → Compromisos.</td></tr>
+                            }
+                            @foreach (var item in _itemsReal)
+                            {
+                                var deNomina = EsCargoNomina(item);
+                                <tr>
+                                    <td>
+                                        @if (deNomina)
+                                        {
+                                            <span class="fw-semibold" style="color:#183963;white-space:nowrap">@item.Nombre</span>
+                                        }
+                                        else
+                                        {
+                                            <input class="form-control form-control-sm" @bind="item.Nombre" style="min-width:160px" title="Fila manual (no viene de la nómina)" />
+                                        }
+                                    </td>
+                                    @for (int pos = 1; pos <= 12; pos++)
+                                    {
+                                        var p = pos;
+                                        var auto = AutoReal(item, p);
+                                        var valor = ValorMesReal(item, p);
+                                        var manual = valor != auto;
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm text-center" min="0"
+                                                   style="width:58px;@(manual ? "border:2px solid #fd7e14;background:#fff3e0" : "")"
+                                                   title="@(manual ? $"Ajuste manual · según nómina: {auto:0.##}" : "Según nómina")"
+                                                   value="@valor.ToString("0.##", CultureInfo.InvariantCulture)"
+                                                   @onchange="e => CambiarReal(item, p, e.Value)" />
+                                        </td>
+                                    }
+                                    <td class="text-center fw-bold">@ValoresTotalesReal(item).ToString("0.##")</td>
+                                    <td>
+                                        @if (!deNomina)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => QuitarFilaReal(item)">✕</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            <tr class="table-light fw-bold">
+                                <td title="Personas distintas del mes: quien tuvo dos cargos cuenta una sola vez">TOTAL PERSONAS</td>
+                                @for (int pos = 1; pos <= 12; pos++)
+                                {
+                                    var p = pos;
+                                    <td class="text-center">@RealTotalMes(p).ToString("0.##")</td>
+                                }
+                                <td></td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="AgregarFilaReal">+ Agregar fila manual</button>
+                    <small class="text-muted ms-2">Para personal que no pasa por nómina (por ejemplo, de un contratista).</small>
+                </div>
+            </div>
+        }
+        @if (_subTab == "Real" && _tabActiva != TipoHistograma.Personal)
         {
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <span style="color:#111921;font-size:0.9rem">
@@ -470,6 +694,58 @@ else
                         </table>
                     </div>
                 </div>
+
+                @if (_tabActiva == TipoHistograma.Personal)
+                {
+                    <div class="card shadow-sm mt-4">
+                        <div class="card-header">
+                            <strong>Comparativo por cargo</strong>
+                            <small style="color:#111921;font-size:0.75rem;margin-left:8px">Real / Planificado · Rojo = más personal que lo planificado · Verde = menos</small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Cargo</th>
+                                        @for (int pos = 1; pos <= 12; pos++)
+                                        {
+                                            var p = pos;
+                                            <th class="text-center">@EtiquetaGrafica(p)</th>
+                                        }
+                                        <th class="text-center">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var cargo in CargosComparativo())
+                                    {
+                                        <tr>
+                                            <td class="fw-semibold" style="white-space:nowrap">@cargo</td>
+                                            @for (int pos = 1; pos <= 12; pos++)
+                                            {
+                                                var p = pos;
+                                                var pl = PlanDe(cargo, p);
+                                                var re = RealDe(cargo, p);
+                                                <td class="text-center" style="color:@ColorDif(re - pl)" title="Planificado @pl.ToString("0.##") · Real @re.ToString("0.##")">
+                                                    @if (pl == 0 && re == 0)
+                                                    {
+                                                        <span class="text-muted">·</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="fw-bold">@re.ToString("0.##")</span><span style="opacity:.6"> / @pl.ToString("0.##")</span>
+                                                    }
+                                                </td>
+                                            }
+                                            <td class="text-center fw-bold" style="color:@ColorDif(Enumerable.Range(1, 12).Sum(p => RealDe(cargo, p) - PlanDe(cargo, p)))">
+                                                @Enumerable.Range(1, 12).Sum(p => RealDe(cargo, p)).ToString("0.##") / @Enumerable.Range(1, 12).Sum(p => PlanDe(cargo, p)).ToString("0.##")
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
             }
         }
 
@@ -500,6 +776,24 @@ else
     private ComparativoHistogramaVM? _comparativo;
 
     private string? _mensajeGuardado;
+
+    // Personal (modelo por mes calendario)
+    private List<PersonalHistogramaMes> _filasPlan = [];
+    private List<PersonalHistogramaMes> _filasReal = [];
+    private PersonalHistogramaService.Nomina? _nomina;
+    private readonly Dictionary<ItemHistograma, string> _origenPlan = [];
+    private readonly List<string> _eliminadosPlan = [];
+    private readonly List<string> _eliminadosReal = [];
+    private readonly Dictionary<(string Cargo, int Pos), decimal> _autoReal = [];
+    private readonly HashSet<string> _cargosNomina = [];
+
+    // Importar BOM
+    private PersonalHistogramaService.ResultadoBom? _bom;
+    private DateTime _bomFecha = DateTime.Today;
+    private Dictionary<string, string?> _bomAsignacion = [];
+    private string? _bomError;
+    private bool _leyendoBom;
+
     private bool _necesitaDibujar;
     private bool _necesitaDibujarComparativo;
 
@@ -577,8 +871,8 @@ else
     {
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         // Garantizar valores válidos si el campo nuevo llega en 0
-        if (_proyecto is not null && _proyecto.AnioInicialHistograma < 2025)
-            _proyecto.AnioInicialHistograma = 2025;
+        if (_proyecto is not null && _proyecto.AnioInicialHistograma < 2020)
+            _proyecto.AnioInicialHistograma = 2020;
         await CargarTabAsync();
     }
 
@@ -607,6 +901,7 @@ else
         var p = await Db.Proyectos.FindAsync(ProyectoId);
         if (p is not null) { p.MesInicialHistograma = mes; await Db.SaveChangesAsync(); }
 
+        if (_tabActiva == TipoHistograma.Personal) { await CargarTabAsync(); return; }
         if (_subTab == "Planificado") _necesitaDibujar = _items.Any();
         if (_subTab == "Comparativo") await CargarComparativoAsync();
     }
@@ -620,6 +915,7 @@ else
         var p = await Db.Proyectos.FindAsync(ProyectoId);
         if (p is not null) { p.AnioInicialHistograma = anio; await Db.SaveChangesAsync(); }
 
+        if (_tabActiva == TipoHistograma.Personal) { await CargarTabAsync(); return; }
         if (_subTab == "Planificado") _necesitaDibujar = _items.Any();
         if (_subTab == "Comparativo") await CargarComparativoAsync();
     }
@@ -643,16 +939,20 @@ else
 
     private async Task CargarTabAsync()
     {
+        if (_tabActiva == TipoHistograma.Personal && _proyecto is not null)
+        {
+            await PersonalSvc.AsegurarMigracionAsync(_proyecto);
+            _nomina = await PersonalSvc.RecalcularRealAsync(ProyectoId);
+            _filasPlan = await PersonalSvc.ObtenerFilasAsync(ProyectoId, PersonalHistogramaService.Planificado);
+            _filasReal = await PersonalSvc.ObtenerFilasAsync(ProyectoId, PersonalHistogramaService.Real);
+            ConstruirVentanasPersonal();
+            if (_subTab == "Comparativo") await CargarComparativoAsync();
+            else if (_subTab == "Planificado") _necesitaDibujar = _items.Any();
+            return;
+        }
+
         _plantillaActual = await HistSvc.ObtenerAsync(ProyectoId, _tabActiva);
         _items = _plantillaActual?.Items.ToList() ?? [];
-
-        if (_tabActiva == TipoHistograma.Personal)
-            _itemsPersonal = [.._items];
-        else if (!_itemsPersonal.Any())
-        {
-            var pP = await HistSvc.ObtenerAsync(ProyectoId, TipoHistograma.Personal);
-            _itemsPersonal = pP?.Items.ToList() ?? [];
-        }
 
         if (_subTab == "Real")             await CargarRealAsync();
         else if (_subTab == "Comparativo") await CargarComparativoAsync();
@@ -661,12 +961,20 @@ else
 
     private async Task CargarRealAsync()
     {
+        if (_tabActiva == TipoHistograma.Personal) return; // ya construido en CargarTabAsync
         _histogramaReal = await HistSvc.ObtenerRealAsync(ProyectoId, _tabActiva);
         _itemsReal = _histogramaReal?.Items.ToList() ?? [];
     }
 
     private async Task CargarComparativoAsync()
     {
+        if (_tabActiva == TipoHistograma.Personal)
+        {
+            var totales = Enumerable.Range(1, 12).Select(RealTotalMes).ToArray();
+            _comparativo = HistogramaService.Comparar(_items, _itemsReal, _proyecto!.MesInicialHistograma, _proyecto.AnioInicialHistograma, totales);
+            _necesitaDibujarComparativo = true;
+            return;
+        }
         _comparativo = await HistSvc.ObtenerComparativoAsync(
             ProyectoId, _tabActiva,
             _proyecto!.MesInicialHistograma,
@@ -680,21 +988,27 @@ else
         var itemsP = HistogramaService.PlantillaPersonalPorCapacidad(_proyecto.CapacidadKWp);
         var itemsE = HistogramaService.PlantillaEquiposPorCapacidad(_proyecto.CapacidadKWp);
 
-        await HistSvc.CrearOActualizarAsync(ProyectoId, TipoHistograma.Personal, itemsP);
+        await PersonalSvc.AsegurarMigracionAsync(_proyecto);
+        await PersonalSvc.ReemplazarPlanificadoConPlantillaAsync(ProyectoId, _proyecto.MesInicialHistograma, _proyecto.AnioInicialHistograma, itemsP);
         await HistSvc.CrearOActualizarAsync(ProyectoId, TipoHistograma.Equipos, itemsE);
 
         await CargarTabAsync();
-        if (_tabActiva != TipoHistograma.Personal)
-        {
-            var pP = await HistSvc.ObtenerAsync(ProyectoId, TipoHistograma.Personal);
-            _itemsPersonal = pP?.Items.ToList() ?? [];
-        }
 
         _mensajeGuardado = $"Plantilla {HistogramaService.NombrePlantilla(_proyecto.CapacidadKWp)} cargada exitosamente.";
     }
 
     private async Task GuardarPlanificadoAsync()
     {
+        if (_tabActiva == TipoHistograma.Personal)
+        {
+            var renombres = _origenPlan.Where(o => _items.Contains(o.Key) && !string.Equals(o.Key.Nombre.Trim(), o.Value, StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(o => o.Value, o => o.Key.Nombre.Trim());
+            await PersonalSvc.GuardarPlanificadoAsync(ProyectoId, _proyecto!.MesInicialHistograma, _proyecto.AnioInicialHistograma,
+                _items.Select(i => (i.Nombre, HistogramaService.ValoresMes(i))).ToList(), renombres, _eliminadosPlan);
+            await CargarTabAsync();
+            _mensajeGuardado = "Histograma planificado de personal guardado.";
+            return;
+        }
         await HistSvc.CrearOActualizarAsync(ProyectoId, _tabActiva, _items);
         await CargarTabAsync();
         _mensajeGuardado = "Histograma planificado guardado.";
@@ -702,6 +1016,14 @@ else
 
     private async Task GuardarRealAsync()
     {
+        if (_tabActiva == TipoHistograma.Personal)
+        {
+            await PersonalSvc.GuardarRealAsync(ProyectoId, _proyecto!.MesInicialHistograma, _proyecto.AnioInicialHistograma,
+                _itemsReal.Select(i => (i.Nombre, ValoresReal(i))).ToList(), _eliminadosReal);
+            await CargarTabAsync();
+            _mensajeGuardado = "Histograma real de personal guardado. Las celdas distintas a la nómina quedan como ajuste manual.";
+            return;
+        }
         await HistSvc.CrearOActualizarRealAsync(ProyectoId, _tabActiva, _itemsReal);
         await CargarRealAsync();
         _mensajeGuardado = "Histograma real guardado.";
@@ -719,6 +1041,211 @@ else
         var existentes = _itemsReal.Select(i => i.Nombre).ToHashSet();
         foreach (var item in _items.Where(i => !existentes.Contains(i.Nombre)))
             _itemsReal.Add(new ItemHistogramaReal { Nombre = item.Nombre });
+    }
+
+    // ── Personal: ventana de 12 meses sobre el modelo por mes ─────────────────
+
+    private static string ClaveCargo(string cargo) => PersonalHistogramaService.NormalizarNombre(cargo);
+
+    private void ConstruirVentanasPersonal()
+    {
+        var ventana = Enumerable.Range(1, 12)
+            .Select(p => PersonalHistogramaService.MesDeVentana(_proyecto!.MesInicialHistograma, _proyecto.AnioInicialHistograma, p))
+            .ToArray();
+
+        _cargosNomina.Clear();
+        foreach (var k in _nomina?.PorCargo.Keys ?? Enumerable.Empty<(string Cargo, int Anio, int Mes)>())
+            _cargosNomina.Add(ClaveCargo(k.Cargo));
+
+        _autoReal.Clear();
+        _eliminadosReal.Clear();
+        _itemsReal = _filasReal.GroupBy(f => ClaveCargo(f.Cargo)).OrderBy(g => g.First().Cargo)
+            .Select(g =>
+            {
+                var item = new ItemHistogramaReal { Nombre = g.First().Cargo };
+                for (int pos = 1; pos <= 12; pos++)
+                {
+                    var (anio, mes) = ventana[pos - 1];
+                    var fila = g.FirstOrDefault(f => f.Anio == anio && f.Mes == mes);
+                    SetMesReal(item, pos, Limpio(fila?.Cantidad ?? 0));
+                    _autoReal[(g.Key, pos)] = fila?.CantidadNomina ?? 0;
+                }
+                return item;
+            }).ToList();
+
+        _origenPlan.Clear();
+        _eliminadosPlan.Clear();
+        var cargosPlan = _filasPlan.GroupBy(f => ClaveCargo(f.Cargo)).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var real in _itemsReal.Where(r => !cargosPlan.ContainsKey(ClaveCargo(r.Nombre))))
+            cargosPlan[ClaveCargo(real.Nombre)] = []; // cargos nuevos de la nómina aparecen en 0 para completar
+        _items = cargosPlan
+            .Select(kv =>
+            {
+                var nombre = kv.Value.FirstOrDefault()?.Cargo ?? _itemsReal.First(r => ClaveCargo(r.Nombre) == kv.Key).Nombre;
+                var item = new ItemHistograma { Nombre = nombre };
+                for (int pos = 1; pos <= 12; pos++)
+                {
+                    var (anio, mes) = ventana[pos - 1];
+                    SetMesPlan(item, pos, Limpio(kv.Value.FirstOrDefault(f => f.Anio == anio && f.Mes == mes)?.Cantidad ?? 0));
+                }
+                if (kv.Value.Count > 0) _origenPlan[item] = nombre;
+                return item;
+            })
+            .OrderBy(i => i.Nombre).ToList();
+        _itemsPersonal = [.. _items];
+    }
+
+    // La ventana de 12 meses no incluye ningún mes con nómina
+    private bool NominaFueraDeVentana =>
+        _proyecto is not null && _nomina?.PrimerMes is not null && _nomina.UltimoMes is not null &&
+        !Enumerable.Range(1, 12)
+            .Select(p => PersonalHistogramaService.MesDeVentana(_proyecto.MesInicialHistograma, _proyecto.AnioInicialHistograma, p))
+            .Any(m => _nomina.TotalDistintos.ContainsKey(m));
+
+    private async Task IrAPeriodoNominaAsync()
+    {
+        if (_proyecto is null || _nomina?.PrimerMes is not { } primero) return;
+        var p = await Db.Proyectos.FindAsync(ProyectoId);
+        if (p is not null)
+        {
+            p.MesInicialHistograma = primero.Mes;
+            p.AnioInicialHistograma = primero.Anio;
+            await Db.SaveChangesAsync();
+        }
+        _proyecto.MesInicialHistograma = primero.Mes;
+        _proyecto.AnioInicialHistograma = primero.Anio;
+        await CargarTabAsync();
+    }
+
+    // 1.00 → 1 (evita que las celdas muestren "1,00" cortado)
+    private static decimal Limpio(decimal v) => decimal.Parse(v.ToString("0.##", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+
+    private bool EsCargoNomina(ItemHistogramaReal item) => _cargosNomina.Contains(ClaveCargo(item.Nombre));
+    private decimal AutoReal(ItemHistogramaReal item, int pos) => _autoReal.GetValueOrDefault((ClaveCargo(item.Nombre), pos));
+
+    // Total del mes = personas distintas de la nómina + ajustes manuales (diferencia contra la nómina)
+    private decimal RealTotalMes(int pos)
+    {
+        if (_proyecto is null) return 0;
+        var (anio, mes) = PersonalHistogramaService.MesDeVentana(_proyecto.MesInicialHistograma, _proyecto.AnioInicialHistograma, pos);
+        decimal distintos = _nomina?.TotalDistintos.GetValueOrDefault((anio, mes)) ?? 0;
+        return distintos + _itemsReal.Sum(i => ValorMesReal(i, pos) - AutoReal(i, pos));
+    }
+
+    private void CambiarReal(ItemHistogramaReal item, int pos, object? valor)
+    {
+        if (decimal.TryParse(valor?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var v) && v >= 0)
+            SetMesReal(item, pos, v);
+    }
+
+    private void QuitarFilaPlan(ItemHistograma item)
+    {
+        if (_origenPlan.TryGetValue(item, out var original)) _eliminadosPlan.Add(original);
+        _items.Remove(item);
+    }
+
+    private void QuitarFilaReal(ItemHistogramaReal item)
+    {
+        _eliminadosReal.Add(item.Nombre);
+        _itemsReal.Remove(item);
+    }
+
+    private async Task DecidirParAsync(PersonalHistogramaService.ParNombres par, bool misma)
+    {
+        await PersonalSvc.DecidirParAsync(ProyectoId, par.A, par.B, misma);
+        await CargarTabAsync();
+        _mensajeGuardado = misma ? $"Unificado: {par.A} y {par.B} cuentan como una sola persona." : $"Registrado: {par.A} y {par.B} son personas distintas.";
+    }
+
+    private IEnumerable<string> CargosParaAsignar() =>
+        _itemsReal.Select(i => i.Nombre).Concat(_items.Select(i => i.Nombre))
+            .GroupBy(ClaveCargo).Select(g => g.First()).OrderBy(n => n);
+
+    private IEnumerable<string> CargosComparativo() =>
+        _items.Select(i => i.Nombre).Concat(_itemsReal.Select(i => i.Nombre))
+            .GroupBy(ClaveCargo).Select(g => g.First())
+            .Where(c => Enumerable.Range(1, 12).Any(p => PlanDe(c, p) != 0 || RealDe(c, p) != 0))
+            .OrderBy(n => n);
+
+    private decimal PlanDe(string cargo, int pos) =>
+        _items.Where(i => ClaveCargo(i.Nombre) == ClaveCargo(cargo)).Sum(i => ValorMes(i, pos));
+    private decimal RealDe(string cargo, int pos) =>
+        _itemsReal.Where(i => ClaveCargo(i.Nombre) == ClaveCargo(cargo)).Sum(i => ValorMesReal(i, pos));
+    private static string ColorDif(decimal dif) => dif > 0 ? "#dc3545" : dif < 0 ? "#5aa83e" : "#111921";
+
+    private async Task LeerBomAsync(InputFileChangeEventArgs e)
+    {
+        _bomError = null;
+        _leyendoBom = true;
+        StateHasChanged();
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 60 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            using var wb = new XLWorkbook(ms);
+            var bom = PersonalHistogramaService.LeerHPer(wb);
+            if (bom.Cargos.Count == 0)
+            {
+                _bomError = "La hoja H PER no tiene cargos con personal planificado.";
+                return;
+            }
+            var equivalencias = await PersonalSvc.EquivalenciasCargoBomAsync(ProyectoId);
+            _bomAsignacion = bom.Cargos.ToDictionary(c => c.Nombre,
+                c => equivalencias.TryGetValue(PersonalHistogramaService.ClaveCargoBom(c.Nombre), out var v) ? v : null);
+            _bomFecha = bom.FechaInicio ?? DateTime.Today;
+            _bom = bom;
+        }
+        catch (Exception ex)
+        {
+            _bomError = $"No se pudo leer el BOM: {ex.Message}";
+        }
+        finally
+        {
+            _leyendoBom = false;
+        }
+    }
+
+    private async Task AplicarBomAsync()
+    {
+        if (_bom is null || _proyecto is null) return;
+        var meses = await PersonalSvc.ImportarBomAsync(ProyectoId, _bom, _bomFecha, _bomAsignacion);
+        _bom = null;
+
+        // Ubicar la ventana de 12 meses en el primer mes planificado
+        var primero = (await PersonalSvc.ObtenerFilasAsync(ProyectoId, PersonalHistogramaService.Planificado))
+            .OrderBy(f => f.Anio).ThenBy(f => f.Mes).FirstOrDefault();
+        if (primero is not null)
+        {
+            _proyecto.MesInicialHistograma = primero.Mes;
+            _proyecto.AnioInicialHistograma = primero.Anio;
+            await Db.SaveChangesAsync();
+        }
+        await CargarTabAsync();
+        _mensajeGuardado = $"Personal planificado importado desde el BOM ({meses} valores cargo-mes). Puedes ajustarlo y guardar.";
+    }
+
+    private static decimal[] ValoresReal(ItemHistogramaReal i) =>
+        [i.Mes1, i.Mes2, i.Mes3, i.Mes4, i.Mes5, i.Mes6, i.Mes7, i.Mes8, i.Mes9, i.Mes10, i.Mes11, i.Mes12];
+
+    private static void SetMesPlan(ItemHistograma i, int pos, decimal v)
+    {
+        switch (pos)
+        {
+            case 1: i.Mes1 = v; break; case 2: i.Mes2 = v; break; case 3: i.Mes3 = v; break; case 4: i.Mes4 = v; break;
+            case 5: i.Mes5 = v; break; case 6: i.Mes6 = v; break; case 7: i.Mes7 = v; break; case 8: i.Mes8 = v; break;
+            case 9: i.Mes9 = v; break; case 10: i.Mes10 = v; break; case 11: i.Mes11 = v; break; case 12: i.Mes12 = v; break;
+        }
+    }
+
+    private static void SetMesReal(ItemHistogramaReal i, int pos, decimal v)
+    {
+        switch (pos)
+        {
+            case 1: i.Mes1 = v; break; case 2: i.Mes2 = v; break; case 3: i.Mes3 = v; break; case 4: i.Mes4 = v; break;
+            case 5: i.Mes5 = v; break; case 6: i.Mes6 = v; break; case 7: i.Mes7 = v; break; case 8: i.Mes8 = v; break;
+            case 9: i.Mes9 = v; break; case 10: i.Mes10 = v; break; case 11: i.Mes11 = v; break; case 12: i.Mes12 = v; break;
+        }
     }
 
     // ── Gráficas ───────────────────────────────────────────────────────────────

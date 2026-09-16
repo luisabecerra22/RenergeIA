@@ -378,11 +378,16 @@ else
                                         @pct.ToString("F0")%
                                     </td>
                                     <td class="text-center small fw-semibold" style="color:#6c757d"
-                                        title="Flujo de Caja de este código desde la semana en curso en adelante (por pagar)">
+                                        title="Flujo de Caja de este código desde la semana en curso en adelante (por pagar), sin las OC sin consecutivo (XXX)">
                                         @(comprometido > 0 ? $"{prefijo}{comprometido.ToString("N2", _culturesCO)}" : "—")
                                     </td>
-                                    <td class="text-center small fw-semibold" style="color:@(pendiente < 0 ? "#dc3545" : "#183963")">
+                                    <td class="text-center small fw-semibold" style="color:@(pendiente < 0 ? "#dc3545" : "#183963")"
+                                        title="@(SinOC(p) > 0 ? $"Incluye {prefijo}{SinOC(p).ToString("N2", _culturesCO)} de OC sin consecutivo (XXX): valor presupuestado, aún no comprometido" : "Presupuesto − Ejecutado − Comprometido")">
                                         @prefijo@pendiente.ToString("N2", _culturesCO)
+                                        @if (SinOC(p) > 0)
+                                        {
+                                            <i class="bi-info-circle ms-1" style="color:#fd7e14;font-size:0.65rem"></i>
+                                        }
                                     </td>
                                     <td class="text-center">
                                         <span class="badge"
@@ -517,6 +522,8 @@ else
 
     private Proyecto? _proyecto;
     private List<Partida> _partidas = [];
+    private Dictionary<(string Codigo, string Moneda), decimal> _sinOC = [];
+    private decimal SinOC(Partida p) => _sinOC.GetValueOrDefault((p.Codigo.ToUpperInvariant(), p.MonedaOriginal == "USD" ? "USD" : "COP"));
     private List<Partida> _subPartidas = [];
     private Dictionary<int, Partida> _padresDict = [];
     private List<CategoriaResumen> _resumenCategorias = [];
@@ -557,6 +564,7 @@ else
     private async Task CargarAsync()
     {
         await CostoSvc.SincronizarEjecutadoDesdeFlujoAsync(ProyectoId);
+        _sinOC       = await CostoSvc.PresupuestadoSinOCAsync(ProyectoId);
         _partidas    = await CostoSvc.ObtenerPartidasConCostosAsync(ProyectoId);
         _subPartidas = _partidas.Where(p => !p.EsPrincipal).OrderBy(p => OrdenNumero(p.Numero)).ToList();
         _padresDict  = _partidas.Where(p => p.EsPrincipal).ToDictionary(p => p.Id);

@@ -30,6 +30,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<MapeoCodigoTesoreria> MapeosCodigoTesoreria => Set<MapeoCodigoTesoreria>();
     public DbSet<HitoCompromiso> HitosCompromiso => Set<HitoCompromiso>();
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
+    public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -227,6 +228,18 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(a => a.Clave).HasMaxLength(600);
             e.Property(a => a.Valor).HasMaxLength(100);
             e.HasIndex(a => new { a.ProyectoId, a.Tipo, a.Clave }).IsUnique();
+        });
+
+        // PersonalHistogramaMes
+        modelBuilder.Entity<PersonalHistogramaMes>(e =>
+        {
+            e.ToTable("PersonalHistogramaMeses");
+            e.Property(x => x.Tipo).HasMaxLength(20);
+            e.Property(x => x.Cargo).HasMaxLength(150);
+            e.Property(x => x.Cantidad).HasColumnType("decimal(10,2)");
+            e.Property(x => x.CantidadNomina).HasColumnType("decimal(10,2)");
+            e.HasIndex(x => new { x.ProyectoId, x.Tipo, x.Anio, x.Mes });
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // MapeoCodigoTesoreria

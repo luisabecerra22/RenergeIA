@@ -9,7 +9,7 @@ using RenergeIA.Infrastructure.Data;
 namespace RenergeIA.Web.Services;
 
 // Importación única del Forecast Control de tesorería: actualiza Flujo de Caja y Compromisos a la vez
-public partial class TesoreriaImportService(RenergeIADbContext db, CostoService costoSvc)
+public partial class TesoreriaImportService(RenergeIADbContext db, CostoService costoSvc, PersonalHistogramaService personalSvc)
 {
     public sealed record VistaPrevia(
         string Archivo,
@@ -78,6 +78,7 @@ public partial class TesoreriaImportService(RenergeIADbContext db, CostoService 
         }
 
         await costoSvc.SincronizarEjecutadoDesdeFlujoAsync(proyectoId);
+        await personalSvc.RecalcularRealAsync(proyectoId); // histograma Real de personal sale de la nómina
         return new Resultado(valores, noMapeados, nuevas, actualizadas, enProceso, sinCodigo, sinRubro);
     }
 

@@ -5,7 +5,7 @@ using ClosedXML.Excel;
 namespace RenergeIA.Web.Services;
 
 // Lee del Forecast Control de tesorería las órdenes de compra con sus hitos y las secciones
-// visuales (Salarios, Impuestos DIAN, Proyectado). Columnas: A código, B proveedor, C descripción,
+// visuales (Salarios, Proyectado). Los pagos de impuestos DIAN se omiten (definido por la usuaria). Columnas: A código, B proveedor, C descripción,
 // D número OC / documento, E aprobado (fila OC) o fecha (hito), F subtotal, G IVA, H importe
 // (facturado en la fila OC), I retefuente, J ret ICA, K total a pagar (verde = pagado).
 public static partial class TesoreriaCompromisosParser
@@ -44,7 +44,7 @@ public static partial class TesoreriaCompromisosParser
         string modo = "";
         string? periodo = null;
         string? ultimoMes = null;
-        string? subDian = null;
+        string? cargoDefecto = null;
         Bloque? oc = null;
         var conteoXXX = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -74,7 +74,7 @@ public static partial class TesoreriaCompromisosParser
 
             if (b.StartsWith("SALARIOS / MANO DE OBRA", StringComparison.OrdinalIgnoreCase)) { modo = "Salarios"; oc = null; periodo = null; ultimoMes = null; continue; }
             if (b.StartsWith("OTROS COSTOS", StringComparison.OrdinalIgnoreCase)) { modo = "OC"; oc = null; continue; }
-            if (b.StartsWith("DIAN", StringComparison.OrdinalIgnoreCase) && a.Length == 0 && c.Length == 0) { modo = "Impuestos"; subDian = b; oc = null; continue; }
+            if (b.StartsWith("DIAN", StringComparison.OrdinalIgnoreCase) && a.Length == 0 && c.Length == 0) { modo = "Impuestos"; oc = null; continue; } // sección DIAN: se ignora
             if (b.StartsWith("PROYECTADO - ", StringComparison.OrdinalIgnoreCase)) { modo = "Proyectado"; oc = null; periodo = null; continue; }
 
             switch (modo)
@@ -116,21 +116,27 @@ public static partial class TesoreriaCompromisosParser
                     {
                         if (b.Length > 0) ultimoMes = b;
                         periodo = string.IsNullOrEmpty(ultimoMes) ? c : $"{ultimoMes} · {c}";
+                        cargoDefecto = null;
+                        continue;
+                    }
+                    // Bloques sin columna de cargo: planillas de seguridad social y liquidaciones
+                    if (a.Length == 0 && b.Equals("Seguridad Social", StringComparison.OrdinalIgnoreCase))
+                    {
+                        periodo = "Seguridad social"; cargoDefecto = "Planillas seguridad social";
+                        continue;
+                    }
+                    if (a.Length == 0 && b.Equals("Liquidaciones", StringComparison.OrdinalIgnoreCase))
+                    {
+                        periodo = "Liquidaciones"; cargoDefecto = "Liquidaciones";
                         continue;
                     }
                     var importe = Num(ws.Cell(r, 8));
                     if (c.Length == 0 || importe == 0) continue;
-                    var e = Texto(ws.Cell(r, 5));
-                    var detalle = string.Join(" · ", new[] { d, e }.Where(x => x.Length > 0));
-                    Grupo("Salarios", "Salarios y mano de obra").Hitos.Add(LeerHito(ws, r, periodo, a, c, detalle, null));
-                    break;
-                }
-                case "Impuestos":
-                {
-                    if (c.Length == 0 || d.Length == 0) continue;
-                    if (Num(ws.Cell(r, 8)) == 0 && Num(ws.Cell(r, 11)) == 0) continue;
-                    var detalle = string.Join(" ", new[] { d, Texto(ws.Cell(r, 5)) }.Where(x => x.Length > 0));
-                    Grupo("Impuestos", "Pagos de impuestos").Hitos.Add(LeerHito(ws, r, subDian, a, c, detalle, null));
+                    // Detalle = cargo (columna D); encabezados o errores en D toman el cargo del bloque
+                    var cargo = d.Length == 0 || d.StartsWith('#') || d.Equals("Fecha de Retiro", StringComparison.OrdinalIgnoreCase)
+                        ? cargoDefecto ?? "Sin cargo"
+                        : d;
+                    Grupo("Salarios", "Salarios y mano de obra").Hitos.Add(LeerHito(ws, r, periodo, a, c, cargo, null));
                     break;
                 }
                 case "Proyectado":

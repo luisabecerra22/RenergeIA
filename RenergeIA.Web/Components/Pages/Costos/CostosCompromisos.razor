@@ -6,13 +6,51 @@
 @using ClosedXML.Excel
 @using System.ComponentModel.DataAnnotations
 
-<!-- KPIs (solo órdenes de compra) -->
-<SeccionDash Titulo="Resumen de Órdenes de Compra" Icono="bi-file-earmark-text">
+<!-- Pestañas: órdenes de compra | proyectado (sin OC) -->
+<div class="rn-section">
+    <div class="rn-section-header gap-2">
+        <button class="btn btn-sm fw-semibold text-uppercase px-3 py-1"
+                style="font-size:.78rem;letter-spacing:.03em;@EstiloPestana("OC")" @onclick='() => _vista = "OC"'>
+            <i class="bi-file-earmark-text me-1"></i>Resumen de Órdenes de Compra
+        </button>
+        <button class="btn btn-sm fw-semibold text-uppercase px-3 py-1"
+                style="font-size:.78rem;letter-spacing:.03em;@EstiloPestana("Proyectado")" @onclick='() => _vista = "Proyectado"'>
+            <i class="bi-calendar2-range me-1"></i>Proyectado
+        </button>
+    </div>
+@if (_vista == "Proyectado")
+{
+    var proy = _compromisos.Where(c => c.Grupo == "Proyectado").SelectMany(c => c.Hitos.Select(h => (c, h))).ToList();
+    <div class="row row-cols-2 row-cols-md-3 g-3 mb-3">
+        @TarjetaDual("Total proyectado", "Costos futuros sin orden de compra", "bi-calendar2-range", "#fff", "linear-gradient(135deg,#183963 0%,#1e4d7a 100%)", proy.Sum(x => EnCOP(x.c, x.h.TotalPagar)), null, true)
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
+                <i class="bi-list-ul mb-1" style="font-size:1.4rem;color:#183963"></i>
+                <div class="fw-bold fs-4" style="color:#183963">@proy.Count</div>
+                <div class="small text-muted">Líneas proyectadas</div>
+                @if (proy.Count(x => x.h.Codigo is null) > 0)
+                {
+                    <div class="fw-semibold" style="font-size:0.7rem;color:#dc3545">⚠ @proy.Count(x => x.h.Codigo is null) sin rubro</div>
+                }
+            </div>
+        </div>
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#fff3e0 0%,#ffe0b2 100%);border-radius:14px">
+                <i class="bi-tags mb-1" style="font-size:1.4rem;color:#fd7e14"></i>
+                <div class="fw-bold fs-4" style="color:#fd7e14">@proy.Where(x => x.h.Codigo is not null).Select(x => x.h.Codigo).Distinct().Count()</div>
+                <div class="small text-muted">Códigos de rubro</div>
+                <div class="text-muted" style="font-size:0.62rem">Con valor proyectado</div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
     <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-3">
-        @TarjetaDual("Total aprobado", "Valor aprobado de las OC", "bi-currency-dollar", "#fff", "linear-gradient(135deg,#183963 0%,#1e4d7a 100%)", Ocs.Sum(c => EnCOP(c, c.Valor)), null, true)
-        @TarjetaDual("Facturado", "Suma de facturas (antes de retenciones)", "bi-receipt", "#183963", "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)", Ocs.Sum(c => EnCOP(c, c.ValorFactura)), null, false)
-        @TarjetaDual("Pagado", "Facturas pagadas (verde)", "bi-check-circle", "#5aa83e", "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)", Ocs.Sum(c => EnCOP(c, Pagado(c))), null, false)
-        @TarjetaDual("Pendiente por pagar", "Facturado sin pagar + aprobado sin facturar", "bi-hourglass-split", "#c69500", "linear-gradient(135deg,#fff8e1 0%,#ffecb3 100%)", Ocs.Sum(c => EnCOP(c, Pendiente(c))), Ocs.Sum(c => EnCOP(c, SinFacturar(c))), false)
+        @TarjetaDual("Total aprobado", "Valor aprobado de las OC con consecutivo", "bi-currency-dollar", "#fff", "linear-gradient(135deg,#183963 0%,#1e4d7a 100%)", OcsComprometidas.Sum(c => EnCOP(c, c.Valor)), null, true)
+        @TarjetaDual("Facturado", "Suma de facturas (antes de retenciones)", "bi-receipt", "#183963", "linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%)", OcsComprometidas.Sum(c => EnCOP(c, c.ValorFactura)), null, false)
+        @TarjetaDual("Pagado", "Facturas pagadas (verde)", "bi-check-circle", "#5aa83e", "linear-gradient(135deg,#e8f5e2 0%,#d4edcc 100%)", OcsComprometidas.Sum(c => EnCOP(c, Pagado(c))), null, false)
+        @TarjetaDual("Pendiente por pagar", "Facturado sin pagar + aprobado sin facturar", "bi-hourglass-split", "#c69500", "linear-gradient(135deg,#fff8e1 0%,#ffecb3 100%)", OcsComprometidas.Sum(c => EnCOP(c, Pendiente(c))), OcsComprometidas.Sum(c => EnCOP(c, SinFacturar(c))), false)
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#f0f4ff 0%,#dce3f0 100%);border-radius:14px">
                 <i class="bi-stack mb-1" style="font-size:1.4rem;color:#183963"></i>
@@ -30,10 +68,18 @@
                 <div class="fw-bold fs-4" style="color:#fd7e14">@Ocs.Count(EnProceso)</div>
                 <div class="small text-muted">En Proceso</div>
                 <div class="text-muted" style="font-size:0.62rem">Sin consecutivo (XXX)</div>
+                @if (Ocs.Any(EnProceso))
+                {
+                    <div class="fw-semibold mt-1" style="font-size:0.7rem;color:#fd7e14"
+                         title="Valor presupuestado: no suma al comprometido, queda en Pendiente por ejecutar del Presupuesto">
+                        $@Ocs.Where(EnProceso).Sum(c => EnCOP(c, Pendiente(c))).ToString("N0", new System.Globalization.CultureInfo("es-CO")) presupuestado
+                    </div>
+                }
             </div>
         </div>
     </div>
-</SeccionDash>
+}
+</div>
 
 <!-- Acciones -->
 <div class="d-flex justify-content-end align-items-center gap-2 mb-3 flex-wrap">
@@ -43,7 +89,7 @@
             Tesorería cargada · corte @_proyecto.FechaCorteTesoreria.Value.ToString("dd/MM/yyyy")
         </span>
     }
-    @if (Ocs.Any())
+    @if (_vista == "OC" && Ocs.Any())
     {
         <button class="btn btn-sm @(_filtroAplicado is not null ? "" : "btn-outline-secondary")" title="Filtrar órdenes de compra"
                 style="@(_filtroAplicado is not null ? "background:#6ABF4B;color:#fff;border:none" : "")"
@@ -58,9 +104,12 @@
         </button>
     }
     <ImportarTesoreria ProyectoId="ProyectoId" OnImportado="OnTesoreriaImportadaAsync" />
-    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="NuevaOC">
-        <i class="bi-plus-lg me-1"></i>Nueva Orden de Compra
-    </button>
+    @if (_vista == "OC")
+    {
+        <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="NuevaOC">
+            <i class="bi-plus-lg me-1"></i>Nueva Orden de Compra
+        </button>
+    }
 </div>
 
 <!-- Panel de filtros -->
@@ -207,7 +256,7 @@
     </div>
 }
 
-@if (Ocs.Sum(c => c.Hitos.Count(h => h.Codigo is null)) > 0)
+@if (_vista == "OC" && Ocs.Sum(c => c.Hitos.Count(h => h.Codigo is null)) > 0)
 {
     <div class="alert alert-warning py-2 mb-3 small">
         <strong>⚠ @Ocs.Sum(c => c.Hitos.Count(h => h.Codigo is null)) facturas sin código asignado.</strong>
@@ -222,8 +271,22 @@
     }
 </datalist>
 
-<!-- Tabla de órdenes de compra -->
-@if (!_compromisos.Any())
+<!-- Tabla de órdenes de compra / proyectado -->
+@if (_vista == "Proyectado")
+{
+    @if (_compromisos.Any(c => c.Grupo == "Proyectado" && c.Hitos.Count > 0))
+    {
+        @SeccionGrupo("Proyectado", "Proyectado (sin OC)", "Costos futuros proyectados que aún no tienen orden de compra (sección PROYECTADO del archivo de tesorería).")
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <i class="bi-calendar2-range display-4 mb-3" style="color:#dde3ed"></i>
+            <p class="text-muted small">No hay costos proyectados. Se cargan con <strong>Importar Tesorería</strong>.</p>
+        </div>
+    }
+}
+else if (!_compromisos.Any())
 {
     <div class="card border-0 shadow-sm text-center py-5">
         <i class="bi-file-earmark-text display-4 mb-3" style="color:#dde3ed"></i>
@@ -389,10 +452,17 @@ else
         </div>
     </div>
 
-    @foreach (var (grupo, titulo, nota) in _secciones)
+    @foreach (var (grupo, titulo, nota) in _secciones.Where(x => x.Grupo != "Proyectado"))
+    {
+        @SeccionGrupo(grupo, titulo, nota)
+    }
+}
+
+@code {
+    private RenderFragment SeccionGrupo(string grupo, string titulo, string? nota) => __builder =>
     {
         var bloques = _compromisos.Where(c => c.Grupo == grupo).OrderBy(c => c.Moneda).ToList();
-        if (bloques.Count == 0 || bloques.All(b => b.Hitos.Count == 0)) { continue; }
+        if (bloques.Count == 0 || bloques.All(b => b.Hitos.Count == 0)) { return; }
         var sinRubro = bloques.Sum(b => b.Hitos.Count(h => h.Codigo is null));
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header d-flex align-items-center gap-2 flex-wrap py-2" style="background:#183963;color:#fff">
@@ -406,7 +476,7 @@ else
                 @if (sinRubro > 0)
                 {
                     <span class="badge bg-danger ms-auto" style="font-size:.7rem">
-                        ⚠ @sinRubro @(grupo == "Impuestos" ? "sin rubro y sin orden de compra" : "sin rubro")
+                        ⚠ @sinRubro sin rubro
                     </span>
                 }
             </div>
@@ -416,10 +486,17 @@ else
             }
             @foreach (var b in bloques.Where(b => b.Hitos.Count > 0))
             {
-                @TablaHitos(b, false)
+                @if (grupo == "Salarios")
+                {
+                    @TablaSalarios(b)
+                }
+                else
+                {
+                    @TablaHitos(b, false)
+                }
             }
         </div>
-    }
+    };
 }
 
 @code {
@@ -440,25 +517,33 @@ else
     private FiltroModel _filtro = new();
     private FiltroModel? _filtroAplicado;
 
+    private string _vista = "OC";
+    private string EstiloPestana(string vista) => _vista == vista
+        ? "background:#183963;color:#fff;border:1px solid #183963"
+        : "background:transparent;color:#183963;border:1px solid #183963";
+
     private readonly HashSet<int> _abiertas = [];
     private readonly Dictionary<int, string> _ocEdit = [];
     private readonly Dictionary<int, string> _codigoEdit = [];
 
     private static readonly (string Grupo, string Titulo, string? Nota)[] _secciones =
     [
-        ("Salarios", "Salarios y mano de obra", "Vista informativa del comportamiento de la nómina en el tiempo — pendiente de revisar y complementar."),
-        ("Impuestos", "Pagos de impuestos", null),
+        ("Salarios", "Salarios y mano de obra", "Total por quincena, agrupado por cargo (columna D) y por código de rubro. Las líneas sin código muestran un código sugerido que solo cuenta al confirmarlo con ✓."),
         ("Proyectado", "Proyectado (sin OC)", "Costos futuros proyectados que aún no tienen orden de compra."),
     ];
 
     private decimal TRM => _proyecto is { TasaCambioCOPUSD: > 0 } ? _proyecto.TasaCambioCOPUSD : 4000m;
     private IEnumerable<CompromisoCosto> Ocs => _compromisos.Where(c => c.Grupo == "OC");
+    // OC sin consecutivo (XXX) = valor presupuestado: no cuentan como comprometido
+    private IEnumerable<CompromisoCosto> OcsComprometidas => Ocs.Where(c => !EnProceso(c));
 
     private decimal EnCOP(CompromisoCosto c, decimal v) => c.Moneda == "USD" ? v * TRM : v;
     private static decimal Pagado(CompromisoCosto c) => c.ValorPagado;
     private static decimal SinFacturar(CompromisoCosto c) => Math.Max(c.Valor - c.ValorFactura, 0);
     private static decimal Pendiente(CompromisoCosto c) => Math.Max(c.ValorFactura - c.ValorPagado, 0) + SinFacturar(c);
-    private static bool Sobrepasada(CompromisoCosto c) => c.Valor > 0 && c.ValorFactura > c.Valor + 0.5m;
+    // Sobrepasada solo si el exceso supera $1.000 COP o US$ 1 (diferencias de redondeo no alertan)
+    private static decimal ToleranciaSobrepaso(CompromisoCosto c) => c.Moneda == "USD" ? 1m : 1000m;
+    private static bool Sobrepasada(CompromisoCosto c) => c.Valor > 0 && c.ValorFactura - c.Valor > ToleranciaSobrepaso(c);
     private static bool EnProceso(CompromisoCosto c) =>
         string.IsNullOrWhiteSpace(c.Codigo) || c.Codigo.Contains("XXX", StringComparison.OrdinalIgnoreCase);
     private static bool Pagada(CompromisoCosto c) =>
@@ -502,6 +587,166 @@ else
                     <div class="fw-semibold" style="font-size:0.66rem;color:#6c757d">de los cuales @FormatCOP(sinFacturar.Value) sin facturar</div>
                 }
             </div>
+        </div>;
+
+    // ── Salarios: quincena → cargo → código ─────────────────────────────────
+    private readonly HashSet<string> _periodosAbiertos = [];
+    private readonly Dictionary<string, string> _codigoGrupoEdit = [];
+
+    private static string CargoDe(HitoCompromiso h)
+    {
+        var cargo = (h.Detalle ?? "").Split(" · ")[0].Trim();
+        return cargo.Length == 0 ? "Sin cargo" : cargo;
+    }
+
+    private static int Personas(IEnumerable<HitoCompromiso> hitos) =>
+        hitos.Select(h => h.Descripcion.Trim().ToUpperInvariant()).Distinct().Count();
+
+    private static string ClavePeriodo(CompromisoCosto c, string? periodo) => $"{c.Id}|{periodo}";
+    private static string ClaveGrupoCargo(CompromisoCosto c, string? periodo, string cargo) => $"{c.Id}|{periodo}|{cargo}";
+
+    // Código más usado por ese cargo en toda la nómina (por número de registros y luego por valor)
+    private static string? CodigoSugerido(CompromisoCosto c, string cargo) =>
+        c.Hitos.Where(h => h.Codigo is not null && CargoDe(h).Equals(cargo, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(h => h.Codigo!)
+            .OrderByDescending(g => g.Count()).ThenByDescending(g => g.Sum(h => h.Importe))
+            .Select(g => g.Key).FirstOrDefault();
+
+    private void AlternarPeriodo(string clave)
+    {
+        if (!_periodosAbiertos.Remove(clave)) _periodosAbiertos.Add(clave);
+    }
+
+    private void ExpandirSalarios(CompromisoCosto c, bool abrir)
+    {
+        foreach (var p in c.Hitos.Select(h => h.Periodo).Distinct())
+        {
+            if (abrir) _periodosAbiertos.Add(ClavePeriodo(c, p));
+            else _periodosAbiertos.Remove(ClavePeriodo(c, p));
+        }
+    }
+
+    private async Task ConfirmarCodigoGrupoAsync(CompromisoCosto c, string? periodo, string cargo, string? sugerido)
+    {
+        var clave = ClaveGrupoCargo(c, periodo, cargo);
+        var codigo = (_codigoGrupoEdit.TryGetValue(clave, out var escrito) ? escrito : sugerido)?.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(codigo))
+        {
+            _mensaje = $"Escribe el código para {cargo} ({periodo}) antes de confirmar.";
+            _mensajeError = true;
+            return;
+        }
+        if (!_codigosListado.Contains(codigo) && !CodificacionSeeder.MapaCodigoARubro.ContainsKey(codigo))
+        {
+            _mensaje = $"El código '{codigo}' no existe en el listado de códigos del presupuesto ni en la codificación. Revisa que esté bien escrito.";
+            _mensajeError = true;
+            return;
+        }
+
+        var hitos = c.Hitos.Where(h => h.Codigo is null && h.Periodo == periodo && CargoDe(h).Equals(cargo, StringComparison.OrdinalIgnoreCase)).ToList();
+        foreach (var h in hitos)
+        {
+            h.Codigo = codigo;
+            h.CodigoManual = true;
+            if (c.ClaveTesoreria is not null)
+                await GuardarAsignacionAsync("CodigoHito", TesoreriaImportService.ClaveHito(c.ClaveTesoreria, h.Periodo, h.Documento, h.Descripcion), codigo);
+        }
+        await Db.SaveChangesAsync();
+        _codigoGrupoEdit.Remove(clave);
+        _mensaje = $"Código {codigo} asignado a {hitos.Count} registro(s) de {cargo} en {periodo}. Queda recordado; si el archivo de tesorería trae el código, se usa el del archivo.";
+        _mensajeError = false;
+    }
+
+    private RenderFragment TablaSalarios(CompromisoCosto c) =>
+        @<div class="table-responsive px-3 py-2">
+            <div class="d-flex justify-content-end gap-3 mb-1">
+                <button class="btn btn-link btn-sm p-0" style="font-size:.7rem;color:#183963" @onclick="() => ExpandirSalarios(c, true)">Expandir todo</button>
+                <button class="btn btn-link btn-sm p-0" style="font-size:.7rem;color:#183963" @onclick="() => ExpandirSalarios(c, false)">Contraer todo</button>
+            </div>
+            <table class="table table-sm mb-0" style="font-size:.72rem;background:#fff">
+                <thead style="border-bottom:1px solid #183963">
+                    <tr style="color:#183963">
+                        <th>QUINCENA / CARGO / CÓDIGO</th>
+                        <th class="text-center">PERSONAS</th>
+                        <th class="text-end">TOTAL</th>
+                        <th class="text-end">PAGADO</th>
+                        <th class="text-end">PENDIENTE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var per in c.Hitos.GroupBy(h => h.Periodo).OrderBy(g => g.Min(h => h.Orden)))
+                    {
+                        var clavePer = ClavePeriodo(c, per.Key);
+                        var abierto = _periodosAbiertos.Contains(clavePer);
+                        var sinCodPer = per.Count(h => h.Codigo is null);
+                        <tr style="background:#eef1f6;cursor:pointer" @onclick="() => AlternarPeriodo(clavePer)">
+                            <td class="fw-semibold" style="color:#183963">
+                                <i class="@(abierto ? "bi-chevron-down" : "bi-chevron-right") me-1"></i>@(per.Key ?? "Sin quincena")
+                                @if (sinCodPer > 0)
+                                {
+                                    <span class="badge bg-danger ms-2" style="font-size:.6rem">⚠ @sinCodPer sin código</span>
+                                }
+                            </td>
+                            <td class="text-center fw-semibold">@Personas(per)</td>
+                            <td class="text-end fw-bold" style="color:#183963">@Fmt(c, per.Sum(h => h.Importe))</td>
+                            <td class="text-end" style="color:#5aa83e">@Fmt(c, per.Where(h => h.Pagado).Sum(h => h.Importe))</td>
+                            <td class="text-end" style="color:#c69500">@Fmt(c, per.Where(h => !h.Pagado).Sum(h => h.Importe))</td>
+                        </tr>
+                        @if (abierto)
+                        {
+                            @foreach (var car in per.GroupBy(CargoDe, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key))
+                            {
+                                <tr>
+                                    <td class="fw-semibold ps-4" style="color:#111921">@car.Key</td>
+                                    <td class="text-center">@Personas(car)</td>
+                                    <td class="text-end fw-semibold" style="color:#183963">@Fmt(c, car.Sum(h => h.Importe))</td>
+                                    <td class="text-end" style="color:#5aa83e">@Fmt(c, car.Where(h => h.Pagado).Sum(h => h.Importe))</td>
+                                    <td class="text-end" style="color:#c69500">@Fmt(c, car.Where(h => !h.Pagado).Sum(h => h.Importe))</td>
+                                </tr>
+                                @foreach (var cod in car.GroupBy(h => h.Codigo).OrderBy(g => g.Key is null).ThenBy(g => g.Key))
+                                {
+                                    var claveCar = ClaveGrupoCargo(c, per.Key, car.Key);
+                                    var sugerido = cod.Key is null ? CodigoSugerido(c, car.Key) : null;
+                                    <tr style="@(cod.Key is null ? "background:#fff5f5" : "")">
+                                        <td style="padding-left:3rem">
+                                            @if (cod.Key is not null)
+                                            {
+                                                <span class="badge" style="background:#183963;font-size:.62rem" title="@RubroTitulo(cod.Key)">@cod.Key</span>
+                                                @if (cod.All(h => h.CodigoManual))
+                                                {
+                                                    <span class="text-muted ms-1" style="font-size:.58rem" title="Código asignado manualmente">manual</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="d-flex align-items-center gap-1 flex-wrap">
+                                                    <span class="fw-semibold" style="color:#dc3545;font-size:.68rem">⚠ Sin código</span>
+                                                    <input class="form-control form-control-sm py-0" list="codigos-rubro"
+                                                           style="width:90px;font-size:.7rem;border-color:#dc3545"
+                                                           placeholder="Código" value="@(_codigoGrupoEdit.TryGetValue(claveCar, out var esc) ? esc : sugerido)"
+                                                           @onchange='e => _codigoGrupoEdit[claveCar] = e.Value?.ToString() ?? ""' />
+                                                    <button class="btn btn-sm py-0 px-1" style="background:#183963;color:#fff;border:none;font-size:.65rem"
+                                                            title="Confirmar el código para todas las personas de este cargo sin código en esta quincena"
+                                                            @onclick="() => ConfirmarCodigoGrupoAsync(c, per.Key, car.Key, sugerido)">✓</button>
+                                                    @if (sugerido is not null && !_codigoGrupoEdit.ContainsKey(claveCar))
+                                                    {
+                                                        <span class="badge rounded-pill" style="background:#fff3e0;color:#fd7e14;font-size:.58rem"
+                                                              title="Código más usado por este cargo en la nómina. No cuenta hasta confirmarlo con ✓.">sugerido</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </td>
+                                        <td class="text-center">@Personas(cod)</td>
+                                        <td class="text-end">@Fmt(c, cod.Sum(h => h.Importe))</td>
+                                        <td class="text-end" style="color:#5aa83e">@Fmt(c, cod.Where(h => h.Pagado).Sum(h => h.Importe))</td>
+                                        <td class="text-end" style="color:#c69500">@Fmt(c, cod.Where(h => !h.Pagado).Sum(h => h.Importe))</td>
+                                    </tr>
+                                }
+                            }
+                        }
+                    }
+                </tbody>
+            </table>
         </div>;
 
     private RenderFragment TablaHitos(CompromisoCosto c, bool esOc) =>
@@ -563,7 +808,7 @@ else
                                         </div>
                                         @if (h.Codigo is null && !esOc)
                                         {
-                                            <div style="font-size:.6rem;color:#dc3545">@(c.Grupo == "Impuestos" ? "Sin rubro y sin OC" : "Sin rubro")</div>
+                                            <div style="font-size:.6rem;color:#dc3545">Sin rubro</div>
                                         }
                                     }
                                     else
@@ -923,7 +1168,32 @@ else
             rt.Style.Fill.BackgroundColor = XLColor.FromHtml("#183963");
             fila++;
             foreach (var b in bloques)
-                foreach (var h in b.Hitos.OrderBy(h => h.Orden)) Hito(b, h);
+            {
+                if (grupo != "Salarios")
+                {
+                    foreach (var h in b.Hitos.OrderBy(h => h.Orden)) Hito(b, h);
+                    continue;
+                }
+                ws.Cell(fila, 1).Value = "Quincena"; ws.Cell(fila, 2).Value = "Cargo"; ws.Cell(fila, 3).Value = "Código";
+                ws.Cell(fila, 4).Value = "Moneda"; ws.Cell(fila, 5).Value = "Personas"; ws.Cell(fila, 9).Value = "Total";
+                ws.Cell(fila, 10).Value = "Pagado"; ws.Cell(fila, 11).Value = "Pendiente";
+                ws.Range(fila, 1, fila, 11).Style.Font.Bold = true;
+                fila++;
+                foreach (var per in b.Hitos.GroupBy(h => h.Periodo).OrderBy(g => g.Min(h => h.Orden)))
+                    foreach (var car in per.GroupBy(CargoDe, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key))
+                        foreach (var cod in car.GroupBy(h => h.Codigo).OrderBy(g => g.Key is null).ThenBy(g => g.Key))
+                        {
+                            ws.Cell(fila, 1).Value = per.Key ?? "";
+                            ws.Cell(fila, 2).Value = car.Key;
+                            ws.Cell(fila, 3).Value = cod.Key ?? "SIN CÓDIGO";
+                            ws.Cell(fila, 4).Value = b.Moneda;
+                            ws.Cell(fila, 5).Value = Personas(cod);
+                            ws.Cell(fila, 9).Value = cod.Sum(h => h.Importe);
+                            ws.Cell(fila, 10).Value = cod.Where(h => h.Pagado).Sum(h => h.Importe);
+                            ws.Cell(fila, 11).Value = cod.Where(h => !h.Pagado).Sum(h => h.Importe);
+                            fila++;
+                        }
+            }
         }
 
         foreach (var col in new[] { 9, 10, 11, 12, 13, 14, 16, 17, 18, 19 })

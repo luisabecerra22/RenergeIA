@@ -62,6 +62,12 @@ public class CostoService(RenergeIADbContext db)
         var totEjec = pagos.Where(p => p.Pasado).GroupBy(p => (p.Codigo!, p.Moneda)).ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
         var totComp = pagos.Where(p => !p.Pasado).GroupBy(p => (p.Codigo!, p.Moneda)).ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
 
+        // Las OC sin consecutivo (CO_..._XXX) son valor presupuestado, no comprometido:
+        // se descuentan del flujo futuro y así quedan dentro del Pendiente por ejecutar
+        foreach (var (clave, monto) in await PresupuestadoSinOCAsync(proyectoId))
+            if (totComp.TryGetValue(clave, out var comp))
+                totComp[clave] = Math.Max(comp - monto, 0m);
+
         foreach (var p in codigos)
         {
             var codigo = p.Codigo.ToUpperInvariant();
@@ -103,6 +109,45 @@ public class CostoService(RenergeIADbContext db)
                 prop.IsModified = false;
             }
         }
+    }
+
+    public static bool EsOCSinConsecutivo(string? numero) =>
+        string.IsNullOrWhiteSpace(numero) || numero.Contains("XXX", StringComparison.OrdinalIgnoreCase);
+
+    // Valor por pagar de las OC de tesorería sin consecutivo (XXX), por código de rubro y moneda.
+    // El código de cada factura se resuelve igual que en el Flujo de Caja (clasificación guardada →
+    // Codificación si el rubro existe en el presupuesto → el mismo código).
+    public async Task<Dictionary<(string Codigo, string Moneda), decimal>> PresupuestadoSinOCAsync(int proyectoId)
+    {
+        var ocs = await db.CompromisoCostos.AsNoTracking()
+            .Where(c => c.ProyectoId == proyectoId && c.Origen == "Tesoreria" && c.Grupo == "OC")
+            .Select(c => new { c.Codigo, c.Moneda, Hitos = c.Hitos.Where(h => !h.Pagado && h.Codigo != null).Select(h => new { h.Codigo, h.TotalPagar, h.Importe }).ToList() })
+            .ToListAsync();
+        ocs = ocs.Where(c => EsOCSinConsecutivo(c.Codigo)).ToList();
+        if (ocs.Count == 0) return [];
+
+        var codigosPresupuesto = (await db.Partidas.AsNoTracking()
+                .Where(p => p.ProyectoId == proyectoId && !p.EsPrincipal)
+                .Select(p => p.Codigo).ToListAsync())
+            .Where(c => !c.Contains('-')).Select(c => c.ToUpperInvariant()).ToHashSet();
+        var mapeos = (await db.MapeosCodigoTesoreria.AsNoTracking().ToListAsync())
+            .GroupBy(m => m.CodigoTesoreria.ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.First().Rubro.ToUpperInvariant());
+
+        string RubroDe(string codigo)
+        {
+            var cod = codigo.ToUpperInvariant();
+            if (mapeos.TryGetValue(cod, out var m)) return m;
+            if (CodificacionSeeder.MapaCodigoARubro.TryGetValue(cod, out var r) && codigosPresupuesto.Contains(r.ToUpperInvariant()))
+                return r.ToUpperInvariant();
+            return cod;
+        }
+
+        return ocs
+            .SelectMany(c => c.Hitos.Select(h => (Clave: (RubroDe(h.Codigo!), c.Moneda == "USD" ? "USD" : "COP"),
+                                                  Monto: h.TotalPagar != 0 ? h.TotalPagar : h.Importe)))
+            .GroupBy(x => x.Clave)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Monto));
     }
 
     // Lunes de la semana en curso en hora de Colombia (UTC-5)

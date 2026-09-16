@@ -201,6 +201,13 @@ public class HistogramaService(RenergeIADbContext db)
     {
         var plantilla = await ObtenerAsync(proyectoId, tipo);
         var real      = await ObtenerRealAsync(proyectoId, tipo);
+        return Comparar(plantilla?.Items ?? [], real?.Items ?? [], mesInicial, anioInicial);
+    }
+
+    // totalesReales: si se indica, reemplaza la suma de filas reales por mes (personal: personas distintas)
+    public static ComparativoHistogramaVM Comparar(IEnumerable<ItemHistograma> itemsPlan, IEnumerable<ItemHistogramaReal> itemsReal,
+                                                   int mesInicial, int anioInicial, decimal[]? totalesReales = null)
+    {
 
         var nombresMes = new[] { "Ene","Feb","Mar","Abr","May","Jun",
                                  "Jul","Ago","Sep","Oct","Nov","Dic" };
@@ -217,8 +224,8 @@ public class HistogramaService(RenergeIADbContext db)
             int mes    = offset % 12 + 1;
             int anio   = anioInicial + offset / 12;
             labels[pos - 1] = nombresMes[mes - 1] + " " + (anio % 100).ToString("D2");
-            planificados[pos - 1] = (double)(plantilla?.Items.Sum(i => ValoresMesDecimal(i, pos)) ?? 0);
-            reales[pos - 1]       = (double)(real?.Items.Sum(i => ValorMesReal(i, pos)) ?? 0);
+            planificados[pos - 1] = (double)itemsPlan.Sum(i => ValoresMesDecimal(i, pos));
+            reales[pos - 1]       = (double)(totalesReales?[pos - 1] ?? itemsReal.Sum(i => ValorMesReal(i, pos)));
             diferencias[pos - 1]  = reales[pos - 1] - planificados[pos - 1];
 
             pctDesv[pos - 1] = planificados[pos - 1] != 0

@@ -8,7 +8,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IConfiguration Config
 
-<PageTitle>WBS — RenergeIA</PageTitle>
+<PageTitle>Cronograma de Actividades — RenergeIA</PageTitle>
 
 @if (_proyecto is null)
 {
@@ -18,7 +18,7 @@ else
 {
     <div class="d-flex align-items-center gap-2 mb-1">
         <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
-        <h1 class="h3 mb-0">WBS / Actividades — @_proyecto.Nombre</h1>
+        <h1 class="h3 mb-0">Cronograma de Actividades — @_proyecto.Nombre</h1>
     </div>
     <p class="text-muted small mb-3">Estructura de desglose de trabajo del proyecto.</p>
 
@@ -113,7 +113,7 @@ else
             <div class="col-6 col-md-3">
                 <div class="card text-center shadow-sm">
                     <div class="card-body py-2">
-                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo)</div>
+                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo && !EsTitulo(a))</div>
                         <div class="small text-muted">Activas</div>
                     </div>
                 </div>
@@ -121,7 +121,7 @@ else
             <div class="col-6 col-md-3">
                 <div class="card text-center shadow-sm">
                     <div class="card-body py-2">
-                        <div class="fs-4 fw-bold" style="color:#6ABF4B">@_actividades.Count(a => a.Activo && EstadoOperativo(a) == "Finalizada")</div>
+                        <div class="fs-4 fw-bold" style="color:#6ABF4B">@_actividades.Count(a => a.Activo && !EsTitulo(a) && EstadoOperativo(a) == "Finalizada")</div>
                         <div class="small text-muted">Completadas</div>
                     </div>
                 </div>
@@ -129,7 +129,7 @@ else
             <div class="col-6 col-md-3">
                 <div class="card text-center shadow-sm">
                     <div class="card-body py-2">
-                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo && EstadoOperativo(a) == "EnProgreso")</div>
+                        <div class="fs-4 fw-bold" style="color:#183963">@_actividades.Count(a => a.Activo && !EsTitulo(a) && EstadoOperativo(a) == "EnProgreso")</div>
                         <div class="small text-muted">En progreso</div>
                     </div>
                 </div>
@@ -137,7 +137,7 @@ else
             <div class="col-6 col-md-3">
                 <div class="card text-center shadow-sm">
                     <div class="card-body py-2">
-                        <div class="fs-4 fw-bold" style="color:#dc3545">@_actividades.Count(a => a.Activo && (EstadoOperativo(a) == "Atrasada" || EstadoOperativo(a) == "Critica"))</div>
+                        <div class="fs-4 fw-bold" style="color:#dc3545">@_actividades.Count(a => a.Activo && !EsTitulo(a) && (EstadoOperativo(a) == "Atrasada" || EstadoOperativo(a) == "Critica"))</div>
                         <div class="small text-muted">Con problemas</div>
                     </div>
                 </div>
@@ -210,15 +210,20 @@ else
                 <tbody>
                     @foreach (var a in ActividadesMostradas)
                     {
-                        <tr style="border-bottom:1px solid #f0f0f0">
+                        <tr style="border-bottom:1px solid #f0f0f0;@(EsTitulo(a) ? "background:#e4e7eb" : "")">
 
+                            @if (EsTitulo(a))
+                            {
+                                <!-- Nivel 1 = título de sección: no lleva avance, fechas, disciplina ni estado -->
+                                <td colspan="8" style="padding:8px 10px">
+                                    <strong class="text-uppercase" style="color:#183963;letter-spacing:.03em">@a.CodigoWBS — @a.Nombre</strong>
+                                </td>
+                            }
+                            else
+                            {
                             <!-- Actividad (sangría según nivel) -->
                             <td style="padding-left:@((a.NivelWBS - 1) * 20 + 10)px;padding-top:6px;padding-bottom:6px">
-                                @if (a.NivelWBS == 1)
-                                {
-                                    <strong style="color:#183963">@a.CodigoWBS — @a.Nombre</strong>
-                                }
-                                else if (a.NivelWBS == 2)
+                                @if (a.NivelWBS == 2)
                                 {
                                     <span class="fw-semibold">@a.CodigoWBS — @a.Nombre</span>
                                 }
@@ -306,6 +311,7 @@ else
                                     @BadgeTexto(a)
                                 </span>
                             </td>
+                            }
 
                             <!-- Acciones -->
                             <td style="text-align:center">
@@ -1342,6 +1348,9 @@ else
             _ejecutandoReinicio = false;
         }
     }
+
+    // Nivel 1 del cronograma = título de sección (no se reporta avance sobre él)
+    private static bool EsTitulo(ActividadWBS a) => a.NivelWBS == 1;
 
     private async Task ReiniciarPlantillaAsync()
     {
