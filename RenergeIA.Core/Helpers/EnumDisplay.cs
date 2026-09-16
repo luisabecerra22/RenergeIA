@@ -79,6 +79,10 @@ public static class EnumDisplay
         AreaDocumento.Mecanico  => "Mecánico",
         AreaDocumento.Electrico => "Eléctrico",
         AreaDocumento.General   => "General",
+        AreaDocumento.Calidad   => "Calidad",
+        AreaDocumento.Ambiental => "Ambiental",
+        AreaDocumento.Seguridad => "Seguridad",
+        AreaDocumento.Comunicaciones => "Comunicaciones",
         _                       => area.ToString()
     };
 

@@ -1,0 +1,233 @@
+@inject PlanificacionDocumentalService PlanSvc
+@inject AuthenticationStateProvider AuthState
+
+<label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
+       title="Cargar la Planificación Documental (FO-SI-GC-002-1) con las hojas Construcción, HSE e Ingeniería">
+    @if (_leyendo)
+    {
+        <span class="spinner-border spinner-border-sm me-1"></span><span>Leyendo…</span>
+    }
+    else
+    {
+        <i class="bi-cloud-arrow-up me-1"></i><span>Cargar planificación</span>
+    }
+    <InputFile OnChange="LeerAsync" accept=".xlsx,.xlsm" style="display:none" disabled="@(_leyendo || _aplicando)" />
+</label>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger py-1 px-2 mb-0 small">@_error</div>
+}
+
+@if (_analisis is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:860px">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-cloud-arrow-up me-2"></i>Cargar planificación documental</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="Cancelar" disabled="@_aplicando"></button>
+                </div>
+                <div class="modal-body small">
+                    <div class="mb-1"><strong>Archivo:</strong> @_analisis.Archivo</div>
+                    <div class="mb-2">
+                        <strong>Fecha de actualización del archivo:</strong>
+                        @(_analisis.Lectura.FechaActualizacion?.ToString("dd/MM/yyyy") ?? "no registrada")
+                        @if (_analisis.FechaCargada.HasValue)
+                        {
+                            <span class="text-muted"> · última cargada: @_analisis.FechaCargada.Value.ToString("dd/MM/yyyy")@(string.IsNullOrEmpty(_analisis.ArchivoCargado) ? "" : $" ({_analisis.ArchivoCargado})")</span>
+                        }
+                    </div>
+
+                    @if (_analisis.EsAnterior)
+                    {
+                        <div class="alert alert-danger py-2">
+                            <strong>⚠ Archivo desactualizado.</strong> Su fecha de actualización es anterior a la planificación ya cargada.
+                            Revisa que sea el archivo correcto antes de continuar.
+                        </div>
+                    }
+                    @foreach (var adv in _analisis.Lectura.Advertencias)
+                    {
+                        <div class="alert alert-warning py-1 mb-1">@adv</div>
+                    }
+
+                    <table class="table table-sm table-bordered text-center mb-3" style="font-size:.78rem">
+                        <thead style="background:#f1f4f9">
+                            <tr><th class="text-start">Hoja</th><th>Documentos</th><th style="color:#198754">Nuevos</th><th style="color:#0d6efd">Actualizados</th><th>Sin cambios</th><th style="color:#fd7e14">Editados en la app</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var (cat, hoja) in _analisis.Lectura.Hojas)
+                            {
+                                <tr>
+                                    <td class="text-start">@EnumDisplay.Mostrar(cat) <span class="text-muted">(@hoja)</span></td>
+                                    <td>@_analisis.Cambios.Count(c => c.Fila.Categoria == cat)</td>
+                                    <td>@_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Nuevo, cat)</td>
+                                    <td>@_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Actualizado, cat)</td>
+                                    <td>@_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.SinCambios, cat)</td>
+                                    <td>@_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Conflicto, cat)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+
+                    @if (_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Conflicto) > 0)
+                    {
+                        <h6 class="fw-bold" style="color:#fd7e14;font-size:.85rem"><i class="bi-exclamation-triangle me-1"></i>Documentos editados en la app después de la última carga</h6>
+                        <p class="text-muted mb-1">Se conservan los valores de la app. Marca "Usar Excel" si prefieres los del archivo.</p>
+                        <div class="border rounded mb-3" style="max-height:220px;overflow-y:auto">
+                            <table class="table table-sm mb-0" style="font-size:.74rem">
+                                <thead class="sticky-top" style="background:#fff7ec"><tr><th>Documento</th><th>Campo</th><th>En la app</th><th>En el Excel</th><th class="text-center">Usar Excel</th></tr></thead>
+                                <tbody>
+                                    @foreach (var c in _analisis.Cambios.Where(c => c.Tipo == PlanificacionDocumentalService.TipoCambio.Conflicto))
+                                    {
+                                        var primero = true;
+                                        foreach (var dif in c.Diferencias)
+                                        {
+                                            <tr>
+                                                @if (primero)
+                                                {
+                                                    <td rowspan="@c.Diferencias.Count" class="fw-semibold">
+                                                        @c.Fila.Etiqueta
+                                                        <div class="text-muted fw-normal">editado por @(c.Existente?.EditadoPor ?? "—") · @c.Existente?.FechaEdicionApp?.AddHours(-5).ToString("dd/MM/yyyy HH:mm")</div>
+                                                    </td>
+                                                }
+                                                <td>@dif.Campo</td><td>@dif.Antes</td><td>@dif.Despues</td>
+                                                @if (primero)
+                                                {
+                                                    <td rowspan="@c.Diferencias.Count" class="text-center"><input type="checkbox" class="form-check-input" @bind="c.UsarExcel" /></td>
+                                                }
+                                            </tr>
+                                            primero = false;
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Actualizado) > 0)
+                    {
+                        <details class="mb-2">
+                            <summary class="fw-semibold" style="color:#0d6efd">Ver cambios que se actualizarán (@_analisis.Cuenta(PlanificacionDocumentalService.TipoCambio.Actualizado))</summary>
+                            <ul class="mt-1 mb-0" style="max-height:180px;overflow-y:auto">
+                                @foreach (var c in _analisis.Cambios.Where(c => c.Tipo == PlanificacionDocumentalService.TipoCambio.Actualizado))
+                                {
+                                    <li><strong>@c.Fila.Etiqueta:</strong> @string.Join("; ", c.Diferencias.Select(d => $"{d.Campo}: {d.Antes} → {d.Despues}"))</li>
+                                }
+                            </ul>
+                        </details>
+                    }
+
+                    @if (_analisis.ConAdvertencias.Any())
+                    {
+                        <details class="mb-2">
+                            <summary class="fw-semibold text-warning-emphasis">Datos a revisar en el Excel (@_analisis.ConAdvertencias.Count())</summary>
+                            <ul class="mt-1 mb-0" style="max-height:160px;overflow-y:auto">
+                                @foreach (var f in _analisis.ConAdvertencias)
+                                {
+                                    <li><strong>@f.Hoja fila @f.Fila (@f.Etiqueta):</strong> @string.Join("; ", f.Advertencias)</li>
+                                }
+                            </ul>
+                        </details>
+                    }
+
+                    @if (_analisis.NoEnArchivo.Count > 0)
+                    {
+                        <details class="mb-2">
+                            <summary class="fw-semibold text-muted">Documentos de la app que no están en el archivo (@_analisis.NoEnArchivo.Count) — no se borran</summary>
+                            <ul class="mt-1 mb-0" style="max-height:140px;overflow-y:auto">
+                                @foreach (var d in _analisis.NoEnArchivo)
+                                {
+                                    <li>@EnumDisplay.Mostrar(d.Categoria): @(string.IsNullOrEmpty(d.Codigo) ? d.CodigoCliente : d.Codigo) — @d.Titulo</li>
+                                }
+                            </ul>
+                        </details>
+                    }
+
+                    <div class="alert alert-secondary py-2 mb-0">
+                        Actualiza cada documento por su código (no duplica). Una celda vacía en el Excel no borra lo que ya está en la app.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Cancelar" disabled="@_aplicando">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold @(_analisis.EsAnterior ? "btn-danger" : "")"
+                            style="@(_analisis.EsAnterior ? "" : "background:#6ABF4B;color:#fff;border:none")"
+                            @onclick="AplicarAsync" disabled="@_aplicando">
+                        @if (_aplicando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span><span>Actualizando…</span>
+                        }
+                        else
+                        {
+                            <span>@(_analisis.EsAnterior ? "Cargar de todas formas" : "Confirmar y actualizar")</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public EventCallback<string> OnImportado { get; set; }
+
+    private PlanificacionDocumentalService.Analisis? _analisis;
+    private bool _leyendo;
+    private bool _aplicando;
+    private string? _error;
+
+    private async Task LeerAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _leyendo = true;
+        StateHasChanged();
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            var analisis = await PlanSvc.AnalizarAsync(ProyectoId, stream, e.File.Name);
+            if (analisis.Cambios.Count == 0)
+            {
+                _error = analisis.Lectura.Advertencias.FirstOrDefault()
+                         ?? "No se encontraron documentos. Verifica que sea la Planificación Documental (hojas Construcción, HSE, Ingeniería).";
+                return;
+            }
+            _analisis = analisis;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error al leer el archivo: {ex.Message}";
+        }
+        finally
+        {
+            _leyendo = false;
+        }
+    }
+
+    private async Task AplicarAsync()
+    {
+        if (_analisis is null) return;
+        _aplicando = true;
+        StateHasChanged();
+        try
+        {
+            var usuario = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.Name;
+            var (nuevos, actualizados, conservados) = await PlanSvc.AplicarAsync(ProyectoId, _analisis, usuario);
+            _analisis = null;
+            var msg = $"Planificación cargada: {nuevos} nuevos, {actualizados} actualizados";
+            if (conservados > 0) msg += $", {conservados} conservados con lo editado en la app";
+            await OnImportado.InvokeAsync(msg + ".");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error al actualizar: {ex.InnerException?.Message ?? ex.Message}";
+            _analisis = null;
+        }
+        finally
+        {
+            _aplicando = false;
+        }
+    }
+
+    private void Cancelar() => _analisis = null;
+}

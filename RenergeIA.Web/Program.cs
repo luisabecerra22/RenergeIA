@@ -42,6 +42,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<InformeDiarioService>();
 builder.Services.AddScoped<DocumentoService>();
+builder.Services.AddScoped<PlanificacionDocumentalService>();
 builder.Services.AddScoped<CostoService>();
 builder.Services.AddScoped<TesoreriaImportService>();
 builder.Services.AddScoped<HistogramaService>();

@@ -36,6 +36,27 @@ public class Documento : EntidadBase
     public string? Observaciones { get; set; }
     public string? Responsable { get; set; }
 
+    /// <summary>Columna "Observación tiempo de retraso" de la planificación documental.</summary>
+    public string? ObservacionRetraso { get; set; }
+
+    // Trazabilidad entre la planificación (Excel) y lo editado en la app
+    public DateTime? FechaUltimaImportacion { get; set; }
+    public DateTime? FechaEdicionApp { get; set; }
+    public string? EditadoPor { get; set; }
+    public string? ValidadoPor { get; set; }
+
+    // Seguimiento de Redline / As-Built (solo Ingeniería, columnas Z–AI de la planificación)
+    public string? ObservacionRedline { get; set; }
+    public bool? RegistraCambios { get; set; }
+    public string? ResponsableRedline { get; set; }
+    public bool? RequiereRedline { get; set; }
+    public decimal? AvanceRedline { get; set; }
+    public bool? RedlineAprobadoInterventoria { get; set; }
+    public decimal? AvanceAsBuilt { get; set; }
+    public string? ResponsableAsBuilt { get; set; }
+    public bool? AsBuiltAprobadoInterventoria { get; set; }
+    public string? ObservacionAsBuilt { get; set; }
+
     public int? TiempoRetraso1 => CalcularRetraso(FechaEntrega1, FechaDevolucion1);
     public int? TiempoRetraso2 => CalcularRetraso(FechaEntrega2, FechaDevolucion2);
     public int? TiempoRetraso3 => CalcularRetraso(FechaEntrega3, FechaDevolucion3);

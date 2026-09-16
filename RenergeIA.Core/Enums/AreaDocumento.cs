@@ -5,5 +5,9 @@ public enum AreaDocumento
     Civil,
     Mecanico,
     Electrico,
-    General
+    General,
+    Calidad,
+    Ambiental,
+    Seguridad,
+    Comunicaciones
 }

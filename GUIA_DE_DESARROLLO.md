@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **3 de agosto de 2026 — Módulo de Documentos rediseñado (3 categorías, importación inteligente Excel, exportación .xlsx y PDF con dashboard), despliegue en GCP Cloud Run (v38), migración a PostgreSQL**
+> Última actualización: **16 de septiembre de 2026 — Documentos: carga de la Planificación Documental por proyecto (sin duplicar), alertas de días sin atender, responsables internos por área, validación y seguimiento Redline/As-Built**
 
 ---
 
@@ -770,7 +770,7 @@ Las actividades cargadas en el formulario de Informe Diario también se filtran 
 
 | Ruta | Función |
 |------|---------|
-| `/proyectos/{id}/documentos` | Lista con 3 pestañas por categoría + KPIs + importación/exportación |
+| `/proyectos/{id}/documentos` | Lista con 3 pestañas por categoría + KPIs + alertas sin atender + carga de la Planificación Documental + responsables por área + exportación |
 | `/proyectos/{id}/documentos/crear` | Nuevo documento |
 | `/proyectos/{id}/documentos/{docId}` | Ver y gestionar versiones |
 
@@ -786,13 +786,54 @@ El módulo fue completamente rediseñado para soportar la estructura real de doc
 
 **Edición inline:** Todos los campos son editables directamente en la tabla. Al modificar un campo aparece una barra sticky amarilla con botones "Guardar cambios" y "Cancelar".
 
-**Importación inteligente de Excel (.xlsx):**
-- `SeleccionarHoja(XLWorkbook)` — selecciona la hoja correcta según la categoría activa (Ingeniería→"Ingeniería", HSE→"HSE", Procedimientos→"Construcción"); fallback busca "Código Cliente" en todas las hojas
-- `DetectarFilaEncabezados(ws, lastRow, lastCol)` — busca filas 1-30 para encontrar headers ("Código Cliente", "Nombre del documento"); fallback busca la fila con 8+ celdas no vacías
-- `MapearColumnas(ws, headerRow, lastCol)` — lectura dinámica de headers con normalización de acentos
-- `MapeoFijo()` — fallback con posiciones hardcodeadas que coinciden con el formato Excel estándar de Renergeia
-- `ParsearFecha(IXLCell)` — maneja DateTime, serial dates (OADate 40000-60000) y texto con múltiples formatos
-- `ParsearEstado(string)` — "no validado" se evalúa ANTES que "validado" para evitar falso positivo
+**Planificación Documental (septiembre 2026) — reemplaza la antigua "Importación inteligente de Excel", que duplicaba documentos al recargar.**
+
+Fuente: el Excel **FO-SI-GC-002-1 Planificación Documental** de cada proyecto, que la usuaria sube con el botón **Cargar planificación** (componente `ImportarPlanificacion.razor`). La lectura automática desde SharePoint queda para una fase posterior (requiere registrar una app en Microsoft 365 / Graph).
+
+| Pieza | Archivo | Responsabilidad |
+|---|---|---|
+| Lector | `RenergeIA.Web/Services/PlanificacionDocumentalParser.cs` | Lee las hojas **Construcción → Procedimientos**, **HSE** e **Ingeniería** ("Check list" se ignora). Detecta la fila de encabezados (la que contiene "Código Cliente", fila 14 en el formato) y mapea columnas **por nombre**. Lee Proyecto y Fecha de actualización (E3). Se detiene en el pie de firmas ("Revisado/Aprobado por"). |
+| Comparación y carga | `RenergeIA.Web/Services/PlanificacionDocumentalService.cs` | `AnalizarAsync` → vista previa (nuevos / actualizados / sin cambios / editados en la app / datos a revisar / documentos que no están en el archivo). `Comparar(...)` es estático y sin base de datos (testeable). `AplicarAsync` guarda. |
+| Alertas | `RenergeIA.Core/Helpers/SeguimientoDocumento.cs` | Días sin atender, semáforo y "en cancha de". |
+| Responsables | `RenergeIA.Core/Entities/ResponsableAreaDocumento.cs` + `ResponsablesArea.razor` | Responsable interno por **área** y proyecto (cargo, nombre, correo). |
+
+**Mapeo de columnas del Excel:**
+
+| Encabezado del Excel | Campo | Notas |
+|---|---|---|
+| Código Cliente | `CodigoCliente` | "NA" se toma como vacío |
+| Código Renergeia | `Codigo` | |
+| Nombre del documento | `Titulo` | |
+| Estado | `Estado` | Pendiente Emitir, Validado con Comentarios, Pendiente Validación, Validado, Informativos, No Validado |
+| Versión | `Version` | |
+| Fecha de Emisión / Entrega n / Devolución n / Validación | `FechaEmision`, `FechaEntrega1-4`, `FechaDevolucion1-4`, `FechaValidacion` | |
+| Fase (solo Ingeniería) | `Fase` | "Fase 2" → 2 |
+| Área | `Area` | Civil, Mecánico, Eléctrico, General, Calidad, Ambiental, Seguridad, Comunicaciones |
+| **Observaciones** | **`Transmittal`** | Esa columna ES el transmittal (HSEEXT-129, COS5SO-GY-019); se guarda completa |
+| Tiempo de retraso REV n / Tiempo de retraso | — | Fórmulas; la app los recalcula |
+| Responsable (col. X de Ingeniería) | — | Fórmula "en cancha de quién" (Cliente/Renergeia/OK para construcción); si trae un nombre de persona se guarda en `Responsable` |
+| Observación tiempo de retraso | `ObservacionRetraso` | En la tabla se muestra en la columna Observaciones |
+| Observaciones para Redlines, ¿Registra Cambios?, Responsable, ¿Requiere Redline?, % Avance del Redline, ¿Aprobado por Interventoría el RL? | `ObservacionRedline`, `RegistraCambios`, `ResponsableRedline`, `RequiereRedline`, `AvanceRedline`, `RedlineAprobadoInterventoria` | Solo Ingeniería |
+| %Avance de As-Built, Responsable, ¿Aprobado por Interventoría el As-Built?, Observaciones | `AvanceAsBuilt`, `ResponsableAsBuilt`, `AsBuiltAprobadoInterventoria`, `ObservacionAsBuilt` | Solo Ingeniería |
+
+**Reglas de carga (no duplicar):**
+1. Emparejamiento por categoría: Código Renergeia + Código Cliente → Código Renergeia (si no está repetido en el archivo) → Código Cliente → Nombre. Los códigos generados por la app (`IMP-…`, `DOC-…`) o vacíos se consideran compatibles.
+2. Una celda vacía en el Excel **nunca borra** lo que ya está en la app.
+3. Los documentos de la app que no vienen en el archivo **no se borran**; se listan en la vista previa.
+4. Si un documento se editó en la app después de la última carga (`FechaEdicionApp > FechaUltimaImportacion`), **se conservan los valores de la app** y se muestran las diferencias con la opción "Usar Excel" por documento.
+5. Si la fecha de actualización del archivo es anterior a la ya cargada (`Proyecto.FechaActualizacionPlanDocumental`) se muestra una advertencia.
+6. Datos sucios tolerados: dos fechas en una celda (se toma la más reciente; conviven dd/MM y MM/dd, se prefiere dd/MM salvo que quede en el futuro), fechas sin separador antes del año ("03/042026"), fechas escritas en la columna Área. Todo queda listado en "Datos a revisar en el Excel".
+
+**Alertas "sin atender" (`SeguimientoDocumento`):**
+- Aplican solo a Pendiente Emitir, Pendiente Validación y No Validado.
+- Días sin atender = hoy (Colombia, UTC−5) − fecha más reciente registrada en el documento (misma regla de la columna "Tiempo de retraso" del Excel).
+- Semáforo: **verde < 4 días, amarillo 4–7, rojo ≥ 8** (constantes `DiasAmarillo` / `DiasRojo`). Sin ninguna fecha → "Sin fecha".
+- En cancha de: Pendiente Validación → **Cliente**; Pendiente Emitir / No Validado → **Renergeia**; Validado → OK para construcción.
+- Barra de alertas con filtros por semáforo, por cancha y **Mis pendientes** (cruza el usuario logueado con el correo o nombre del responsable interno).
+
+**Responsable interno:** el `Documento.Responsable` propio manda; si está vacío se usa el `ResponsableAreaDocumento` del área. **Validar** marca Validado, pone fecha de hoy si no tiene y guarda `ValidadoPor`. Toda edición en la tabla guarda `FechaEdicionApp` y `EditadoPor`.
+
+**Migración:** `AddPlanificacionDocumental` (2026-09-16).
 
 **Exportación Excel (.xlsx):** Genera archivo real con ClosedXML, headers formateados en azul #183963.
 
@@ -1219,6 +1260,8 @@ Estados: Abierta → En Gestión → Resuelta / Aceptada.
 | `AddSeguridadIPERV` | 2026-06-30 | Tablas nuevas: `BibliotecaPeligros` (corporativa, sin FK), `InspeccionesIA` (FK a Proyectos), `RiesgosIPERV` (FK a Proyectos e InspeccionesIA) |
 | `AddCompromisoCosto` | 2026-06-30 | Tabla nueva `CompromisoCostos` (FK a Proyecto y Partida); agrega `AdjuntoUrl` en `CostosReales`; hace `ProyectoId` nullable (`SetNull`) en `ChecklistsAuditoria` para permitir auditorías corporativas sin proyecto |
 | `DocumentosControlRevisiones` | 2026-07-18 | Campos nuevos en `Documentos`: `Categoria` (CategoriaDocumento), `CodigoCliente`, `Area` (AreaDocumento), `Fase`, `FechaEntrega1-4`, `FechaDevolucion1-4`, `FechaValidacion`, `Transmittal`, `Observaciones`, `Responsable`, `TiempoRetraso1-4` (calculados). Enums nuevos: `CategoriaDocumento` (Procedimientos, HSE, Ingenieria), `AreaDocumento` (Civil, Mecanico, Electrico, General). Ampliación de `EstadoDocumento` (PendienteEmitir, PendienteValidacion, ValidadoConComentarios, Validado, Informativos, NoValidado) |
+| `AddPersonalHistogramaMes` | 2026-09-16 | Tabla `PersonalHistogramaMeses` (Tipo Planificado/Real, Cargo, Año, Mes, Cantidad, CantidadNomina, EsManual) para el histograma de personal |
+| `AddPlanificacionDocumental` | 2026-09-16 | Tabla `ResponsablesAreaDocumento` (único por Proyecto+Área); en `Documentos`: `ObservacionRetraso`, `FechaUltimaImportacion`, `FechaEdicionApp`, `EditadoPor`, `ValidadoPor` y campos Redline/As-Built; en `Proyectos`: `FechaActualizacionPlanDocumental`, `ArchivoPlanDocumental`. `AreaDocumento` ampliado con Calidad, Ambiental, Seguridad, Comunicaciones |
 
 ### Comandos de migración
 

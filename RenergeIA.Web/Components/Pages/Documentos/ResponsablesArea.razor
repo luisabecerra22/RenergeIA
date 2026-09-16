@@ -1,0 +1,110 @@
+@inject RenergeIADbContext Db
+
+<button class="btn btn-sm btn-outline-secondary" @onclick="AbrirAsync" title="Responsable interno de la documentación por área">
+    <i class="bi-people me-1"></i>Responsables
+</button>
+
+@if (_abierto)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:760px">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-people me-2"></i>Responsables internos por área</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => _abierto = false"></button>
+                </div>
+                <div class="modal-body small">
+                    <p class="text-muted mb-2">
+                        Reciben las alertas de los documentos de su área que estén en cancha de Renergeia (y hacen seguimiento a los que están con el Cliente).
+                        Si un documento tiene su propio responsable, ese manda.
+                    </p>
+                    <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+                        <thead style="background:#f1f4f9"><tr><th style="width:120px">Área</th><th>Cargo</th><th>Nombre</th><th>Correo</th></tr></thead>
+                        <tbody>
+                            @foreach (var f in _filas)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@EnumDisplay.Mostrar(f.Area)</td>
+                                    <td><input class="form-control form-control-sm" placeholder="Coordinador …" @bind="f.Cargo" /></td>
+                                    <td><input class="form-control form-control-sm" placeholder="Nombre" @bind="f.Nombre" /></td>
+                                    <td><input type="email" class="form-control form-control-sm" placeholder="correo@renergeia.com" @bind="f.Email" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="alert alert-danger py-1 mt-2 mb-0">@_error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _abierto = false">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none" @onclick="GuardarAsync">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    private bool _abierto;
+    private string? _error;
+    private List<Fila> _filas = [];
+
+    private sealed class Fila
+    {
+        public AreaDocumento Area { get; init; }
+        public string? Cargo { get; set; }
+        public string? Nombre { get; set; }
+        public string? Email { get; set; }
+    }
+
+    private async Task AbrirAsync()
+    {
+        _error = null;
+        var actuales = await Db.ResponsablesAreaDocumento.AsNoTracking().Where(r => r.ProyectoId == ProyectoId).ToListAsync();
+        _filas = Enum.GetValues<AreaDocumento>().Select(a =>
+        {
+            var r = actuales.FirstOrDefault(x => x.Area == a);
+            return new Fila { Area = a, Cargo = r?.Cargo, Nombre = r?.Nombre, Email = r?.Email };
+        }).ToList();
+        _abierto = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            var actuales = await Db.ResponsablesAreaDocumento.Where(r => r.ProyectoId == ProyectoId).ToListAsync();
+            foreach (var f in _filas)
+            {
+                var r = actuales.FirstOrDefault(x => x.Area == f.Area);
+                var vacio = string.IsNullOrWhiteSpace(f.Nombre) && string.IsNullOrWhiteSpace(f.Cargo);
+                if (vacio)
+                {
+                    if (r is not null) Db.ResponsablesAreaDocumento.Remove(r);
+                    continue;
+                }
+                if (r is null)
+                {
+                    r = new ResponsableAreaDocumento { ProyectoId = ProyectoId, Area = f.Area };
+                    Db.ResponsablesAreaDocumento.Add(r);
+                }
+                r.Cargo = f.Cargo?.Trim() ?? "";
+                r.Nombre = f.Nombre?.Trim() ?? "";
+                r.Email = string.IsNullOrWhiteSpace(f.Email) ? null : f.Email.Trim();
+                r.FechaModificacion = DateTime.UtcNow;
+            }
+            await Db.SaveChangesAsync();
+            _abierto = false;
+            await OnGuardado.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.InnerException?.Message ?? ex.Message;
+        }
+    }
+}

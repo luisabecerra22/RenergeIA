@@ -22,6 +22,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<Fotografia> Fotografias => Set<Fotografia>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<VersionDocumento> VersionesDocumento => Set<VersionDocumento>();
+    public DbSet<ResponsableAreaDocumento> ResponsablesAreaDocumento => Set<ResponsableAreaDocumento>();
     public DbSet<Partida> Partidas => Set<Partida>();
     public DbSet<CostoReal> CostosReales => Set<CostoReal>();
     public DbSet<CompromisoCosto> CompromisoCostos => Set<CompromisoCosto>();
@@ -365,6 +366,12 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(d => d.Disciplina).HasConversion<int>();
         });
         modelBuilder.Entity<VersionDocumento>().ToTable("VersionesDocumento");
+        modelBuilder.Entity<ResponsableAreaDocumento>(e =>
+        {
+            e.ToTable("ResponsablesAreaDocumento");
+            e.HasIndex(r => new { r.ProyectoId, r.Area }).IsUnique();
+            e.HasOne(r => r.Proyecto).WithMany().HasForeignKey(r => r.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<NoConformidad>().ToTable("NoConformidades");
         modelBuilder.Entity<AccionCorrectiva>().ToTable("AccionesCorrectivas");
         modelBuilder.Entity<Restriccion>().ToTable("Restricciones");

@@ -29,6 +29,8 @@ public class Proyecto : EntidadBase
     public DateTime? FechaFinPagos { get; set; }
     public DateTime? FechaCorteTesoreria { get; set; }
     public string? ArchivoTesoreria { get; set; }
+    public DateTime? FechaActualizacionPlanDocumental { get; set; }
+    public string? ArchivoPlanDocumental { get; set; }
 
     public string? BomAlcance { get; set; }
     public decimal? BomTrm { get; set; }
