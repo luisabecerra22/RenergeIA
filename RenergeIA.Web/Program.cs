@@ -6,6 +6,7 @@ using RenergeIA.Infrastructure.Identity;
 using RenergeIA.Web.Components;
 using RenergeIA.Infrastructure.Services;
 using RenergeIA.Web.Services;
+using RenergeIA.Web.Services.WhatsApp;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
@@ -63,6 +64,11 @@ builder.Services.AddSingleton(sp =>
     return new AnalisisIAService(http, apiKey);
 });
 
+// Canal de WhatsApp (Cloud API de Meta): las credenciales llegan por variables de entorno
+builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection(WhatsAppOptions.Seccion));
+builder.Services.AddHttpClient<WhatsAppClient>(c => c.BaseAddress = new Uri("https://graph.facebook.com/"));
+builder.Services.AddScoped<WhatsAppConversacion>();
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -84,6 +90,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapWhatsAppWebhook();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
