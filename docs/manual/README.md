@@ -43,6 +43,7 @@
 
 | Fecha | Cambio |
 |---|---|
-| 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**. |
+| 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**; las actividades con subactividades ya no llevan disciplina (promedian a sus hijas). |
+| 2026-09-26 | Dashboard: **Avance por disciplina** y **Detalle por disciplina** muestran solo Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha y Cierre de proyecto, en ese orden, con colores de marca y tipografía Montserrat en todas las gráficas. |
 | 2026-09-26 | Dashboard: Curva S ponderada por duración, línea real en tres tramos (histórico cargado · informes diarios · estimación punteada), botón **Histórico real** para pegar la serie del informe interno, selector de alcance (Todo el proyecto / Solo construcción) y fecha de corte en hora Colombia. |
 | 2026-09-16 | Creación del manual: índice, primeros pasos, Documentos (planificación documental) y capítulos iniciales de los demás módulos. |

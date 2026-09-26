@@ -17,7 +17,7 @@
 | **Desviación** | Avance real − avance programado, en puntos porcentuales. Negativa = atraso. |
 | **SPI** | Índice de desempeño del cronograma = avance real ÷ avance programado. 1,00 = al día; menor a 1 = atraso. |
 | **Curva S** | Gráfica del avance acumulado planificado vs real a lo largo del tiempo. |
-| **Disciplina** | Civil, Eléctrica, Mecánica, etc., asignada a cada actividad en el cronograma. |
+| **Disciplina** | Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha, Cierre de proyecto, etc., asignada a cada actividad **hoja** en el cronograma (las actividades con subactividades no llevan disciplina). |
 | **CR** | Marca de las actividades señaladas como críticas en el cronograma. |
 
 ---
@@ -58,7 +58,7 @@ Se aplica en este orden:
 
 ### Curva S
 
-- **Alcance:** el selector junto al título permite ver **Todo el proyecto** (todas las actividades hoja del cronograma vigente: contractual, ingeniería, suministros, construcción, commissioning y cierre) o **Solo construcción** (únicamente las actividades hoja con disciplina Civil, Mecánica o Eléctrica). El segundo alcance es el comparable con la curva de "Avance de construcción" del informe interno.
+- **Alcance:** el selector junto al título permite ver **Todo el proyecto** (todas las actividades hoja del cronograma vigente: contractual, ingeniería, suministros, construcción, commissioning y cierre) o **Solo construcción** (únicamente las actividades hoja con disciplina Civil, Mecánica, Eléctrica o Construcción). El segundo alcance es el comparable con la curva de "Avance de construcción" del informe interno.
 - **Ponderación:** cada actividad hoja pesa según su **duración planeada en días**. Una actividad de seis meses pesa más que una de dos días, y los **hitos** (duración 0) no aportan peso. Con esto la curva toma la forma de S clásica: arranque lento, máximo ritmo cuando más frentes están activos y cierre suave. Todavía no se pondera por costo ni por horas-hombre (el cronograma no trae esa información).
 - **Línea planificada:** un punto por semana desde el inicio más temprano hasta el fin más tardío de las actividades hoja (más el fin del proyecto, la fecha de hoy y la del primer informe). Cada punto es el avance lineal esperado de cada actividad a esa fecha, ponderado por duración.
 - **Línea real, en tres tramos (de más a menos confiable):**
@@ -73,13 +73,13 @@ Se aplica en este orden:
 
 ### Gráficas y tablas
 
-- **Avance por disciplina — Real vs Programado:** barras por disciplina (solo actividades con disciplina asignada).
+- **Avance por disciplina — Real vs Programado:** barras en verde (real) y azul (programado) de RenergeIA, siempre en este orden y solo para estas disciplinas: **Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha y Cierre de proyecto** (definido el 2026-09-26). Contractual, General y Construcción no se grafican. Una disciplina sin actividades hoja no aparece.
 - **Estado de actividades:** dona con En Línea, Atrasadas, Críticas, Finalizadas y Sin iniciar.
 - **Actividades más atrasadas:** hasta 10 actividades con desviación negativa, de la peor a la menos mala.
 - **Plan de acción — Actividades críticas y atrasadas:** todas las críticas y atrasadas con código, actividad, disciplina, programado, real, desviación, estado y una **Recomendación** automática:
   - Crítica: *Intervención urgente: revisar recursos, restricciones y productividad…*
   - Atrasada: *Seguimiento diario requerido. Validar restricciones y reasignar recursos…*
-- **Detalle por disciplina:** programado, real, desviación (verde ≥ 0, amarillo hasta −5, rojo menor a −5), actividades atrasadas (incluye críticas) y total.
+- **Detalle por disciplina:** mismas disciplinas y orden que la gráfica; programado, real, desviación (verde ≥ 0, amarillo hasta −5, rojo menor a −5), actividades atrasadas (incluye críticas) y total.
 
 ---
 
@@ -121,9 +121,9 @@ Se aplica en este orden:
 | Situación | Causa probable | Qué hacer |
 |---|---|---|
 | *No hay actividades WBS configuradas para este proyecto.* | El proyecto no tiene cronograma, o la versión vigente no tiene actividades activas. | Pulsa **Ir a WBS** y carga el cronograma o activa la versión correcta. |
-| *Ninguna actividad hoja… tiene disciplina Civil, Mecánica o Eléctrica* en la Curva S | El alcance "Solo construcción" no encontró actividades con esas disciplinas. | Asigna la disciplina a las actividades en el Cronograma o vuelve a "Todo el proyecto". |
+| *Ninguna actividad hoja… tiene disciplina Civil, Mecánica, Eléctrica o Construcción* en la Curva S | El alcance "Solo construcción" no encontró actividades con esas disciplinas. | Asigna la disciplina a las actividades en el Cronograma o vuelve a "Todo el proyecto". |
 | *No hay actividades con fechas programadas.* en la Curva S | Las actividades no tienen fechas planeadas utilizables. | Revisa las fechas de inicio y fin en el cronograma. |
-| *No hay actividades con disciplina asignada.* | Ninguna actividad hoja tiene disciplina. | Asigna la disciplina a las actividades en el cronograma. |
+| *No hay actividades hoja con disciplina Suministros, Ingeniería…* | Ninguna actividad hoja tiene una de las siete disciplinas que se grafican (Contractual, General y Construcción no cuentan). | Asigna la disciplina a las actividades en el cronograma. |
 | El avance real está en 0 % aunque se trabaja en obra | No se han registrado informes diarios con avance, o se registraron sobre otra versión del cronograma. | Registra el avance en **Informe Diario** y verifica que la versión vigente del cronograma sea la correcta. |
 | Hay muchas actividades **Sin iniciar** y pocas atrasadas, pero el proyecto se siente atrasado | Las actividades con 0 % no se clasifican como atrasadas (ver *Cómo funciona*). | Filtra en el cronograma las actividades sin avance cuya fecha de inicio ya pasó. |
 | Los datos no cambiaron después de registrar un informe | La página muestra lo calculado al abrirla. | Pulsa **Actualizar** o recarga la página. |

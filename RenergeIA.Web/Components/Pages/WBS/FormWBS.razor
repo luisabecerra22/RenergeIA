@@ -72,13 +72,21 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Disciplina</label>
-                        <InputSelect class="form-select" @bind-Value="_form.Disciplina">
-                            <option value="">— Sin disciplina —</option>
-                            @foreach (var d in Enum.GetValues<Disciplina>())
-                            {
-                                <option value="@d">@EnumDisplay.Mostrar(d)</option>
-                            }
-                        </InputSelect>
+                        @if (_tieneHijas)
+                        {
+                            <input class="form-control" value="—" disabled />
+                            <div class="form-text">Esta actividad promedia sus subactividades; la disciplina se asigna en cada una de ellas.</div>
+                        }
+                        else
+                        {
+                            <InputSelect class="form-select" @bind-Value="_form.Disciplina">
+                                <option value="">— Sin disciplina —</option>
+                                @foreach (var d in Enum.GetValues<Disciplina>())
+                                {
+                                    <option value="@d">@EnumDisplay.Mostrar(d)</option>
+                                }
+                            </InputSelect>
+                        }
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Estado</label>
@@ -127,6 +135,7 @@
     [Parameter] public int ProyectoId { get; set; }
     [Parameter] public int? ActividadId { get; set; }
 
+    private bool _tieneHijas; // la actividad tiene subactividades: promedia y no lleva disciplina
     private bool _esNuevo => ActividadId is null;
     private FormModel? _form;
     private bool _confirmarEliminar;
@@ -177,6 +186,7 @@
         {
             var actividad = await Db.ActividadesWBS.FindAsync(ActividadId!.Value);
             if (actividad is null) { Navigation.NavigateTo($"/proyectos/{ProyectoId}/wbs"); return; }
+            _tieneHijas = await Db.ActividadesWBS.AnyAsync(x => x.ActividadPadreId == actividad.Id);
 
             _form = new FormModel
             {
@@ -235,7 +245,7 @@
             actividad.FechaFinPlaneada = _form.FechaFinPlaneada;
             actividad.AvancePlanificado = _form.AvancePlanificado;
             actividad.AvanceReal = _form.AvanceReal;
-            actividad.Disciplina = _form.Disciplina;
+            actividad.Disciplina = _tieneHijas ? null : _form.Disciplina; // las que promedian hijas no llevan disciplina
             actividad.Estado = _form.Estado;
             actividad.Activo = _form.Activo;
             actividad.FechaModificacion = DateTime.UtcNow;

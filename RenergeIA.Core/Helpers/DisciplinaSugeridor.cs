@@ -13,8 +13,10 @@ namespace RenergeIA.Core.Helpers;
 ///   1. Memoria: una actividad con el MISMO nombre (normalizado) ya clasificada en cualquier
 ///      versión del cronograma del proyecto (o de otro proyecto) conserva esa disciplina.
 ///   2. Palabras clave del nombre (suministro, ingeniería, cableado, hincado, commissioning…).
-///   3. Disciplina de la actividad padre.
+///   3. Palabras clave del nombre de la actividad padre (y luego del abuelo, etc.).
 /// Si nada aplica, devuelve null y la actividad queda "—" para clasificarla a mano.
+/// Solo se clasifican las actividades HOJA: las que tienen hijas promedian el avance de estas
+/// y, por definición de la usuaria (2026-09-26), no llevan disciplina.
 /// </summary>
 public static class DisciplinaSugeridor
 {
@@ -63,9 +65,10 @@ public static class DisciplinaSugeridor
         return memoria;
     }
 
+    /// <param name="nombresAncestros">Nombres del padre, abuelo, … (del más cercano al más lejano).</param>
     public static Disciplina? Sugerir(string nombre,
                                       IReadOnlyDictionary<string, Disciplina>? memoria,
-                                      Disciplina? disciplinaPadre,
+                                      IEnumerable<string>? nombresAncestros,
                                       out Origen origen)
     {
         var clave = Normalizar(nombre);
@@ -83,10 +86,15 @@ public static class DisciplinaSugeridor
             return porClave;
         }
 
-        if (disciplinaPadre is not null)
+        if (nombresAncestros is not null)
         {
-            origen = Origen.Padre;
-            return disciplinaPadre;
+            foreach (var ancestro in nombresAncestros)
+            {
+                var porPadre = PorPalabrasClave(Normalizar(ancestro));
+                if (porPadre is null) continue;
+                origen = Origen.Padre;
+                return porPadre;
+            }
         }
 
         origen = Origen.Ninguno;

@@ -234,7 +234,7 @@ else
                     <div class="text-center py-4">
                         @if (_dash.CurvaS.SoloConstruccion)
                         {
-                            <p class="text-muted mb-2">Ninguna actividad hoja del cronograma vigente tiene disciplina Civil, Mecánica o Eléctrica. Asigne la disciplina en el WBS para usar este alcance.</p>
+                            <p class="text-muted mb-2">Ninguna actividad hoja del cronograma vigente tiene disciplina Civil, Mecánica, Eléctrica o Construcción. Asigne la disciplina en el WBS para usar este alcance.</p>
                         }
                         else
                         {
@@ -250,19 +250,19 @@ else
                         <strong>Real:</strong>
                         @if (_dash.CurvaS.HistoricoPuntos > 0)
                         {
-                            <text>del @_dash.CurvaS.HistoricoDesde?.ToString("dd/MM/yyyy") al @_dash.CurvaS.HistoricoHasta?.ToString("dd/MM/yyyy") es el histórico cargado del informe interno (@_dash.CurvaS.HistoricoPuntos puntos, tramo sólido).</text>
+                            <text>@(" ")del @_dash.CurvaS.HistoricoDesde?.ToString("dd/MM/yyyy") al @_dash.CurvaS.HistoricoHasta?.ToString("dd/MM/yyyy") es el histórico cargado del informe interno (@_dash.CurvaS.HistoricoPuntos puntos, tramo sólido).</text>
                         }
                         @if (_dash.CurvaS.PrimerInforme is { } primerInforme)
                         {
-                            <text>Desde el @primerInforme.ToString("dd/MM/yyyy") hay informes diarios para @_dash.CurvaS.ActividadesConInforme actividades (último avance acumulado informado por actividad, misma ponderación; tramo sólido).</text>
+                            <text>@(" ")Desde el @primerInforme.ToString("dd/MM/yyyy") hay informes diarios para @_dash.CurvaS.ActividadesConInforme actividades (último avance acumulado informado por actividad, misma ponderación; tramo sólido).</text>
                         }
                         else if (_dash.CurvaS.HistoricoPuntos == 0)
                         {
-                            <text>Aún no hay informes diarios para las actividades del cronograma vigente ni histórico cargado.</text>
+                            <text>@(" ")Aún no hay informes diarios para las actividades del cronograma vigente ni histórico cargado.</text>
                         }
                         @if (_dash.CurvaS.TieneEstimado)
                         {
-                            <text>El tramo <strong>punteado</strong> es una estimación sin dato de respaldo</text>
+                            <text>@(" ")El tramo <strong>punteado</strong> es una estimación sin dato de respaldo</text>
                             @if (_dash.CurvaS.HistoricoPuntos > 0)
                             {
                                 <text> (puente entre el fin del histórico y el avance actual del cronograma)</text>
@@ -425,7 +425,7 @@ else
                         @if (!_dash.PorDisciplina.Any())
                         {
                             <p class="text-muted text-center py-4">
-                                No hay actividades con disciplina asignada.
+                                No hay actividades hoja con disciplina Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha o Cierre de proyecto.
                             </p>
                         }
                         else

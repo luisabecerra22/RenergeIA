@@ -69,6 +69,12 @@ window.renderLineChart = function (canvasId, labels, data1, data2, label1, label
     });
 };
 
+// Tipografía de marca en todas las gráficas (Chart.js usa Helvetica/Arial por defecto)
+if (window.Chart) {
+    Chart.defaults.font.family = "'Montserrat', Verdana, sans-serif";
+    Chart.defaults.color = '#495057';
+}
+
 window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2) {
     destroyChart(canvasId);
     const ctx = document.getElementById(canvasId);
@@ -81,24 +87,30 @@ window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2
                 {
                     label: label1,
                     data: data1,
-                    backgroundColor: 'rgba(25,135,84,0.75)',
-                    borderColor: '#198754',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(106,191,75,0.85)',  // verde RenergeIA
+                    borderColor: '#6ABF4B',
+                    borderWidth: 1,
+                    borderRadius: 4
                 },
                 {
                     label: label2,
                     data: data2,
-                    backgroundColor: 'rgba(13,110,253,0.45)',
-                    borderColor: '#0d6efd',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(24,57,99,0.80)',    // azul RenergeIA
+                    borderColor: '#183963',
+                    borderWidth: 1,
+                    borderRadius: 4
                 }
             ]
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'top' } },
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11, weight: '600' } } },
+                tooltip: { backgroundColor: 'rgba(24,57,99,0.92)', callbacks: { label: c => ` ${c.dataset.label}: ${Number(c.parsed.y).toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` } }
+            },
             scales: {
-                y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }
+                y: { min: 0, max: 100, ticks: { callback: v => v + '%', color: '#6c757d' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { ticks: { color: '#183963', font: { weight: '600' } }, grid: { display: false } }
             }
         }
     });

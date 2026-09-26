@@ -177,6 +177,12 @@ public class InformeDiarioService(RenergeIADbContext db)
     //   linealmente desde su inicio (real o planeado) hasta hoy. El tramo anterior al primer
     //   informe diario es estimado y se dibuja punteado; desde el primer informe, sólido.
 
+    // Disciplinas que se muestran en "Avance por disciplina" del Dashboard y su orden (definido por la
+    // usuaria el 2026-09-26): Contractual, General y Construcción no se grafican.
+    public static readonly Disciplina[] DisciplinasDashboard =
+        [Disciplina.Suministros, Disciplina.Ingenieria, Disciplina.Civil, Disciplina.Mecanica,
+         Disciplina.Electrica, Disciplina.PuestaEnMarcha, Disciplina.CierreProyecto];
+
     public static readonly Disciplina[] DisciplinasConstruccion =
         [Disciplina.Civil, Disciplina.Mecanica, Disciplina.Electrica, Disciplina.Construccion];
 
@@ -584,7 +590,7 @@ public class InformeDiarioService(RenergeIADbContext db)
         var estadoGen = spi >= 1m ? "Al Día" : spi >= 0.9m ? "Leve Atraso" : spi >= 0.75m ? "Atrasado" : "Crítico";
 
         var porDisciplina = actsDash
-            .Where(a => a.Disciplina.HasValue)
+            .Where(a => a.Disciplina.HasValue && DisciplinasDashboard.Contains(a.Disciplina.Value))
             .GroupBy(a => a.Disciplina!.Value)
             .Select(g => new ResumenDisciplinaDash
             {
@@ -595,7 +601,7 @@ public class InformeDiarioService(RenergeIADbContext db)
                 Total            = g.Count(),
                 Atrasadas        = g.Count(a => a.Estado is EstadoDashboard.Atrasada or EstadoDashboard.Critica)
             })
-            .OrderBy(d => d.Disciplina)
+            .OrderBy(d => Array.IndexOf(DisciplinasDashboard, d.Disciplina))
             .ToList();
 
         var counts = actsDash

@@ -181,7 +181,7 @@ else
                             title="Asigna disciplina a las actividades que no la tienen: primero por coincidencia de nombre con cronogramas ya clasificados, luego por palabras clave y por último la del padre"
                             @onclick="CompletarDisciplinasAsync">
                         @if (_completandoDisciplinas) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        Completar disciplinas (@_actividades.Count(x => x.Activo && x.Disciplina is null))
+                        Completar disciplinas (@_actividades.Count(x => x.Activo && x.Disciplina is null && EsHoja(x)))
                     </button>
                     <button class="btn btn-sm btn-outline-warning"
                             @onclick="() => { _mostrarModalReprogramacion = true; _motivoReprogramacion = string.Empty; _errorReprogramacion = null; }">
@@ -297,9 +297,13 @@ else
                                        @onchange="e => GuardarFechaFinAsync(a, e)" />
                             </td>
 
-                            <!-- Disciplina -->
+                            <!-- Disciplina: solo en actividades hoja; las que tienen hijas promedian y no llevan disciplina -->
                             <td style="text-align:center;padding:3px 4px">
-                                @if (_esVersionVigente)
+                                @if (!EsHoja(a))
+                                {
+                                    <span class="text-muted" style="font-size:0.7rem" title="Promedia sus subactividades; la disciplina se asigna en cada una de ellas">—</span>
+                                }
+                                else if (_esVersionVigente)
                                 {
                                     <select class="form-select form-select-sm"
                                             style="font-size:0.68rem;padding:1px 3px;border-color:#dee2e6;min-width:100px"
@@ -803,6 +807,13 @@ else
         bool huboCambios = false;
         foreach (var padre in padres)
         {
+            // Las actividades que promedian hijas no llevan disciplina (regla de la usuaria, 2026-09-26)
+            if (padre.Disciplina is not null)
+            {
+                padre.Disciplina = null;
+                padre.FechaModificacion = DateTime.UtcNow;
+                huboCambios = true;
+            }
             var hijos = _actividades.Where(h => h.ActividadPadreId == padre.Id && h.Activo).ToList();
             if (!hijos.Any()) continue;
             var nuevoAvance = Math.Round(hijos.Average(h => h.AvanceReal), 1);
@@ -892,8 +903,9 @@ else
         }
         public string Resumen(int sinAsignar) =>
             $"Disciplinas asignadas automáticamente: {Total} " +
-            $"({Memoria} por coincidencia con cronogramas ya clasificados, {PalabraClave} por palabras clave del nombre, {Padre} heredadas de la actividad padre)" +
-            (sinAsignar > 0 ? $"; {sinAsignar} quedaron sin disciplina para clasificar a mano." : ".") +
+            $"({Memoria} por coincidencia con cronogramas ya clasificados, {PalabraClave} por palabras clave del nombre, {Padre} por el nombre de la actividad padre)" +
+            (sinAsignar > 0 ? $"; {sinAsignar} actividades hoja quedaron sin disciplina para clasificar a mano." : ".") +
+            " Las actividades con subactividades no llevan disciplina porque promedian a sus hijas." +
             " Revisa y corrige las que no correspondan.";
     }
 
@@ -916,11 +928,13 @@ else
             var conteo  = new ConteoDisciplinas();
             int sinAsignar = 0;
 
-            // Padres antes que hijos (orden WBS) para que la herencia del padre funcione en cascada
-            foreach (var a in _actividades.Where(a => a.Disciplina is null).OrderBy(a => WbsSortKey(a.CodigoWBS)))
+            // Solo hojas: las actividades con hijas promedian y no llevan disciplina
+            foreach (var a in _actividades.Where(a => a.Disciplina is null && EsHoja(a)).OrderBy(a => WbsSortKey(a.CodigoWBS)))
             {
-                Disciplina? padre = a.ActividadPadreId is int pid && porId.TryGetValue(pid, out var p) ? p.Disciplina : null;
-                var sugerida = DisciplinaSugeridor.Sugerir(a.Nombre, memoria, padre, out var origen);
+                var ancestros = new List<string>();
+                for (var pid = a.ActividadPadreId; pid is int id && porId.TryGetValue(id, out var p); pid = p.ActividadPadreId)
+                    ancestros.Add(p.Nombre);
+                var sugerida = DisciplinaSugeridor.Sugerir(a.Nombre, memoria, ancestros, out var origen);
                 if (sugerida is null) { sinAsignar++; continue; }
                 a.Disciplina = sugerida;
                 a.FechaModificacion = DateTime.UtcNow;
@@ -1191,8 +1205,16 @@ else
                     ultimoPorNivel.TryGetValue(n, out padre);
             }
 
-            var disciplina = DisciplinaSugeridor.Sugerir(t.Nombre, memoria, padre?.Disciplina, out var origen);
-            if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
+            // Solo las tareas hoja llevan disciplina; las de resumen promedian a sus hijas
+            Disciplina? disciplina = null;
+            if (!t.EsResumen)
+            {
+                var ancestros = Enumerable.Range(1, Math.Max(0, t.Nivel - 1)).Reverse()
+                    .Select(n => ultimoPorNivel.TryGetValue(n, out var anc) ? anc.Nombre : null)
+                    .Where(n => n is not null).Select(n => n!).ToList();
+                disciplina = DisciplinaSugeridor.Sugerir(t.Nombre, memoria, ancestros, out var origen);
+                if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
+            }
 
             var actividad = new ActividadWBS
             {
@@ -1814,9 +1836,16 @@ TEXTO DEL PDF:
                 foreach (var item in batch)
                 {
                     int? padreId = item.CodigoPadre is not null && idMap.TryGetValue(item.CodigoPadre, out var pid) ? pid : null;
-                    Disciplina? discPadre = item.CodigoPadre is not null && entidadPorCodigo.TryGetValue(item.CodigoPadre, out var ep) ? ep.Disciplina : null;
-                    var disciplina = DisciplinaSugeridor.Sugerir(item.Nombre, memoria, discPadre, out var origen);
-                    if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
+                    // Solo hojas llevan disciplina; las que tienen hijas en el archivo promedian
+                    Disciplina? disciplina = null;
+                    if (!_actividadesPdf.Any(x => x.CodigoPadre == item.Codigo))
+                    {
+                        var ancestros = new List<string>();
+                        for (var cp = item.CodigoPadre; cp is not null && entidadPorCodigo.TryGetValue(cp, out var ep); cp = _actividadesPdf.FirstOrDefault(x => x.Codigo == cp)?.CodigoPadre)
+                            ancestros.Add(ep.Nombre);
+                        disciplina = DisciplinaSugeridor.Sugerir(item.Nombre, memoria, ancestros, out var origen);
+                        if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
+                    }
 
                     var act = new ActividadWBS
                     {
