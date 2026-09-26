@@ -32,6 +32,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<HitoCompromiso> HitosCompromiso => Set<HitoCompromiso>();
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
+    public DbSet<PuntoCurvaReal> PuntosCurvaReal => Set<PuntoCurvaReal>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -229,6 +230,16 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(a => a.Clave).HasMaxLength(600);
             e.Property(a => a.Valor).HasMaxLength(100);
             e.HasIndex(a => new { a.ProyectoId, a.Tipo, a.Clave }).IsUnique();
+        });
+
+        // PuntoCurvaReal (histórico de la Curva S real cargado desde el informe interno)
+        modelBuilder.Entity<PuntoCurvaReal>(e =>
+        {
+            e.ToTable("PuntosCurvaReal");
+            e.Property(x => x.PorcentajeReal).HasColumnType("decimal(6,2)");
+            e.Property(x => x.Origen).HasMaxLength(200);
+            e.HasIndex(x => new { x.ProyectoId, x.SoloConstruccion, x.Fecha }).IsUnique();
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // PersonalHistogramaMes

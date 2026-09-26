@@ -40,6 +40,7 @@ export default function LoginForm() {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
+          className="login-input"
         />
       </div>
       <div className="field">
@@ -50,6 +51,7 @@ export default function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            className="login-input"
             style={{ paddingRight: 44 }}
           />
           <button
@@ -84,8 +86,8 @@ export default function LoginForm() {
           </button>
         </div>
       </div>
-      <button className="btn btn-primary btn-block" disabled={cargando}>
-        {cargando ? "Entrando…" : "Entrar"}
+      <button className="btn btn-login btn-block" disabled={cargando}>
+        {cargando ? "Ingresando…" : "Ingresar"}
       </button>
     </form>
   );

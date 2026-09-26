@@ -208,25 +208,78 @@ else
                     {
                         <span style="color:#6ABF4B;font-size:0.72rem;font-weight:600">Actualizada</span>
                     }
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            style="font-size:0.72rem;padding:3px 10px;border-radius:6px"
+                            @onclick="AbrirHistoricoAsync"
+                            title="Cargar el histórico de avance real (informe interno) para las fechas anteriores a los informes diarios">
+                        <i class="bi-clock-history"></i>
+                        Histórico real
+                        @if (_dash.CurvaS.HistoricoPuntos > 0)
+                        {
+                            <span class="badge" style="background:#6ABF4B;font-size:0.6rem">@_dash.CurvaS.HistoricoPuntos</span>
+                        }
+                    </button>
                 </div>
-                <small class="text-muted">Línea base del cronograma vs avance de informes diarios</small>
+                <div class="d-flex align-items-center gap-2">
+                    <small class="text-muted d-none d-md-inline">Alcance:</small>
+                    <select class="form-select form-select-sm" style="width:auto;font-size:0.75rem" value="@_alcanceCurva" @onchange="CambiarAlcanceCurvaAsync">
+                        <option value="todo">Todo el proyecto</option>
+                        <option value="construccion">Solo construcción (Civil · Mecánica · Eléctrica)</option>
+                    </select>
+                </div>
             </div>
             <div class="card-body">
                 @if (_dash.CurvaS.Fechas.Count == 0)
                 {
                     <div class="text-center py-4">
-                        <p class="text-muted mb-2">No hay actividades con fechas programadas.</p>
+                        @if (_dash.CurvaS.SoloConstruccion)
+                        {
+                            <p class="text-muted mb-2">Ninguna actividad hoja del cronograma vigente tiene disciplina Civil, Mecánica o Eléctrica. Asigne la disciplina en el WBS para usar este alcance.</p>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-2">No hay actividades con fechas programadas.</p>
+                        }
                     </div>
                 }
                 else
                 {
                     <canvas id="curvaSChart" style="max-height:360px"></canvas>
+                    <div class="text-muted mt-2" style="font-size:0.72rem">
+                        <strong>Planificado:</strong> avance lineal de cada una de las @_dash.CurvaS.TotalActividades actividades hoja del cronograma vigente, ponderado por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").
+                        <strong>Real:</strong>
+                        @if (_dash.CurvaS.HistoricoPuntos > 0)
+                        {
+                            <text>del @_dash.CurvaS.HistoricoDesde?.ToString("dd/MM/yyyy") al @_dash.CurvaS.HistoricoHasta?.ToString("dd/MM/yyyy") es el histórico cargado del informe interno (@_dash.CurvaS.HistoricoPuntos puntos, tramo sólido).</text>
+                        }
+                        @if (_dash.CurvaS.PrimerInforme is { } primerInforme)
+                        {
+                            <text>Desde el @primerInforme.ToString("dd/MM/yyyy") hay informes diarios para @_dash.CurvaS.ActividadesConInforme actividades (último avance acumulado informado por actividad, misma ponderación; tramo sólido).</text>
+                        }
+                        else if (_dash.CurvaS.HistoricoPuntos == 0)
+                        {
+                            <text>Aún no hay informes diarios para las actividades del cronograma vigente ni histórico cargado.</text>
+                        }
+                        @if (_dash.CurvaS.TieneEstimado)
+                        {
+                            <text>El tramo <strong>punteado</strong> es una estimación sin dato de respaldo</text>
+                            @if (_dash.CurvaS.HistoricoPuntos > 0)
+                            {
+                                <text> (puente entre el fin del histórico y el avance actual del cronograma)</text>
+                            }
+                            else
+                            {
+                                <text> (avance actual de cada actividad repartido linealmente desde su inicio)</text>
+                            }
+                            <text>; use <strong>Histórico real</strong> para cargar los datos reales de ese período.</text>
+                        }
+                    </div>
 
                     <!-- Barra comparativa: Ejecutado vs Planeado a corte de hoy -->
                     <div class="mt-4 pt-3" style="border-top:1px solid #f0f2f5">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="fw-semibold" style="font-size:0.85rem;color:#183963">
-                                Corte a hoy — @DateTime.Now.ToString("dd/MM/yyyy")
+                                Corte a hoy — @_dash.CurvaS.FechaCorte.ToString("dd/MM/yyyy")
                             </span>
                             <div class="d-flex gap-4" style="font-size:0.78rem">
                                 <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#6ABF4B;margin-right:4px"></span>
@@ -257,6 +310,111 @@ else
                 }
             </div>
         </div>
+
+        @if (_modalHistorico)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.45)" @onclick="CerrarHistorico">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable" @onclick:stopPropagation="true">
+                    <div class="modal-content" style="border-radius:14px">
+                        <div class="modal-header" style="background:#183963;color:white;border-radius:14px 14px 0 0">
+                            <h6 class="modal-title mb-0">Histórico de avance real — Curva S</h6>
+                            <button type="button" class="btn-close btn-close-white" @onclick="CerrarHistorico"></button>
+                        </div>
+                        <div class="modal-body" style="font-size:0.85rem">
+                            <p class="mb-2">
+                                La app solo conoce el avance real desde que se registran <strong>informes diarios</strong>. Para las fechas
+                                anteriores, pegue aquí el histórico de su informe interno (la serie <em>% acumulado real</em> de la
+                                curva S): dos columnas, <strong>fecha</strong> y <strong>% real acumulado</strong>, copiadas desde Excel.
+                                Se aceptan fechas como <code>09/02/2026</code> o <code>9-feb-26</code> y porcentajes como <code>41,5%</code>,
+                                <code>41.5</code> o <code>0,415</code>. Al guardar se <strong>reemplaza</strong> el histórico anterior del mismo alcance.
+                            </p>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-5">
+                                    <label class="form-label mb-1 fw-semibold">Alcance del histórico</label>
+                                    <select class="form-select form-select-sm" @bind="_histAlcance">
+                                        <option value="todo">Todo el proyecto</option>
+                                        <option value="construccion">Solo construcción (Civil · Mecánica · Eléctrica)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label mb-1 fw-semibold">Origen (opcional)</label>
+                                    <input class="form-control form-control-sm" @bind="_histOrigen" placeholder="Ej.: Informe interno semana 38, hoja Curva_S_General" />
+                                </div>
+                            </div>
+                            <label class="form-label mb-1 fw-semibold">Datos (fecha y % real, una fila por línea)</label>
+                            <textarea class="form-control form-control-sm" rows="8" style="font-family:monospace;font-size:0.78rem"
+                                      @bind="_histTexto" @bind:event="oninput" @bind:after="PrevisualizarHistorico"
+                                      placeholder="09/02/2026&#9;0,00%&#10;16/02/2026&#9;0,35%&#10;23/02/2026&#9;1,10%&#10;..."></textarea>
+
+                            @if (_histActual.Count > 0 && _histResultado is null)
+                            {
+                                <div class="mt-3 p-2 rounded" style="background:#f0f4f9;font-size:0.8rem">
+                                    Histórico cargado actualmente para este alcance: <strong>@_histActual.Count puntos</strong>,
+                                    del @_histActual.First().Fecha.ToString("dd/MM/yyyy") (@_histActual.First().PorcentajeReal.ToString("F2")%)
+                                    al @_histActual.Last().Fecha.ToString("dd/MM/yyyy") (@_histActual.Last().PorcentajeReal.ToString("F2")%)@(string.IsNullOrWhiteSpace(_histActual.Last().Origen) ? "" : $" · Origen: {_histActual.Last().Origen}").
+                                </div>
+                            }
+
+                            @if (_histResultado is not null)
+                            {
+                                var puntos = _histResultado.Puntos;
+                                <div class="mt-3 d-flex flex-wrap gap-3 align-items-center" style="font-size:0.8rem">
+                                    <span><strong style="color:#6ABF4B">@puntos.Count</strong> puntos válidos</span>
+                                    @if (puntos.Count > 0)
+                                    {
+                                        <span>del <strong>@puntos.First().Fecha.ToString("dd/MM/yyyy")</strong> al <strong>@puntos.Last().Fecha.ToString("dd/MM/yyyy")</strong></span>
+                                        <span>último valor <strong>@puntos.Last().Porcentaje.ToString("F2")%</strong></span>
+                                    }
+                                    @if (_histResultado.Ignoradas > 0)
+                                    {
+                                        <span class="text-warning">@_histResultado.Ignoradas filas ignoradas</span>
+                                    }
+                                </div>
+                                @if (puntos.Count > 1 && puntos.Zip(puntos.Skip(1)).Any(p => p.Second.Porcentaje < p.First.Porcentaje))
+                                {
+                                    <div class="alert alert-warning py-1 px-2 mt-2 mb-0" style="font-size:0.78rem">
+                                        Hay valores que bajan respecto a la fecha anterior. Se guardan tal cual; revise que la columna sea el acumulado real.
+                                    </div>
+                                }
+                                @if (_histResultado.Filas.Any(f => !f.EsValida && f.Error != "Encabezado"))
+                                {
+                                    <details class="mt-2" style="font-size:0.76rem">
+                                        <summary class="text-muted">Ver filas ignoradas</summary>
+                                        <ul class="mb-0 mt-1">
+                                            @foreach (var f in _histResultado.Filas.Where(f => !f.EsValida && f.Error != "Encabezado").Take(30))
+                                            {
+                                                <li>Línea @f.Linea: <code>@f.Texto</code> — @f.Error</li>
+                                            }
+                                        </ul>
+                                    </details>
+                                }
+                            }
+                            @if (!string.IsNullOrEmpty(_histMensaje))
+                            {
+                                <div class="alert @(_histError ? "alert-danger" : "alert-success") py-1 px-2 mt-2 mb-0" style="font-size:0.8rem">@_histMensaje</div>
+                            }
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between">
+                            <div>
+                                @if (_histActual.Count > 0)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="BorrarHistoricoAsync" disabled="@_histGuardando">Borrar histórico de este alcance</button>
+                                }
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-light" @onclick="CerrarHistorico">Cancelar</button>
+                                <button class="btn btn-sm text-white" style="background:#183963"
+                                        @onclick="GuardarHistoricoAsync"
+                                        disabled="@(_histGuardando || _histResultado is null || _histResultado.Puntos.Count == 0)">
+                                    @if (_histGuardando) { <span class="spinner-border spinner-border-sm me-1" style="width:12px;height:12px"></span> }
+                                    Guardar histórico
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
 
         <!-- Disciplinas + Donut -->
         <div class="row g-4 mb-4">
@@ -412,6 +570,7 @@ else
     private bool _chartsRendered;
     private bool _actualizandoCurvaS;
     private bool _curvaActualizada;
+    private string _alcanceCurva = "todo";
 
     protected override async Task OnInitializedAsync()
     {
@@ -430,7 +589,8 @@ else
                 "curvaSChart",
                 _dash.CurvaS.Fechas,
                 _dash.CurvaS.AvancePlanificado,
-                _dash.CurvaS.AvanceReal);
+                _dash.CurvaS.AvanceReal,
+                _dash.CurvaS.RealEstimado);
 
         if (_dash.PorDisciplina.Any())
         {
@@ -464,6 +624,8 @@ else
         StateHasChanged();
 
         _dash = await InformeSvc.ObtenerDashboardCompletoAsync(ProyectoId);
+        if (_alcanceCurva == "construccion")
+            _dash.CurvaS = await InformeSvc.DatosCurvaSAsync(ProyectoId, soloConstruccion: true);
 
         // Destroy existing chart and re-render
         await JS.InvokeVoidAsync("destroyChart", "curvaSChart");
@@ -473,7 +635,8 @@ else
                 "curvaSChart",
                 _dash.CurvaS.Fechas,
                 _dash.CurvaS.AvancePlanificado,
-                _dash.CurvaS.AvanceReal);
+                _dash.CurvaS.AvanceReal,
+                _dash.CurvaS.RealEstimado);
 
         _actualizandoCurvaS = false;
         _curvaActualizada = true;
@@ -482,6 +645,109 @@ else
         await Task.Delay(3000);
         _curvaActualizada = false;
         StateHasChanged();
+    }
+
+    // ── Histórico de avance real (Curva S) ─────────────────────────────────────
+    private bool _modalHistorico;
+    private string _histAlcance = "todo";
+    private string? _histOrigen;
+    private string? _histTexto;
+    private CurvaRealHistoricaParser.Resultado? _histResultado;
+    private List<PuntoCurvaReal> _histActual = [];
+    private bool _histGuardando;
+    private string? _histMensaje;
+    private bool _histError;
+
+    private async Task AbrirHistoricoAsync()
+    {
+        _histAlcance   = _alcanceCurva;
+        _histTexto     = null;
+        _histResultado = null;
+        _histMensaje   = null;
+        _histError     = false;
+        _histActual    = await InformeSvc.HistoricoCurvaAsync(ProyectoId, _histAlcance == "construccion");
+        _histOrigen    = _histActual.LastOrDefault()?.Origen;
+        _modalHistorico = true;
+    }
+
+    private void CerrarHistorico() => _modalHistorico = false;
+
+    private void PrevisualizarHistorico()
+    {
+        _histMensaje   = null;
+        _histResultado = string.IsNullOrWhiteSpace(_histTexto) ? null : CurvaRealHistoricaParser.Parse(_histTexto);
+    }
+
+    private async Task GuardarHistoricoAsync()
+    {
+        if (_histResultado is null || _histResultado.Puntos.Count == 0) return;
+        _histGuardando = true;
+        try
+        {
+            var soloConstruccion = _histAlcance == "construccion";
+            var n = await InformeSvc.GuardarHistoricoCurvaAsync(ProyectoId, soloConstruccion, _histResultado.Puntos, _histOrigen?.Trim());
+            _histMensaje = $"Histórico guardado: {n} puntos.";
+            _histError   = false;
+            _modalHistorico = false;
+            _alcanceCurva = _histAlcance;
+            await RecargarCurvaAsync();
+        }
+        catch (Exception ex)
+        {
+            _histMensaje = "No se pudo guardar el histórico: " + ex.Message;
+            _histError   = true;
+        }
+        finally { _histGuardando = false; }
+    }
+
+    private async Task BorrarHistoricoAsync()
+    {
+        _histGuardando = true;
+        try
+        {
+            await InformeSvc.BorrarHistoricoCurvaAsync(ProyectoId, _histAlcance == "construccion");
+            _histActual = [];
+            _modalHistorico = false;
+            await RecargarCurvaAsync();
+        }
+        catch (Exception ex)
+        {
+            _histMensaje = "No se pudo borrar el histórico: " + ex.Message;
+            _histError   = true;
+        }
+        finally { _histGuardando = false; }
+    }
+
+    // Recarga tarjetas + curva con el alcance seleccionado y vuelve a dibujar.
+    private async Task RecargarCurvaAsync()
+    {
+        _dash = await InformeSvc.ObtenerDashboardCompletoAsync(ProyectoId);
+        if (_alcanceCurva == "construccion")
+            _dash.CurvaS = await InformeSvc.DatosCurvaSAsync(ProyectoId, soloConstruccion: true);
+        StateHasChanged();
+        await JS.InvokeVoidAsync("destroyChart", "curvaSChart");
+        if (_dash.CurvaS.Fechas.Count > 0)
+            await JS.InvokeVoidAsync("renderCurvaS",
+                "curvaSChart",
+                _dash.CurvaS.Fechas,
+                _dash.CurvaS.AvancePlanificado,
+                _dash.CurvaS.AvanceReal,
+                _dash.CurvaS.RealEstimado);
+    }
+
+    private async Task CambiarAlcanceCurvaAsync(ChangeEventArgs e)
+    {
+        _alcanceCurva = e.Value?.ToString() ?? "todo";
+        _dash.CurvaS = await InformeSvc.DatosCurvaSAsync(ProyectoId, soloConstruccion: _alcanceCurva == "construccion");
+        StateHasChanged();
+        await JS.InvokeVoidAsync("destroyChart", "curvaSChart");
+        if (_dash.CurvaS.Fechas.Count > 0)
+            await JS.InvokeVoidAsync("renderCurvaS",
+                "curvaSChart",
+                _dash.CurvaS.Fechas,
+                _dash.CurvaS.AvancePlanificado,
+                _dash.CurvaS.AvanceReal,
+                _dash.CurvaS.RealEstimado);
     }
 
     private string ColorDesv(decimal desv) =>

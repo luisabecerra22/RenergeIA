@@ -110,10 +110,11 @@ public static class EnumDisplay
         Disciplina.Civil            => "Civil",
         Disciplina.Electrica        => "Eléctrica",
         Disciplina.Contractual      => "Contractual",
-        Disciplina.HotCommissioning => "Hot Commissioning",
+        Disciplina.PuestaEnMarcha   => "Puesta en marcha",
         Disciplina.CierreProyecto   => "Dossier",
         Disciplina.General          => "General",
         Disciplina.Suministros      => "Suministros",
+        Disciplina.Ingenieria       => "Ingeniería",
         _                           => disciplina.ToString()
     };
 
@@ -123,10 +124,11 @@ public static class EnumDisplay
         Disciplina.Civil            => "🏗️",
         Disciplina.Electrica        => "⚡",
         Disciplina.Contractual      => "📋",
-        Disciplina.HotCommissioning => "🔥",
+        Disciplina.PuestaEnMarcha   => "🔥",
         Disciplina.CierreProyecto   => "✅",
         Disciplina.General          => "📌",
         Disciplina.Suministros      => "📦",
+        Disciplina.Ingenieria       => "📐",
         _                           => "📌"
     };
 

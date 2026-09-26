@@ -6,8 +6,9 @@ public enum Disciplina
     Civil,
     Electrica,
     Contractual,
-    HotCommissioning,
+    PuestaEnMarcha,     // antes HotCommissioning (valor 4 en BD, se mantiene)
     CierreProyecto,
     General,
-    Suministros
+    Suministros,
+    Ingenieria
 }

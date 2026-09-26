@@ -149,6 +149,19 @@ export default function TablaAsistencia({
           />
         </div>
         <button
+          className="btn btn-primary"
+          onClick={() => {
+            const params = new URLSearchParams();
+            if (fEval) params.set("eval", fEval);
+            if (fDepto) params.set("depto", fDepto);
+            if (busqueda.trim()) params.set("q", busqueda.trim());
+            const qs = params.toString();
+            window.location.href = `/api/admin/asistencia/export${qs ? `?${qs}` : ""}`;
+          }}
+        >
+          Exportar Excel
+        </button>
+        <button
           className={`btn ${verPapelera ? "btn-primary" : "btn-secondary"}`}
           onClick={() => verPapelera ? setVerPapelera(false) : cargarPapelera()}
         >

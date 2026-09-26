@@ -48,6 +48,7 @@ El repo `github.com/luisabecerra22/RenergeIA` (rama `main`, **público**) contie
 - Detalle completo en `GUIA_DE_DESARROLLO.md` (32 secciones) y `docs/`.
 - **Manual de usuario** (para quien usa la app): `docs/manual/README.md`, un capítulo por módulo con paso a paso y "Qué hacer en caso de…". Sus notas "⚠ Por confirmar" son decisiones o fallas pendientes de revisar.
 - **Documentos (sept. 2026):** carga de la Planificación Documental FO-SI-GC-002-1 por proyecto sin duplicar, alertas de días sin atender (amarillo 4 / rojo 8), responsables internos por área, validación y Redline/As-Built.
+- **Dashboard / Curva S (2026-09-26):** curva ponderada por duración de cada actividad hoja (hitos sin peso), botón **Histórico real** para pegar la serie fecha + % real del informe interno (tabla `PuntosCurvaReal`), línea real reconstruida por actividad desde el primer informe diario, selector de alcance "Todo el proyecto" / "Solo construcción" (Civil, Mecánica, Eléctrica) y tarjetas de avance con el mismo cálculo. Detalle en el registro de aprendizajes de `CLAUDE.md` y en `docs/manual/14-dashboard-proyecto.md`.
 - Versión en producción al momento de este traspaso: v38 (Cloud Run `renergeia-web`).
 
 ---
@@ -112,10 +113,24 @@ Estado: la **service account `github-actions-deploy@renergeia-app.iam.gserviceac
 - [ ] Crear `.github/workflows/deploy.yml` que haga `dotnet publish` + deploy a Cloud Run en cada push a `main`.
 - **Nota:** el paso de roles IAM fue **bloqueado por el clasificador de seguridad**; la usuaria debe autorizarlo/ejecutarlo (su terminal o la consola web de GCP → IAM & Admin).
 
+### RenergeIA (.NET) — Dashboard / Curva S
+- [ ] Ponderar la Curva S por **costo u horas-hombre** (hoy es por duración) si la usuaria quiere que coincida exactamente con la curva del informe interno; requiere traer esa información del cronograma (.mpp) o de la BOM.
+- [ ] Confirmar con la usuaria que las actividades del WBS tengan **disciplina** asignada para que el alcance "Solo construcción" funcione.
+- [ ] La usuaria debe **cargar el histórico real** de La Soberana (Dashboard → Histórico real) pegando la serie de su Curva_S_General; hasta entonces la línea real sale punteada (estimada). Los informes diarios nuevos deben registrarse sobre el cronograma vigente.
+
 ### RenergeIA (.NET) — Documentos
 - [ ] Lectura automática de la planificación documental desde **SharePoint** (requiere registrar una app en Microsoft 365 / Graph con permiso de solo lectura).
 - [ ] Notificaciones por correo a los responsables de documentos en rojo.
 - [ ] Confirmar con la usuaria la regla cuando app y Excel difieren (hoy gana lo editado en la app, con opción "Usar Excel").
+
+### RenergeIA (.NET) — "La Oficina" (agentes por área, inspirado en el kit Pulpo) — decidido 2026-09-25
+Concepto: al hacer clic en el logo aparece una **oficina estilo Pixar** con 6 personajes, uno por área; el personaje **levanta la mano** mientras su área tenga solicitudes pendientes para la usuaria; clic en el personaje → lista de pendientes con enlace a la pantalla donde se resuelven. Referencia conceptual: carpeta `Pulpo Starter — kit para la clase` (Downloads, fuera del repo). **No se usa Pulpo tal cual** (es para un PC local con Codex/React/SQLite); se reconstruye la idea dentro de RenergeIA.
+Agentes confirmados por la usuaria: **Costos, Documental, HSEQ, Planeación, Seguimiento, Administrativo (respaldo)** + un "jefe de oficina" que revisa correo/SharePoint y reparte.
+Fases:
+- [ ] **Fase 0** — Oficina + bandeja única de Solicitudes, SIN IA: reúne los pendientes que la app ya calcula (documentos sin atender, OC sobrepasadas, facturas sin código, nombres de nómina por confirmar, vencimientos, etc.). Imágenes: 6 personajes × 2 poses + oficina vacía, prompts en `docs/oficina/prompts-personajes.md`; los PNG van en `docs/oficina/` (la usuaria los genera).
+- [ ] **Fase 1** — Buzón de entrada: el correo de la empresa es **Outlook / Microsoft 365** y los archivos (BOM, tesorería, cronograma, planificación documental) viven en **SharePoint**. Se conecta con **Microsoft Graph** (una sola app registrada cubre correo + SharePoint). **El registro de la app lo hace IT**; cuando llegue el momento, entregarle a la usuaria los pasos/permisos exactos para solicitarlo. El jefe de oficina reconoce archivos por nombre/contenido (determinista), crea la solicitud y, al aprobar, ejecuta los importadores existentes. Reglas heredadas de Pulpo: cursor, dedupe por id, fallo ≠ procesado.
+- [ ] **Fase 2** — Chat con IA por agente con herramientas de solo lectura; toda acción que modifique datos o salga hacia afuera pasa por aprobación (Aprobar / Rechazar / Pedir cambios), validada en el servidor. Requiere facturación de Gemini.
+- [ ] **Fase 3** — Revisión programada con Cloud Scheduler (Cloud Run apaga instancias; no sirve un cron dentro de la app).
 
 ### Documentación / repo
 - [ ] Revisar con la usuaria los "⚠ Por confirmar" del manual de usuario (`docs/manual/`) y completar el manual a medida que cambien los módulos.

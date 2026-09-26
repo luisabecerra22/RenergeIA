@@ -28,7 +28,7 @@ Nada se digita en el Dashboard: **todo se calcula** con el cronograma vigente y 
 
 ### Indicadores generales
 
-- **AVANCE PROGRAMADO** y **AVANCE REAL**: promedio simple de todas las actividades hoja (todas pesan igual, sin importar duración ni costo).
+- **AVANCE PROGRAMADO** y **AVANCE REAL**: avance de todas las actividades hoja del cronograma vigente **ponderado por la duración planeada de cada una** (los hitos no pesan). Son los mismos valores del último punto de la Curva S con alcance "Todo el proyecto".
 - **DESVIACIÓN**: avance real − avance programado.
 - **SPI GLOBAL**: avance real ÷ avance programado. Si el programado es 0, el SPI es 1,00.
 - **ESTADO GENERAL** (también aparece como etiqueta junto al título):
@@ -58,12 +58,18 @@ Se aplica en este orden:
 
 ### Curva S
 
-- **Línea planificada:** un punto por semana, desde el inicio más temprano hasta el fin más tardío de las actividades hoja; cada punto es el promedio del avance programado de todas las actividades hoja en esa fecha.
-- **Línea real:** para cada semana, el último valor disponible del promedio de avance acumulado de los informes diarios. Si no hay informes, la app dibuja una línea proporcional hasta el avance real actual. Las semanas futuras no tienen línea real.
-- Se agrega un punto para **hoy** si no cae en una semana exacta.
-- Debajo, **Corte a hoy** muestra dos barras: **Avance Ejecutado** (promedio del avance real de las actividades hoja en el cronograma) y **Avance Planeado** a hoy.
+- **Alcance:** el selector junto al título permite ver **Todo el proyecto** (todas las actividades hoja del cronograma vigente: contractual, ingeniería, suministros, construcción, commissioning y cierre) o **Solo construcción** (únicamente las actividades hoja con disciplina Civil, Mecánica o Eléctrica). El segundo alcance es el comparable con la curva de "Avance de construcción" del informe interno.
+- **Ponderación:** cada actividad hoja pesa según su **duración planeada en días**. Una actividad de seis meses pesa más que una de dos días, y los **hitos** (duración 0) no aportan peso. Con esto la curva toma la forma de S clásica: arranque lento, máximo ritmo cuando más frentes están activos y cierre suave. Todavía no se pondera por costo ni por horas-hombre (el cronograma no trae esa información).
+- **Línea planificada:** un punto por semana desde el inicio más temprano hasta el fin más tardío de las actividades hoja (más el fin del proyecto, la fecha de hoy y la del primer informe). Cada punto es el avance lineal esperado de cada actividad a esa fecha, ponderado por duración.
+- **Línea real, en tres tramos (de más a menos confiable):**
+  1. **Histórico cargado** (tramo sólido): la serie de % acumulado real de tu informe interno, cargada con el botón **Histórico real**. Es la única forma de que la app conozca el avance real de las fechas anteriores a los informes diarios.
+  2. **Informes diarios** (tramo sólido): desde el primer informe diario posterior al histórico, para cada fecha se toma, por actividad, el último avance acumulado informado y se pondera igual que el planificado. Si un informe fue registrado sobre una versión anterior del cronograma, la app lo cruza con la actividad vigente del mismo código WBS.
+  3. **Estimación** (tramo **punteado**): solo donde no hay dato: el puente entre el fin del histórico y el avance actual del cronograma (o el primer informe), o, si no hay nada cargado, el avance actual de cada actividad repartido linealmente desde su inicio. La nota bajo la gráfica avisa cuando existe un tramo estimado.
+- **Histórico real (botón junto a Actualizar):** abre una ventana para pegar desde Excel dos columnas, **fecha** y **% real acumulado** (una fila por línea). Acepta fechas `09/02/2026`, `9-feb-26`, `2026-02-09` o seriales de Excel, y porcentajes `41,5%`, `41.5` o `0,415` (si todos los valores son ≤ 1 se toman como fracciones). Muestra una vista previa con puntos válidos, rango de fechas, último valor y filas ignoradas (encabezados se ignoran sin error), y avisa si algún valor baja respecto al anterior. Elige el **alcance** al que pertenece la serie (Todo el proyecto o Solo construcción); al **Guardar** se reemplaza el histórico anterior de ese alcance. **Borrar histórico** elimina la serie del alcance elegido. El botón muestra en verde cuántos puntos hay cargados.
+- Debajo de la gráfica, una nota indica cuántas actividades hoja entran en el cálculo, cuántos hitos hay sin peso y desde qué fecha hay informes.
+- **Corte a hoy** (fecha de Colombia, UTC−5) muestra dos barras: **Avance Ejecutado** y **Avance Planeado**, que son exactamente el último punto de cada línea de la curva. Con el alcance "Todo el proyecto" coinciden con las tarjetas **AVANCE REAL** y **AVANCE PROGRAMADO**.
 
-> ⚠ Por confirmar: el **Avance Ejecutado** de la barra "Corte a hoy" usa el avance real guardado en el cronograma, mientras que la tarjeta **AVANCE REAL** usa el último reporte del Informe Diario de cada actividad. Normalmente coinciden; si ves una diferencia, valida con planeación cuál manda.
+> Nota: la curva del informe interno se alimenta de otra fuente (cronograma en Excel/Project con su propio histórico), por lo que puede diferir de la de la app en las semanas anteriores al primer informe diario registrado.
 
 ### Gráficas y tablas
 
@@ -88,9 +94,10 @@ Se aplica en este orden:
 ### Analizar la Curva S
 
 1. Ubica la tarjeta **Curva S — Avance real vs planificado**.
-2. Compara la línea real con la planificada: si la real está por debajo, el proyecto va atrasado.
-3. Revisa las barras de **Corte a hoy**.
-4. Si acabas de registrar informes diarios o cambiar el cronograma, pulsa **Actualizar** (junto al título). Aparece *Actualizada* por unos segundos.
+2. Elige el **Alcance** (Todo el proyecto o Solo construcción) y compara la línea real con la planificada: si la real está por debajo, el proyecto va atrasado.
+3. Si la línea real tiene un tramo punteado, pulsa **Histórico real** y pega desde Excel la serie de fecha y % real acumulado de tu informe interno; guarda y la curva pasa a dibujar esos datos.
+4. Revisa las barras de **Corte a hoy**.
+5. Si acabas de registrar informes diarios o cambiar el cronograma, pulsa **Actualizar** (junto al título). Aparece *Actualizada* por unos segundos.
 
 > Nota: **Actualizar** recalcula los datos y vuelve a dibujar la Curva S y las tarjetas. Para refrescar también las demás gráficas, recarga la página (F5).
 
@@ -114,6 +121,7 @@ Se aplica en este orden:
 | Situación | Causa probable | Qué hacer |
 |---|---|---|
 | *No hay actividades WBS configuradas para este proyecto.* | El proyecto no tiene cronograma, o la versión vigente no tiene actividades activas. | Pulsa **Ir a WBS** y carga el cronograma o activa la versión correcta. |
+| *Ninguna actividad hoja… tiene disciplina Civil, Mecánica o Eléctrica* en la Curva S | El alcance "Solo construcción" no encontró actividades con esas disciplinas. | Asigna la disciplina a las actividades en el Cronograma o vuelve a "Todo el proyecto". |
 | *No hay actividades con fechas programadas.* en la Curva S | Las actividades no tienen fechas planeadas utilizables. | Revisa las fechas de inicio y fin en el cronograma. |
 | *No hay actividades con disciplina asignada.* | Ninguna actividad hoja tiene disciplina. | Asigna la disciplina a las actividades en el cronograma. |
 | El avance real está en 0 % aunque se trabaja en obra | No se han registrado informes diarios con avance, o se registraron sobre otra versión del cronograma. | Registra el avance en **Informe Diario** y verifica que la versión vigente del cronograma sea la correcta. |

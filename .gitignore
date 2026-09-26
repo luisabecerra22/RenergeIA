@@ -41,3 +41,6 @@ evaluacion-hse/data/*.json
 # Manual con credenciales en texto plano — NO subir a repo público (queda local en docs/)
 docs/Manual-Plataforma-Evaluaciones-HSE.pdf
 docs/Manual-Plataforma-Evaluaciones-HSE.html
+
+# Archivos de bloqueo de Office
+~$*

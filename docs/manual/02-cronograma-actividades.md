@@ -29,7 +29,7 @@
   | Finalizada | Avance real de 100 % |
   | Sin Fechas | La actividad no tiene fechas |
 
-- **Disciplina:** Mecánica, Civil, Eléctrica, Contractual, Hot Commissioning, Dossier, General o Suministros.
+- **Disciplina:** Mecánica, Civil, Eléctrica, Contractual, Puesta en marcha, Dossier, General, Suministros o Ingeniería.
 - **Activa / Inactiva:** una actividad inactiva queda fuera del conteo, del promedio de su padre y del Informe Diario, pero no se borra.
 - **Versión del cronograma:** foto completa del cronograma. La primera se llama **Actividades Inicial**; las siguientes, **Actividades Reprogramación N** o **Actividades Plantilla EPC N**. Solo una es **Vigente** (★); las demás son **Históricas** y solo se pueden consultar.
 - **Plantilla EPC:** cronograma estándar de un proyecto EPC fotovoltaico que trae la app (Timing Template de MS Project). Se ubica automáticamente desde la fecha de inicio planeada del proyecto.

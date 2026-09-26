@@ -1185,7 +1185,7 @@ else
                     ? ("medio", "Precaución en trabajos mecánicos al aire libre. Verificar anclajes y proteger equipos.")
                     : ("bajo", ""),
 
-            Disciplina.HotCommissioning => tormenta || viento > 50
+            Disciplina.PuestaEnMarcha => tormenta || viento > 50
                 ? ("alto", "Posponer pruebas. Condiciones inseguras para commissioning.")
                 : lluvia >= 60 || viento > 40
                     ? ("medio", "Monitorear condiciones. Tener plan de contingencia listo.")

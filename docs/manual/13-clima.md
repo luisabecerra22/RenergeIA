@@ -67,7 +67,7 @@
 | Commissioning | commissioning, arranque, puesta en marcha | tormenta o viento > 50 km/h |
 | Liberación / inspección | liberación, inspección, punch | (solo llega a MEDIO: tormenta o lluvia ≥ 70 %) |
 
-Cada tipo tiene además un umbral más bajo que genera riesgo **MEDIO** con su propia recomendación. Si el nombre no coincide con ningún tipo, la app evalúa por **disciplina** de la actividad (Civil, Eléctrica, Mecánica, Hot Commissioning); las demás disciplinas solo generan MEDIO si hay tormenta. Una actividad sin disciplina se trata como **General**.
+Cada tipo tiene además un umbral más bajo que genera riesgo **MEDIO** con su propia recomendación. Si el nombre no coincide con ningún tipo, la app evalúa por **disciplina** de la actividad (Civil, Eléctrica, Mecánica, Puesta en marcha); las demás disciplinas solo generan MEDIO si hay tormenta. Una actividad sin disciplina se trata como **General**.
 
 > La clasificación es por palabras: el orden importa. Por ejemplo, una actividad llamada "Instalación de tableros" se reconoce como **Tableros**, porque esa regla se revisa antes que Montaje.
 

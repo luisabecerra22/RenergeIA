@@ -348,7 +348,8 @@ window.renderPlanTrabajoChart = function (canvasId, planificadas, ejecutadas, pe
     });
 };
 
-window.renderCurvaS = function (canvasId, labels, planificado, real) {
+window.renderCurvaS = function (canvasId, labels, planificado, real, estimado) {
+    estimado = estimado || [];
     destroyChart(canvasId);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
@@ -367,7 +368,7 @@ window.renderCurvaS = function (canvasId, labels, planificado, real) {
                     borderColor: '#183963',
                     backgroundColor: 'rgba(24,57,99,0.06)',
                     borderWidth: 3,
-                    tension: 0.3,
+                    cubicInterpolationMode: 'monotone', tension: 0,
                     fill: true,
                     pointRadius: 0,
                     pointHoverRadius: 5,
@@ -380,7 +381,7 @@ window.renderCurvaS = function (canvasId, labels, planificado, real) {
                     borderColor: '#6ABF4B',
                     backgroundColor: 'rgba(106,191,75,0.12)',
                     borderWidth: 3,
-                    tension: 0.3,
+                    cubicInterpolationMode: 'monotone', tension: 0,
                     fill: true,
                     pointRadius: function (context) {
                         return context.dataIndex === lastRealIdx ? 6 : 0;
@@ -390,6 +391,8 @@ window.renderCurvaS = function (canvasId, labels, planificado, real) {
                     pointBorderWidth: 2,
                     pointHoverRadius: 6,
                     spanGaps: true,
+                    // Tramo estimado (sin informes diarios) punteado; tramo informado, solido
+                    segment: { borderDash: c => (estimado[c.p1DataIndex] || estimado[c.p0DataIndex]) ? [6, 4] : undefined },
                     order: 1
                 }
             ]
