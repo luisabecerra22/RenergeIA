@@ -1,3 +1,4 @@
+using RenergeIA.Core.Helpers;
 using Microsoft.EntityFrameworkCore;
 using RenergeIA.Core.Entities;
 using RenergeIA.Core.Enums;
@@ -188,25 +189,51 @@ public class InformeDiarioService(RenergeIADbContext db)
 
     private sealed record PuntoCurva(DateTime Fecha, double Planificado, double? Real);
 
+    // Registro de avance ya resuelto a una actividad hoja del cronograma vigente.
+    private sealed record RegistroCurva(int ActividadId, DateTime Fecha, decimal AvanceAcumulado);
+
+    // Grupo de actividades hoja con un peso dentro de la curva (una categoría configurada, o
+    // "todo el proyecto" si no hay categorías).
+    private sealed record GrupoCurva(string Nombre, decimal Peso, List<ActividadWBS> Hojas, bool EsConstruccion);
+
     private sealed class CalculadoraCurvaS
     {
-        private readonly List<ActividadWBS> _hojas;
-        private readonly Dictionary<int, double> _pesos;
-        private readonly double _pesoTotal;
+        private sealed class Grupo
+        {
+            public required string Nombre;
+            public required double Peso;
+            public required List<ActividadWBS> Hojas;
+            public required Dictionary<int, double> PesosDuracion;
+            public required double PesoDuracionTotal;
+        }
+
+        private readonly List<Grupo> _grupos;
+        private readonly double _pesoGrupos;
         private readonly Dictionary<int, List<(DateTime Fecha, decimal Avance)>> _registros;
         public DateTime? PrimeraFechaReal { get; }
         public int ActividadesConInforme => _registros.Count;
+        public IEnumerable<ActividadWBS> Hojas => _grupos.SelectMany(g => g.Hojas);
 
-        public CalculadoraCurvaS(List<ActividadWBS> hojas, List<RegistroCurva> registros)
+        public CalculadoraCurvaS(List<GrupoCurva> grupos, List<RegistroCurva> registros)
         {
-            _hojas = hojas;
-            _pesos = hojas.ToDictionary(a => a.Id,
-                a => Math.Max(0d, (a.FechaFinPlaneada.Date - a.FechaInicioPlaneada.Date).TotalDays));
-            if (_pesos.Values.Sum() <= 0)
-                foreach (var id in _pesos.Keys.ToList()) _pesos[id] = 1;
-            _pesoTotal = _pesos.Values.Sum();
+            _grupos = new List<Grupo>();
+            foreach (var g in grupos.Where(g => g.Hojas.Count > 0 && g.Peso > 0))
+            {
+                // Dentro del grupo: peso = duración planeada en días (hitos sin peso); si todo son
+                // hitos, pesos iguales.
+                var pesos = g.Hojas.ToDictionary(a => a.Id,
+                    a => Math.Max(0d, (a.FechaFinPlaneada.Date - a.FechaInicioPlaneada.Date).TotalDays));
+                if (pesos.Values.Sum() <= 0)
+                    foreach (var id in pesos.Keys.ToList()) pesos[id] = 1;
+                _grupos.Add(new Grupo
+                {
+                    Nombre = g.Nombre, Peso = (double)g.Peso, Hojas = g.Hojas,
+                    PesosDuracion = pesos, PesoDuracionTotal = pesos.Values.Sum()
+                });
+            }
+            _pesoGrupos = _grupos.Sum(g => g.Peso);
 
-            var idsHojas = hojas.Select(a => a.Id).ToHashSet();
+            var idsHojas = Hojas.Select(a => a.Id).ToHashSet();
             _registros = registros
                 .Where(r => idsHojas.Contains(r.ActividadId))
                 .GroupBy(r => r.ActividadId)
@@ -216,14 +243,9 @@ public class InformeDiarioService(RenergeIADbContext db)
             PrimeraFechaReal = _registros.Count > 0 ? _registros.Values.Min(l => l[0].Fecha) : null;
         }
 
+        // Avance planificado ponderado: Σ peso_grupo × promedio ponderado por duración del grupo.
         public double Planificado(DateTime fecha, Func<DateTime, DateTime, DateTime, decimal> esperado)
-        {
-            if (_pesoTotal <= 0) return 0;
-            double suma = 0;
-            foreach (var a in _hojas)
-                suma += _pesos[a.Id] * (double)esperado(a.FechaInicioPlaneada, a.FechaFinPlaneada, fecha);
-            return Math.Round(suma / _pesoTotal, 2);
-        }
+            => Combinar(g => PromedioGrupo(g, a => (double)esperado(a.FechaInicioPlaneada, a.FechaFinPlaneada, fecha)));
 
         // Avance real ponderado a una fecha. `hoy` es la fecha de corte.
         // - Con informes: último AvanceAcumulado informado hasta esa fecha. Antes del primer
@@ -232,39 +254,61 @@ public class InformeDiarioService(RenergeIADbContext db)
         // - Sin informes: el avance del WBS se ESTIMA repartido linealmente desde el inicio de la
         //   actividad (real o planeado) hasta hoy (o hasta su fin real si ya está al 100 %).
         public double Real(DateTime fecha, DateTime hoy)
-        {
-            if (_pesoTotal <= 0) return 0;
-            var d = fecha.Date;
-            double suma = 0;
-            foreach (var a in _hojas)
-            {
-                var inicio = (a.FechaInicioReal ?? a.FechaInicioPlaneada).Date;
-                decimal avance;
-                if (_registros.TryGetValue(a.Id, out var lista))
-                {
-                    var (f0, v0) = lista[0];
-                    if (d < f0)
-                        avance = v0 * Fraccion(d, inicio, f0);
-                    else
-                    {
-                        avance = v0;
-                        foreach (var (f, v) in lista)
-                        {
-                            if (f > d) break;
-                            avance = v;
-                        }
-                    }
-                }
-                else
-                {
-                    var objetivo = a.AvanceReal;
-                    var fin = (objetivo >= 100m && a.FechaFinReal.HasValue) ? a.FechaFinReal.Value.Date : hoy.Date;
-                    avance = objetivo * Fraccion(d, inicio, fin);
-                }
+            => Combinar(g => PromedioGrupo(g, a => (double)Math.Clamp(RealActividad(a, fecha.Date, hoy), 0m, 100m)));
 
-                suma += _pesos[a.Id] * (double)Math.Clamp(avance, 0m, 100m);
+        public double PlanificadoGrupo(string nombre, DateTime fecha, Func<DateTime, DateTime, DateTime, decimal> esperado)
+        {
+            var g = _grupos.FirstOrDefault(x => x.Nombre == nombre);
+            return g is null ? 0 : Math.Round(PromedioGrupo(g, a => (double)esperado(a.FechaInicioPlaneada, a.FechaFinPlaneada, fecha)), 2);
+        }
+
+        public double RealGrupo(string nombre, DateTime fecha, DateTime hoy)
+        {
+            var g = _grupos.FirstOrDefault(x => x.Nombre == nombre);
+            return g is null ? 0 : Math.Round(PromedioGrupo(g, a => (double)Math.Clamp(RealActividad(a, fecha.Date, hoy), 0m, 100m)), 2);
+        }
+
+        // Parte del peso total de la curva cuyo avance a la fecha viene de informes diarios (0-1).
+        public double ParteInformada(DateTime fecha)
+        {
+            var d = fecha.Date;
+            return Combinar(g => PromedioGrupo(g, a => _registros.TryGetValue(a.Id, out var l) && l[0].Fecha <= d ? 1 : 0));
+        }
+
+        private double Combinar(Func<Grupo, double> valorGrupo)
+        {
+            if (_pesoGrupos <= 0) return 0;
+            double suma = 0;
+            foreach (var g in _grupos) suma += g.Peso * valorGrupo(g);
+            return Math.Round(suma / _pesoGrupos, 2);
+        }
+
+        private static double PromedioGrupo(Grupo g, Func<ActividadWBS, double> valor)
+        {
+            if (g.PesoDuracionTotal <= 0) return 0;
+            double suma = 0;
+            foreach (var a in g.Hojas) suma += g.PesosDuracion[a.Id] * valor(a);
+            return suma / g.PesoDuracionTotal;
+        }
+
+        private decimal RealActividad(ActividadWBS a, DateTime d, DateTime hoy)
+        {
+            var inicio = (a.FechaInicioReal ?? a.FechaInicioPlaneada).Date;
+            if (_registros.TryGetValue(a.Id, out var lista))
+            {
+                var (f0, v0) = lista[0];
+                if (d < f0) return v0 * Fraccion(d, inicio, f0);
+                var avance = v0;
+                foreach (var (f, v) in lista)
+                {
+                    if (f > d) break;
+                    avance = v;
+                }
+                return avance;
             }
-            return Math.Round(suma / _pesoTotal, 2);
+            var objetivo = a.AvanceReal;
+            var fin = (objetivo >= 100m && a.FechaFinReal.HasValue) ? a.FechaFinReal.Value.Date : hoy.Date;
+            return objetivo * Fraccion(d, inicio, fin);
         }
 
         // Fracción [0,1] de recorrido de `d` entre `inicio` y `fin`.
@@ -280,7 +324,7 @@ public class InformeDiarioService(RenergeIADbContext db)
         public DateTime? PrimeraFechaConAvance(DateTime hoy)
         {
             DateTime? min = null;
-            foreach (var a in _hojas)
+            foreach (var a in Hojas)
             {
                 var tiene = _registros.ContainsKey(a.Id) || a.AvanceReal > 0m;
                 if (!tiene) continue;
@@ -291,9 +335,6 @@ public class InformeDiarioService(RenergeIADbContext db)
             return min;
         }
     }
-
-    // Registro de avance ya resuelto a una actividad hoja del cronograma vigente.
-    private sealed record RegistroCurva(int ActividadId, DateTime Fecha, decimal AvanceAcumulado);
 
     // Histórico real cargado (informe interno): interpolación lineal entre puntos.
     private sealed class HistoricoCurva
@@ -338,6 +379,71 @@ public class InformeDiarioService(RenergeIADbContext db)
     }
 
     private static DateTime HoyColombia() => RenergeIA.Core.Helpers.SeguimientoDocumento.HoyColombia();
+
+    // ── Categorías con peso ─────────────────────────────────────────────────────
+    public static IEnumerable<string> CodigosDe(string? lista) =>
+        (lista ?? "").Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(c => c.Length > 0);
+
+    public static bool CodigoEnLista(string codigo, string? lista) =>
+        CodigosDe(lista).Any(c => codigo == c || codigo.StartsWith(c + ".", StringComparison.Ordinal));
+
+    public static bool PerteneceACategoria(string codigo, CategoriaCurvaS cat) =>
+        CodigoEnLista(codigo, cat.Incluye) && !CodigoEnLista(codigo, cat.Excluye);
+
+    public Task<List<CategoriaCurvaS>> CategoriasCurvaAsync(int proyectoId) =>
+        db.CategoriasCurvaS.AsNoTracking()
+            .Where(c => c.ProyectoId == proyectoId)
+            .OrderBy(c => c.Orden).ThenBy(c => c.Id)
+            .ToListAsync();
+
+    // Reemplaza la configuración de categorías del proyecto.
+    public async Task GuardarCategoriasCurvaAsync(int proyectoId, IEnumerable<CategoriaCurvaS> categorias)
+    {
+        await db.CategoriasCurvaS.Where(c => c.ProyectoId == proyectoId).ExecuteDeleteAsync();
+        var orden = 0;
+        var nuevas = categorias
+            .Where(c => !string.IsNullOrWhiteSpace(c.Nombre))
+            .Select(c => new CategoriaCurvaS
+            {
+                ProyectoId     = proyectoId,
+                Orden          = orden++,
+                Nombre         = c.Nombre.Trim(),
+                Peso           = Math.Clamp(c.Peso, 0m, 100m),
+                Incluye        = string.Join(", ", CodigosDe(c.Incluye)),
+                Excluye        = CodigosDe(c.Excluye).Any() ? string.Join(", ", CodigosDe(c.Excluye)) : null,
+                EsConstruccion = c.EsConstruccion
+            }).ToList();
+        db.CategoriasCurvaS.AddRange(nuevas);
+        await db.SaveChangesAsync();
+    }
+
+    // Arma los grupos de la curva: una entrada por categoría configurada (en orden; cada hoja
+    // cae en la primera categoría que la incluye). Sin categorías: un solo grupo con todas las
+    // hojas (o, para "solo construcción", las de disciplina Civil/Mecánica/Eléctrica).
+    private static (List<GrupoCurva> Grupos, List<ActividadWBS> SinCategoria) ArmarGrupos(
+        List<ActividadWBS> hojas, List<CategoriaCurvaS> categorias, bool soloConstruccion)
+    {
+        if (categorias.Count == 0)
+        {
+            var seleccion = soloConstruccion
+                ? hojas.Where(a => a.Disciplina.HasValue && DisciplinasConstruccion.Contains(a.Disciplina.Value)).ToList()
+                : hojas;
+            return ([new GrupoCurva(soloConstruccion ? "Construcción" : "Todo el proyecto", 100m, seleccion, soloConstruccion)], []);
+        }
+
+        var asignadas = new HashSet<int>();
+        var grupos = new List<GrupoCurva>();
+        foreach (var cat in categorias)
+        {
+            var propias = hojas.Where(a => !asignadas.Contains(a.Id) && PerteneceACategoria(a.CodigoWBS, cat)).ToList();
+            foreach (var a in propias) asignadas.Add(a.Id);
+            if (soloConstruccion && !cat.EsConstruccion) continue;
+            grupos.Add(new GrupoCurva(cat.Nombre, cat.Peso, propias, cat.EsConstruccion));
+        }
+        var sinCategoria = hojas.Where(a => !asignadas.Contains(a.Id)).ToList();
+        return (grupos, sinCategoria);
+    }
 
     // Registros de avance de los informes diarios del proyecto, resueltos a las actividades hoja
     // del cronograma vigente. Si un informe apunta a una actividad de otra versión del cronograma
@@ -410,11 +516,8 @@ public class InformeDiarioService(RenergeIADbContext db)
             .Where(p => p.ProyectoId == proyectoId && p.SoloConstruccion == soloConstruccion)
             .ExecuteDeleteAsync();
 
-    // Datos para la Curva S: planificado desde cronograma WBS vigente, real desde el histórico
-    // cargado + informes diarios. `soloConstruccion` limita el alcance a las actividades
-    // Civil / Mecánica / Eléctrica (equivalente a la curva de "Avance de construcción" del
-    // informe interno).
-    public async Task<CurvaSData> DatosCurvaSAsync(int proyectoId, bool soloConstruccion = false)
+    // Actividades hoja del cronograma vigente del proyecto.
+    private async Task<List<ActividadWBS>> HojasVigentesAsync(int proyectoId)
     {
         var versionVigente = await db.CronogramasVersion
             .FirstOrDefaultAsync(v => v.ProyectoId == proyectoId && v.EsVigente);
@@ -424,27 +527,51 @@ public class InformeDiarioService(RenergeIADbContext db)
                      && (versionVigente == null || a.CronogramaVersionId == versionVigente.Id))
             .ToListAsync();
 
-        if (actividades.Count == 0)
-            return new CurvaSData();
-
-        var hojas = SoloHojas(actividades);
-        if (soloConstruccion)
-            hojas = hojas.Where(a => a.Disciplina.HasValue && DisciplinasConstruccion.Contains(a.Disciplina.Value)).ToList();
-        if (hojas.Count == 0)
-            return new CurvaSData { SoloConstruccion = soloConstruccion, TotalActividades = 0 };
-
-        var registros = await RegistrosCurvaAsync(proyectoId, hojas);
-        var historico = await HistoricoCurvaAsync(proyectoId, soloConstruccion);
-
-        return ConstruirCurvaS(hojas, registros, historico, soloConstruccion);
+        return actividades.Count == 0 ? [] : SoloHojas(actividades);
     }
 
-    private CurvaSData ConstruirCurvaS(List<ActividadWBS> hojas, List<RegistroCurva> registros,
+    // Vista previa de cuántas actividades hoja caen en cada categoría (para el editor).
+    public async Task<(List<(string Nombre, int Actividades)> PorCategoria, int SinCategoria, int Total)>
+        PrevisualizarCategoriasAsync(int proyectoId, List<CategoriaCurvaS> categorias)
+    {
+        var hojas = await HojasVigentesAsync(proyectoId);
+        var (grupos, sin) = ArmarGrupos(hojas, categorias, soloConstruccion: false);
+        return (grupos.Select(g => (g.Nombre, g.Hojas.Count)).ToList(), sin.Count, hojas.Count);
+    }
+
+    // Datos para la Curva S: planificado desde cronograma WBS vigente (ponderado por categorías
+    // con peso y, dentro de cada una, por duración), real desde el histórico cargado + informes
+    // diarios. `soloConstruccion` limita el alcance a las categorías marcadas como construcción
+    // (o, sin categorías, a las actividades Civil / Mecánica / Eléctrica).
+    public async Task<CurvaSData> DatosCurvaSAsync(int proyectoId, bool soloConstruccion = false)
+    {
+        var hojas = await HojasVigentesAsync(proyectoId);
+        if (hojas.Count == 0)
+            return new CurvaSData();
+
+        var categorias = await CategoriasCurvaAsync(proyectoId);
+        var (grupos, sinCategoria) = ArmarGrupos(hojas, categorias, soloConstruccion);
+        var hojasCurva = grupos.SelectMany(g => g.Hojas).ToList();
+        if (hojasCurva.Count == 0)
+            return new CurvaSData { SoloConstruccion = soloConstruccion, TotalActividades = 0, TieneCategorias = categorias.Count > 0 };
+
+        var registros = await RegistrosCurvaAsync(proyectoId, hojasCurva);
+        var historico = await HistoricoCurvaAsync(proyectoId, soloConstruccion);
+
+        var datos = ConstruirCurvaS(grupos, registros, historico, soloConstruccion);
+        datos.TieneCategorias = categorias.Count > 0;
+        datos.SinCategoria    = sinCategoria.Count;
+        datos.PesoTotal       = categorias.Count > 0 ? categorias.Sum(c => c.Peso) : 100m;
+        return datos;
+    }
+
+    private CurvaSData ConstruirCurvaS(List<GrupoCurva> grupos, List<RegistroCurva> registros,
         List<PuntoCurvaReal> historicoPuntos, bool soloConstruccion)
     {
-        var calc = new CalculadoraCurvaS(hojas, registros);
-        var hist = historicoPuntos.Count > 0 ? new HistoricoCurva(historicoPuntos) : null;
-        var hoy  = HoyColombia();
+        var calc  = new CalculadoraCurvaS(grupos, registros);
+        var hojas = calc.Hojas.ToList();
+        var hist  = historicoPuntos.Count > 0 ? new HistoricoCurva(historicoPuntos) : null;
+        var hoy   = HoyColombia();
 
         var inicioProyecto = hojas.Min(a => a.FechaInicioPlaneada).Date;
         var finProyecto    = hojas.Max(a => a.FechaFinPlaneada).Date;
@@ -478,7 +605,6 @@ public class InformeDiarioService(RenergeIADbContext db)
         Agregar(desdeReal);
         var hastaReal = hoy;
 
-        // Primer informe posterior al histórico (si lo hay) y valor de anclaje en esa fecha
         DateTime? primerInformeUtil = calc.PrimeraFechaReal is { } p1 && (hist is null || p1 > hist.Hasta) ? p1 : null;
         var finHist    = hist?.Hasta ?? desdeReal;
         var valorHist  = hist?.Valor(finHist) ?? 0;
@@ -488,10 +614,10 @@ public class InformeDiarioService(RenergeIADbContext db)
         double RealEn(DateTime f, out bool esEstimado)
         {
             if (hist is not null && f <= hist.Hasta) { esEstimado = false; return hist.Valor(f); }
-            if (primerInformeUtil is { } pi && f >= pi) { esEstimado = false; return calc.Real(f, hoy); }
+            // Con informes: dato informado solo si al menos la mitad del peso de la curva tiene informe a esa fecha
+            if (primerInformeUtil is { } pi && f >= pi) { esEstimado = calc.ParteInformada(f) < 0.5; return calc.Real(f, hoy); }
             esEstimado = true;
             if (hist is null) return calc.Real(f, hoy);
-            // Puente entre el fin del histórico y el ancla (primer informe u hoy)
             if (fechaAncla <= finHist) return valorHist;
             var r = (f - finHist).TotalDays / (fechaAncla - finHist).TotalDays;
             return Math.Round(valorHist + (valorAncla - valorHist) * Math.Clamp(r, 0, 1), 2);
@@ -528,7 +654,16 @@ public class InformeDiarioService(RenergeIADbContext db)
             HistoricoDesde    = hist?.Desde,
             HistoricoHasta    = hist?.Hasta,
             TieneEstimado     = estimado.Any(e => e),
-            SoloConstruccion  = soloConstruccion
+            SoloConstruccion  = soloConstruccion,
+            Categorias        = grupos.Select(g => new CategoriaCurvaResumen
+            {
+                Nombre         = g.Nombre,
+                Peso           = g.Peso,
+                Actividades    = g.Hojas.Count,
+                PlanificadoHoy = calc.PlanificadoGrupo(g.Nombre, hoy, CalcularAvanceEsperado),
+                RealHoy        = calc.RealGrupo(g.Nombre, hoy, hoy),
+                EsConstruccion = g.EsConstruccion
+            }).ToList()
         };
     }
 
@@ -554,7 +689,6 @@ public class InformeDiarioService(RenergeIADbContext db)
         // Último avance registrado por actividad (en memoria para evitar GroupBy problemático)
         // Registros de informes diarios resueltos a las hojas vigentes (cruce por CódigoWBS si hace falta)
         var registrosCurva = await RegistrosCurvaAsync(proyectoId, hojas);
-        var historico      = await HistoricoCurvaAsync(proyectoId, soloConstruccion: false);
 
         var mapaAvances = registrosCurva
             .GroupBy(r => r.ActividadId)
@@ -582,7 +716,7 @@ public class InformeDiarioService(RenergeIADbContext db)
 
         // Totales del proyecto: mismo cálculo ponderado por duración que la Curva S,
         // para que las tarjetas y la curva digan lo mismo.
-        var curvaS    = ConstruirCurvaS(hojas, registrosCurva, historico, soloConstruccion: false);
+        var curvaS    = await DatosCurvaSAsync(proyectoId);
         var avgProg   = Math.Round((decimal)curvaS.PlanificadoHoy, 1);
         var avgReal   = Math.Round((decimal)curvaS.EjecutadoHoy, 1);
         var desvTotal = Math.Round(avgReal - avgProg, 1);
@@ -607,6 +741,8 @@ public class InformeDiarioService(RenergeIADbContext db)
         var counts = actsDash
             .GroupBy(a => a.Estado)
             .ToDictionary(g => g.Key, g => g.Count());
+
+        await CompletarRecomendacionesAsync(proyectoId, hojas, actsDash, hoy);
 
         return new DashboardCompleto
         {
@@ -634,6 +770,61 @@ public class InformeDiarioService(RenergeIADbContext db)
                                         .OrderBy(a => a.Desviacion)
                                         .ToList()
         };
+    }
+
+    // Recomendación del Plan de acción para las actividades críticas y atrasadas: manual si el
+    // equipo la escribió; si no, automática con fechas, restricciones abiertas ligadas por el
+    // Informe Diario (por CódigoWBS, así cubre registros de versiones anteriores) y la última observación.
+    private async Task CompletarRecomendacionesAsync(int proyectoId, List<ActividadWBS> hojas,
+                                                     List<ActividadDashboard> actsDash, DateTime hoy)
+    {
+        var objetivo = actsDash.Where(a => a.Estado is EstadoDashboard.Critica or EstadoDashboard.Atrasada).ToList();
+        if (objetivo.Count == 0) return;
+
+        var hojaPorId = hojas.ToDictionary(h => h.Id);
+        var codigos   = objetivo.Select(a => a.Codigo).ToHashSet();
+
+        var registros = await db.RegistrosAvanceDiario
+            .AsNoTracking()
+            .Where(r => r.ProyectoId == proyectoId && codigos.Contains(r.ActividadWBS.CodigoWBS))
+            .Select(r => new
+            {
+                Codigo = r.ActividadWBS.CodigoWBS,
+                r.Fecha,
+                r.Observaciones,
+                r.Novedades,
+                Restricciones = r.RestriccionesRelacionadas.Select(x => x.Restriccion).ToList()
+            })
+            .ToListAsync();
+        var porCodigo = registros.GroupBy(r => r.Codigo).ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.Fecha).ToList());
+
+        foreach (var a in objetivo)
+        {
+            if (!hojaPorId.TryGetValue(a.Id, out var hoja)) continue;
+            a.RecomendacionManual      = hoja.RecomendacionManual;
+            a.RecomendacionManualPor   = hoja.RecomendacionManualPor;
+            a.RecomendacionManualFecha = hoja.RecomendacionManualFecha;
+
+            porCodigo.TryGetValue(a.Codigo, out var regs);
+            regs ??= [];
+            var abiertas = regs.SelectMany(r => r.Restricciones)
+                .Where(r => r.Estado is EstadoRestriccion.Abierta or EstadoRestriccion.EnGestion)
+                .GroupBy(r => r.Id).Select(g => g.First())
+                .ToList();
+            var ultimaObs = regs.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.Observaciones) || !string.IsNullOrWhiteSpace(r.Novedades));
+
+            a.RecomendacionAutomatica = RecomendacionActividad.Generar(new RecomendacionActividad.Datos(
+                Nombre:                 a.Nombre,
+                FechaInicioPlaneada:    hoja.FechaInicioPlaneada,
+                FechaFinPlaneada:       hoja.FechaFinPlaneada,
+                AvanceReal:             a.AvanceReal,
+                AvanceProgramado:       a.AvanceProgramado,
+                EsCritica:              hoja.EsCritica,
+                RestriccionesAbiertas:  abiertas,
+                FechaUltimaObservacion: ultimaObs?.Fecha,
+                UltimaObservacion:      string.IsNullOrWhiteSpace(ultimaObs?.Observaciones) ? ultimaObs?.Novedades : ultimaObs?.Observaciones,
+                FechaUltimoInforme:     regs.FirstOrDefault()?.Fecha), hoy);
+        }
     }
 
     private static EstadoDashboard ClasificarActividad(decimal avanceReal, decimal desviacion, decimal avanceProg)
@@ -685,6 +876,20 @@ public class CurvaSData
     public DateTime? HistoricoDesde { get; set; }
     public DateTime? HistoricoHasta { get; set; }
     public bool TieneEstimado { get; set; }
+    public bool TieneCategorias { get; set; }
+    public int SinCategoria { get; set; }
+    public decimal PesoTotal { get; set; } = 100m;
+    public List<CategoriaCurvaResumen> Categorias { get; set; } = [];
+}
+
+public class CategoriaCurvaResumen
+{
+    public string Nombre { get; set; } = "";
+    public decimal Peso { get; set; }
+    public int Actividades { get; set; }
+    public double PlanificadoHoy { get; set; }
+    public double RealHoy { get; set; }
+    public bool EsConstruccion { get; set; }
 }
 
 public enum EstadoDashboard { EnLinea, Atrasada, Critica, Finalizada, NoIniciada }
@@ -721,13 +926,16 @@ public class ActividadDashboard
     public EstadoDashboard Estado { get; set; }
     public bool EsCritica { get; set; }
     public DateTime FechaFinPlaneada { get; set; }
-    public string Recomendacion => Estado switch
-    {
-        EstadoDashboard.Critica    => "Intervención urgente: revisar recursos, restricciones y productividad. Priorizar en la planificación semanal.",
-        EstadoDashboard.Atrasada   => "Seguimiento diario requerido. Validar restricciones y reasignar recursos si es necesario.",
-        EstadoDashboard.NoIniciada => "Verificar pre-requisitos y confirmar inicio en la próxima semana de trabajo.",
-        _                          => "Actividad dentro del rango esperado."
-    };
+
+    // Recomendación del Plan de acción: la manual (escrita por el equipo) gana sobre la automática,
+    // que se arma con datos reales en RecomendacionActividad.Generar (fechas, restricciones, observaciones).
+    public string? RecomendacionAutomatica { get; set; }
+    public string? RecomendacionManual { get; set; }
+    public string? RecomendacionManualPor { get; set; }
+    public DateTime? RecomendacionManualFecha { get; set; }
+    public bool TieneManual => !string.IsNullOrWhiteSpace(RecomendacionManual);
+    public string Recomendacion => TieneManual ? RecomendacionManual!.Trim()
+        : RecomendacionAutomatica ?? "Actividad dentro del rango esperado.";
 }
 
 public class ResumenDisciplinaDash

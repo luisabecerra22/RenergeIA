@@ -33,6 +33,11 @@ public class ActividadWBS : EntidadBase
     public bool EsCritica { get; set; }
     public string? FrenteTrabajo { get; set; }
 
+    // Recomendación escrita a mano para el Plan de acción del Dashboard; si existe, reemplaza a la automática
+    public string? RecomendacionManual { get; set; }
+    public string? RecomendacionManualPor { get; set; }
+    public DateTime? RecomendacionManualFecha { get; set; }
+
     public ICollection<ActividadWBS> SubActividades { get; set; } = [];
     public ICollection<RegistroAvanceDiario> RegistrosAvance { get; set; } = [];
 }

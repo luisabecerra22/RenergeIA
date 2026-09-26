@@ -33,6 +33,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
     public DbSet<PuntoCurvaReal> PuntosCurvaReal => Set<PuntoCurvaReal>();
+    public DbSet<CategoriaCurvaS> CategoriasCurvaS => Set<CategoriaCurvaS>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -230,6 +231,18 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(a => a.Clave).HasMaxLength(600);
             e.Property(a => a.Valor).HasMaxLength(100);
             e.HasIndex(a => new { a.ProyectoId, a.Tipo, a.Clave }).IsUnique();
+        });
+
+        // CategoriaCurvaS (categorías con peso para la Curva S)
+        modelBuilder.Entity<CategoriaCurvaS>(e =>
+        {
+            e.ToTable("CategoriasCurvaS");
+            e.Property(x => x.Nombre).HasMaxLength(150);
+            e.Property(x => x.Incluye).HasMaxLength(1000);
+            e.Property(x => x.Excluye).HasMaxLength(1000);
+            e.Property(x => x.Peso).HasColumnType("decimal(6,2)");
+            e.HasIndex(x => new { x.ProyectoId, x.Orden });
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // PuntoCurvaReal (histórico de la Curva S real cargado desde el informe interno)

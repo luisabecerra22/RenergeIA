@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject InformeDiarioService InformeSvc
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>Dashboard — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
@@ -219,12 +220,23 @@ else
                             <span class="badge" style="background:#6ABF4B;font-size:0.6rem">@_dash.CurvaS.HistoricoPuntos</span>
                         }
                     </button>
+                    <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                            style="font-size:0.72rem;padding:3px 10px;border-radius:6px"
+                            @onclick="AbrirCategoriasAsync"
+                            title="Categorías de la Curva S y su peso (Suministro, Ingeniería, Construcción, Línea y pruebas…)">
+                        <i class="bi-sliders"></i>
+                        Categorías y pesos
+                        @if (_dash.CurvaS.TieneCategorias)
+                        {
+                            <span class="badge" style="background:@(_dash.CurvaS.PesoTotal == 100m ? "#6ABF4B" : "#fd7e14");font-size:0.6rem">@_dash.CurvaS.Categorias.Count</span>
+                        }
+                    </button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <small class="text-muted d-none d-md-inline">Alcance:</small>
                     <select class="form-select form-select-sm" style="width:auto;font-size:0.75rem" value="@_alcanceCurva" @onchange="CambiarAlcanceCurvaAsync">
                         <option value="todo">Todo el proyecto</option>
-                        <option value="construccion">Solo construcción (Civil · Mecánica · Eléctrica)</option>
+                        <option value="construccion">Solo construcción</option>
                     </select>
                 </div>
             </div>
@@ -246,7 +258,23 @@ else
                 {
                     <canvas id="curvaSChart" style="max-height:360px"></canvas>
                     <div class="text-muted mt-2" style="font-size:0.72rem">
-                        <strong>Planificado:</strong> avance lineal de cada una de las @_dash.CurvaS.TotalActividades actividades hoja del cronograma vigente, ponderado por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").
+                        <strong>Planificado:</strong>
+                        @if (_dash.CurvaS.TieneCategorias)
+                        {
+                            <text>@(" ")suma ponderada de @_dash.CurvaS.Categorias.Count categorías (@string.Join(" · ", _dash.CurvaS.Categorias.Select(c => $"{c.Nombre} {c.Peso:0.#} %, {c.Actividades} act."))); dentro de cada categoría las @_dash.CurvaS.TotalActividades actividades hoja pesan por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").</text>
+                            @if (_dash.CurvaS.PesoTotal != 100m)
+                            {
+                                <text>@(" ")<span class="text-warning fw-semibold">Los pesos suman @_dash.CurvaS.PesoTotal.ToString("0.#") % (se normalizan a 100).</span></text>
+                            }
+                            @if (_dash.CurvaS.SinCategoria > 0)
+                            {
+                                <text>@(" ")<span class="text-warning fw-semibold">@_dash.CurvaS.SinCategoria actividades hoja no caen en ninguna categoría y no entran en la curva.</span></text>
+                            }
+                        }
+                        else
+                        {
+                            <text>@(" ")avance lineal de cada una de las @_dash.CurvaS.TotalActividades actividades hoja del cronograma vigente, ponderado por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : ""). Sin categorías configuradas: use <strong>Categorías y pesos</strong> para ponderar por Suministro / Ingeniería / Construcción / Pruebas.</text>
+                        }
                         <strong>Real:</strong>
                         @if (_dash.CurvaS.HistoricoPuntos > 0)
                         {
@@ -310,6 +338,90 @@ else
                 }
             </div>
         </div>
+
+        @if (_modalCategorias)
+        {
+            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.45)" @onclick="CerrarCategorias">
+                <div class="modal-dialog modal-xl modal-dialog-scrollable" @onclick:stopPropagation="true">
+                    <div class="modal-content" style="border-radius:14px">
+                        <div class="modal-header" style="background:#183963;color:white;border-radius:14px 14px 0 0">
+                            <h6 class="modal-title mb-0">Categorías y pesos de la Curva S</h6>
+                            <button type="button" class="btn-close btn-close-white" @onclick="CerrarCategorias"></button>
+                        </div>
+                        <div class="modal-body" style="font-size:0.85rem">
+                            <p class="mb-2">
+                                La curva total es la <strong>suma ponderada</strong> de la curva de cada categoría (por ejemplo Suministro 25 %,
+                                Ingeniería 10 %, Construcción 50 %, Línea y pruebas 15 %). Cada categoría se define con los <strong>códigos WBS</strong>
+                                de las ramas que incluye (separados por coma; una rama incluye todas sus subactividades) y, si hace falta,
+                                los que excluye. Cada actividad cae en la <strong>primera</strong> categoría que la incluye. Marque
+                                <strong>Construcción</strong> en las categorías que forman el alcance "Solo construcción".
+                            </p>
+                            <table class="table table-sm align-middle mb-2" style="font-size:0.8rem">
+                                <thead>
+                                    <tr style="background:#f0f4f9">
+                                        <th style="width:24%">Categoría</th>
+                                        <th style="width:9%">Peso %</th>
+                                        <th style="width:26%">Incluye (códigos WBS)</th>
+                                        <th style="width:20%">Excluye</th>
+                                        <th style="width:9%" class="text-center">Construcción</th>
+                                        <th style="width:8%" class="text-end">Activ.</th>
+                                        <th style="width:4%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var i = 0; i < _catFilas.Count; i++)
+                                    {
+                                        var fila = _catFilas[i];
+                                        var idx = i;
+                                        <tr>
+                                            <td><input class="form-control form-control-sm" @bind="fila.Nombre" placeholder="Ej.: Construcción de la planta" /></td>
+                                            <td><input class="form-control form-control-sm text-end" type="number" step="0.5" min="0" max="100" @bind="fila.Peso" /></td>
+                                            <td><input class="form-control form-control-sm" @bind="fila.Incluye" placeholder="2.8, 2.9" /></td>
+                                            <td><input class="form-control form-control-sm" @bind="fila.Excluye" placeholder="2.8.7, 2.8.9" /></td>
+                                            <td class="text-center"><input class="form-check-input" type="checkbox" @bind="fila.EsConstruccion" /></td>
+                                            <td class="text-end">@(_catPreview.TryGetValue(fila.Nombre.Trim(), out var n) ? n.ToString() : "—")</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-link text-danger p-0" title="Quitar" @onclick="() => QuitarCategoria(idx)"><i class="bi-x-circle"></i></button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            <div class="d-flex flex-wrap gap-3 align-items-center" style="font-size:0.8rem">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="AgregarCategoria"><i class="bi-plus"></i> Agregar categoría</button>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="PrevisualizarCategoriasAsync" disabled="@_catGuardando"><i class="bi-search"></i> Contar actividades</button>
+                                <span>Pesos: <strong style="color:@(Math.Abs(_catFilas.Sum(f => f.Peso) - 100m) < 0.01m ? "#6ABF4B" : "#fd7e14")">@_catFilas.Sum(f => f.Peso).ToString("0.##") %</strong></span>
+                                @if (_catPreviewTotal > 0)
+                                {
+                                    <span>Actividades hoja del cronograma: <strong>@_catPreviewTotal</strong></span>
+                                    <span style="color:@(_catPreviewSin > 0 ? "#fd7e14" : "#6ABF4B")">Sin categoría: <strong>@_catPreviewSin</strong></span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(_catMensaje))
+                            {
+                                <div class="alert @(_catError ? "alert-danger" : "alert-success") py-1 px-2 mt-2 mb-0" style="font-size:0.8rem">@_catMensaje</div>
+                            }
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between">
+                            <div>
+                                @if (_catHabiaGuardadas)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="BorrarCategoriasAsync" disabled="@_catGuardando">Quitar todas (volver a ponderar solo por duración)</button>
+                                }
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-light" @onclick="CerrarCategorias">Cancelar</button>
+                                <button class="btn btn-sm text-white" style="background:#183963" @onclick="GuardarCategoriasAsync"
+                                        disabled="@(_catGuardando || !_catFilas.Any(f => !string.IsNullOrWhiteSpace(f.Nombre)))">
+                                    @if (_catGuardando) { <span class="spinner-border spinner-border-sm me-1" style="width:12px;height:12px"></span> }
+                                    Guardar categorías
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
 
         @if (_modalHistorico)
         {
@@ -480,7 +592,7 @@ else
                                 <th class="text-end">Real</th>
                                 <th class="text-end">Desv.</th>
                                 <th class="text-center">Estado</th>
-                                <th>Recomendación</th>
+                                <th style="min-width:340px">Recomendación <span class="fw-normal text-muted" style="font-size:.7rem">(automática con datos del proyecto; se puede corregir a mano)</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -510,8 +622,43 @@ else
                                             @NombreEstado(a.Estado)
                                         </span>
                                     </td>
-                                    <td class="small text-muted" style="max-width:260px">
-                                        @a.Recomendacion
+                                    <td class="small" style="max-width:420px">
+                                        @if (_recomEditId == a.Id)
+                                        {
+                                            <textarea class="form-control form-control-sm" rows="4" style="font-size:.78rem"
+                                                      @bind="_recomEditTexto" disabled="@_recomGuardando"
+                                                      placeholder="Escribe la recomendación para esta actividad…"></textarea>
+                                            <div class="d-flex gap-1 mt-1 flex-wrap">
+                                                <button class="btn btn-sm py-0" style="background:#6ABF4B;color:white;font-size:.72rem"
+                                                        disabled="@_recomGuardando" @onclick="() => GuardarRecomendacionAsync(a)">Guardar</button>
+                                                @if (a.TieneManual)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem"
+                                                            disabled="@_recomGuardando" @onclick="() => QuitarRecomendacionAsync(a)">Volver a la automática</button>
+                                                }
+                                                <button class="btn btn-sm btn-link py-0 text-muted" style="font-size:.72rem"
+                                                        disabled="@_recomGuardando" @onclick="() => _recomEditId = null">Cancelar</button>
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(a.RecomendacionAutomatica))
+                                            {
+                                                <div class="text-muted mt-1" style="font-size:.7rem"><strong>Automática:</strong> @a.RecomendacionAutomatica</div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex align-items-start gap-1">
+                                                <span class="@(a.TieneManual ? "text-dark" : "text-muted")" style="white-space:normal">@a.Recomendacion</span>
+                                                <button class="btn btn-sm btn-link p-0 ms-auto" title="Corregir recomendación"
+                                                        style="line-height:1;color:#183963" @onclick="() => AbrirEdicionRecomendacion(a)">✎</button>
+                                            </div>
+                                            @if (a.TieneManual)
+                                            {
+                                                <div class="text-muted" style="font-size:.68rem">
+                                                    <span class="badge" style="background:#183963;font-size:.62rem">Manual</span>
+                                                    @a.RecomendacionManualPor @(a.RecomendacionManualFecha is { } fr ? "· " + fr.ToLocalTime().ToString("dd/MM/yyyy") : "")
+                                                </div>
+                                            }
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -647,6 +794,92 @@ else
         StateHasChanged();
     }
 
+    // ── Categorías y pesos (Curva S) ───────────────────────────────────────────
+    private sealed class FilaCategoria
+    {
+        public string Nombre { get; set; } = "";
+        public decimal Peso { get; set; }
+        public string Incluye { get; set; } = "";
+        public string? Excluye { get; set; }
+        public bool EsConstruccion { get; set; }
+    }
+
+    private bool _modalCategorias;
+    private List<FilaCategoria> _catFilas = [];
+    private Dictionary<string, int> _catPreview = new();
+    private int _catPreviewTotal;
+    private int _catPreviewSin;
+    private bool _catHabiaGuardadas;
+    private bool _catGuardando;
+    private string? _catMensaje;
+    private bool _catError;
+
+    private async Task AbrirCategoriasAsync()
+    {
+        _catMensaje = null; _catError = false;
+        _catPreview = new(); _catPreviewTotal = 0; _catPreviewSin = 0;
+        var guardadas = await InformeSvc.CategoriasCurvaAsync(ProyectoId);
+        _catHabiaGuardadas = guardadas.Count > 0;
+        _catFilas = guardadas.Count > 0
+            ? guardadas.Select(c => new FilaCategoria { Nombre = c.Nombre, Peso = c.Peso, Incluye = c.Incluye, Excluye = c.Excluye, EsConstruccion = c.EsConstruccion }).ToList()
+            : // Plantilla sugerida (pesos típicos de la oferta EPC); ajuste los códigos WBS del proyecto
+              [
+                  new FilaCategoria { Nombre = "Suministro principal", Peso = 25m, Incluye = "" },
+                  new FilaCategoria { Nombre = "Ingeniería del proyecto", Peso = 10m, Incluye = "" },
+                  new FilaCategoria { Nombre = "Construcción de la planta", Peso = 50m, Incluye = "", EsConstruccion = true },
+                  new FilaCategoria { Nombre = "EPC Línea de transmisión y pruebas", Peso = 15m, Incluye = "" },
+              ];
+        _modalCategorias = true;
+        if (guardadas.Count > 0) await PrevisualizarCategoriasAsync();
+    }
+
+    private void CerrarCategorias() => _modalCategorias = false;
+    private void AgregarCategoria() => _catFilas.Add(new FilaCategoria());
+    private void QuitarCategoria(int idx) { if (idx >= 0 && idx < _catFilas.Count) _catFilas.RemoveAt(idx); }
+
+    private List<CategoriaCurvaS> CategoriasDesdeFilas() => _catFilas
+        .Where(f => !string.IsNullOrWhiteSpace(f.Nombre))
+        .Select(f => new CategoriaCurvaS { Nombre = f.Nombre.Trim(), Peso = f.Peso, Incluye = f.Incluye ?? "", Excluye = f.Excluye, EsConstruccion = f.EsConstruccion })
+        .ToList();
+
+    private async Task PrevisualizarCategoriasAsync()
+    {
+        try
+        {
+            var (porCat, sin, total) = await InformeSvc.PrevisualizarCategoriasAsync(ProyectoId, CategoriasDesdeFilas());
+            _catPreview = porCat.GroupBy(p => p.Nombre).ToDictionary(g => g.Key, g => g.Sum(p => p.Actividades));
+            _catPreviewSin = sin; _catPreviewTotal = total;
+            _catMensaje = null;
+        }
+        catch (Exception ex) { _catMensaje = "No se pudo contar: " + ex.Message; _catError = true; }
+    }
+
+    private async Task GuardarCategoriasAsync()
+    {
+        _catGuardando = true;
+        try
+        {
+            await InformeSvc.GuardarCategoriasCurvaAsync(ProyectoId, CategoriasDesdeFilas());
+            _modalCategorias = false;
+            await RecargarCurvaAsync();
+        }
+        catch (Exception ex) { _catMensaje = "No se pudo guardar: " + ex.Message; _catError = true; }
+        finally { _catGuardando = false; }
+    }
+
+    private async Task BorrarCategoriasAsync()
+    {
+        _catGuardando = true;
+        try
+        {
+            await InformeSvc.GuardarCategoriasCurvaAsync(ProyectoId, []);
+            _modalCategorias = false;
+            await RecargarCurvaAsync();
+        }
+        catch (Exception ex) { _catMensaje = "No se pudo quitar: " + ex.Message; _catError = true; }
+        finally { _catGuardando = false; }
+    }
+
     // ── Histórico de avance real (Curva S) ─────────────────────────────────────
     private bool _modalHistorico;
     private string _histAlcance = "todo";
@@ -773,6 +1006,56 @@ else
         "Crítico"     => "bg-danger",
         _             => "bg-secondary"
     };
+
+    // ── Recomendación manual del Plan de acción ──────────────────────────────
+    private int? _recomEditId;
+    private string _recomEditTexto = string.Empty;
+    private bool _recomGuardando;
+
+    private void AbrirEdicionRecomendacion(ActividadDashboard a)
+    {
+        _recomEditId    = a.Id;
+        _recomEditTexto = a.TieneManual ? a.RecomendacionManual! : string.Empty;
+    }
+
+    private async Task GuardarRecomendacionAsync(ActividadDashboard a)
+    {
+        var texto = _recomEditTexto?.Trim();
+        if (string.IsNullOrEmpty(texto)) { await QuitarRecomendacionAsync(a); return; }
+        _recomGuardando = true;
+        try
+        {
+            var auth    = await AuthState.GetAuthenticationStateAsync();
+            var usuario = auth.User.Identity?.Name ?? "Sistema";
+            var ahora   = DateTime.UtcNow;
+            await Db.ActividadesWBS.Where(x => x.Id == a.Id).ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.RecomendacionManual, texto)
+                .SetProperty(x => x.RecomendacionManualPor, usuario)
+                .SetProperty(x => x.RecomendacionManualFecha, ahora));
+            a.RecomendacionManual      = texto;
+            a.RecomendacionManualPor   = usuario;
+            a.RecomendacionManualFecha = ahora;
+            _recomEditId = null;
+        }
+        finally { _recomGuardando = false; }
+    }
+
+    private async Task QuitarRecomendacionAsync(ActividadDashboard a)
+    {
+        _recomGuardando = true;
+        try
+        {
+            await Db.ActividadesWBS.Where(x => x.Id == a.Id).ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.RecomendacionManual, (string?)null)
+                .SetProperty(x => x.RecomendacionManualPor, (string?)null)
+                .SetProperty(x => x.RecomendacionManualFecha, (DateTime?)null));
+            a.RecomendacionManual      = null;
+            a.RecomendacionManualPor   = null;
+            a.RecomendacionManualFecha = null;
+            _recomEditId = null;
+        }
+        finally { _recomGuardando = false; }
+    }
 
     private static string BadgeActividad(EstadoDashboard estado) => estado switch
     {

@@ -59,7 +59,9 @@ Se aplica en este orden:
 ### Curva S
 
 - **Alcance:** el selector junto al título permite ver **Todo el proyecto** (todas las actividades hoja del cronograma vigente: contractual, ingeniería, suministros, construcción, commissioning y cierre) o **Solo construcción** (únicamente las actividades hoja con disciplina Civil, Mecánica, Eléctrica o Construcción). El segundo alcance es el comparable con la curva de "Avance de construcción" del informe interno.
-- **Ponderación:** cada actividad hoja pesa según su **duración planeada en días**. Una actividad de seis meses pesa más que una de dos días, y los **hitos** (duración 0) no aportan peso. Con esto la curva toma la forma de S clásica: arranque lento, máximo ritmo cuando más frentes están activos y cierre suave. Todavía no se pondera por costo ni por horas-hombre (el cronograma no trae esa información).
+- **Categorías y pesos (botón junto a Actualizar):** la curva total es la **suma ponderada** de la curva de cada categoría, igual que en el informe interno de La Soberana: Suministro principal 25 %, Ingeniería del proyecto 10 %, Construcción de la planta 50 %, EPC Línea de transmisión y pruebas 15 %. Cada categoría se define con los **códigos WBS** de las ramas que incluye (separados por coma; una rama incluye todas sus subactividades) y los que excluye. Cada actividad hoja cae en la primera categoría que la incluye; las que no caen en ninguna **no entran** en la curva y la nota bajo la gráfica lo avisa. La casilla **Construcción** marca las categorías que forman el alcance "Solo construcción". "Contar actividades" muestra cuántas hojas caen en cada categoría antes de guardar. Si los pesos no suman 100 se normalizan y se avisa. Sin categorías configuradas, la curva pondera todas las hojas solo por duración.
+- **Mapeo definido para La Soberana (26/09/2026):** Suministro = 2.6, 2.7 · Ingeniería = 2.4, 2.5 · Construcción = 2.8 y 2.9 (menos 2.8.7, 2.8.9, 2.8.10) más los hitos 1, 2.1, 2.2, 2.3 · Línea y pruebas = 2.8.7, 2.8.9, 2.8.10, 2.10, 2.11, 2.12, 2.13.
+- **Ponderación dentro de cada categoría:** cada actividad hoja pesa según su **duración planeada en días** (equivale al "Ponderado Actividad" del Excel interno). Los **hitos** (duración 0) no aportan peso; si una categoría solo tiene hitos, pesan igual. Todavía no se pondera por costo ni por horas-hombre.
 - **Línea planificada:** un punto por semana desde el inicio más temprano hasta el fin más tardío de las actividades hoja (más el fin del proyecto, la fecha de hoy y la del primer informe). Cada punto es el avance lineal esperado de cada actividad a esa fecha, ponderado por duración.
 - **Línea real, en tres tramos (de más a menos confiable):**
   1. **Histórico cargado** (tramo sólido): la serie de % acumulado real de tu informe interno, cargada con el botón **Histórico real**. Es la única forma de que la app conozca el avance real de las fechas anteriores a los informes diarios.
@@ -76,9 +78,12 @@ Se aplica en este orden:
 - **Avance por disciplina — Real vs Programado:** barras en verde (real) y azul (programado) de RenergeIA, siempre en este orden y solo para estas disciplinas: **Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha y Cierre de proyecto** (definido el 2026-09-26). Contractual, General y Construcción no se grafican. Una disciplina sin actividades hoja no aparece.
 - **Estado de actividades:** dona con En Línea, Atrasadas, Críticas, Finalizadas y Sin iniciar.
 - **Actividades más atrasadas:** hasta 10 actividades con desviación negativa, de la peor a la menos mala.
-- **Plan de acción — Actividades críticas y atrasadas:** todas las críticas y atrasadas con código, actividad, disciplina, programado, real, desviación, estado y una **Recomendación** automática:
-  - Crítica: *Intervención urgente: revisar recursos, restricciones y productividad…*
-  - Atrasada: *Seguimiento diario requerido. Validar restricciones y reasignar recursos…*
+- **Plan de acción — Actividades críticas y atrasadas:** todas las críticas y atrasadas con código, actividad, disciplina, programado, real, desviación, estado y una **Recomendación**. Desde el 2026-09-26 la recomendación ya no es una frase fija: se arma con datos reales de cada actividad, en este orden, y se puede **corregir a mano**:
+  1. **Situación frente al cronograma:** si venció, la fecha de fin, los días vencidos y el % que falta; si no ha vencido, los días que quedan y el ritmo semanal necesario para cerrar a tiempo; si no ha iniciado, desde cuándo debió empezar.
+  2. **Restricciones abiertas** (Abierta o En gestión) ligadas a la actividad desde el Informe Diario: número, tipo, descripción, responsable y fecha de compromiso (avisa si el compromiso ya venció). Si no hay ninguna: *Sin restricción registrada: identificar la causa del atraso y registrarla en Restricciones.*
+  3. **Última observación** escrita en el Informe Diario para esa actividad, con su fecha; si no hay observaciones pero el último informe tiene 7 días o más, avisa que falta actualizar el avance; si nunca ha tenido informe, aclara que el avance es el digitado en el cronograma.
+  4. Si la actividad está marcada como **crítica (CR)**, recuerda que el atraso corre la fecha fin del proyecto.
+  - **Corregir a mano:** el lápiz ✎ de cada fila abre un cuadro de texto. Al **Guardar**, esa recomendación reemplaza a la automática, queda guardada en la actividad (con quién y cuándo, etiqueta **Manual**) y se conserva en las reprogramaciones. **Volver a la automática** la borra. Mientras se edita, la automática se muestra debajo como referencia.
 - **Detalle por disciplina:** mismas disciplinas y orden que la gráfica; programado, real, desviación (verde ≥ 0, amarillo hasta −5, rojo menor a −5), actividades atrasadas (incluye críticas) y total.
 
 ---
@@ -105,7 +110,7 @@ Se aplica en este orden:
 
 1. En **Avance por disciplina** y **Detalle por disciplina**, ubica las disciplinas en rojo.
 2. En **Actividades más atrasadas**, identifica las de mayor desviación.
-3. En **Plan de acción**, revisa las actividades con estado **Crítica** (y las marcadas **CR**) y aplica la recomendación.
+3. En **Plan de acción**, revisa las actividades con estado **Crítica** (y las marcadas **CR**). Lee la recomendación automática y, si el equipo define otra acción, pulsa ✎ y escríbela: eso es lo que verá gerencia.
 4. Lleva esas actividades a la reunión de planeación semanal y registra las causas en **Restricciones**.
 
 ### Cuando el Dashboard está vacío
@@ -127,6 +132,8 @@ Se aplica en este orden:
 | El avance real está en 0 % aunque se trabaja en obra | No se han registrado informes diarios con avance, o se registraron sobre otra versión del cronograma. | Registra el avance en **Informe Diario** y verifica que la versión vigente del cronograma sea la correcta. |
 | Hay muchas actividades **Sin iniciar** y pocas atrasadas, pero el proyecto se siente atrasado | Las actividades con 0 % no se clasifican como atrasadas (ver *Cómo funciona*). | Filtra en el cronograma las actividades sin avance cuya fecha de inicio ya pasó. |
 | Los datos no cambiaron después de registrar un informe | La página muestra lo calculado al abrirla. | Pulsa **Actualizar** o recarga la página. |
+| La recomendación dice *Sin restricción registrada* pero sí hay una restricción | La restricción no está ligada a la actividad: solo se cruzan las que se marcan en el **Informe Diario** al reportar esa actividad. | Registra el avance de la actividad en el Informe Diario marcando la restricción, o escribe la recomendación a mano con ✎. |
+| Quiero volver a la recomendación automática | Alguien la corrigió a mano (etiqueta **Manual**). | Pulsa ✎ y luego **Volver a la automática**. |
 | Las gráficas de disciplinas o estados no cambiaron tras **Actualizar** | **Actualizar** solo vuelve a dibujar la Curva S. | Recarga la página (F5). |
 | El SPI y el avance no coinciden con el cálculo de planeación | La app usa promedio simple de actividades hoja, sin ponderar por duración, costo o peso. | Tómalo como indicador de tendencia; para el avance ponderado oficial, valida con planeación. |
 | Tras una reprogramación, los números cambiaron mucho | El Dashboard usa siempre la **versión vigente** del cronograma. | Es esperado. Revisa en el Cronograma cuál versión está activa como vigente. |
