@@ -29,7 +29,7 @@
   | Finalizada | Avance real de 100 % |
   | Sin Fechas | La actividad no tiene fechas |
 
-- **Disciplina:** Mecánica, Civil, Eléctrica, Contractual, Puesta en marcha, Dossier, General, Suministros o Ingeniería.
+- **Disciplina:** Mecánica, Civil, Eléctrica, Contractual, Puesta en marcha, Cierre de proyecto, General, Suministros, Ingeniería o Construcción. Civil, Mecánica, Eléctrica y Construcción forman el alcance **Solo construcción** de la Curva S del Dashboard.
 - **Activa / Inactiva:** una actividad inactiva queda fuera del conteo, del promedio de su padre y del Informe Diario, pero no se borra.
 - **Versión del cronograma:** foto completa del cronograma. La primera se llama **Actividades Inicial**; las siguientes, **Actividades Reprogramación N** o **Actividades Plantilla EPC N**. Solo una es **Vigente** (★); las demás son **Históricas** y solo se pueden consultar.
 - **Plantilla EPC:** cronograma estándar de un proyecto EPC fotovoltaico que trae la app (Timing Template de MS Project). Se ubica automáticamente desde la fecha de inicio planeada del proyecto.
@@ -46,6 +46,7 @@
 - **Códigos WBS al reordenar:** al mover una actividad con ▲ ▼ se renumeran ella, sus hermanas y todas sus subactividades.
 - **Plantilla EPC:** toma el cronograma estándar, omite la tarea raíz y corre todas las fechas para que empiece en la **Fecha inicio planeada** del proyecto. Todos los avances quedan en 0 %.
 - **Importación de Project (.mpp):** conserva la jerarquía, los códigos (número de esquema), las fechas de inicio y fin y el **% completado** de cada tarea.
+- **Disciplina automática:** al cargar un cronograma (plantilla EPC, Project, Excel o PDF) y con el botón **Completar disciplinas**, la app asigna la disciplina de cada actividad en este orden: (1) si una actividad con el **mismo nombre** ya tenía disciplina en cualquier versión del cronograma (de este proyecto o de otro), conserva esa; (2) si no, por **palabras clave** del nombre (suministro, estudio/ingeniería, contrato/anticipo/permiso, cableado/inversor, montaje/estructura, excavación/vía, pruebas/puesta en marcha, dossier/as built…); (3) si no, la de la **actividad padre**. Lo que no encaja queda en "—". Al terminar muestra cuántas asignó por cada vía; las asignaciones son sugerencias y se pueden corregir en la lista.
 - **Protección del historial:** si una versión ya tiene avances del Informe Diario, **Reiniciar plantilla** no la borra; crea una versión nueva y deja la anterior como Histórica.
 - **Autorreparación:** si ninguna versión queda marcada como vigente, al abrir la pantalla la app marca como vigente la más reciente.
 
@@ -114,7 +115,7 @@
 ### Editar fechas, disciplina y avance en la tabla
 1. Abre la versión **Vigente**.
 2. Cambia **Inicio Plan.** o **Fin Plan.** con el calendario. El inicio no puede quedar después del fin.
-3. Elige la **Disciplina** en la lista.
+3. Elige la **Disciplina** en la lista. Para no hacerlo una por una, pulsa **Completar disciplinas (N)**: solo toca las actividades que están en "—" y respeta las que ya clasificaste; luego revisa el aviso con el resumen y corrige las que no correspondan.
 4. En actividades hoja, escribe el **Av. Real** (0 a 100). El avance del padre se recalcula solo.
 5. Cada cambio se guarda al salir del campo. Si quieres asegurarte, pulsa **Guardar cambios** y espera "✓ Cambios guardados".
 6. Para ajustar el ancho de las columnas, arrastra el borde derecho del encabezado. El ancho queda recordado en tu navegador.
@@ -179,6 +180,8 @@ La Curva S (avance real frente al planificado) no está en esta pantalla. Está 
 |---|---|---|
 | No veo los botones **Guardar cambios**, **+ Crear reprogramación**, **Reiniciar plantilla** ni **+ Nueva actividad**, y los campos están bloqueados | Estás viendo una versión **Histórica**. | Elige la versión con ★ en **Cronograma:**, o pulsa **★ Activar como vigente** si realmente quieres trabajar sobre esa versión. |
 | No aparecen los botones **Cronograma Excel / PDF / Project** | El proyecto ya tiene actividades o versiones; esos botones solo salen en la pantalla vacía. | Usa **+ Crear reprogramación** (con .mpp si quieres traer Project) o **Reiniciar plantilla**. |
+| Cargué un cronograma nuevo y las disciplinas que ya había clasificado se perdieron | La versión nueva se creó desde un archivo y algún nombre cambió respecto al anterior (la memoria cruza por nombre exacto, sin tildes ni mayúsculas). | Pulsa **Completar disciplinas**; lo que siga en "—" se clasifica a mano una sola vez y quedará recordado para la próxima carga. |
+| **Completar disciplinas** asignó una disciplina equivocada | La palabra clave del nombre coincide con otra disciplina (por ejemplo, "Pruebas de compactación" cae en Puesta en marcha). | Corrígela en la lista; la corrección se recuerda y gana sobre las palabras clave en las próximas cargas. |
 | Cambio una fecha y al recargar vuelve al valor anterior | El inicio quedó después del fin (o el fin antes del inicio) y la app no guardó el cambio. | Cambia primero la fecha que libera el rango (por ejemplo, amplía el fin) y luego la otra. |
 | No puedo escribir el avance real de una actividad | Es una actividad padre (su avance es el promedio de sus hijas) o un título de nivel 1. | Registra el avance en las subactividades. |
 | "No se encontró una columna de 'Actividad' o 'Nombre' en la primera fila del Excel." | Los encabezados no están en la fila 1 o la columna del nombre se llama "Actividad". | Pon los encabezados en la fila 1 y titula la columna del nombre **Nombre** o **Tarea**. |

@@ -43,6 +43,6 @@
 
 | Fecha | Cambio |
 |---|---|
-| 2026-09-26 | Cronograma de Actividades: la disciplina **Hot Commissioning** pasa a llamarse **Puesta en marcha** y se agrega la disciplina **Ingeniería** al selector. |
+| 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**. |
 | 2026-09-26 | Dashboard: Curva S ponderada por duración, línea real en tres tramos (histórico cargado · informes diarios · estimación punteada), botón **Histórico real** para pegar la serie del informe interno, selector de alcance (Todo el proyecto / Solo construcción) y fecha de corte en hora Colombia. |
 | 2026-09-16 | Creación del manual: índice, primeros pasos, Documentos (planificación documental) y capítulos iniciales de los demás módulos. |

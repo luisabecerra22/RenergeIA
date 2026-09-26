@@ -177,6 +177,12 @@ else
                         @if (_guardandoCambios) { <span class="spinner-border spinner-border-sm me-1"></span> }
                         Guardar cambios
                     </button>
+                    <button class="btn btn-sm btn-outline-primary" disabled="@_completandoDisciplinas"
+                            title="Asigna disciplina a las actividades que no la tienen: primero por coincidencia de nombre con cronogramas ya clasificados, luego por palabras clave y por último la del padre"
+                            @onclick="CompletarDisciplinasAsync">
+                        @if (_completandoDisciplinas) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Completar disciplinas (@_actividades.Count(x => x.Activo && x.Disciplina is null))
+                    </button>
                     <button class="btn btn-sm btn-outline-warning"
                             @onclick="() => { _mostrarModalReprogramacion = true; _motivoReprogramacion = string.Empty; _errorReprogramacion = null; }">
                         + Crear reprogramación
@@ -189,6 +195,14 @@ else
                 }
             </div>
         </div>
+
+        @if (!string.IsNullOrEmpty(_mensajeDisciplinas))
+        {
+            <div class="alert @(_mensajeDisciplinasError ? "alert-danger" : "alert-info") py-2 mb-2 small d-flex justify-content-between align-items-center">
+                <span>@_mensajeDisciplinas</span>
+                <button type="button" class="btn-close btn-sm" @onclick="() => _mensajeDisciplinas = null"></button>
+            </div>
+        }
 
         <!-- Tabla WBS -->
         <div class="table-responsive">
@@ -847,6 +861,89 @@ else
         await RecalcularPadresAsync(a);
     }
 
+    // ── Disciplina automática ────────────────────────────────────────────────
+    // Memoria nombre → disciplina con todo lo ya clasificado. Prioridad: mismo proyecto y
+    // versión más reciente primero; luego los demás proyectos (mismas plantillas EPC).
+    private async Task<Dictionary<string, Disciplina>> CargarMemoriaDisciplinasAsync()
+    {
+        var clasificadas = await Db.ActividadesWBS
+            .AsNoTracking()
+            .Where(a => a.Disciplina != null)
+            .OrderByDescending(a => a.ProyectoId == ProyectoId)
+            .ThenByDescending(a => a.CronogramaVersionId ?? 0)
+            .ThenByDescending(a => a.Id)
+            .Select(a => new ActividadWBS { Nombre = a.Nombre, Disciplina = a.Disciplina })
+            .ToListAsync();
+        return DisciplinaSugeridor.ConstruirMemoria(clasificadas);
+    }
+
+    private sealed class ConteoDisciplinas
+    {
+        public int Memoria, PalabraClave, Padre;
+        public int Total => Memoria + PalabraClave + Padre;
+        public void Registrar(DisciplinaSugeridor.Origen origen)
+        {
+            switch (origen)
+            {
+                case DisciplinaSugeridor.Origen.Memoria:      Memoria++; break;
+                case DisciplinaSugeridor.Origen.PalabraClave: PalabraClave++; break;
+                case DisciplinaSugeridor.Origen.Padre:        Padre++; break;
+            }
+        }
+        public string Resumen(int sinAsignar) =>
+            $"Disciplinas asignadas automáticamente: {Total} " +
+            $"({Memoria} por coincidencia con cronogramas ya clasificados, {PalabraClave} por palabras clave del nombre, {Padre} heredadas de la actividad padre)" +
+            (sinAsignar > 0 ? $"; {sinAsignar} quedaron sin disciplina para clasificar a mano." : ".") +
+            " Revisa y corrige las que no correspondan.";
+    }
+
+    private bool _completandoDisciplinas;
+    private string? _mensajeDisciplinas;
+    private bool _mensajeDisciplinasError;
+
+    // Botón "Completar disciplinas": solo toca las actividades de la versión vigente que no tienen disciplina
+    private async Task CompletarDisciplinasAsync()
+    {
+        if (!_esVersionVigente || _completandoDisciplinas) return;
+        _completandoDisciplinas = true;
+        _mensajeDisciplinas = null;
+        _mensajeDisciplinasError = false;
+        StateHasChanged();
+        try
+        {
+            var memoria = await CargarMemoriaDisciplinasAsync();
+            var porId   = _actividades.ToDictionary(a => a.Id);
+            var conteo  = new ConteoDisciplinas();
+            int sinAsignar = 0;
+
+            // Padres antes que hijos (orden WBS) para que la herencia del padre funcione en cascada
+            foreach (var a in _actividades.Where(a => a.Disciplina is null).OrderBy(a => WbsSortKey(a.CodigoWBS)))
+            {
+                Disciplina? padre = a.ActividadPadreId is int pid && porId.TryGetValue(pid, out var p) ? p.Disciplina : null;
+                var sugerida = DisciplinaSugeridor.Sugerir(a.Nombre, memoria, padre, out var origen);
+                if (sugerida is null) { sinAsignar++; continue; }
+                a.Disciplina = sugerida;
+                a.FechaModificacion = DateTime.UtcNow;
+                conteo.Registrar(origen);
+            }
+            await Db.SaveChangesAsync();
+            _mensajeDisciplinas = conteo.Total == 0 && sinAsignar == 0
+                ? "Todas las actividades ya tienen disciplina."
+                : conteo.Resumen(sinAsignar);
+        }
+        catch (Exception ex)
+        {
+            Db.ChangeTracker.Clear();
+            _mensajeDisciplinas = $"No se pudieron completar las disciplinas: {ex.InnerException?.Message ?? ex.Message}";
+            _mensajeDisciplinasError = true;
+            await CargarActividadesAsync();
+        }
+        finally
+        {
+            _completandoDisciplinas = false;
+        }
+    }
+
     // ── Disciplina ───────────────────────────────────────────────────────────
 
     private async Task GuardarDisciplinaAsync(ActividadWBS a, ChangeEventArgs e)
@@ -1082,7 +1179,9 @@ else
     private async Task<int> CrearActividadesDesdeMppAsync(List<MppParser.TareaMpp> tareas, int versionId)
     {
         var ultimoPorNivel = new Dictionary<int, ActividadWBS>();
-        int creadas = 0;
+        var memoria = await CargarMemoriaDisciplinasAsync();
+        var conteo  = new ConteoDisciplinas();
+        int creadas = 0, sinDisciplina = 0;
         foreach (var t in tareas)
         {
             ActividadWBS? padre = null;
@@ -1092,6 +1191,9 @@ else
                     ultimoPorNivel.TryGetValue(n, out padre);
             }
 
+            var disciplina = DisciplinaSugeridor.Sugerir(t.Nombre, memoria, padre?.Disciplina, out var origen);
+            if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
+
             var actividad = new ActividadWBS
             {
                 ProyectoId          = ProyectoId,
@@ -1099,6 +1201,7 @@ else
                 CodigoWBS           = t.Codigo,
                 Nombre              = t.Nombre,
                 NivelWBS            = t.Nivel,
+                Disciplina          = disciplina,
                 FechaInicioPlaneada = t.Inicio ?? t.Fin ?? DateTime.Today,
                 FechaFinPlaneada    = t.Fin ?? t.Inicio ?? DateTime.Today,
                 AvanceReal          = t.Avance,
@@ -1117,6 +1220,8 @@ else
                 ultimoPorNivel.Remove(k);
             creadas++;
         }
+        _mensajeDisciplinas = creadas > 0 ? conteo.Resumen(sinDisciplina) : null;
+        _mensajeDisciplinasError = false;
         return creadas;
     }
 
@@ -1694,7 +1799,11 @@ TEXTO DEL PDF:
 
             var inicio = _proyecto.FechaInicioPlaneada;
             var idMap = new Dictionary<string, int>();
+            var entidadPorCodigo = new Dictionary<string, ActividadWBS>();
             var maxNivel = _actividadesPdf.Max(a => a.Nivel);
+            var memoria = await CargarMemoriaDisciplinasAsync();
+            var conteo  = new ConteoDisciplinas();
+            int sinDisciplina = 0;
 
             for (int nivel = 1; nivel <= maxNivel; nivel++)
             {
@@ -1705,6 +1814,9 @@ TEXTO DEL PDF:
                 foreach (var item in batch)
                 {
                     int? padreId = item.CodigoPadre is not null && idMap.TryGetValue(item.CodigoPadre, out var pid) ? pid : null;
+                    Disciplina? discPadre = item.CodigoPadre is not null && entidadPorCodigo.TryGetValue(item.CodigoPadre, out var ep) ? ep.Disciplina : null;
+                    var disciplina = DisciplinaSugeridor.Sugerir(item.Nombre, memoria, discPadre, out var origen);
+                    if (disciplina is null) sinDisciplina++; else conteo.Registrar(origen);
 
                     var act = new ActividadWBS
                     {
@@ -1713,6 +1825,7 @@ TEXTO DEL PDF:
                         CodigoWBS = item.Codigo,
                         Nombre = item.Nombre,
                         NivelWBS = item.Nivel,
+                        Disciplina = disciplina,
                         ActividadPadreId = padreId,
                         FechaInicioPlaneada = inicio.AddDays(diasAcumulado),
                         FechaFinPlaneada = inicio.AddDays(diasAcumulado + Math.Max(item.Duracion, 1) - 1),
@@ -1728,9 +1841,14 @@ TEXTO DEL PDF:
 
                 await Db.SaveChangesAsync();
                 foreach (var (codigo, entity) in entities)
+                {
                     idMap[codigo] = entity.Id;
+                    entidadPorCodigo[codigo] = entity;
+                }
             }
 
+            _mensajeDisciplinas = conteo.Resumen(sinDisciplina);
+            _mensajeDisciplinasError = false;
             await CargarActividadesAsync();
             _mostrarModalPdf = false;
         }

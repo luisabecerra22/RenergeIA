@@ -111,10 +111,11 @@ public static class EnumDisplay
         Disciplina.Electrica        => "Eléctrica",
         Disciplina.Contractual      => "Contractual",
         Disciplina.PuestaEnMarcha   => "Puesta en marcha",
-        Disciplina.CierreProyecto   => "Dossier",
+        Disciplina.CierreProyecto   => "Cierre de proyecto",
         Disciplina.General          => "General",
         Disciplina.Suministros      => "Suministros",
         Disciplina.Ingenieria       => "Ingeniería",
+        Disciplina.Construccion     => "Construcción",
         _                           => disciplina.ToString()
     };
 
@@ -129,6 +130,7 @@ public static class EnumDisplay
         Disciplina.General          => "📌",
         Disciplina.Suministros      => "📦",
         Disciplina.Ingenieria       => "📐",
+        Disciplina.Construccion     => "🧱",
         _                           => "📌"
     };
 

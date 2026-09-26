@@ -178,7 +178,7 @@ public class InformeDiarioService(RenergeIADbContext db)
     //   informe diario es estimado y se dibuja punteado; desde el primer informe, sólido.
 
     public static readonly Disciplina[] DisciplinasConstruccion =
-        [Disciplina.Civil, Disciplina.Mecanica, Disciplina.Electrica];
+        [Disciplina.Civil, Disciplina.Mecanica, Disciplina.Electrica, Disciplina.Construccion];
 
     private sealed record PuntoCurva(DateTime Fecha, double Planificado, double? Real);
 
