@@ -45,7 +45,9 @@
         col.col-duracion { width: 35px !important; }
         .info-cards { display: none !important; }
         /* Gráficas: solo se imprimen (en pantalla viven en el Dashboard) */
-        .graficas-informe { display: block !important; position: static !important; left: auto !important; page-break-inside: avoid; margin-bottom: 10px; }
+        .graficas-informe { display: block !important; position: static !important; left: auto !important; margin-bottom: 8px; }
+        .graficas-informe .card { page-break-inside: avoid; margin-bottom: 6px !important; }
+        .graficas-informe .card-header { padding: 4px 0 !important; font-size: 9pt !important; }
         .graficas-informe .card-body { padding: 4px 0 !important; }
         .graficas-informe canvas { width: 100% !important; height: auto !important; }
         .comentarios-informe { page-break-inside: avoid; margin-top: 10px; }
@@ -228,14 +230,14 @@ else
                         { <span> · @_curva.Categorias.Count categorías con peso</span> }
                     </small>
                 </div>
-                <div class="card-body"><canvas id="curvaSInforme" width="1120" height="330"></canvas></div>
+                <div class="card-body"><canvas id="curvaSInforme" width="1120" height="265"></canvas></div>
             </div>
         }
         @if (_disciplinasLabels.Count > 0)
         {
             <div class="card">
                 <div class="card-header"><strong>Avance por disciplina — Programado vs Real al @_informe.Fecha.ToString("dd/MM/yyyy")</strong></div>
-                <div class="card-body"><canvas id="disciplinasInforme" width="1120" height="260"></canvas></div>
+                <div class="card-body"><canvas id="disciplinasInforme" width="1120" height="185"></canvas></div>
             </div>
         }
     </div>
@@ -517,11 +519,11 @@ else
         // Tamaño fijo: los canvas viven fuera de la vista y solo se imprimen; a lo ancho de la hoja.
         if (_curva is not null && _curva.Fechas.Count > 0)
             await JS.InvokeVoidAsync("renderCurvaS", "curvaSInforme",
-                _curva.Fechas, _curva.AvancePlanificado, _curva.AvanceReal, _curva.RealEstimado, 1120, 330);
+                _curva.Fechas, _curva.AvancePlanificado, _curva.AvanceReal, _curva.RealEstimado, 1120, 265);
 
         if (_disciplinasLabels.Count > 0)
             await JS.InvokeVoidAsync("renderBarChart", "disciplinasInforme",
-                _disciplinasLabels, _disciplinasReal, _disciplinasProg, "Real (%)", "Programado (%)", 1120, 260);
+                _disciplinasLabels, _disciplinasReal, _disciplinasProg, "Real (%)", "Programado (%)", 1120, 185);
 
         if (AutoPrint == "1" && !_printed)
         {
