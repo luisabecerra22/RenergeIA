@@ -359,6 +359,7 @@ public static partial class PlanificacionDocumentalParser
     {
         if (string.IsNullOrWhiteSpace(texto)) return null;
         var t = Normalizar(texto);
+        if (t.Contains("no aplica") || t == "n/a" || t == "na") return EstadoDocumento.NoAplica;
         if (t.Contains("no validado") || t.Contains("rechazado")) return EstadoDocumento.NoValidado;
         if (t.Contains("validado") && t.Contains("comentario")) return EstadoDocumento.ValidadoConComentarios;
         if (t.Contains("pendiente") && t.Contains("valid")) return EstadoDocumento.PendienteValidacion;

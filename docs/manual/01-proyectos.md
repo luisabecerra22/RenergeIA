@@ -56,7 +56,7 @@
 
 ### Navegación general
 - **Menú lateral:** **Inicio**, **Proyectos** (con la flecha se despliega la lista de proyectos en orden alfabético) y **HSEQ** (corporativo).
-- Cada proyecto del menú se despliega con su flecha y muestra sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, No Conformidades, Restricciones, Histogramas, Clima y Alertas. El módulo en el que estás aparece resaltado y el proyecto en el que estás se despliega solo.
+- Cada proyecto del menú se despliega con su flecha y muestra sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, Restricciones, Histogramas, Clima y Alertas. El módulo en el que estás aparece resaltado y el proyecto en el que estás se despliega solo.
 - La sección **HSEQ** corporativa contiene **Dashboard HSEQ**, **Auditorías** (ISO 9001, ISO 14001, ISO 45001, Decreto 1072, Resolución 0312, Aud. Cliente, Aud. Interventoría, Historial) e **Inspecciones** (STC, OTS, Pausas Activas, Consolidado Anual).
 - **Barra superior:** muestra el usuario conectado y el botón **Salir**.
 
@@ -113,7 +113,7 @@ Al pulsar **Guardar proyecto**, si ya existe un proyecto con el mismo código o 
 1. En **Proyectos**, pulsa **Ver detalle** en la tarjeta (o haz clic en el nombre del proyecto en el menú lateral).
 2. Revisa **Información general** (código, cliente, ubicación, país, capacidad en kWp y MWp, presupuesto en USD) y **Cronograma** (inicio y fin planeados y reales).
 3. Si el proyecto se creó con BOM, revisa la **Ficha de la Oferta (BOM)**: TRM de la BOM, alcance, tabla de COSTO / PRECIO (VENTA) / MARGEN / MARGEN % en COP y USD, y los desgloses de precio y costo.
-4. En **Módulos del proyecto**, pulsa la tarjeta del módulo al que quieras entrar (Cronograma de Actividades, Informe Diario, Documentos, Dashboard, Costos, No Conformidades, HSEQ, Restricciones, Histogramas, Clima, Alertas).
+4. En **Módulos del proyecto**, pulsa la tarjeta del módulo al que quieras entrar (Cronograma de Actividades, Informe Diario, Documentos, Dashboard, Costos, HSEQ, Restricciones, Histogramas, Clima, Alertas).
 
 ### Editar un proyecto
 1. Abre el proyecto y pulsa **Editar** (o el ícono de lápiz en la tarjeta de la lista).

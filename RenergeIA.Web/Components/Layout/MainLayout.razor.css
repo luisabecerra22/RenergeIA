@@ -6,6 +6,8 @@
 
 main {
     flex: 1;
+    /* Evita que las tablas anchas (Documentos, Costos) ensanchen toda la página: el scroll horizontal queda dentro de .table-responsive */
+    min-width: 0;
 }
 
 .sidebar {

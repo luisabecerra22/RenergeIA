@@ -2,7 +2,7 @@
 
 > **Para qué sirve:** llevar la gestión de calidad del proyecto: auditorías contra los requisitos de la norma ISO 9001:2015, puntos de inspección (PPIs), calibración de los equipos de medición, control de los documentos de calidad, no conformidades y acciones correctivas.
 > **Quién lo usa:** inspectores y coordinadores de calidad (QA/QC), auditores internos, dirección de proyecto.
-> **Dónde está:** menú del proyecto → **HSEQ** (`/proyectos/{id}/hseq`) → tarjeta **Calidad** → **Ver Calidad** (`/proyectos/{id}/hseq/calidad`). El registro general de no conformidades del proyecto está en el menú del proyecto → **No Conformidades** (`/proyectos/{id}/no-conformidades`).
+> **Dónde está:** menú del proyecto → **HSEQ** (`/proyectos/{id}/hseq`) → tarjeta **Calidad** → **Ver Calidad** (`/proyectos/{id}/hseq/calidad`). Desde el 26 de septiembre de 2026 las no conformidades del proyecto se registran **únicamente aquí** (el módulo "No Conformidades" del menú del proyecto se retiró por estar duplicado; su enlace antiguo redirige a esta pantalla).
 
 ---
 
@@ -124,14 +124,7 @@
 3. Pulsa **Guardar**.
 4. Actualiza el estado con el lápiz a medida que avanza (En Revisión → En Implementación → Cerrada).
 
-### Registrar una no conformidad general del proyecto
-
-1. Menú del proyecto → **No Conformidades** → **+ Nueva NC** (o **+ Registrar primera NC** si no hay ninguna).
-2. Diligencia **Número** (ej. NC-001), **Título**, **Descripción** y **Detectado Por** (obligatorios); Categoría (Calidad, Seguridad, Ambiental, Técnica, Documental), Severidad, Estado, Fecha Detección, Ubicación y **Fecha Cierre**.
-3. Pulsa **Guardar**. Las tarjetas muestran **Total**, **Críticas**, **Abiertas** y **Cerradas**.
-4. Usa **Editar** para actualizar o **Eliminar** → **Confirmar** para borrar.
-
-> ⚠ Por confirmar: existen **dos registros de no conformidades que no están conectados**: el de Calidad (NCR, dentro de HSEQ) y el general del proyecto (menú **No Conformidades**). Definir con el equipo cuál es el registro oficial para no duplicar información.
+> El módulo **No Conformidades** que existía en el menú del proyecto se retiró el 26 de septiembre de 2026 (definido por la usuaria): estaba duplicado con estas NCR. El enlace antiguo `/proyectos/{id}/no-conformidades` redirige a esta pantalla.
 
 ### Consultar las acciones correctivas
 
@@ -164,7 +157,6 @@
 
 - **HSEQ del proyecto** (`/hseq`): puerta de entrada a Calidad, [Seguridad](07-hseq-seguridad.md), [Ambiental](09-hseq-ambiental.md) y [Social](10-hseq-social.md).
 - **Auditorías corporativas** ([capítulo 11](11-hseq-auditorias.md)): usan la misma forma de diligenciar requisitos y el mismo cálculo de %. Las auditorías ISO 9001 creadas **dentro del proyecto no aparecen** en el tablero ni en el historial corporativo, y viceversa.
-- **No Conformidades del proyecto** (menú del proyecto): registro general independiente de las NCR de Calidad (ver nota arriba).
 - **Cronograma de Actividades** ([capítulo 2](02-cronograma-actividades.md)): el campo **Actividad WBS** del PPI es texto libre; no se enlaza automáticamente con la actividad del cronograma.
 - **Documentos** ([capítulo 4](04-documentos.md)): el Control Documental de Calidad es un registro aparte de la planificación documental; no se sincronizan.
 

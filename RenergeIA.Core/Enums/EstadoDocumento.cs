@@ -7,5 +7,7 @@ public enum EstadoDocumento
     ValidadoConComentarios,
     Validado,
     Informativos,
-    NoValidado
+    NoValidado,
+    /// <summary>El documento no aplica para el proyecto; el motivo se registra en Observaciones. Va al FINAL para no correr los valores guardados.</summary>
+    NoAplica
 }

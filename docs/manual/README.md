@@ -43,6 +43,7 @@
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-26 | Documentos: columna **Acciones** fija al inicio de la tabla, ventana **Editar documento** con todos los campos (incluidos Redline/As-Built y responsables), estado **No aplica** con motivo obligatorio, Informe PDF corregido (abría en blanco) y la página ya no se ensancha con la tabla. Se retiró el módulo **No Conformidades** del menú del proyecto (duplicado con HSEQ → Calidad). |
 | 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**; las actividades con subactividades ya no llevan disciplina (promedian a sus hijas). |
 | 2026-09-26 | Dashboard: la **Recomendación** del Plan de acción se arma con datos reales (fechas, restricciones abiertas ligadas por el Informe Diario, última observación, ruta crítica) y se puede corregir a mano por actividad (✎, etiqueta Manual). |
 | 2026-09-26 | Dashboard: **Avance por disciplina** y **Detalle por disciplina** muestran solo Suministros, Ingeniería, Civil, Mecánica, Eléctrica, Puesta en marcha y Cierre de proyecto, en ese orden, con colores de marca y tipografía Montserrat en todas las gráficas. |

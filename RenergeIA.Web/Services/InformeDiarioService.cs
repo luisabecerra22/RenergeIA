@@ -400,10 +400,14 @@ public class InformeDiarioService(RenergeIADbContext db)
     // Reemplaza la configuración de categorías del proyecto.
     public async Task GuardarCategoriasCurvaAsync(int proyectoId, IEnumerable<CategoriaCurvaS> categorias)
     {
+        var lista = categorias.Where(c => !string.IsNullOrWhiteSpace(c.Nombre)).ToList();
+        var sinCodigos = lista.Where(c => !CodigosDe(c.Incluye).Any()).Select(c => c.Nombre.Trim()).ToList();
+        if (sinCodigos.Count > 0)
+            throw new InvalidOperationException("Estas categorías no tienen códigos WBS en \"Incluye\": " + string.Join(", ", sinCodigos) + ". Indique las ramas del cronograma que abarca cada una.");
+
         await db.CategoriasCurvaS.Where(c => c.ProyectoId == proyectoId).ExecuteDeleteAsync();
         var orden = 0;
-        var nuevas = categorias
-            .Where(c => !string.IsNullOrWhiteSpace(c.Nombre))
+        var nuevas = lista
             .Select(c => new CategoriaCurvaS
             {
                 ProyectoId     = proyectoId,
@@ -552,14 +556,24 @@ public class InformeDiarioService(RenergeIADbContext db)
         var categorias = await CategoriasCurvaAsync(proyectoId);
         var (grupos, sinCategoria) = ArmarGrupos(hojas, categorias, soloConstruccion);
         var hojasCurva = grupos.SelectMany(g => g.Hojas).ToList();
+        var categoriasSinEfecto = false;
+        if (hojasCurva.Count == 0 && categorias.Count > 0)
+        {
+            // Las categorías configuradas no coinciden con ningún código del cronograma vigente:
+            // se dibuja la curva sin categorías (ponderada solo por duración) y se avisa.
+            categoriasSinEfecto = true;
+            (grupos, sinCategoria) = ArmarGrupos(hojas, [], soloConstruccion);
+            hojasCurva = grupos.SelectMany(g => g.Hojas).ToList();
+        }
         if (hojasCurva.Count == 0)
-            return new CurvaSData { SoloConstruccion = soloConstruccion, TotalActividades = 0, TieneCategorias = categorias.Count > 0 };
+            return new CurvaSData { SoloConstruccion = soloConstruccion, TotalActividades = 0, TieneCategorias = categorias.Count > 0, CategoriasSinEfecto = categoriasSinEfecto };
 
         var registros = await RegistrosCurvaAsync(proyectoId, hojasCurva);
         var historico = await HistoricoCurvaAsync(proyectoId, soloConstruccion);
 
         var datos = ConstruirCurvaS(grupos, registros, historico, soloConstruccion);
-        datos.TieneCategorias = categorias.Count > 0;
+        datos.TieneCategorias = categorias.Count > 0 && !categoriasSinEfecto;
+        datos.CategoriasSinEfecto = categoriasSinEfecto;
         datos.SinCategoria    = sinCategoria.Count;
         datos.PesoTotal       = categorias.Count > 0 ? categorias.Sum(c => c.Peso) : 100m;
         return datos;
@@ -632,7 +646,9 @@ public class InformeDiarioService(RenergeIADbContext db)
             var est = false;
             if (f >= desdeReal && f <= hastaReal) real = RealEn(f, out est);
             puntos.Add(new PuntoCurva(f, plan, real));
-            estimado.Add(real.HasValue && est);
+            // La línea real se dibuja completa y sólida: el avance del cronograma es el dato real del
+            // proyecto. (El flag queda disponible por si se quiere volver a distinguir el tramo estimado.)
+            estimado.Add(false);
         }
 
         var ejecutadoHoy = (hist is not null && hoy <= hist.Hasta) ? hist.Valor(hoy) : calc.Real(hoy, hoy);
@@ -877,6 +893,7 @@ public class CurvaSData
     public DateTime? HistoricoHasta { get; set; }
     public bool TieneEstimado { get; set; }
     public bool TieneCategorias { get; set; }
+    public bool CategoriasSinEfecto { get; set; }
     public int SinCategoria { get; set; }
     public decimal PesoTotal { get; set; } = 100m;
     public List<CategoriaCurvaResumen> Categorias { get; set; } = [];

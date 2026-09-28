@@ -58,30 +58,34 @@ else
     <!-- KPIs resumen -->
     <div class="card border-0 shadow-sm mb-3" style="border-top:3px solid #183963!important">
         <div class="card-body py-2">
-            <div class="row row-cols-2 row-cols-md-6 g-2 text-center small">
-                <div class="col">
+            <div class="row g-2 text-center small">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#183963">@_vistaFiltrada.Count</div>
                     <div class="text-muted">Total</div>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#fd7e14">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.PendienteEmitir)</div>
                     <div class="text-muted">Pend. Emitir</div>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#0d6efd">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.PendienteValidacion)</div>
                     <div class="text-muted">Pend. Validación</div>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#ffc107">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.ValidadoConComentarios)</div>
                     <div class="text-muted">Con Comentarios</div>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#6ABF4B">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado)</div>
                     <div class="text-muted">Validados</div>
                 </div>
-                <div class="col">
+                <div class="col-6 col-md">
                     <div class="fw-bold fs-5" style="color:#dc3545">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.NoValidado)</div>
                     <div class="text-muted">No Validados</div>
+                </div>
+                <div class="col-6 col-md">
+                    <div class="fw-bold fs-5" style="color:#6c757d">@_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.NoAplica)</div>
+                    <div class="text-muted">No aplica</div>
                 </div>
             </div>
         </div>
@@ -176,22 +180,6 @@ else
         </div>
     </div>
 
-    <!-- Barra de edición flotante -->
-    @if (_editandoId is not null)
-    {
-        <div class="alert alert-warning d-flex align-items-center justify-content-between py-2 mb-2 shadow-sm" style="position:sticky;top:0;z-index:10">
-            <span><i class="bi-pencil-square me-2"></i><strong>Editando documento</strong> — modifica los campos en la tabla y presiona Guardar</span>
-            <div class="d-flex gap-2">
-                <button class="btn btn-success btn-sm px-3" @onclick="GuardarEdicionAsync">
-                    <i class="bi-check-lg me-1"></i>Guardar cambios
-                </button>
-                <button class="btn btn-outline-secondary btn-sm px-3" @onclick="CancelarEdicion">
-                    <i class="bi-x-lg me-1"></i>Cancelar
-                </button>
-            </div>
-        </div>
-    }
-
     <!-- Tabla de documentos -->
     @if (!_vistaFiltrada.Any())
     {
@@ -204,9 +192,10 @@ else
     {
         <div class="card border-0 shadow-sm">
             <div class="table-responsive" style="max-height:65vh;overflow-y:auto">
-                <table class="table table-hover align-middle mb-0" style="font-size:.75rem">
+                <table class="table table-hover align-middle mb-0 tabla-documentos" style="font-size:.75rem">
                     <thead style="background:#183963;color:white;font-size:.68rem;position:sticky;top:0;z-index:1">
                         <tr>
+                            <th class="col-fija text-center" style="min-width:100px">ACCIONES</th>
                             <th class="ps-2" style="min-width:30px">#</th>
                             <th style="min-width:130px">CÓD. CLIENTE</th>
                             <th style="min-width:90px">CÓD. PROYECTO</th>
@@ -236,7 +225,6 @@ else
                                 <th style="min-width:130px">REDLINE</th>
                                 <th style="min-width:120px">AS-BUILT</th>
                             }
-                            <th style="min-width:80px" class="text-center">ACC.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -244,161 +232,85 @@ else
                         {
                             var doc = _vistaFiltrada[idx];
                             var itemNum = idx + 1;
-                            var editando = _editandoId == doc.Id;
-                            <tr style="border-bottom:1px solid #f0f3f8" class="@(editando ? "table-warning" : "")">
+                            <tr style="border-bottom:1px solid #f0f3f8" class="@(_editandoId == doc.Id ? "table-warning" : "")">
+                                <td class="col-fija text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <button class="btn btn-outline-primary btn-sm py-0 px-1" @onclick="() => IniciarEdicion(doc)" title="Editar documento (todos los campos)">
+                                            <i class="bi-pencil"></i>
+                                        </button>
+                                        @if (_confirmandoValidar == doc.Id)
+                                        {
+                                            <button class="btn btn-success btn-sm py-0 px-1" @onclick="() => ValidarAsync(doc.Id)" title="Confirmar: marcar como Validado con fecha de hoy">
+                                                <i class="bi-check2-all"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoValidar = null">
+                                                <i class="bi-x-lg"></i>
+                                            </button>
+                                        }
+                                        else if (doc.Estado is not (EstadoDocumento.Validado or EstadoDocumento.Informativos or EstadoDocumento.NoAplica))
+                                        {
+                                            <button class="btn btn-outline-success btn-sm py-0 px-1" @onclick="() => _confirmandoValidar = doc.Id" title="Validar documento">
+                                                <i class="bi-patch-check"></i>
+                                            </button>
+                                        }
+                                        @if (_confirmandoEliminar == doc.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(doc.Id)" title="Confirmar eliminación">
+                                                <i class="bi-check-lg"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">
+                                                <i class="bi-x-lg"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = doc.Id" title="Eliminar">
+                                                <i class="bi-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
                                 <td class="ps-2 text-muted">@itemNum</td>
+                                <td><span class="text-muted" style="font-size:.7rem">@(doc.CodigoCliente ?? "—")</span></td>
+                                <td><code style="font-size:.72rem">@doc.Codigo</code></td>
+                                <td><span title="@doc.Titulo">@doc.Titulo</span></td>
                                 <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.CodigoCliente" style="font-size:.72rem" />
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted" style="font-size:.7rem">@(doc.CodigoCliente ?? "—")</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.Codigo" style="font-size:.72rem" />
-                                    }
-                                    else
-                                    {
-                                        <code style="font-size:.72rem">@doc.Codigo</code>
-                                    }
-                                </td>
-                                <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.Titulo" style="font-size:.72rem" />
-                                    }
-                                    else
-                                    {
-                                        <span title="@doc.Titulo">@doc.Titulo</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (editando)
-                                    {
-                                        <select class="form-select form-select-sm" @bind="_edit.Estado" style="font-size:.72rem">
-                                            @foreach (var e in Enum.GetValues<EstadoDocumento>())
-                                            {
-                                                <option value="@e">@EnumDisplay.Mostrar(e)</option>
-                                            }
-                                        </select>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge @BadgeEstado(doc.Estado)" style="font-size:.65rem">@EnumDisplay.Mostrar(doc.Estado)</span>
-                                    }
+                                    <span class="badge @BadgeEstado(doc.Estado)" style="font-size:.65rem" title="@(doc.Estado == EstadoDocumento.NoAplica ? doc.Observaciones : null)">@EnumDisplay.Mostrar(doc.Estado)</span>
                                 </td>
                                 <td class="text-center" title="@TooltipRetraso(doc)">
                                     <span class="badge @BadgeSemaforo(SeguimientoDocumento.Semaforo(doc))" style="font-size:.65rem">@TextoSemaforo(doc)</span>
                                 </td>
                                 <td style="font-size:.7rem" class="text-nowrap">@SeguimientoDocumento.EnCanchaDe(doc)</td>
-                                <td class="text-center">
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm text-center" @bind="_edit.Version" style="font-size:.72rem;width:45px" />
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-light text-dark border" style="font-size:.68rem">@doc.Version</span>
-                                    }
-                                </td>
+                                <td class="text-center"><span class="badge bg-light text-dark border" style="font-size:.68rem">@doc.Version</span></td>
                                 <!-- Fechas -->
-                                @if (editando)
-                                {
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEmision" style="font-size:.68rem" /></td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega1" style="font-size:.68rem" /></td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion1" style="font-size:.68rem" /></td>
-                                    <td class="text-center">—</td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega2" style="font-size:.68rem" /></td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion2" style="font-size:.68rem" /></td>
-                                    <td class="text-center">—</td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega3" style="font-size:.68rem" /></td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion3" style="font-size:.68rem" /></td>
-                                    <td class="text-center">—</td>
-                                    <td><input type="date" class="form-control form-control-sm" @bind="_edit.FechaValidacion" style="font-size:.68rem" /></td>
-                                }
-                                else
-                                {
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaEmision)</td>
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega1)</td>
-                                    <td class="text-nowrap @(doc.FechaDevolucion1.HasValue ? "" : "text-danger fw-bold")">@FechaCorta(doc.FechaDevolucion1)</td>
-                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso1)">@(doc.TiempoRetraso1?.ToString() ?? "—")</td>
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega2)</td>
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion2)</td>
-                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso2)">@(doc.TiempoRetraso2?.ToString() ?? "—")</td>
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaEntrega3)</td>
-                                    <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion3)</td>
-                                    <td class="text-center @ColorRetraso(doc.TiempoRetraso3)">@(doc.TiempoRetraso3?.ToString() ?? "—")</td>
-                                    <td class="text-nowrap @(doc.FechaValidacion.HasValue ? "fw-semibold" : "")">
-                                        @if (doc.FechaValidacion.HasValue)
-                                        {
-                                            <span style="color:#6ABF4B">@FechaCorta(doc.FechaValidacion)</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                }
-                                <td>
-                                    @if (editando)
+                                <td class="text-nowrap">@FechaCorta(doc.FechaEmision)</td>
+                                <td class="text-nowrap">@FechaCorta(doc.FechaEntrega1)</td>
+                                <td class="text-nowrap @(doc.FechaDevolucion1.HasValue ? "" : "text-danger fw-bold")">@FechaCorta(doc.FechaDevolucion1)</td>
+                                <td class="text-center @ColorRetraso(doc.TiempoRetraso1)">@(doc.TiempoRetraso1?.ToString() ?? "—")</td>
+                                <td class="text-nowrap">@FechaCorta(doc.FechaEntrega2)</td>
+                                <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion2)</td>
+                                <td class="text-center @ColorRetraso(doc.TiempoRetraso2)">@(doc.TiempoRetraso2?.ToString() ?? "—")</td>
+                                <td class="text-nowrap">@FechaCorta(doc.FechaEntrega3)</td>
+                                <td class="text-nowrap">@FechaCorta(doc.FechaDevolucion3)</td>
+                                <td class="text-center @ColorRetraso(doc.TiempoRetraso3)">@(doc.TiempoRetraso3?.ToString() ?? "—")</td>
+                                <td class="text-nowrap @(doc.FechaValidacion.HasValue ? "fw-semibold" : "")">
+                                    @if (doc.FechaValidacion.HasValue)
                                     {
-                                        <select class="form-select form-select-sm" @bind="_edit.Fase" style="font-size:.72rem;width:55px">
-                                            <option value="1">1</option>
-                                            <option value="2">2</option>
-                                            <option value="3">3</option>
-                                        </select>
+                                        <span style="color:#6ABF4B">@FechaCorta(doc.FechaValidacion)</span>
                                     }
                                     else
                                     {
-                                        <span class="badge bg-light text-dark border" style="font-size:.65rem">F@doc.Fase</span>
+                                        <span class="text-muted">—</span>
                                     }
                                 </td>
+                                <td><span class="badge bg-light text-dark border" style="font-size:.65rem">F@doc.Fase</span></td>
+                                <td><span class="badge" style="background:@ColorArea(doc.Area);color:#fff;font-size:.65rem">@EnumDisplay.Mostrar(doc.Area)</span></td>
+                                <td><span class="text-muted" style="font-size:.7rem">@(doc.Transmittal ?? "—")</span></td>
                                 <td>
-                                    @if (editando)
-                                    {
-                                        <select class="form-select form-select-sm" @bind="_edit.Area" style="font-size:.72rem">
-                                            @foreach (var a in Enum.GetValues<AreaDocumento>())
-                                            {
-                                                <option value="@a">@EnumDisplay.Mostrar(a)</option>
-                                            }
-                                        </select>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge" style="background:@ColorArea(doc.Area);color:#fff;font-size:.65rem">@EnumDisplay.Mostrar(doc.Area)</span>
-                                    }
+                                    <span class="text-muted" style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block" title="@(doc.Observaciones ?? doc.ObservacionRetraso)">@(doc.Observaciones ?? doc.ObservacionRetraso ?? "—")</span>
                                 </td>
                                 <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.Transmittal" style="font-size:.72rem" />
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted" style="font-size:.7rem">@(doc.Transmittal ?? "—")</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.Observaciones" style="font-size:.72rem" />
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted" style="font-size:.7rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block" title="@(doc.Observaciones ?? doc.ObservacionRetraso)">@(doc.Observaciones ?? doc.ObservacionRetraso ?? "—")</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (editando)
-                                    {
-                                        <input class="form-control form-control-sm" @bind="_edit.Responsable" placeholder="(usa el del área)" style="font-size:.72rem" />
-                                    }
-                                    else if (!string.IsNullOrWhiteSpace(doc.Responsable))
+                                    @if (!string.IsNullOrWhiteSpace(doc.Responsable))
                                     {
                                         <span style="font-size:.7rem">@doc.Responsable</span>
                                     }
@@ -413,76 +325,13 @@ else
                                 </td>
                                 @if (_categoriaActiva == CategoriaDocumento.Ingenieria)
                                 {
-                                    <td style="font-size:.68rem">
-                                        @if (editando)
-                                        {
-                                            <div class="d-flex flex-column gap-1">
-                                                <select class="form-select form-select-sm" @bind="_edit.RequiereRedline" style="font-size:.68rem">
-                                                    <option value="">¿Requiere?</option><option value="true">Requiere</option><option value="false">No requiere</option>
-                                                </select>
-                                                <input type="number" min="0" max="100" class="form-control form-control-sm" @bind="_edit.AvanceRedline" placeholder="% avance" style="font-size:.68rem" />
-                                                <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" @bind="_edit.RedlineAprobado" />Aprob. Interventoría</label>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            @RenderSeguimiento(doc.RequiereRedline, doc.AvanceRedline, doc.RedlineAprobadoInterventoria, doc.ResponsableRedline)
-                                        }
+                                    <td style="font-size:.68rem" role="button" @onclick="() => IniciarEdicion(doc)" title="Clic para editar el avance de Redline">
+                                        @RenderSeguimiento(doc.RequiereRedline, doc.AvanceRedline, doc.RedlineAprobadoInterventoria, doc.ResponsableRedline)
                                     </td>
-                                    <td style="font-size:.68rem">
-                                        @if (editando)
-                                        {
-                                            <div class="d-flex flex-column gap-1">
-                                                <input type="number" min="0" max="100" class="form-control form-control-sm" @bind="_edit.AvanceAsBuilt" placeholder="% avance" style="font-size:.68rem" />
-                                                <label class="form-check-label"><input type="checkbox" class="form-check-input me-1" @bind="_edit.AsBuiltAprobado" />Aprob. Interventoría</label>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            @RenderSeguimiento(null, doc.AvanceAsBuilt, doc.AsBuiltAprobadoInterventoria, doc.ResponsableAsBuilt)
-                                        }
+                                    <td style="font-size:.68rem" role="button" @onclick="() => IniciarEdicion(doc)" title="Clic para editar el avance de As-Built">
+                                        @RenderSeguimiento(null, doc.AvanceAsBuilt, doc.AsBuiltAprobadoInterventoria, doc.ResponsableAsBuilt)
                                     </td>
                                 }
-                                <td class="text-center">
-                                    @if (!editando)
-                                    {
-                                        <div class="d-flex gap-1">
-                                            @if (_confirmandoValidar == doc.Id)
-                                            {
-                                                <button class="btn btn-success btn-sm py-0 px-1" @onclick="() => ValidarAsync(doc.Id)" title="Confirmar: marcar como Validado con fecha de hoy">
-                                                    <i class="bi-check2-all"></i>
-                                                </button>
-                                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoValidar = null">
-                                                    <i class="bi-x-lg"></i>
-                                                </button>
-                                            }
-                                            else if (doc.Estado is not (EstadoDocumento.Validado or EstadoDocumento.Informativos))
-                                            {
-                                                <button class="btn btn-outline-success btn-sm py-0 px-1" @onclick="() => _confirmandoValidar = doc.Id" title="Validar documento">
-                                                    <i class="bi-patch-check"></i>
-                                                </button>
-                                            }
-                                            <button class="btn btn-outline-primary btn-sm py-0 px-1" @onclick="() => IniciarEdicion(doc)" title="Editar">
-                                                <i class="bi-pencil"></i>
-                                            </button>
-                                            @if (_confirmandoEliminar == doc.Id)
-                                            {
-                                                <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarAsync(doc.Id)">
-                                                    <i class="bi-check-lg"></i>
-                                                </button>
-                                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = null">
-                                                    <i class="bi-x-lg"></i>
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmandoEliminar = doc.Id" title="Eliminar">
-                                                    <i class="bi-trash"></i>
-                                                </button>
-                                            }
-                                        </div>
-                                    }
-                                </td>
                             </tr>
                         }
                     </tbody>
@@ -490,6 +339,218 @@ else
             </div>
             <div class="card-footer small text-muted py-1">
                 @_vistaFiltrada.Count documento(s) · Validados: @_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado) (@(_vistaFiltrada.Count > 0 ? (_vistaFiltrada.Count(d => d.Estado == EstadoDocumento.Validado) * 100 / _vistaFiltrada.Count) : 0)%)
+            </div>
+        </div>
+    }
+
+    <!-- Ventana de edición: todos los campos del documento sin desplazar la tabla -->
+    @if (_editandoId is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(17,25,33,.55)" @onclick="CancelarEdicion">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable" @onclick:stopPropagation="true">
+                <div class="modal-content">
+                    <div class="modal-header py-2" style="background:#183963;color:#fff">
+                        <h5 class="modal-title fs-6 mb-0">
+                            <i class="bi-pencil-square me-2"></i>Editar documento
+                            <code class="ms-2" style="color:#6ABF4B">@_edit.Codigo</code>
+                            <span class="ms-2 fw-normal" style="font-size:.8rem;opacity:.85">@_edit.Titulo</span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CancelarEdicion" title="Cerrar sin guardar"></button>
+                    </div>
+                    <div class="modal-body" style="font-size:.85rem">
+                        <div class="row g-2">
+                            <div class="col-12"><div class="fw-bold text-uppercase" style="color:#183963;font-size:.72rem;letter-spacing:.04em">Identificación</div></div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Código cliente</label>
+                                <input class="form-control form-control-sm" @bind="_edit.CodigoCliente" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small mb-0">Código proyecto</label>
+                                <input class="form-control form-control-sm" @bind="_edit.Codigo" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small mb-0">Descripción</label>
+                                <input class="form-control form-control-sm" @bind="_edit.Titulo" />
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small mb-0">Versión</label>
+                                <input class="form-control form-control-sm text-center" @bind="_edit.Version" />
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label small mb-0">Fase</label>
+                                <select class="form-select form-select-sm" @bind="_edit.Fase">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 mt-3"><div class="fw-bold text-uppercase" style="color:#183963;font-size:.72rem;letter-spacing:.04em">Estado y seguimiento</div></div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Estado</label>
+                                <select class="form-select form-select-sm" @bind="_edit.Estado">
+                                    @foreach (var e in Enum.GetValues<EstadoDocumento>())
+                                    {
+                                        <option value="@e">@EnumDisplay.Mostrar(e)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Área</label>
+                                <select class="form-select form-select-sm" @bind="_edit.Area">
+                                    @foreach (var a in Enum.GetValues<AreaDocumento>())
+                                    {
+                                        <option value="@a">@EnumDisplay.Mostrar(a)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Transmittal</label>
+                                <input class="form-control form-control-sm" @bind="_edit.Transmittal" placeholder="Ej. COS5SO-GY-019" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Responsable interno</label>
+                                <input class="form-control form-control-sm" @bind="_edit.Responsable" placeholder="(vacío = responsable del área)" />
+                            </div>
+                            @if (_edit.Estado == EstadoDocumento.NoAplica)
+                            {
+                                <div class="col-12">
+                                    <div class="p-2 rounded" style="background:#f4f5f7;border:1px solid #D9D9D6">
+                                        <label class="form-label small mb-0 fw-semibold" style="color:#183963">
+                                            <i class="bi-info-circle me-1"></i>Motivo por el que este documento <u>no aplica</u>
+                                        </label>
+                                        <textarea class="form-control form-control-sm" rows="2" @bind="_edit.Observaciones"
+                                                  placeholder="Ej. El alcance del proyecto no incluye subestación; el cliente lo confirmó por transmittal…"></textarea>
+                                        <div class="form-text">Queda registrado en Observaciones. El documento deja de contar en las alertas de "sin atender".</div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="col-12">
+                                    <label class="form-label small mb-0">Observaciones</label>
+                                    <textarea class="form-control form-control-sm" rows="2" @bind="_edit.Observaciones"></textarea>
+                                </div>
+                            }
+
+                            <div class="col-12 mt-3"><div class="fw-bold text-uppercase" style="color:#183963;font-size:.72rem;letter-spacing:.04em">Fechas</div></div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small mb-0">Emisión</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaEmision" />
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small mb-0">Validación</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaValidacion" />
+                            </div>
+                            <div class="col-md-6"></div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Entrega 1</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega1" />
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Devolución 1</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion1" />
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Entrega 2</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega2" />
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Devolución 2</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion2" />
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Entrega 3</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaEntrega3" />
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-0">Devolución 3</label>
+                                <input type="date" class="form-control form-control-sm" @bind="_edit.FechaDevolucion3" />
+                            </div>
+
+                            @if (_edit.Categoria == CategoriaDocumento.Ingenieria)
+                            {
+                                <div class="col-12 mt-3"><div class="fw-bold text-uppercase" style="color:#183963;font-size:.72rem;letter-spacing:.04em">Redline (planos con cambios en obra)</div></div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label small mb-0">¿Registra cambios?</label>
+                                    <select class="form-select form-select-sm" @bind="_edit.RegistraCambios">
+                                        <option value="">—</option>
+                                        <option value="true">Sí</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label small mb-0">¿Requiere Redline?</label>
+                                    <select class="form-select form-select-sm" @bind="_edit.RequiereRedline">
+                                        <option value="">—</option>
+                                        <option value="true">Requiere</option>
+                                        <option value="false">No requiere</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label small mb-0">% avance Redline</label>
+                                    <input type="number" min="0" max="100" step="5" class="form-control form-control-sm" @bind="_edit.AvanceRedline" placeholder="0–100" />
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small mb-0">Responsable Redline</label>
+                                    <input class="form-control form-control-sm" @bind="_edit.ResponsableRedline" />
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <div class="form-check mb-1">
+                                        <input type="checkbox" class="form-check-input" id="chkRedlineAprob" @bind="_edit.RedlineAprobado" />
+                                        <label class="form-check-label small" for="chkRedlineAprob">Aprobado por Interventoría</label>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small mb-0">Observación Redline</label>
+                                    <input class="form-control form-control-sm" @bind="_edit.ObservacionRedline" />
+                                </div>
+
+                                <div class="col-12 mt-3"><div class="fw-bold text-uppercase" style="color:#183963;font-size:.72rem;letter-spacing:.04em">As-Built (planos finales construidos)</div></div>
+                                <div class="col-6 col-md-2">
+                                    <label class="form-label small mb-0">% avance As-Built</label>
+                                    <input type="number" min="0" max="100" step="5" class="form-control form-control-sm" @bind="_edit.AvanceAsBuilt" placeholder="0–100" />
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <label class="form-label small mb-0">Responsable As-Built</label>
+                                    <input class="form-control form-control-sm" @bind="_edit.ResponsableAsBuilt" />
+                                </div>
+                                <div class="col-md-3 d-flex align-items-end">
+                                    <div class="form-check mb-1">
+                                        <input type="checkbox" class="form-check-input" id="chkAsBuiltAprob" @bind="_edit.AsBuiltAprobado" />
+                                        <label class="form-check-label small" for="chkAsBuiltAprob">Aprobado por Interventoría</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-0">Observación As-Built</label>
+                                    <input class="form-control form-control-sm" @bind="_edit.ObservacionAsBuilt" />
+                                </div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(_errorEdicion))
+                        {
+                            <div class="alert alert-danger py-1 px-2 small mt-3 mb-0"><i class="bi-exclamation-triangle me-1"></i>@_errorEdicion</div>
+                        }
+                    </div>
+                    <div class="modal-footer py-2">
+                        <span class="me-auto text-muted" style="font-size:.72rem">
+                            @if (!string.IsNullOrWhiteSpace(_edit.EditadoPor))
+                            {
+                                <span>Última edición en la app: @_edit.EditadoPor @(_edit.FechaEdicionApp?.AddHours(-5).ToString("dd/MM/yyyy HH:mm"))</span>
+                            }
+                            else if (_edit.FechaUltimaImportacion.HasValue)
+                            {
+                                <span>Datos de la planificación cargada el @_edit.FechaUltimaImportacion.Value.AddHours(-5).ToString("dd/MM/yyyy")</span>
+                            }
+                        </span>
+                        <button class="btn btn-outline-secondary btn-sm px-3" @onclick="CancelarEdicion">
+                            <i class="bi-x-lg me-1"></i>Cancelar
+                        </button>
+                        <button class="btn btn-success btn-sm px-3" @onclick="GuardarEdicionAsync" disabled="@_guardando">
+                            <i class="bi-check-lg me-1"></i>Guardar cambios
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     }
@@ -522,6 +583,8 @@ else
     private int? _editandoId;
     private int? _confirmandoEliminar;
     private EditModel _edit = new();
+    private string? _errorEdicion;
+    private bool _guardando;
     private string? _mensaje;
     private bool _mensajeError;
 
@@ -723,8 +786,15 @@ else
     private void IniciarEdicion(Documento doc)
     {
         _editandoId = doc.Id;
+        _errorEdicion = null;
+        _confirmandoValidar = null;
+        _confirmandoEliminar = null;
         _edit = new EditModel
         {
+            Categoria = doc.Categoria,
+            EditadoPor = doc.EditadoPor,
+            FechaEdicionApp = doc.FechaEdicionApp,
+            FechaUltimaImportacion = doc.FechaUltimaImportacion,
             CodigoCliente = doc.CodigoCliente,
             Codigo = doc.Codigo,
             Titulo = doc.Titulo,
@@ -743,21 +813,47 @@ else
             Transmittal = doc.Transmittal,
             Observaciones = doc.Observaciones,
             Responsable = doc.Responsable,
+            RegistraCambios = doc.RegistraCambios,
             RequiereRedline = doc.RequiereRedline,
             AvanceRedline = doc.AvanceRedline,
+            ResponsableRedline = doc.ResponsableRedline,
             RedlineAprobado = doc.RedlineAprobadoInterventoria ?? false,
+            ObservacionRedline = doc.ObservacionRedline,
             AvanceAsBuilt = doc.AvanceAsBuilt,
-            AsBuiltAprobado = doc.AsBuiltAprobadoInterventoria ?? false
+            ResponsableAsBuilt = doc.ResponsableAsBuilt,
+            AsBuiltAprobado = doc.AsBuiltAprobadoInterventoria ?? false,
+            ObservacionAsBuilt = doc.ObservacionAsBuilt
         };
     }
 
-    private void CancelarEdicion() => _editandoId = null;
+    private void CancelarEdicion()
+    {
+        _editandoId = null;
+        _errorEdicion = null;
+    }
 
     private async Task GuardarEdicionAsync()
     {
-        if (_editandoId is null) return;
+        if (_editandoId is null || _guardando) return;
+        if (string.IsNullOrWhiteSpace(_edit.Codigo) && string.IsNullOrWhiteSpace(_edit.Titulo))
+        {
+            _errorEdicion = "Indica al menos el código o la descripción del documento.";
+            return;
+        }
+        if (_edit.Estado == EstadoDocumento.NoAplica && string.IsNullOrWhiteSpace(_edit.Observaciones))
+        {
+            _errorEdicion = "Indica en Observaciones el motivo por el que el documento no aplica.";
+            return;
+        }
+        if (_edit.AvanceRedline is < 0 or > 100 || _edit.AvanceAsBuilt is < 0 or > 100)
+        {
+            _errorEdicion = "El % de avance de Redline y As-Built debe estar entre 0 y 100.";
+            return;
+        }
+        _guardando = true;
+        _errorEdicion = null;
         var doc = await Db.Documentos.FindAsync(_editandoId.Value);
-        if (doc is null) return;
+        if (doc is null) { _guardando = false; _editandoId = null; return; }
 
         doc.CodigoCliente = _edit.CodigoCliente;
         doc.Codigo = _edit.Codigo;
@@ -779,22 +875,40 @@ else
         doc.Responsable = _edit.Responsable;
         if (doc.Categoria == CategoriaDocumento.Ingenieria)
         {
+            doc.RegistraCambios = _edit.RegistraCambios;
             doc.RequiereRedline = _edit.RequiereRedline;
             doc.AvanceRedline = _edit.AvanceRedline;
+            doc.ResponsableRedline = Limpiar(_edit.ResponsableRedline);
             doc.RedlineAprobadoInterventoria = _edit.RedlineAprobado ? true : (doc.RedlineAprobadoInterventoria is null ? null : false);
+            doc.ObservacionRedline = Limpiar(_edit.ObservacionRedline);
             doc.AvanceAsBuilt = _edit.AvanceAsBuilt;
+            doc.ResponsableAsBuilt = Limpiar(_edit.ResponsableAsBuilt);
             doc.AsBuiltAprobadoInterventoria = _edit.AsBuiltAprobado ? true : (doc.AsBuiltAprobadoInterventoria is null ? null : false);
+            doc.ObservacionAsBuilt = Limpiar(_edit.ObservacionAsBuilt);
         }
         if (doc.Estado == EstadoDocumento.Validado && string.IsNullOrEmpty(doc.ValidadoPor)) doc.ValidadoPor = _usuario;
         doc.FechaModificacion = DateTime.UtcNow;
         doc.FechaEdicionApp = DateTime.UtcNow;
         doc.EditadoPor = _usuario;
 
-        await Db.SaveChangesAsync();
-        _editandoId = null;
-        await CargarAsync();
-        MostrarMensaje("Documento guardado correctamente.", false);
+        try
+        {
+            await Db.SaveChangesAsync();
+            _editandoId = null;
+            await CargarAsync();
+            MostrarMensaje("Documento guardado correctamente.", false);
+        }
+        catch (Exception ex)
+        {
+            _errorEdicion = $"No se pudo guardar: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
     }
+
+    private static string? Limpiar(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private async Task EliminarAsync(int id)
     {
@@ -872,8 +986,9 @@ else
         using var msOut = new System.IO.MemoryStream();
         wb.SaveAs(msOut);
         var base64 = Convert.ToBase64String(msOut.ToArray());
-        await JS.InvokeVoidAsync("eval",
-            $"{{const a=document.createElement('a');a.href='data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{base64}';a.download='Documentos_{EnumDisplay.Mostrar(_categoriaActiva)}_{DateTime.Now:yyyyMMdd}.xlsx';a.click()}}");
+        await JS.InvokeVoidAsync("downloadFile",
+            $"Documentos_{EnumDisplay.Mostrar(_categoriaActiva)}_{DateTime.Now:yyyyMMdd}.xlsx", base64,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         MostrarMensaje($"{docs.Count} documentos exportados a Excel.", false);
     }
 
@@ -983,10 +1098,13 @@ tr:nth-child(even) {{ background: #f8f9fa; }}
 <script>window.onload=function(){{window.print();}}</script>
 </body></html>";
 
+        // Chrome y Edge bloquean abrir URLs "data:" en una pestaña (quedaba en blanco): se abre como Blob.
         var base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(html));
-        await JS.InvokeVoidAsync("eval",
-            $"window.open('data:text/html;base64,{base64}','_blank')");
-        MostrarMensaje("Informe PDF generado. Usa Ctrl+P o el diálogo de impresión para guardar como PDF.", false);
+        var nombre = $"Informe_Documental_{categoria}_{DateTime.Now:yyyyMMdd}.html";
+        var abierto = await JS.InvokeAsync<bool>("abrirInformeHtml", base64, nombre);
+        MostrarMensaje(abierto
+            ? "Informe abierto en una pestaña nueva. En el diálogo de impresión elige \"Guardar como PDF\"."
+            : $"El navegador bloqueó la ventana emergente: se descargó {nombre}. Ábrelo y usa Ctrl+P para guardarlo como PDF.", !abierto);
     }
 
     private void MostrarMensaje(string msg, bool error)
@@ -1007,6 +1125,7 @@ tr:nth-child(even) {{ background: #f8f9fa; }}
         EstadoDocumento.Validado              => "bg-success",
         EstadoDocumento.Informativos          => "bg-info text-dark",
         EstadoDocumento.NoValidado            => "bg-danger",
+        EstadoDocumento.NoAplica              => "bg-light text-muted border",
         _                                     => "bg-secondary"
     };
 
@@ -1018,6 +1137,7 @@ tr:nth-child(even) {{ background: #f8f9fa; }}
         EstadoDocumento.Validado              => "#6ABF4B",
         EstadoDocumento.Informativos          => "#0dcaf0",
         EstadoDocumento.NoValidado            => "#dc3545",
+        EstadoDocumento.NoAplica              => "#adb5bd",
         _                                     => "#6c757d"
     };
 
@@ -1072,10 +1192,19 @@ tr:nth-child(even) {{ background: #f8f9fa; }}
         public string? Transmittal { get; set; }
         public string? Observaciones { get; set; }
         public string? Responsable { get; set; }
+        public CategoriaDocumento Categoria { get; set; }
+        public string? EditadoPor { get; set; }
+        public DateTime? FechaEdicionApp { get; set; }
+        public DateTime? FechaUltimaImportacion { get; set; }
+        public bool? RegistraCambios { get; set; }
         public bool? RequiereRedline { get; set; }
         public decimal? AvanceRedline { get; set; }
+        public string? ResponsableRedline { get; set; }
         public bool RedlineAprobado { get; set; }
+        public string? ObservacionRedline { get; set; }
         public decimal? AvanceAsBuilt { get; set; }
+        public string? ResponsableAsBuilt { get; set; }
         public bool AsBuiltAprobado { get; set; }
+        public string? ObservacionAsBuilt { get; set; }
     }
 }

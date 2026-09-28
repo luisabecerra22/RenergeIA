@@ -25,7 +25,7 @@ La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 
 1. Abre la dirección de la aplicación en Chrome o Edge.
 2. Escribe tu **correo** y **contraseña** y haz clic en **Ingresar** (detalle en el capítulo 1).
-3. El **menú lateral** tiene el Inicio (Centro de Control del portafolio), la lista de **Proyectos** y, dentro de cada proyecto, sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, No Conformidades, Restricciones, Histogramas, Clima y Alertas.
+3. El **menú lateral** tiene el Inicio (Centro de Control del portafolio), la lista de **Proyectos** y, dentro de cada proyecto, sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, Restricciones, Histogramas, Clima y Alertas.
 4. Desde el **detalle del proyecto** también encuentras accesos directos a cada módulo.
 
 > Si al iniciar sesión aparece **HTTP 400**, borra las cookies del sitio o usa una ventana de incógnito (capítulo 16).

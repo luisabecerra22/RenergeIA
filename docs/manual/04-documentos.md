@@ -13,7 +13,7 @@
 | **Planificación Documental** | El Excel `FO-SI-GC-002-1 - Planificación Documental` del proyecto. Es la fuente de la lista de documentos. Tiene las hojas **Construcción**, **HSE** e **Ingeniería**. |
 | **Pestañas** | **Procedimientos** (hoja Construcción), **HSE** e **Ingeniería**. |
 | **Código Cliente / Código Renergeia** | Los dos códigos del documento. La app los usa para reconocer el documento cuando se vuelve a cargar la planificación. |
-| **Estado** | Pendiente Emitir · Pendiente Validación · Validado con Comentarios · Validado · Informativos · No Validado. |
+| **Estado** | Pendiente Emitir · Pendiente Validación · Validado con Comentarios · Validado · Informativos · No Validado · **No aplica** (el documento no corresponde al proyecto; al elegirlo se pide el motivo, que queda en Observaciones, y deja de contar en las alertas). |
 | **Transmittal** | Número del envío oficial (ej. HSEEXT-129, COS5SO-GY-019). En el Excel viene en la columna **Observaciones**. |
 | **Rondas de revisión** | Hasta 4 pares de *Fecha de entrega* (al cliente) y *Fecha de devolución* (del cliente). La columna **Días** de cada ronda cuenta los días entre ambas (o hasta hoy si aún no se devuelve). |
 | **Días sin atender** | Días desde el último movimiento registrado del documento (la fecha más reciente entre emisión, entregas, devoluciones y validación) hasta hoy. |
@@ -37,10 +37,10 @@
      | 🟡 Amarillo | De 4 a 7 días |
      | 🔴 Rojo | 8 días o más |
      | ⚪ Sin fecha | Está pendiente pero no tiene ninguna fecha registrada |
-     | Al día | Validado, Validado con comentarios o Informativo (no requiere atención) |
+     | Al día | Validado, Validado con comentarios, Informativo o No aplica (no requiere atención) |
 
-   - **En cancha de:** Pendiente Validación → Cliente · Pendiente Emitir / No Validado → Renergeia · Validado → OK para construcción.
-4. **Lo que se digita en la app:** responsables por área, correcciones puntuales en la tabla (botón lápiz), validación de documentos y avance de Redline/As-Built.
+   - **En cancha de:** Pendiente Validación → Cliente · Pendiente Emitir / No Validado → Renergeia · Validado → OK para construcción · No aplica → No aplica.
+4. **Lo que se digita en la app:** responsables por área, cualquier campo del documento con el botón **lápiz** (ventana de edición), validación de documentos y avance de Redline/As-Built. **No hace falta volver a cargar el Excel** para actualizar un dato.
 5. **Si la app y el Excel no coinciden:** cuando un documento se editó en la app **después** de la última carga, al cargar de nuevo la app **conserva lo de la app** y muestra la diferencia; puedes marcar **Usar Excel** documento por documento.
 
 ---
@@ -85,9 +85,10 @@
 
 ### Editar un documento
 
-1. Haz clic en el **lápiz** de la fila.
-2. Modifica los campos en la tabla (estado, fechas, área, transmittal, responsable; en Ingeniería también Redline y As-Built).
-3. Haz clic en **Guardar cambios** en la barra amarilla (o **Cancelar**).
+1. Haz clic en el **lápiz** de la columna **Acciones**, que es la primera de la tabla y queda fija al desplazarse (ya no hay que ir hasta el final de la fila). En Ingeniería también puedes hacer clic directamente sobre la celda de **Redline** o **As-Built**.
+2. Se abre la ventana **Editar documento** con todos los campos agrupados: identificación (códigos, descripción, versión, fase), estado y seguimiento (estado, área, transmittal, responsable interno, observaciones), fechas (emisión, validación y las tres rondas de entrega/devolución) y, solo en Ingeniería, **Redline** (¿registra cambios?, ¿requiere?, % avance, responsable, aprobación de Interventoría, observación) y **As-Built** (% avance, responsable, aprobación, observación).
+3. Si eliges el estado **No aplica**, aparece el cuadro **Motivo por el que este documento no aplica**: es obligatorio y se guarda en Observaciones.
+4. Haz clic en **Guardar cambios** (o **Cancelar** / la X para salir sin guardar). El pie de la ventana muestra quién hizo la última edición en la app o de qué carga del Excel vienen los datos.
 
 > La edición queda registrada con tu usuario y la fecha. En la siguiente carga del Excel, si ese documento trae otros valores, la app te lo mostrará como "Editado en la app".
 
@@ -99,7 +100,7 @@
 
 ### Agregar un documento que no está en la planificación
 
-1. Haz clic en **Nuevo**: se crea una fila en la pestaña actual en modo edición.
+1. Haz clic en **Nuevo**: se crea el documento en la pestaña actual y se abre la ventana de edición.
 2. Completa los datos y haz clic en **Guardar cambios**.
 
 > Lo ideal es que el documento también se agregue al Excel de la planificación, para que ambas fuentes coincidan.
@@ -107,11 +108,11 @@
 ### Exportar
 
 - **Exportar**: descarga un Excel con los documentos filtrados de la pestaña, incluyendo responsable interno, días sin atender y en cancha de quién.
-- **Informe PDF**: abre un informe con indicadores por estado, área y fase; usa el diálogo de impresión para guardarlo como PDF.
+- **Informe PDF**: abre en una pestaña nueva un informe con indicadores por estado, área y fase y el listado filtrado; en el diálogo de impresión elige **Guardar como PDF**. Si el navegador bloquea la ventana emergente, la app descarga el informe como archivo `.html`: ábrelo y usa Ctrl+P.
 
 ### Eliminar un documento
 
-1. Haz clic en la **papelera** de la fila y confirma con el botón rojo.
+1. Haz clic en la **papelera** de la columna **Acciones** y confirma con el botón rojo.
 
 > ⚠ La eliminación es definitiva. Si el documento sigue en el Excel, volverá a aparecer como nuevo en la siguiente carga.
 
@@ -132,6 +133,9 @@
 | Muchos documentos en "Sin fecha" | Están pendientes por emitir y no tienen ninguna fecha | Registra al menos la fecha de emisión planeada/real para que empiecen a contar. |
 | "Mis pendientes" sale en 0 aunque tengo documentos | El correo del responsable del área no coincide con tu usuario de RenergeIA | En **Responsables**, escribe el mismo correo con el que inicias sesión. |
 | La columna Responsable interno dice "Sin asignar" | El área del documento no tiene responsable | Asigna uno en **Responsables** o directamente en el documento. |
+| Los botones de la parte superior (Informe PDF, Exportar, Responsables, Cargar planificación, Nuevo) no se ven | Ventana muy angosta | Están en la misma fila de las pestañas Procedimientos · HSE · Ingeniería; en pantallas pequeñas pasan a una segunda línea. La tabla se desplaza sola dentro de su recuadro, la página ya no se ensancha. |
+| El Informe PDF abre una pestaña en blanco | Versión anterior de la app (Chrome y Edge bloquean ese tipo de enlace) | Actualizado el 26/09/2026: el informe se abre como archivo temporal del navegador. Si aún sale en blanco, recarga la app (Ctrl+F5). |
+| Quiero registrar el avance de Redline pero solo veo el % | El avance se edita en la ventana del lápiz | Haz clic en la celda de Redline o en el lápiz de Acciones y escribe el % avance, el responsable y la aprobación de Interventoría. |
 
 ---
 

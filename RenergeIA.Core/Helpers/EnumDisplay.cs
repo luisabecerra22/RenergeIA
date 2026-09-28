@@ -62,6 +62,7 @@ public static class EnumDisplay
         EstadoDocumento.Validado              => "Validado",
         EstadoDocumento.Informativos          => "Informativos",
         EstadoDocumento.NoValidado            => "No Validado",
+        EstadoDocumento.NoAplica              => "No aplica",
         _                                     => estado.ToString()
     };
 

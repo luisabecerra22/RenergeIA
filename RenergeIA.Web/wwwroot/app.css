@@ -822,3 +822,16 @@ h1:focus {
     box-shadow: 0 1px 6px rgba(0,0,0,.06);
     height: 100%;
 }
+
+/* ── Documentos: columna de acciones fija a la izquierda de la tabla ancha ── */
+.tabla-documentos .col-fija {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: #fff !important;
+    box-shadow: inset -1px 0 0 #dee2e6;
+}
+.tabla-documentos thead .col-fija {
+    background-color: #183963 !important;
+    z-index: 3;
+}

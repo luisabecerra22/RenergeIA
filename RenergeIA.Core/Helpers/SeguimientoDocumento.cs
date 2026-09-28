@@ -24,7 +24,7 @@ public static class SeguimientoDocumento
 
     public static DateTime HoyColombia() => DateTime.UtcNow.AddHours(-5).Date;
 
-    /// <summary>Validado, Validado con comentarios e Informativos no requieren atención.</summary>
+    /// <summary>Validado, Validado con comentarios, Informativos y No aplica no requieren atención.</summary>
     public static bool RequiereAtencion(Documento d) =>
         d.Estado is EstadoDocumento.PendienteEmitir or EstadoDocumento.PendienteValidacion or EstadoDocumento.NoValidado;
 
@@ -59,6 +59,7 @@ public static class SeguimientoDocumento
         EstadoDocumento.NoValidado             => "Renergeia",
         EstadoDocumento.Validado               => "OK para construcción",
         EstadoDocumento.ValidadoConComentarios => "OK con comentarios",
+        EstadoDocumento.NoAplica               => "No aplica",
         _                                      => "Informativo"
     };
 

@@ -1,0 +1,14 @@
+@page "/proyectos/{ProyectoId:int}/no-conformidades"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+@* El módulo "No Conformidades" del proyecto se retiró el 2026-09-26 (definido por la usuaria):
+   estaba duplicado con las No Conformidades de HSEQ → Calidad. Los enlaces viejos llegan aquí. *@
+<p class="text-muted small">Redirigiendo a HSEQ → Calidad → No Conformidades…</p>
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/calidad/no-conformidades", replace: true);
+}

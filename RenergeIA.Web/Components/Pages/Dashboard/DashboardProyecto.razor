@@ -250,7 +250,7 @@ else
                         }
                         else
                         {
-                            <p class="text-muted mb-2">No hay actividades con fechas programadas.</p>
+                            <p class="text-muted mb-2">El cronograma vigente no tiene actividades hoja con fechas planeadas. Cargue o active un cronograma en <strong>Cronograma de Actividades</strong>.</p>
                         }
                     </div>
                 }
@@ -261,7 +261,7 @@ else
                         <strong>Planificado:</strong>
                         @if (_dash.CurvaS.TieneCategorias)
                         {
-                            <text>@(" ")suma ponderada de @_dash.CurvaS.Categorias.Count categorías (@string.Join(" · ", _dash.CurvaS.Categorias.Select(c => $"{c.Nombre} {c.Peso:0.#} %, {c.Actividades} act."))); dentro de cada categoría las @_dash.CurvaS.TotalActividades actividades hoja pesan por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").</text>
+                            <text>@(" ")suma ponderada de @_dash.CurvaS.Categorias.Count categorías (@string.Join(" · ", _dash.CurvaS.Categorias.Select(c => $"{c.Nombre} {c.Peso:0.#} %, {c.Actividades} act."))); dentro de cada categoría las @_dash.CurvaS.TotalActividades actividades hoja del cronograma pesan por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").</text>
                             @if (_dash.CurvaS.PesoTotal != 100m)
                             {
                                 <text>@(" ")<span class="text-warning fw-semibold">Los pesos suman @_dash.CurvaS.PesoTotal.ToString("0.#") % (se normalizan a 100).</span></text>
@@ -273,33 +273,17 @@ else
                         }
                         else
                         {
-                            <text>@(" ")avance lineal de cada una de las @_dash.CurvaS.TotalActividades actividades hoja del cronograma vigente, ponderado por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : ""). Sin categorías configuradas: use <strong>Categorías y pesos</strong> para ponderar por Suministro / Ingeniería / Construcción / Pruebas.</text>
+                            <text>@(" ")avance lineal de cada una de las @_dash.CurvaS.TotalActividades actividades hoja del cronograma vigente, ponderado por su duración@(_dash.CurvaS.Hitos > 0 ? $" ({_dash.CurvaS.Hitos} hitos sin peso)" : "").</text>
+                            @if (_dash.CurvaS.CategoriasSinEfecto)
+                            {
+                                <text>@(" ")<span class="text-warning fw-semibold">Las categorías configuradas no coinciden con ningún código del cronograma vigente; revise "Categorías y pesos".</span></text>
+                            }
                         }
                         <strong>Real:</strong>
+                        <text>@(" ")avance real de cada actividad del cronograma (y de los informes diarios cuando existen), con la misma ponderación, repartido desde su fecha real de inicio.</text>
                         @if (_dash.CurvaS.HistoricoPuntos > 0)
                         {
-                            <text>@(" ")del @_dash.CurvaS.HistoricoDesde?.ToString("dd/MM/yyyy") al @_dash.CurvaS.HistoricoHasta?.ToString("dd/MM/yyyy") es el histórico cargado del informe interno (@_dash.CurvaS.HistoricoPuntos puntos, tramo sólido).</text>
-                        }
-                        @if (_dash.CurvaS.PrimerInforme is { } primerInforme)
-                        {
-                            <text>@(" ")Desde el @primerInforme.ToString("dd/MM/yyyy") hay informes diarios para @_dash.CurvaS.ActividadesConInforme actividades (último avance acumulado informado por actividad, misma ponderación; tramo sólido).</text>
-                        }
-                        else if (_dash.CurvaS.HistoricoPuntos == 0)
-                        {
-                            <text>@(" ")Aún no hay informes diarios para las actividades del cronograma vigente ni histórico cargado.</text>
-                        }
-                        @if (_dash.CurvaS.TieneEstimado)
-                        {
-                            <text>@(" ")El tramo <strong>punteado</strong> es una estimación sin dato de respaldo</text>
-                            @if (_dash.CurvaS.HistoricoPuntos > 0)
-                            {
-                                <text> (puente entre el fin del histórico y el avance actual del cronograma)</text>
-                            }
-                            else
-                            {
-                                <text> (avance actual de cada actividad repartido linealmente desde su inicio)</text>
-                            }
-                            <text>; use <strong>Histórico real</strong> para cargar los datos reales de ese período.</text>
+                            <text>@(" ")Del @_dash.CurvaS.HistoricoDesde?.ToString("dd/MM/yyyy") al @_dash.CurvaS.HistoricoHasta?.ToString("dd/MM/yyyy") se usa la serie histórica cargada (@_dash.CurvaS.HistoricoPuntos puntos).</text>
                         }
                     </div>
 
@@ -434,9 +418,9 @@ else
                         </div>
                         <div class="modal-body" style="font-size:0.85rem">
                             <p class="mb-2">
-                                La app solo conoce el avance real desde que se registran <strong>informes diarios</strong>. Para las fechas
-                                anteriores, pegue aquí el histórico de su informe interno (la serie <em>% acumulado real</em> de la
-                                curva S): dos columnas, <strong>fecha</strong> y <strong>% real acumulado</strong>, copiadas desde Excel.
+                                Opcional. La curva real se calcula con los avances del cronograma de actividades. Si tiene una serie
+                                histórica de avance real de otra fuente (por ejemplo la curva S de un informe interno) y quiere que la app
+                                la use para esas fechas, péguela aquí: dos columnas, <strong>fecha</strong> y <strong>% real acumulado</strong>, copiadas desde Excel.
                                 Se aceptan fechas como <code>09/02/2026</code> o <code>9-feb-26</code> y porcentajes como <code>41,5%</code>,
                                 <code>41.5</code> o <code>0,415</code>. Al guardar se <strong>reemplaza</strong> el histórico anterior del mismo alcance.
                             </p>

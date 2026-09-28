@@ -47,8 +47,8 @@ El repo `github.com/luisabecerra22/RenergeIA` (rama `main`, **público**) contie
 - Plataforma EPC con módulos de Proyectos, WBS (con versiones de cronograma), Informe Diario, Documentos, Costos, Histogramas, Clima, HSEQ (Calidad/Ambiental/Social/Seguridad), Dashboard, Alertas.
 - Detalle completo en `GUIA_DE_DESARROLLO.md` (32 secciones) y `docs/`.
 - **Manual de usuario** (para quien usa la app): `docs/manual/README.md`, un capítulo por módulo con paso a paso y "Qué hacer en caso de…". Sus notas "⚠ Por confirmar" son decisiones o fallas pendientes de revisar.
-- **Documentos (sept. 2026):** carga de la Planificación Documental FO-SI-GC-002-1 por proyecto sin duplicar, alertas de días sin atender (amarillo 4 / rojo 8), responsables internos por área, validación y Redline/As-Built.
-- **Dashboard / Curva S (2026-09-26):** curva ponderada por duración de cada actividad hoja (hitos sin peso), botón **Histórico real** para pegar la serie fecha + % real del informe interno (tabla `PuntosCurvaReal`), línea real reconstruida por actividad desde el primer informe diario, selector de alcance "Todo el proyecto" / "Solo construcción" (Civil, Mecánica, Eléctrica) y tarjetas de avance con el mismo cálculo. Detalle en el registro de aprendizajes de `CLAUDE.md` y en `docs/manual/14-dashboard-proyecto.md`.
+- **Documentos (sept. 2026):** carga de la Planificación Documental FO-SI-GC-002-1 por proyecto sin duplicar, alertas de días sin atender (amarillo 4 / rojo 8), responsables internos por área, validación y Redline/As-Built. Desde el 26/09/2026: columna Acciones fija al inicio, edición en ventana modal con todos los campos, estado **No aplica** con motivo, Informe PDF corregido (Blob) y `main{min-width:0}` para que las tablas anchas no ensanchen la página. El módulo **No Conformidades** del menú del proyecto se retiró (duplicaba HSEQ → Calidad; la ruta vieja redirige).
+- **Dashboard / Curva S (2026-09-26):** curva ponderada por duración de cada actividad hoja (hitos sin peso), categorías con peso configurables por códigos WBS (Suministro 25 · Ingeniería 10 · Construcción 50 · Línea y pruebas 15), botón **Histórico real** para pegar la serie fecha + % real del informe interno (tabla `PuntosCurvaReal`), línea real reconstruida por actividad desde el primer informe diario, selector de alcance "Todo el proyecto" / "Solo construcción" (Civil, Mecánica, Eléctrica) y tarjetas de avance con el mismo cálculo. Detalle en el registro de aprendizajes de `CLAUDE.md` y en `docs/manual/14-dashboard-proyecto.md`.
 - Versión en producción al momento de este traspaso: v38 (Cloud Run `renergeia-web`).
 
 ---
@@ -85,7 +85,7 @@ gcloud builds submit \
 # 2) deploy de esa imagen
 gcloud run deploy evaluacion-hse \
   --image us-central1-docker.pkg.dev/renergeia-evaluaciones/cloud-run-source-deploy/evaluacion-hse:latest \
-  --region us-central1 --project renergeia-evaluaciones --allow-unauthenticated --port 8080 --quiet
+  --region us-central1 --project renergeia-evaluaciones --allow-unauthenticated --port 8080 --timeout=3600 --session-affinity --quiet
 ```
 (Se ejecuta desde `evaluacion-hse/`; hay un `.gcloudignore` que reduce el upload.)
 
@@ -93,7 +93,7 @@ gcloud run deploy evaluacion-hse \
 ```bash
 dotnet publish RenergeIA.Web -c Release -o publish
 gcloud run deploy renergeia-web --source . --project renergeia-app \
-  --region us-central1 --allow-unauthenticated --port 8080 --quiet
+  --region us-central1 --allow-unauthenticated --port 8080 --timeout=3600 --session-affinity --quiet
 ```
 
 > Tras cada deploy, **verificar en la URL de producción** (no asumir éxito).
@@ -116,7 +116,7 @@ Estado: la **service account `github-actions-deploy@renergeia-app.iam.gserviceac
 ### RenergeIA (.NET) — Dashboard / Curva S
 - [ ] Ponderar la Curva S por **costo u horas-hombre** (hoy es por duración) si la usuaria quiere que coincida exactamente con la curva del informe interno; requiere traer esa información del cronograma (.mpp) o de la BOM.
 - [ ] Confirmar con la usuaria que las actividades del WBS tengan **disciplina** asignada para que el alcance "Solo construcción" funcione.
-- [ ] La usuaria debe **cargar el histórico real** de La Soberana (Dashboard → Histórico real) pegando la serie de su Curva_S_General; hasta entonces la línea real sale punteada (estimada). Los informes diarios nuevos deben registrarse sobre el cronograma vigente.
+- [x] Histórico real de La Soberana cargado el 2026-09-26 desde `COS5SO - Informe Diario La Soberana 09.07.2026.xlsx` (hoja Curva S General): total 158 puntos (09/02 → 16/07/2026, 41,52 %) y construcción 95 puntos (→ 30,03 %). Categorías con peso configuradas (25/10/50/15). Pendiente: registrar informes diarios semanales sobre el cronograma vigente para que la curva siga sola; los hitos finales 2.14, 2.15 y 2.16 quedaron en Línea y pruebas (28/09/2026); ya no hay actividades sin categoría.
 
 ### RenergeIA (.NET) — Documentos
 - [ ] Lectura automática de la planificación documental desde **SharePoint** (requiere registrar una app en Microsoft 365 / Graph con permiso de solo lectura).

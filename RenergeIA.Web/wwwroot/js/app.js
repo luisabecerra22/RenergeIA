@@ -16,6 +16,27 @@ window.downloadFile = function (fileName, base64Content, mimeType) {
     URL.revokeObjectURL(url);
 };
 
+// Abre un informe HTML (base64 UTF-8) en una pestaña nueva. Chrome/Edge bloquean navegar a
+// URLs "data:" de nivel superior (quedaba la pantalla en blanco): se usa un Blob URL.
+// Si el navegador bloquea la ventana emergente, se descarga el archivo .html.
+window.abrirInformeHtml = function (base64, fileName) {
+    const blob = base64ToBlob(base64, 'text/html;charset=utf-8');
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        return false;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+};
+
 function base64ToBlob(base64, mimeType) {
     const bytes = atob(base64);
     const buffer = new ArrayBuffer(bytes.length);
