@@ -96,10 +96,13 @@ if (window.Chart) {
     Chart.defaults.color = '#495057';
 }
 
-window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2) {
+window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2, fixedW, fixedH) {
     destroyChart(canvasId);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
+    // Tamano fijo (para imprimir en PDF aunque el contenedor este oculto)
+    const fijo = fixedW > 0 && fixedH > 0;
+    if (fijo) { ctx.width = fixedW; ctx.height = fixedH; }
     _charts[canvasId] = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -124,7 +127,9 @@ window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2
             ]
         },
         options: {
-            responsive: true,
+            responsive: !fijo,
+            maintainAspectRatio: fijo ? false : undefined,
+            animation: fijo ? false : undefined,
             plugins: {
                 legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11, weight: '600' } } },
                 tooltip: { backgroundColor: 'rgba(24,57,99,0.92)', callbacks: { label: c => ` ${c.dataset.label}: ${Number(c.parsed.y).toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` } }
@@ -381,11 +386,14 @@ window.renderPlanTrabajoChart = function (canvasId, planificadas, ejecutadas, pe
     });
 };
 
-window.renderCurvaS = function (canvasId, labels, planificado, real, estimado) {
+window.renderCurvaS = function (canvasId, labels, planificado, real, estimado, fixedW, fixedH) {
     estimado = estimado || [];
+    // Tamano fijo (para imprimir en PDF aunque el contenedor este oculto)
+    const fijo = fixedW > 0 && fixedH > 0;
     destroyChart(canvasId);
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
+    if (fijo) { ctx.width = fixedW; ctx.height = fixedH; }
 
     const realFiltered = real.map(v => v === null ? undefined : v);
     const lastRealIdx = realFiltered.reduce((acc, v, i) => v !== undefined ? i : acc, -1);
@@ -431,7 +439,9 @@ window.renderCurvaS = function (canvasId, labels, planificado, real, estimado) {
             ]
         },
         options: {
-            responsive: true,
+            responsive: !fijo,
+            maintainAspectRatio: fijo ? false : undefined,
+            animation: fijo ? false : undefined,
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: {

@@ -44,18 +44,19 @@
         col.col-actividad { width: auto !important; }
         col.col-duracion { width: 35px !important; }
         .info-cards { display: none !important; }
-        .graficas-informe { page-break-inside: avoid; margin-bottom: 10px; }
+        /* Gráficas: solo se imprimen (en pantalla viven en el Dashboard) */
+        .graficas-informe { display: block !important; position: static !important; left: auto !important; page-break-inside: avoid; margin-bottom: 10px; }
         .graficas-informe .card-body { padding: 4px 0 !important; }
-        .grafica-curva { height: 250px !important; }
-        .grafica-disciplinas { height: 200px !important; }
+        .graficas-informe canvas { width: 100% !important; height: auto !important; }
         .comentarios-informe { page-break-inside: avoid; margin-top: 10px; }
         .comentarios-informe textarea { display: none !important; }
         .comentarios-informe .comentario-print { display: block !important; }
         .comentarios-informe .comentario-item { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 8px; margin-bottom: 6px; page-break-inside: avoid; }
     }
     .comentario-print { display: none; white-space: pre-wrap; font-size: 8.5pt; }
-    .grafica-curva { position: relative; height: 320px; }
-    .grafica-disciplinas { position: relative; height: 260px; }
+    /* En pantalla las gráficas no se muestran (están en el Dashboard); se dibujan fuera de la
+       vista con tamaño fijo para que salgan completas al exportar el PDF. */
+    .graficas-informe { position: absolute; left: -12000px; top: 0; width: 1120px; }
 
     /* Columnas redimensionables */
     .table-resizable th {
@@ -213,43 +214,30 @@ else
         </div>
     </div>
 
-    <!-- Gráficas: Curva S y programado vs real por disciplina (pantalla e impresión) -->
-    <div class="card shadow-sm mb-4 graficas-informe">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <strong>Curva S — Avance real vs planificado al @_informe.Fecha.ToString("dd/MM/yyyy")</strong>
-            @if (_curva is not null && _curva.Fechas.Count > 0)
-            {
-                <small class="text-muted">
-                    Ejecutado <strong style="color:#6ABF4B">@_curva.EjecutadoHoy.ToString("F2")%</strong> · Planeado <strong style="color:#183963">@_curva.PlanificadoHoy.ToString("F2")%</strong>
-                    @if (_curva.TieneCategorias)
-                    { <span> · @_curva.Categorias.Count categorías con peso</span> }
-                </small>
-            }
-        </div>
-        <div class="card-body">
-            @if (_curva is null || _curva.Fechas.Count == 0)
-            {
-                <p class="text-muted small mb-0">El cronograma vigente no tiene actividades con fechas planeadas.</p>
-            }
-            else
-            {
-                <div class="grafica-curva"><canvas id="curvaSInforme"></canvas></div>
-            }
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-4 graficas-informe">
-        <div class="card-header"><strong>Avance por disciplina — Programado vs Real al @_informe.Fecha.ToString("dd/MM/yyyy")</strong></div>
-        <div class="card-body">
-            @if (_disciplinasLabels.Count == 0)
-            {
-                <p class="text-muted small mb-0">Las actividades del cronograma no tienen disciplina asignada.</p>
-            }
-            else
-            {
-                <div class="grafica-disciplinas"><canvas id="disciplinasInforme"></canvas></div>
-            }
-        </div>
+    <!-- Gráficas del PDF: en pantalla NO se muestran (viven en el Dashboard); se dibujan fuera
+         de la vista con tamaño fijo y aparecen solo al imprimir / exportar PDF. -->
+    <div class="graficas-informe">
+        @if (_curva is not null && _curva.Fechas.Count > 0)
+        {
+            <div class="card mb-2">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <strong>Curva S — Avance real vs planificado al @_informe.Fecha.ToString("dd/MM/yyyy")</strong>
+                    <small class="text-muted">
+                        Ejecutado <strong style="color:#6ABF4B">@_curva.EjecutadoHoy.ToString("F2")%</strong> · Planeado <strong style="color:#183963">@_curva.PlanificadoHoy.ToString("F2")%</strong>
+                        @if (_curva.TieneCategorias)
+                        { <span> · @_curva.Categorias.Count categorías con peso</span> }
+                    </small>
+                </div>
+                <div class="card-body"><canvas id="curvaSInforme" width="1120" height="330"></canvas></div>
+            </div>
+        }
+        @if (_disciplinasLabels.Count > 0)
+        {
+            <div class="card">
+                <div class="card-header"><strong>Avance por disciplina — Programado vs Real al @_informe.Fecha.ToString("dd/MM/yyyy")</strong></div>
+                <div class="card-body"><canvas id="disciplinasInforme" width="1120" height="260"></canvas></div>
+            </div>
+        }
     </div>
 
     <!-- Tabla de avances con jerarquía WBS -->
@@ -526,13 +514,14 @@ else
         if (_informe is null || _graficasDibujadas) return;
         _graficasDibujadas = true;
 
+        // Tamaño fijo: los canvas viven fuera de la vista y solo se imprimen; a lo ancho de la hoja.
         if (_curva is not null && _curva.Fechas.Count > 0)
             await JS.InvokeVoidAsync("renderCurvaS", "curvaSInforme",
-                _curva.Fechas, _curva.AvancePlanificado, _curva.AvanceReal, _curva.RealEstimado);
+                _curva.Fechas, _curva.AvancePlanificado, _curva.AvanceReal, _curva.RealEstimado, 1120, 330);
 
         if (_disciplinasLabels.Count > 0)
             await JS.InvokeVoidAsync("renderBarChart", "disciplinasInforme",
-                _disciplinasLabels, _disciplinasReal, _disciplinasProg, "Real (%)", "Programado (%)");
+                _disciplinasLabels, _disciplinasReal, _disciplinasProg, "Real (%)", "Programado (%)", 1120, 260);
 
         if (AutoPrint == "1" && !_printed)
         {
