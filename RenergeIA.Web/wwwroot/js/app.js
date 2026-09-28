@@ -128,7 +128,7 @@ window.renderBarChart = function (canvasId, labels, data1, data2, label1, label2
         },
         options: {
             responsive: !fijo,
-            maintainAspectRatio: fijo ? false : undefined,
+            maintainAspectRatio: false,
             animation: fijo ? false : undefined,
             plugins: {
                 legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11, weight: '600' } } },

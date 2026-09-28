@@ -307,7 +307,11 @@ public class InformeDiarioService(RenergeIADbContext db)
                 return avance;
             }
             var objetivo = a.AvanceReal;
-            var fin = (objetivo >= 100m && a.FechaFinReal.HasValue) ? a.FechaFinReal.Value.Date : hoy.Date;
+            // Actividad terminada: se asume completada en su fecha fin real (o la planeada si no
+            // se registro). Solo las actividades EN CURSO se reparten hasta hoy.
+            var fin = objetivo >= 100m
+                ? (a.FechaFinReal ?? (a.FechaFinPlaneada > a.FechaInicioPlaneada ? a.FechaFinPlaneada : inicio)).Date
+                : (a.FechaFinReal ?? hoy).Date;
             return objetivo * Fraccion(d, inicio, fin);
         }
 
@@ -318,6 +322,13 @@ public class InformeDiarioService(RenergeIADbContext db)
             if (d <= inicio) return 0m;
             if (d >= fin) return 1m;
             return (decimal)((d - inicio).TotalDays / (fin - inicio).TotalDays);
+        }
+
+        // Avance real de cada actividad hoja a una fecha de corte (misma logica de la linea real).
+        public Dictionary<int, decimal> RealesPorActividad(DateTime fecha, DateTime hoy)
+        {
+            var d = fecha.Date;
+            return Hojas.ToDictionary(a => a.Id, a => Math.Round(Math.Clamp(RealActividad(a, d, hoy), 0m, 100m), 2));
         }
 
         // Primera fecha con avance real (estimado o informado) > 0.
@@ -541,6 +552,17 @@ public class InformeDiarioService(RenergeIADbContext db)
         var hojas = await HojasVigentesAsync(proyectoId);
         var (grupos, sin) = ArmarGrupos(hojas, categorias, soloConstruccion: false);
         return (grupos.Select(g => (g.Nombre, g.Hojas.Count)).ToList(), sin.Count, hojas.Count);
+    }
+
+    // Avance real por actividad hoja del cronograma vigente al corte de una fecha (para el
+    // Informe Diario: misma informacion que la Curva S y el Dashboard a esa fecha).
+    public async Task<Dictionary<int, decimal>> AvanceRealActividadesAsync(int proyectoId, DateTime fechaCorte)
+    {
+        var hojas = await HojasVigentesAsync(proyectoId);
+        if (hojas.Count == 0) return new Dictionary<int, decimal>();
+        var registros = await RegistrosCurvaAsync(proyectoId, hojas);
+        var calc = new CalculadoraCurvaS([new GrupoCurva("Todo", 100m, hojas, false)], registros);
+        return calc.RealesPorActividad(fechaCorte, HoyColombia());
     }
 
     // Datos para la Curva S: planificado desde cronograma WBS vigente (ponderado por categorías

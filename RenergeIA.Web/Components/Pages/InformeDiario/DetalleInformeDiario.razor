@@ -442,6 +442,13 @@ else
 
         var codigosSet = actividades.Select(a => a.CodigoWBS).ToHashSet();
         var registroMap = _informe.RegistrosAvance.ToDictionary(r => r.ActividadWBSId);
+        // Registros hechos sobre otra versión del cronograma: se cruzan por código WBS
+        var registroPorCodigo = _informe.RegistrosAvance
+            .Where(r => r.ActividadWBS is not null)
+            .GroupBy(r => r.ActividadWBS.CodigoWBS)
+            .ToDictionary(g => g.Key, g => g.First());
+        // Avance real por actividad al corte del informe (misma información del Dashboard)
+        var avanceCorte = await InformeSvc.AvanceRealActividadesAsync(ProyectoId, _informe.Fecha);
 
         foreach (var act in actividades)
         {
@@ -462,11 +469,20 @@ else
                     act.FechaInicioPlaneada, act.FechaFinPlaneada, _informe.Fecha)
             };
 
-            if (registroMap.TryGetValue(act.Id, out var reg))
+            if (!registroMap.TryGetValue(act.Id, out var reg))
+                registroPorCodigo.TryGetValue(act.CodigoWBS, out reg);
+
+            if (reg is not null)
             {
                 fila.AvanceReal      = reg.PorcentajeAvance;
                 fila.PersonalEnSitio = reg.PersonalEnSitio;
                 fila.HorasTrabajadas = reg.HorasTrabajadas;
+            }
+            else if (!esPadre)
+            {
+                // Sin registro en este informe: avance real al corte del informe (cronograma +
+                // informes anteriores), la misma información que muestran el Dashboard y la curva.
+                fila.AvanceReal = avanceCorte.GetValueOrDefault(act.Id, 0m);
             }
 
             _filas.Add(fila);
