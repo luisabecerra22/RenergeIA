@@ -303,7 +303,8 @@ else
                                         <span class="text-muted">—</span>
                                     }
                                 </td>
-                                <td><span class="badge bg-light text-dark border" style="font-size:.65rem">F@doc.Fase</span></td>
+                                @* Razor lee "F@doc.Fase" como un correo y lo imprime literal: hay que interpolar *@
+                                <td><span class="badge bg-light text-dark border" style="font-size:.65rem">@($"F{doc.Fase}")</span></td>
                                 <td><span class="badge" style="background:@ColorArea(doc.Area);color:#fff;font-size:.65rem">@EnumDisplay.Mostrar(doc.Area)</span></td>
                                 <td><span class="text-muted" style="font-size:.7rem">@(doc.Transmittal ?? "—")</span></td>
                                 <td>

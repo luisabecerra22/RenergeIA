@@ -34,6 +34,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
     public DbSet<PuntoCurvaReal> PuntosCurvaReal => Set<PuntoCurvaReal>();
     public DbSet<CategoriaCurvaS> CategoriasCurvaS => Set<CategoriaCurvaS>();
+    public DbSet<ComentarioDisciplinaInforme> ComentariosDisciplinaInforme => Set<ComentarioDisciplinaInforme>();
     public DbSet<NoConformidad> NoConformidades => Set<NoConformidad>();
     public DbSet<AccionCorrectiva> AccionesCorrectivas => Set<AccionCorrectiva>();
     public DbSet<Restriccion> Restricciones => Set<Restriccion>();
@@ -231,6 +232,16 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(a => a.Clave).HasMaxLength(600);
             e.Property(a => a.Valor).HasMaxLength(100);
             e.HasIndex(a => new { a.ProyectoId, a.Tipo, a.Clave }).IsUnique();
+        });
+
+        // ComentarioDisciplinaInforme (comentarios por disciplina al final del informe diario)
+        modelBuilder.Entity<ComentarioDisciplinaInforme>(e =>
+        {
+            e.ToTable("ComentariosDisciplinaInforme");
+            e.Property(x => x.Clave).HasMaxLength(50);
+            e.Property(x => x.Titulo).HasMaxLength(120);
+            e.HasIndex(x => new { x.InformeDiarioId, x.Clave }).IsUnique();
+            e.HasOne(x => x.InformeDiario).WithMany().HasForeignKey(x => x.InformeDiarioId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // CategoriaCurvaS (categorías con peso para la Curva S)

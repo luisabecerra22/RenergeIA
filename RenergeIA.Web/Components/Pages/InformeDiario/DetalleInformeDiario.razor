@@ -44,7 +44,18 @@
         col.col-actividad { width: auto !important; }
         col.col-duracion { width: 35px !important; }
         .info-cards { display: none !important; }
+        .graficas-informe { page-break-inside: avoid; margin-bottom: 10px; }
+        .graficas-informe .card-body { padding: 4px 0 !important; }
+        .grafica-curva { height: 250px !important; }
+        .grafica-disciplinas { height: 200px !important; }
+        .comentarios-informe { page-break-inside: avoid; margin-top: 10px; }
+        .comentarios-informe textarea { display: none !important; }
+        .comentarios-informe .comentario-print { display: block !important; }
+        .comentarios-informe .comentario-item { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 8px; margin-bottom: 6px; page-break-inside: avoid; }
     }
+    .comentario-print { display: none; white-space: pre-wrap; font-size: 8.5pt; }
+    .grafica-curva { position: relative; height: 320px; }
+    .grafica-disciplinas { position: relative; height: 260px; }
 
     /* Columnas redimensionables */
     .table-resizable th {
@@ -202,6 +213,45 @@ else
         </div>
     </div>
 
+    <!-- Gráficas: Curva S y programado vs real por disciplina (pantalla e impresión) -->
+    <div class="card shadow-sm mb-4 graficas-informe">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>Curva S — Avance real vs planificado al @_informe.Fecha.ToString("dd/MM/yyyy")</strong>
+            @if (_curva is not null && _curva.Fechas.Count > 0)
+            {
+                <small class="text-muted">
+                    Ejecutado <strong style="color:#6ABF4B">@_curva.EjecutadoHoy.ToString("F2")%</strong> · Planeado <strong style="color:#183963">@_curva.PlanificadoHoy.ToString("F2")%</strong>
+                    @if (_curva.TieneCategorias)
+                    { <span> · @_curva.Categorias.Count categorías con peso</span> }
+                </small>
+            }
+        </div>
+        <div class="card-body">
+            @if (_curva is null || _curva.Fechas.Count == 0)
+            {
+                <p class="text-muted small mb-0">El cronograma vigente no tiene actividades con fechas planeadas.</p>
+            }
+            else
+            {
+                <div class="grafica-curva"><canvas id="curvaSInforme"></canvas></div>
+            }
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4 graficas-informe">
+        <div class="card-header"><strong>Avance por disciplina — Programado vs Real al @_informe.Fecha.ToString("dd/MM/yyyy")</strong></div>
+        <div class="card-body">
+            @if (_disciplinasLabels.Count == 0)
+            {
+                <p class="text-muted small mb-0">Las actividades del cronograma no tienen disciplina asignada.</p>
+            }
+            else
+            {
+                <div class="grafica-disciplinas"><canvas id="disciplinasInforme"></canvas></div>
+            }
+        </div>
+    </div>
+
     <!-- Tabla de avances con jerarquía WBS -->
     <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -293,6 +343,44 @@ else
         </div>
     </div>
 
+    <!-- Comentarios por disciplina (al final del informe; se imprimen en el PDF) -->
+    <div class="card shadow-sm mb-4 comentarios-informe">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>Comentarios por disciplina</strong>
+            @if (_informe.Estado != EstadoInforme.Aprobado)
+            {
+                <div class="d-flex align-items-center gap-2 no-print">
+                    @if (_comentariosGuardados)
+                    { <span style="color:#6ABF4B;font-size:0.78rem;font-weight:600">Guardados</span> }
+                    <button class="btn btn-sm text-white" style="background:#183963" @onclick="GuardarComentariosAsync" disabled="@_guardandoComentarios">
+                        @if (_guardandoComentarios) { <span class="spinner-border spinner-border-sm me-1" style="width:12px;height:12px"></span> }
+                        Guardar comentarios
+                    </button>
+                </div>
+            }
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                @foreach (var c in _comentarios)
+                {
+                    <div class="col-md-6 comentario-item">
+                        <label class="form-label fw-semibold mb-1" style="color:#183963;font-size:0.85rem">@c.Titulo</label>
+                        @if (_informe.Estado != EstadoInforme.Aprobado)
+                        {
+                            <textarea class="form-control form-control-sm" rows="3" @bind="c.Comentario"
+                                      placeholder="Novedades, avances, restricciones o compromisos de @c.Titulo…"></textarea>
+                        }
+                        else
+                        {
+                            <div class="small" style="white-space:pre-wrap">@(string.IsNullOrWhiteSpace(c.Comentario) ? "—" : c.Comentario)</div>
+                        }
+                        <div class="comentario-print">@(string.IsNullOrWhiteSpace(c.Comentario) ? "Sin comentarios." : c.Comentario)</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
     <!-- Footer impresión -->
     <div class="print-footer mt-3 pt-2 text-center" style="border-top:2px solid #e0e0e0">
         <small style="color:#999;font-size:7pt">Renergeia LLC — Sistema de Gestión EPC &bull; Documento confidencial &bull; Generado el @DateTime.Today.ToString("dd/MM/yyyy")</small>
@@ -310,6 +398,27 @@ else
     private List<FilaDetalle> _filas = [];
     private bool _mostrarRechazo;
     private string _motivoRechazo = "";
+
+    // Gráficas del informe (Curva S al corte del informe y programado vs real por disciplina)
+    private CurvaSData? _curva;
+    private List<string> _disciplinasLabels = [];
+    private List<double> _disciplinasReal = [];
+    private List<double> _disciplinasProg = [];
+    private bool _graficasDibujadas;
+
+    // Comentarios por disciplina al final del informe
+    private static readonly (string Clave, string Titulo)[] SeccionesComentario =
+    [
+        ("ingenieria",     "Ingeniería"),
+        ("suministros",    "Suministros"),
+        ("construccion",   "Construcción (civil, mecánica y eléctrica)"),
+        ("puesta-marcha",  "Puesta en marcha y pruebas"),
+        ("cierre",         "Cierre de proyecto y documentación"),
+        ("hseq",           "HSEQ y comunidad"),
+    ];
+    private List<ComentarioDisciplinaInforme> _comentarios = [];
+    private bool _guardandoComentarios;
+    private bool _comentariosGuardados;
 
     private List<FilaDetalle> _filasHoja => _filas.Where(f => !f.EsPadre).ToList();
     private int _conteoAdelantado => _filasHoja.Count(f => f.Desviacion >= 5);
@@ -386,19 +495,79 @@ else
                 padre.AvanceProgramado = Math.Round(hijos.Average(h => h.AvanceProgramado), 2);
             }
         }
+
+        // Curva S al corte de la fecha del informe (misma lógica y pesos que el Dashboard)
+        _curva = await InformeSvc.DatosCurvaSAsync(ProyectoId, soloConstruccion: false, fechaCorte: _informe.Fecha);
+
+        // Programado vs real por disciplina, con las mismas filas del informe
+        var porDisciplina = _filasHoja
+            .Where(f => f.Disciplina.HasValue)
+            .GroupBy(f => f.Disciplina!.Value)
+            .OrderBy(g => g.Key)
+            .ToList();
+        _disciplinasLabels = porDisciplina.Select(g => EnumDisplay.Mostrar(g.Key)).ToList();
+        _disciplinasReal   = porDisciplina.Select(g => Math.Round((double)g.Average(f => f.AvanceReal), 1)).ToList();
+        _disciplinasProg   = porDisciplina.Select(g => Math.Round((double)g.Average(f => f.AvanceProgramado), 1)).ToList();
+
+        // Comentarios por disciplina: los guardados + las secciones fijas que falten
+        var guardados = await Db.ComentariosDisciplinaInforme
+            .Where(c => c.InformeDiarioId == InformeId)
+            .ToListAsync();
+        _comentarios = SeccionesComentario
+            .Select((s, i) => guardados.FirstOrDefault(c => c.Clave == s.Clave)
+                              ?? new ComentarioDisciplinaInforme { InformeDiarioId = InformeId, Clave = s.Clave, Titulo = s.Titulo, Orden = i })
+            .ToList();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && AutoPrint == "1" && !_printed)
+        // No usar firstRender: el primer render ocurre mientras el informe aún carga ("Cargando…"),
+        // así que se dibuja en el primer render que ya tiene datos, una sola vez.
+        if (_informe is null || _graficasDibujadas) return;
+        _graficasDibujadas = true;
+
+        if (_curva is not null && _curva.Fechas.Count > 0)
+            await JS.InvokeVoidAsync("renderCurvaS", "curvaSInforme",
+                _curva.Fechas, _curva.AvancePlanificado, _curva.AvanceReal, _curva.RealEstimado);
+
+        if (_disciplinasLabels.Count > 0)
+            await JS.InvokeVoidAsync("renderBarChart", "disciplinasInforme",
+                _disciplinasLabels, _disciplinasReal, _disciplinasProg, "Real (%)", "Programado (%)");
+
+        if (AutoPrint == "1" && !_printed)
         {
             _printed = true;
-            await Task.Delay(500);
+            await Task.Delay(1200); // dar tiempo a que Chart.js dibuje antes de imprimir
             await JS.InvokeVoidAsync("window.print");
         }
     }
 
     private async Task ExportarPDF() => await JS.InvokeVoidAsync("window.print");
+
+    private async Task GuardarComentariosAsync()
+    {
+        if (_informe is null) return;
+        _guardandoComentarios = true;
+        _comentariosGuardados = false;
+        try
+        {
+            foreach (var c in _comentarios)
+            {
+                c.Comentario = string.IsNullOrWhiteSpace(c.Comentario) ? null : c.Comentario.Trim();
+                if (c.Id == 0)
+                {
+                    if (c.Comentario is not null) Db.ComentariosDisciplinaInforme.Add(c);
+                }
+                else
+                {
+                    c.FechaModificacion = DateTime.UtcNow;
+                }
+            }
+            await Db.SaveChangesAsync();
+            _comentariosGuardados = true;
+        }
+        finally { _guardandoComentarios = false; }
+    }
 
     private async Task EnviarARevisionAsync()
     {

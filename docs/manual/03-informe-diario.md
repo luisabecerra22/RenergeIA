@@ -122,7 +122,12 @@
 ### Exportar a PDF
 1. En el detalle (o en el formulario) pulsa **Exportar PDF**, o en la lista pulsa el ícono PDF rojo (abre el detalle y lanza la impresión sola).
 2. En la ventana de impresión del navegador elige **Guardar como PDF**. La hoja sale en horizontal.
-3. El PDF incluye el encabezado con el logo, "Informe Diario de Obra N°…", el proyecto y la fecha; el personal en sitio, el resumen y las observaciones; la tabla de avances, y el pie "Documento confidencial" con la fecha de generación.
+3. El PDF incluye, en este orden: el encabezado con el logo, "Informe Diario de Obra N°…", el proyecto y la fecha; el personal en sitio, el resumen y las observaciones; la **Curva S** al corte de la fecha del informe (misma lógica y pesos por categoría que el Dashboard); la gráfica **Programado vs Real por disciplina** calculada con las filas del propio informe; la tabla de avances; los **Comentarios por disciplina**; y el pie "Documento confidencial" con la fecha de generación.
+
+### Comentarios por disciplina
+1. Al final del detalle del informe hay seis cuadros: Ingeniería, Suministros, Construcción (civil, mecánica y eléctrica), Puesta en marcha y pruebas, Cierre de proyecto y documentación, y HSEQ y comunidad.
+2. Escribe las novedades, restricciones o compromisos de cada frente y pulsa **Guardar comentarios** (aparece *Guardados*). Se pueden editar mientras el informe no esté Aprobado; una vez aprobado se muestran como texto.
+3. En el PDF salen al final del informe; los cuadros vacíos se imprimen como "Sin comentarios."
 
 ### Eliminar un informe en Borrador
 1. En la lista pulsa **Eliminar** en un informe en Borrador.

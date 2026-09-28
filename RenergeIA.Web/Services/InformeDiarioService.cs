@@ -547,7 +547,7 @@ public class InformeDiarioService(RenergeIADbContext db)
     // con peso y, dentro de cada una, por duración), real desde el histórico cargado + informes
     // diarios. `soloConstruccion` limita el alcance a las categorías marcadas como construcción
     // (o, sin categorías, a las actividades Civil / Mecánica / Eléctrica).
-    public async Task<CurvaSData> DatosCurvaSAsync(int proyectoId, bool soloConstruccion = false)
+    public async Task<CurvaSData> DatosCurvaSAsync(int proyectoId, bool soloConstruccion = false, DateTime? fechaCorte = null)
     {
         var hojas = await HojasVigentesAsync(proyectoId);
         if (hojas.Count == 0)
@@ -571,7 +571,7 @@ public class InformeDiarioService(RenergeIADbContext db)
         var registros = await RegistrosCurvaAsync(proyectoId, hojasCurva);
         var historico = await HistoricoCurvaAsync(proyectoId, soloConstruccion);
 
-        var datos = ConstruirCurvaS(grupos, registros, historico, soloConstruccion);
+        var datos = ConstruirCurvaS(grupos, registros, historico, soloConstruccion, fechaCorte);
         datos.TieneCategorias = categorias.Count > 0 && !categoriasSinEfecto;
         datos.CategoriasSinEfecto = categoriasSinEfecto;
         datos.SinCategoria    = sinCategoria.Count;
@@ -580,12 +580,12 @@ public class InformeDiarioService(RenergeIADbContext db)
     }
 
     private CurvaSData ConstruirCurvaS(List<GrupoCurva> grupos, List<RegistroCurva> registros,
-        List<PuntoCurvaReal> historicoPuntos, bool soloConstruccion)
+        List<PuntoCurvaReal> historicoPuntos, bool soloConstruccion, DateTime? fechaCorte = null)
     {
         var calc  = new CalculadoraCurvaS(grupos, registros);
         var hojas = calc.Hojas.ToList();
         var hist  = historicoPuntos.Count > 0 ? new HistoricoCurva(historicoPuntos) : null;
-        var hoy   = HoyColombia();
+        var hoy   = (fechaCorte?.Date ?? HoyColombia());
 
         var inicioProyecto = hojas.Min(a => a.FechaInicioPlaneada).Date;
         var finProyecto    = hojas.Max(a => a.FechaFinPlaneada).Date;
