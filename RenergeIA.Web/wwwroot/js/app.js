@@ -1358,3 +1358,25 @@ window.renderPlanCharts = function (ejec, planif, pend, venc, reprog, canc, prog
         }, 500);
     }
 };
+
+// Variación temporal del Consolidado: pagos semanales del corte actual vs el anterior
+window.renderFlujoComparativo = function (labels, actual, anterior, etiquetaActual, etiquetaAnterior) {
+    const canvas = document.getElementById("flujoChart");
+    if (!canvas) return;
+    if (canvas._chart) canvas._chart.destroy();
+    canvas._chart = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                { label: "Cierre " + etiquetaActual, data: actual, backgroundColor: "#183963" },
+                { label: "Cierre " + etiquetaAnterior, data: anterior, backgroundColor: "#6ABF4B" }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => new Intl.NumberFormat("es-CO", { notation: "compact" }).format(v) } } }
+        }
+    });
+};

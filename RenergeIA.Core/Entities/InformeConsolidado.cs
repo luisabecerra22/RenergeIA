@@ -4,6 +4,10 @@ namespace RenergeIA.Core.Entities;
 
 public class InformeConsolidado : EntidadBase
 {
+    // Cortes de tesorería comparados en la sección de variación temporal
+    public DateTime? CorteFlujoActual { get; set; }
+    public DateTime? CorteFlujoAnterior { get; set; }
+
     public int ProyectoId { get; set; }
     public Proyecto Proyecto { get; set; } = null!;
 

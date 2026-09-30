@@ -32,6 +32,7 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<HitoCompromiso> HitosCompromiso => Set<HitoCompromiso>();
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
+    public DbSet<CorteFlujoTesoreria> CortesFlujoTesoreria => Set<CorteFlujoTesoreria>();
     public DbSet<PuntoCurvaReal> PuntosCurvaReal => Set<PuntoCurvaReal>();
     public DbSet<CategoriaCurvaS> CategoriasCurvaS => Set<CategoriaCurvaS>();
     public DbSet<ComentarioDisciplinaInforme> ComentariosDisciplinaInforme => Set<ComentarioDisciplinaInforme>();
@@ -263,6 +264,17 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(x => x.PorcentajeReal).HasColumnType("decimal(6,2)");
             e.Property(x => x.Origen).HasMaxLength(200);
             e.HasIndex(x => new { x.ProyectoId, x.SoloConstruccion, x.Fecha }).IsUnique();
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CorteFlujoTesoreria — copia del flujo semanal de cada importación de tesorería
+        modelBuilder.Entity<CorteFlujoTesoreria>(e =>
+        {
+            e.ToTable("CortesFlujoTesoreria");
+            e.Property(x => x.Archivo).HasMaxLength(250);
+            e.Property(x => x.PagosCOP).HasColumnType("decimal(18,2)");
+            e.Property(x => x.PagosUSD).HasColumnType("decimal(18,2)");
+            e.HasIndex(x => new { x.ProyectoId, x.FechaCorte, x.Semana }).IsUnique();
             e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -145,6 +145,21 @@ public partial class TesoreriaImportService(RenergeIADbContext db, CostoService 
             });
         }
 
+        // Copia del flujo semanal de este corte, para la variación temporal del Consolidado
+        var fechaCorte = (vista.FechaDocumento ?? DateTime.Today).Date;
+        db.CortesFlujoTesoreria.RemoveRange(
+            await db.CortesFlujoTesoreria.Where(c => c.ProyectoId == proyectoId && c.FechaCorte == fechaCorte).ToListAsync());
+        foreach (var semana in celdas.Where(c => c.Value != 0).GroupBy(c => c.Key.Fecha))
+            db.CortesFlujoTesoreria.Add(new CorteFlujoTesoreria
+            {
+                ProyectoId = proyectoId,
+                FechaCorte = fechaCorte,
+                Archivo = Corta(vista.Archivo, 250),
+                Semana = semana.Key,
+                PagosCOP = semana.Where(c => c.Key.Moneda != "USD").Sum(c => c.Value),
+                PagosUSD = semana.Where(c => c.Key.Moneda == "USD").Sum(c => c.Value)
+            });
+
         var proyecto = await db.Proyectos.FindAsync(proyectoId);
         if (proyecto is not null && res.PrimerCorte.HasValue && res.UltimoCorte.HasValue)
         {

@@ -340,7 +340,10 @@ else if (_vista == "detalle" && _informe is not null)
                                 <th class="text-end">Variación USD</th>
                                 <th class="text-end">Semana @(_anterior.NumeroInforme) COP</th>
                                 <th class="text-end">Semana @(_informe.NumeroInforme) COP</th>
-                                <th class="text-end pe-3">Variación COP</th>
+                                <th class="text-end">Variación COP</th>
+                                <th class="text-end" title="USD + COP convertidos a dólares con la TRM de cierre actual">Semana @(_anterior.NumeroInforme) USD+COP</th>
+                                <th class="text-end" title="USD + COP convertidos a dólares con la TRM de cierre actual">Semana @(_informe.NumeroInforme) USD+COP</th>
+                                <th class="text-end pe-3">Variación USD+COP</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -353,7 +356,10 @@ else if (_vista == "detalle" && _informe is not null)
                                     <td class="text-end @(r.EsTotal ? ClsVar(r.VarUSD) : ClsVar(-r.VarUSD))">@FormatUSD(r.VarUSD)</td>
                                     <td class="text-end">@FormatCOP(r.AntCOP)</td>
                                     <td class="text-end">@FormatCOP(r.ActCOP)</td>
-                                    <td class="text-end pe-3 @(r.EsTotal ? ClsVar(r.VarCOP) : ClsVar(-r.VarCOP))">@FormatCOP(r.VarCOP)</td>
+                                    <td class="text-end @(r.EsTotal ? ClsVar(r.VarCOP) : ClsVar(-r.VarCOP))">@FormatCOP(r.VarCOP)</td>
+                                    <td class="text-end">@FormatUSD(r.AntTotal)</td>
+                                    <td class="text-end">@FormatUSD(r.ActTotal)</td>
+                                    <td class="text-end pe-3 @(r.EsTotal ? ClsVar(r.VarTotal) : ClsVar(-r.VarTotal))">@FormatUSD(r.VarTotal)</td>
                                 </tr>
                             }
                         </tbody>
@@ -516,169 +522,144 @@ else if (_vista == "detalle" && _informe is not null)
         </div>
     </div>
 
+    <!-- VARIACIÓN TEMPORAL: pagos por semana, corte de tesorería actual vs anterior -->
+    <div class="card shadow-sm border-0 mb-2 no-print" style="border-radius:14px">
+        <div class="card-body py-2 d-flex align-items-center gap-2 flex-wrap">
+            <span class="small fw-semibold" style="color:#183963">Comparar cortes de tesorería:</span>
+            <select class="form-select form-select-sm" style="width:auto" value="@FechaTexto(_corteActual)" @onchange="CambiarCorteActualAsync">
+                <option value="">— actual —</option>
+                @foreach (var c in _cortesDisponibles)
+                {
+                    <option value="@FechaTexto(c)">@c.ToString("dd/MM/yyyy")</option>
+                }
+            </select>
+            <span class="small text-muted">contra</span>
+            <select class="form-select form-select-sm" style="width:auto" value="@FechaTexto(_corteAnterior)" @onchange="CambiarCorteAnteriorAsync">
+                <option value="">— anterior —</option>
+                @foreach (var c in SemanasComparables())
+                {
+                    <option value="@FechaTexto(c)">@c.ToString("dd/MM/yyyy")</option>
+                }
+            </select>
+            @if (_anteriorDerivado && _corteAnterior is not null)
+            {
+                <span class="small text-muted">
+                    Cierre @_corteAnterior.Value.ToString("dd/MM/yyyy") calculado del documento cargado: pagos hasta esa fecha + programación vigente.
+                </span>
+            }
+        </div>
+    </div>
+
     @foreach (var tipoFlujo in new[] { ("USDCOP", "Variación temporal USD+COP"), ("USD", "Variación temporal USD"), ("COP", "Variación temporal COP") })
     {
-        var flujosTipo = _informe.FlujosCaja.Where(f => f.TipoFlujo == tipoFlujo.Item1).ToList();
-        var antFlujosTipo = _anteriorFlujos?.Where(f => f.TipoFlujo == tipoFlujo.Item1).ToList();
-        var hayAnteriorTipo = _anterior is not null;
+        var tipo = tipoFlujo.Item1;
+        var semanas = SemanasFlujo();
         <div class="card shadow-sm border-0 mb-4 print-section" style="border-radius:14px;overflow:hidden">
             <div class="card-header text-white fw-bold py-2 text-center" style="background:#6ABF4B">
                 <i class="bi bi-arrow-left-right me-2"></i>@tipoFlujo.Item2
             </div>
             <div class="card-body p-2">
-                @if (_editando)
+                @if (semanas.Count == 0)
                 {
-                    <div class="d-flex gap-3 align-items-center mb-2 no-print">
-                        <label class="small fw-semibold mb-0">Inicio flujo:</label>
-                        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_informe.FechaInicioFlujo" />
-                        <label class="small fw-semibold mb-0">Fin flujo:</label>
-                        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_informe.FechaFinFlujo" />
-                        @{ var tipo = tipoFlujo.Item1; }
-                        <button class="btn btn-sm btn-outline-dark" @onclick="() => GenerarSemanasFlujoCajaTipo(tipo)">
-                            <i class="bi bi-calendar-week me-1"></i>Generar semanas
-                        </button>
-                    </div>
+                    <p class="text-muted text-center mb-0 py-2">
+                        Sin cortes de tesorería guardados. Importa el archivo en Costos → Flujo de Caja o Compromisos.
+                    </p>
                 }
-                else if (_informe.FechaInicioFlujo.HasValue)
+                else
                 {
-                    <div class="small text-muted mb-2">
-                        Flujo: @_informe.FechaInicioFlujo.Value.ToString("dd/MM/yyyy") — @(_informe.FechaFinFlujo?.ToString("dd/MM/yyyy") ?? "en curso")
-                    </div>
-                }
-
-                @if (flujosTipo.Any())
-                {
-                    var filas = ObtenerFilasFlujoTipo(flujosTipo, antFlujosTipo);
                     <div class="table-responsive" style="max-height:450px;overflow-y:auto">
                         <table class="table table-sm mb-0 align-middle flujo-table">
                             <thead class="sticky-top">
                                 <tr>
                                     <th colspan="4" class="text-center text-white py-1" style="background:#183963">
-                                        Cierre semana @_informe.FechaFin.ToString("dd.MM.yy")
+                                        Cierre semana @(_corteActual?.ToString("dd.MM.yy") ?? "—")
                                     </th>
-                                    @if (hayAnteriorTipo)
-                                    {
-                                        <th class="flujo-sep" rowspan="2"></th>
-                                        <th colspan="4" class="text-center text-white py-1" style="background:#183963">
-                                            Cierre semana @_anterior!.FechaFin.ToString("dd.MM.yy")
-                                        </th>
-                                        <th class="flujo-sep" rowspan="2"></th>
-                                        <th class="text-center text-white py-1" style="background:#183963">Variación</th>
-                                        <th class="flujo-sep" rowspan="2"></th>
-                                        <th class="text-center text-white py-1" style="background:#183963">Justificación</th>
-                                    }
+                                    <th class="flujo-sep" rowspan="2"></th>
+                                    <th colspan="4" class="text-center text-white py-1" style="background:#183963">
+                                        Cierre semana @(_corteAnterior?.ToString("dd.MM.yy") ?? "—")
+                                    </th>
+                                    <th class="flujo-sep" rowspan="2"></th>
+                                    <th class="text-center text-white py-1" style="background:#183963">Variación</th>
+                                    <th class="flujo-sep" rowspan="2"></th>
+                                    <th class="text-center text-white py-1" style="background:#183963">Justificación</th>
                                 </tr>
                                 <tr style="background:#e8f0fe">
                                     <th class="text-center flujo-th">Semana</th>
                                     <th class="text-center flujo-th">Ingresos</th>
                                     <th class="text-center flujo-th">Pagos</th>
                                     <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
-                                    @if (hayAnteriorTipo)
-                                    {
-                                        <th class="text-center flujo-th">Semana</th>
-                                        <th class="text-center flujo-th">Ingresos</th>
-                                        <th class="text-center flujo-th">Pagos</th>
-                                        <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
-                                        <th class="text-center flujo-th" style="background:#fff3cd">Variación</th>
-                                        <th class="text-center flujo-th flujo-justif">Justificación</th>
-                                    }
+                                    <th class="text-center flujo-th">Semana</th>
+                                    <th class="text-center flujo-th">Ingresos</th>
+                                    <th class="text-center flujo-th">Pagos</th>
+                                    <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
+                                    <th class="text-center flujo-th" style="background:#fff3cd">Variación</th>
+                                    <th class="text-center flujo-th flujo-justif">Justificación</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @{ decimal cajaAcumT = 0; decimal cajaAcumAntT = 0; }
-                                @foreach (var fila in filas)
+                                @foreach (var semana in semanas)
                                 {
-                                    cajaAcumT += fila.Ingresos - fila.Pagos;
-                                    var cajaAntT = 0m;
-                                    if (fila.AntIngresos.HasValue || fila.AntPagos.HasValue)
-                                    {
-                                        cajaAcumAntT += (fila.AntIngresos ?? 0) - (fila.AntPagos ?? 0);
-                                        cajaAntT = cajaAcumAntT;
-                                    }
-                                    else if (hayAnteriorTipo)
-                                    {
-                                        cajaAntT = cajaAcumAntT;
-                                    }
-                                    var varT = hayAnteriorTipo ? cajaAcumT - cajaAntT : (decimal?)null;
+                                    var ingresos = IngresosDe(tipo, semana);
+                                    var pagos = PagosDe(_pagosActual, semana, tipo);
+                                    var pagosAnt = PagosDe(_pagosAnterior, semana, tipo);
+                                    cajaAcumT += ingresos - pagos;
+                                    cajaAcumAntT += 0 - pagosAnt; // ingresos del corte anterior: pendiente la hoja de ingresos
+                                    var varT = cajaAcumT - cajaAcumAntT;
                                     <tr>
-                                        <td class="text-center">@fila.Semana.ToString("d/MM/yyyy")</td>
+                                        <td class="text-center">@semana.ToString("d/MM/yyyy")</td>
                                         <td class="text-end">
                                             @if (_editando)
                                             {
                                                 <input type="number" class="form-control form-control-sm text-end p-0 border-0" style="width:75px;display:inline"
-                                                       value="@fila.Flujo.Ingresos" @onchange="e => { fila.Flujo.Ingresos = decimal.TryParse(e.Value?.ToString(), out var v) ? v : 0; }" step="0.01" />
+                                                       value="@ingresos" @onchange="e => GuardarIngreso(tipo, semana, e.Value?.ToString())" step="0.01" />
                                             }
                                             else
                                             {
-                                                @(fila.Ingresos != 0 ? fila.Ingresos.ToString("N0") : "-")
+                                                @(ingresos != 0 ? ingresos.ToString("N0") : "-")
                                             }
                                         </td>
-                                        <td class="text-end">
-                                            @if (_editando)
-                                            {
-                                                <input type="number" class="form-control form-control-sm text-end p-0 border-0" style="width:75px;display:inline"
-                                                       value="@fila.Flujo.Pagos" @onchange="e => { fila.Flujo.Pagos = decimal.TryParse(e.Value?.ToString(), out var v) ? v : 0; }" step="0.01" />
-                                            }
-                                            else
-                                            {
-                                                @(fila.Pagos != 0 ? fila.Pagos.ToString("N0") : "-")
-                                            }
-                                        </td>
+                                        <td class="text-end">@(pagos != 0 ? pagos.ToString("N0") : "-")</td>
                                         <td class="text-end fw-semibold @(cajaAcumT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
                                             @(cajaAcumT != 0 ? cajaAcumT.ToString("N0") : "-")
                                         </td>
-                                        @if (hayAnteriorTipo)
-                                        {
-                                            <td class="flujo-sep"></td>
-                                            <td class="text-center">@fila.Semana.ToString("d/MM/yyyy")</td>
-                                            <td class="text-end">@(fila.AntIngresos.HasValue && fila.AntIngresos != 0 ? fila.AntIngresos.Value.ToString("N0") : "-")</td>
-                                            <td class="text-end">@(fila.AntPagos.HasValue && fila.AntPagos != 0 ? fila.AntPagos.Value.ToString("N0") : "-")</td>
-                                            <td class="text-end fw-semibold @(cajaAntT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
-                                                @(cajaAntT != 0 ? cajaAntT.ToString("N0") : "-")
-                                            </td>
-                                            <td class="flujo-sep"></td>
-                                            <td class="text-end fw-semibold @(varT < 0 ? "text-danger" : varT > 0 ? "text-success" : "")" style="background:#fffde7">
-                                                @(varT.HasValue && varT != 0 ? varT.Value.ToString("N0") : "-")
-                                            </td>
-                                            <td class="flujo-sep"></td>
-                                            <td>
-                                                @if (_editando)
-                                                {
-                                                    <input type="text" class="form-control form-control-sm p-0 border-0" style="font-size:0.7rem"
-                                                           value="@fila.Flujo.Justificacion" @onchange="e => { fila.Flujo.Justificacion = e.Value?.ToString(); }" placeholder="—" />
-                                                }
-                                                else
-                                                {
-                                                    @(string.IsNullOrWhiteSpace(fila.Flujo.Justificacion) ? "—" : fila.Flujo.Justificacion)
-                                                }
-                                            </td>
-                                        }
+                                        <td class="flujo-sep"></td>
+                                        <td class="text-center">@semana.ToString("d/MM/yyyy")</td>
+                                        <td class="text-end">-</td>
+                                        <td class="text-end">@(pagosAnt != 0 ? pagosAnt.ToString("N0") : "-")</td>
+                                        <td class="text-end fw-semibold @(cajaAcumAntT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
+                                            @(cajaAcumAntT != 0 ? cajaAcumAntT.ToString("N0") : "-")
+                                        </td>
+                                        <td class="flujo-sep"></td>
+                                        <td class="text-end fw-semibold @(varT < 0 ? "text-danger" : varT > 0 ? "text-success" : "")" style="background:#fffde7">
+                                            @(varT != 0 ? varT.ToString("N0") : "-")
+                                        </td>
+                                        <td class="flujo-sep"></td>
+                                        <td class="flujo-justif">
+                                            @if (_editando)
+                                            {
+                                                <input type="text" class="form-control form-control-sm p-0 border-0" style="font-size:0.7rem"
+                                                       value="@Justificacion(tipo, semana)" placeholder="—"
+                                                       @onchange="e => GuardarJustificacion(tipo, semana, e.Value?.ToString())" />
+                                            }
+                                            else
+                                            {
+                                                @(string.IsNullOrWhiteSpace(Justificacion(tipo, semana)) ? "—" : Justificacion(tipo, semana))
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
                         </table>
                     </div>
-                }
-                else
-                {
-                    <p class="text-muted text-center mb-0 py-2">
-                        @if (_editando)
-                        {
-                            <span>Configure las fechas y presione "Generar semanas".</span>
-                        }
-                        else
-                        {
-                            <span>Sin datos de flujo de caja registrados.</span>
-                        }
-                    </p>
-                }
 
-                @if (tipoFlujo.Item1 == "USDCOP" && flujosTipo.Any())
-                {
-                    <div class="mt-3 print-section">
-                        <canvas id="flujoChart" style="width:100%;height:320px"></canvas>
-                        <img id="flujoChartImg" style="display:none;width:100%;max-height:350px" />
-                    </div>
+                    @if (tipo == "USDCOP")
+                    {
+                        <div class="mt-3 print-section">
+                            <canvas id="flujoChart" style="width:100%;height:320px"></canvas>
+                            <img id="flujoChartImg" style="display:none;width:100%;max-height:350px" />
+                        </div>
+                    }
                 }
             </div>
         </div>
@@ -731,6 +712,14 @@ else if (_vista == "detalle" && _informe is not null)
     private InformeConsolidado? _anterior;
     private List<InformeConsolidado>? _informesPapelera;
     private List<FlujoCajaSemanal>? _anteriorFlujos;
+
+    // Cortes de tesorería guardados (copia del Flujo de Caja de cada importación)
+    private List<DateTime> _cortesDisponibles = [];
+    private Dictionary<DateTime, (decimal COP, decimal USD)> _pagosActual = [];
+    private Dictionary<DateTime, (decimal COP, decimal USD)> _pagosAnterior = [];
+    private bool _anteriorDerivado;
+    private DateTime? _corteActual;
+    private DateTime? _corteAnterior;
     private bool _flujoFechasBloqueadas;
     private int _cantidadPapelera;
     private string _vista = "listado";
@@ -815,6 +804,7 @@ else if (_vista == "detalle" && _informe is not null)
 
         _anterior = ultimoConsolidado;
         _comparacionId = ultimoConsolidado?.Id ?? 0;
+        await CargarCortesAsync();
         _editando = true;
         _vista = "detalle";
         _renderChart = true;
@@ -829,22 +819,173 @@ else if (_vista == "detalle" && _informe is not null)
         }
     }
 
+    // ── Variación temporal: pagos por semana de dos cortes de tesorería ──────
+
+    private static string FechaTexto(DateTime? f) => f?.ToString("yyyy-MM-dd") ?? "";
+
+    private async Task CargarCortesAsync()
+    {
+        _cortesDisponibles = await Db.CortesFlujoTesoreria.AsNoTracking()
+            .Where(c => c.ProyectoId == ProyectoId)
+            .Select(c => c.FechaCorte).Distinct()
+            .OrderByDescending(f => f).ToListAsync();
+
+        _corteActual = _informe?.CorteFlujoActual;
+        if (_corteActual is null || !_cortesDisponibles.Contains(_corteActual.Value))
+            _corteActual = _cortesDisponibles.Count > 0 ? _cortesDisponibles[0] : null;
+        // Siempre la semana anterior al corte (7 días antes), salvo que la usuaria elija otra
+        _corteAnterior = _informe?.CorteFlujoAnterior;
+        if (_corteAnterior is null || _corteAnterior >= _corteActual)
+            _corteAnterior = _corteActual?.AddDays(-7);
+        SincronizarCortesInforme();
+        await CargarPagosCortesAsync();
+    }
+
+    private async Task CargarPagosCortesAsync()
+    {
+        _pagosActual = await LeerCorteAsync(_corteActual);
+        _pagosAnterior = await LeerCorteAnteriorAsync(_corteAnterior);
+        _renderChart = true;
+    }
+
+    // Semanas elegibles para comparar: de 7 en 7 hacia atrás desde el corte actual,
+    // más cualquier corte guardado, hasta el inicio del Flujo de Caja
+    private List<DateTime> SemanasComparables()
+    {
+        var actual = _corteActual;
+        if (actual is null) return _cortesDisponibles;
+        var inicio = _proyecto?.FechaInicioPagos ?? actual.Value.AddDays(-7 * 104);
+        var semanas = new List<DateTime>();
+        for (var f = actual.Value.AddDays(-7); f >= inicio.Date; f = f.AddDays(-7)) semanas.Add(f);
+        semanas.AddRange(_cortesDisponibles.Where(c => c < actual.Value));
+        return semanas.Distinct().OrderByDescending(f => f).ToList();
+    }
+
+    // Corte anterior: si fue importado se usan sus datos guardados; si no, se deriva del corte
+    // actual (el archivo es acumulado). La columna de cada semana cubre de ese lunes al domingo,
+    // así que a un cierre X ya están pagadas las semanas ANTERIORES a X; las semanas desde X
+    // hasta antes del corte actual se pagaron después y van vacías, y desde el corte actual
+    // en adelante es programación vigente (igual en ambos cierres).
+    private async Task<Dictionary<DateTime, (decimal COP, decimal USD)>> LeerCorteAnteriorAsync(DateTime? corte)
+    {
+        _anteriorDerivado = false;
+        if (corte is null) return [];
+        var guardado = await LeerCorteAsync(corte);
+        if (guardado.Count > 0) return guardado;
+
+        if (_corteActual is null || _pagosActual.Count == 0) return [];
+        _anteriorDerivado = true;
+        return _pagosActual
+            .Where(kv => kv.Key < corte.Value || kv.Key >= _corteActual.Value)
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+    }
+
+    private async Task<Dictionary<DateTime, (decimal COP, decimal USD)>> LeerCorteAsync(DateTime? corte)
+    {
+        if (corte is null) return [];
+        var filas = await Db.CortesFlujoTesoreria.AsNoTracking()
+            .Where(c => c.ProyectoId == ProyectoId && c.FechaCorte == corte.Value)
+            .ToListAsync();
+        return filas.GroupBy(c => c.Semana)
+            .ToDictionary(g => g.Key, g => (g.Sum(x => x.PagosCOP), g.Sum(x => x.PagosUSD)));
+    }
+
+    // El informe trackeado solo se modifica en modo edición (DbContext compartido del circuito)
+    private void SincronizarCortesInforme()
+    {
+        if (_informe is null || !_editando) return;
+        _informe.CorteFlujoActual = _corteActual;
+        _informe.CorteFlujoAnterior = _corteAnterior;
+    }
+
+    private async Task CambiarCorteActualAsync(ChangeEventArgs e)
+    {
+        _corteActual = DateTime.TryParse(e.Value?.ToString(), out var f) ? f : null;
+        // Al mover el corte actual, el "contra" vuelve a la semana anterior si quedó inválido
+        if (_corteAnterior is null || _corteAnterior >= _corteActual)
+            _corteAnterior = _corteActual?.AddDays(-7);
+        SincronizarCortesInforme();
+        await CargarPagosCortesAsync();
+    }
+
+    private async Task CambiarCorteAnteriorAsync(ChangeEventArgs e)
+    {
+        _corteAnterior = DateTime.TryParse(e.Value?.ToString(), out var f) ? f : null;
+        SincronizarCortesInforme();
+        await CargarPagosCortesAsync();
+    }
+
+    // Semanas del Flujo de Caja del proyecto (mismo rango y paso que esa pantalla)
+    private List<DateTime> SemanasFlujo()
+    {
+        var conDatos = _pagosActual.Keys.Concat(_pagosAnterior.Keys).Distinct().OrderBy(f => f).ToList();
+        if (conDatos.Count == 0) return [];
+        var inicio = _proyecto?.FechaInicioPagos ?? conDatos.First();
+        var fin = _proyecto?.FechaFinPagos ?? conDatos.Last();
+        var semanas = new List<DateTime>();
+        for (var f = inicio.Date; f <= fin.Date; f = f.AddDays(7)) semanas.Add(f);
+        // Semanas con datos que no caen en la grilla (por si el archivo trae otro día de corte)
+        semanas.AddRange(conDatos.Where(c => c >= inicio.Date && c <= fin.Date && !semanas.Contains(c)));
+        return semanas.Distinct().OrderBy(f => f).ToList();
+    }
+
+    private decimal PagosDe(Dictionary<DateTime, (decimal COP, decimal USD)> pagos, DateTime semana, string tipo)
+    {
+        if (!pagos.TryGetValue(semana, out var v)) return 0;
+        var trm = _informe is { TRM: > 0 } ? _informe.TRM : 4000m;
+        return tipo switch
+        {
+            "USD" => v.USD,
+            "COP" => v.COP,
+            // USD+COP se expresa en dólares: los pesos se convierten con la TRM de cierre del informe
+            _ => v.USD + v.COP / trm
+        };
+    }
+
+    private decimal IngresosDe(string tipo, DateTime semana) =>
+        _informe?.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana)?.Ingresos ?? 0;
+
+    private void GuardarIngreso(string tipo, DateTime semana, string? texto)
+    {
+        if (_informe is null) return;
+        var valor = decimal.TryParse(texto, out var v) ? v : 0;
+        var fila = _informe.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana);
+        if (fila is null)
+        {
+            fila = new FlujoCajaSemanal { TipoFlujo = tipo, Semana = semana, OrdenSemana = _informe.FlujosCaja.Count };
+            _informe.FlujosCaja.Add(fila);
+        }
+        fila.Ingresos = valor;
+    }
+
+    private string? Justificacion(string tipo, DateTime semana) =>
+        _informe?.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana)?.Justificacion;
+
+    private void GuardarJustificacion(string tipo, DateTime semana, string? texto)
+    {
+        if (_informe is null) return;
+        var fila = _informe.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana);
+        if (fila is null)
+        {
+            fila = new FlujoCajaSemanal { TipoFlujo = tipo, Semana = semana, OrdenSemana = _informe.FlujosCaja.Count };
+            _informe.FlujosCaja.Add(fila);
+        }
+        fila.Justificacion = texto;
+    }
+
     private async Task RenderFlujoChartAsync()
     {
         if (_informe is null) return;
-        var flujos = _informe.FlujosCaja.Where(f => f.TipoFlujo == "USDCOP").OrderBy(f => f.OrdenSemana).ToList();
-        if (!flujos.Any()) return;
+        var semanas = SemanasFlujo();
+        if (semanas.Count == 0) return;
 
-        var labels = flujos.Select(f => f.Semana.ToString("d/MM/yyyy")).ToArray();
-        var ingresos = flujos.Select(f => f.Ingresos).ToArray();
-        var pagos = flujos.Select(f => f.Pagos).ToArray();
+        var labels = semanas.Select(f => f.ToString("d/MM/yyyy")).ToArray();
+        var actual = semanas.Select(f => PagosDe(_pagosActual, f, "USDCOP")).ToArray();
+        var anterior = semanas.Select(f => PagosDe(_pagosAnterior, f, "USDCOP")).ToArray();
 
-        var caja = new decimal[flujos.Count];
-        decimal acum = 0;
-        for (int i = 0; i < flujos.Count; i++) { acum += flujos[i].Ingresos - flujos[i].Pagos; caja[i] = acum; }
-
-        await JS.InvokeVoidAsync("renderFlujoChart", labels, ingresos, pagos, caja,
-            _informe.FechaFin.ToString("dd.MM.yy"));
+        await JS.InvokeVoidAsync("renderFlujoComparativo", labels, actual, anterior,
+            _corteActual?.ToString("dd.MM.yy") ?? "Actual",
+            _corteAnterior?.ToString("dd.MM.yy") ?? "Anterior");
     }
 
     private void CalcularTotalesDesdePartidas(List<Partida> partidas, decimal trm)
@@ -1021,6 +1162,7 @@ else if (_vista == "detalle" && _informe is not null)
         _comparacionId = _anterior?.Id ?? 0;
         _proyecto = await Db.Proyectos.FindAsync(_informe.ProyectoId);
         await DeterminarBloqueoFechasFlujo();
+        await CargarCortesAsync();
         if (editar) await RecalcularDesdePartidasAsync();
         _editando = editar;
         _vista = "detalle";
@@ -1259,7 +1401,8 @@ else if (_vista == "detalle" && _informe is not null)
         ];
     }
 
-    private record FilaComparativo(string Label, decimal AntUSD, decimal ActUSD, decimal VarUSD, decimal AntCOP, decimal ActCOP, decimal VarCOP, bool EsTotal, bool Alt);
+    private record FilaComparativo(string Label, decimal AntUSD, decimal ActUSD, decimal VarUSD, decimal AntCOP, decimal ActCOP, decimal VarCOP,
+        decimal AntTotal, decimal ActTotal, decimal VarTotal, bool EsTotal, bool Alt);
     private List<FilaComparativo> ObtenerFilasComparativo()
     {
         if (_informe is null || _anterior is null) return [];
@@ -1272,7 +1415,16 @@ else if (_vista == "detalle" && _informe is not null)
             ("Comprometido", _anterior.ComprometidoUSD, _informe.ComprometidoUSD, _anterior.ComprometidoCOP, _informe.ComprometidoCOP, false),
             ("Disponible", dispAntU, DispUSD(), dispAntC, DispCOP(), true),
         };
-        return items.Select((r, i) => new FilaComparativo(r.l, r.au, r.cu, r.cu - r.au, r.ac, r.cc, r.cc - r.ac, r.t, i % 2 == 0)).ToList();
+        // USD+COP en dólares: ambas semanas se convierten con la MISMA TRM de cierre actual
+        // (definido por la usuaria: la variación refleja solo costos, sin efecto cambiario)
+        var trmAct = _informe.TRM > 0 ? _informe.TRM : 4000m;
+        return items.Select((r, i) =>
+        {
+            var antTotal = r.au + r.ac / trmAct;
+            var actTotal = r.cu + r.cc / trmAct;
+            return new FilaComparativo(r.l, r.au, r.cu, r.cu - r.au, r.ac, r.cc, r.cc - r.ac,
+                antTotal, actTotal, actTotal - antTotal, r.t, i % 2 == 0);
+        }).ToList();
     }
 
     private record FilaDesglose(string Cat, decimal PC, decimal PU, decimal EC, decimal EU, decimal CC, decimal CU, decimal DC, decimal DU, bool Alt);
