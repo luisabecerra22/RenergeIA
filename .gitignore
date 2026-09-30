@@ -3,6 +3,9 @@
 **/obj/
 publish/
 
+# Dependencias de Node (cualquier carpeta)
+node_modules/
+
 # Secretos y configuración local
 **/appsettings.Development.json
 **/appsettings.Local.json

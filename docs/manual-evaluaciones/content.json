@@ -1,0 +1,107 @@
+{
+  "placeholders": [
+    "p01_portal.jpg",
+    "p02_datos.jpg",
+    "p05_aprobado.jpg",
+    "p07_reprobado.jpg",
+    "p08_asistencia.jpg",
+    "a02_resultados.jpg",
+    "a03_resultados_estado.jpg",
+    "a05_evaluaciones.jpg",
+    "a09_asistencia.jpg",
+    "a12_dashboard.jpg",
+    "a05_evaluaciones.jpg",
+    "p06_certificado.png"
+  ],
+  "inserts": [
+    {
+      "mode": "after",
+      "anchor": "Responda todas las preguntas de conocimiento",
+      "items": [ {"t": "img", "x": "p03_preguntas.jpg"} ]
+    },
+    {
+      "mode": "after",
+      "anchor": "Registre su firma digital en el espacio habilitado",
+      "items": [ {"t": "img", "x": "p04_firma.jpg"} ]
+    },
+    {
+      "mode": "beforeHeading",
+      "anchor": "DASHBOARD Y GR",
+      "items": [
+        {"t": "h2", "x": "CREACIÓN DE UNA EVALUACIÓN (PASO A PASO)"},
+        {"t": "body", "x": "Para crear una nueva evaluación o inducción, ingrese a la pestaña Evaluaciones y siga estos pasos:"},
+        {"t": "bul", "x": "Haga clic en el botón “+ Nueva evaluación”. El sistema creará la evaluación y abrirá el editor."},
+        {"t": "bul", "x": "En “Datos generales”, escriba el Título de la evaluación y el Tema (este último aparece en el certificado). Seleccione el Área responsable (HSE o Recursos Humanos)."},
+        {"t": "bul", "x": "En “Preguntas de conocimiento”, escriba el enunciado de cada pregunta y sus opciones de respuesta. Utilice “+ Agregar opción” y “+ Agregar pregunta” según lo necesite."},
+        {"t": "bul", "x": "Marque la respuesta correcta de cada pregunta con el círculo verde ubicado a la izquierda de la opción."},
+        {"t": "bul", "x": "Active la casilla “Evaluación activa” para que la evaluación sea visible a los participantes."},
+        {"t": "bul", "x": "Haga clic en “Guardar cambios”. La plataforma calificará automáticamente cada intento con base en las respuestas marcadas como correctas."},
+        {"t": "img", "x": "a07_editor.jpg"},
+        {"t": "img", "x": "a08_pregunta.jpg"},
+        {"t": "body", "x": "Nota: La nota mínima de aprobación es 3.0 sobre 5.0. La sección de retroalimentación del capacitador es fija del formato y no afecta la calificación."},
+
+        {"t": "h2", "x": "COPIAR Y COMPARTIR LOS ENLACES"},
+        {"t": "body", "x": "Desde la pestaña Evaluaciones puede obtener los enlaces para compartir con los participantes:"},
+        {"t": "bul", "x": "En la columna “Links” de cada evaluación, haga clic en “Copiar link” para copiar el enlace de esa evaluación."},
+        {"t": "bul", "x": "Para el enlace general de registro de asistencia, haga clic en el botón “Copiar link de asistencia”."},
+        {"t": "bul", "x": "Comparta el enlace por WhatsApp, correo electrónico o mediante un código QR. El participante podrá ingresar desde su computador o celular."},
+        {"t": "img", "x": "a06_links.jpg"},
+
+        {"t": "h2", "x": "REVISAR EL DETALLE DE UN INTENTO Y CORREGIR"},
+        {"t": "body", "x": "En la pestaña Resultados puede revisar en detalle cada evaluación presentada y verificar la calificación:"},
+        {"t": "bul", "x": "Ubique a la persona en la tabla y haga clic en el botón “Ver” de esa fila."},
+        {"t": "bul", "x": "Se abrirá el detalle con la nota obtenida y, pregunta por pregunta, la respuesta que seleccionó y cuál era la correcta (las respuestas incorrectas se muestran en rojo)."},
+        {"t": "bul", "x": "Revise también la retroalimentación del capacitador y la firma del participante."},
+        {"t": "bul", "x": "Si detecta que una pregunta o su respuesta correcta quedó mal configurada, corríjala en la pestaña Evaluaciones (botón “Editar”) y guarde los cambios."},
+        {"t": "img", "x": "a04_detalle.jpg"},
+
+        {"t": "h2", "x": "PLANTA DE PERSONAL Y MATRIZ DE ASISTENCIA"},
+        {"t": "body", "x": "La pestaña Personal permite gestionar la planta de personal y consultar, en una sola tabla, quién ha asistido a cada capacitación:"},
+        {"t": "bul", "x": "Cargue la planta de personal con el botón “Importar desde Excel”, o agregue personas manualmente con “+ Agregar persona”."},
+        {"t": "bul", "x": "La matriz muestra una columna por cada capacitación: un ✓ verde indica que la persona asistió y un ✗ rojo que no asistió. El cruce se realiza por número de cédula, tomando tanto la asistencia registrada como la evaluación presentada."},
+        {"t": "bul", "x": "La columna “% Asist.” indica el porcentaje de asistencia de cada persona según las capacitaciones mostradas."},
+        {"t": "bul", "x": "Con el botón “Actualizar” refresca la información y con “Exportar a Excel” descarga la matriz completa."},
+        {"t": "img", "x": "a10_personal.jpg"},
+        {"t": "img", "x": "a11_matriz.jpg"},
+
+        {"t": "h2", "x": "BÚSQUEDA Y FILTROS"},
+        {"t": "body", "x": "Todas las tablas del panel cuentan con búsqueda y filtros para encontrar la información rápidamente:"},
+        {"t": "bul", "x": "Utilice el campo “Buscar” para encontrar a una persona por nombre, cédula o correo."},
+        {"t": "bul", "x": "Filtre por evaluación, estado (aprobado/reprobado), departamento, área, cargo o proyecto, según la pestaña."},
+        {"t": "bul", "x": "En la pestaña Personal, use los botones ✓ y ✗ del encabezado de cada capacitación para ver únicamente quién asistió o quién faltó a esa capacitación."},
+
+        {"t": "h2", "x": "USUARIOS Y ROLES"},
+        {"t": "body", "x": "La gestión de usuarios está disponible únicamente para el rol administrador, en la pestaña Usuarios:"},
+        {"t": "bul", "x": "Cree cuentas nuevas con el botón “Crear cuenta”, indicando el usuario, el rol y el área."},
+        {"t": "bul", "x": "El rol Administrador ve y gestiona todas las áreas; un usuario de área (HSE o Recursos Humanos) solo ve y gestiona lo correspondiente a su área."},
+        {"t": "bul", "x": "Para cambiar una contraseña, utilice “Resetear contraseña” (administrador) o la opción “Mi cuenta” (cada usuario)."},
+        {"t": "img", "x": "a13_usuarios.jpg"}
+      ]
+    },
+    {
+      "mode": "after",
+      "anchor": "copiar los enlaces tanto de las evaluaciones",
+      "items": [
+        {"t": "h1", "x": "BUEN USO DE LA PLATAFORMA"},
+        {"t": "body", "x": "Para garantizar la confiabilidad y la trazabilidad de la información, tenga en cuenta las siguientes recomendaciones sobre el uso correcto de la plataforma."},
+        {"t": "h2", "x": "RECOMENDACIONES (QUÉ SÍ HACER)"},
+        {"t": "bul", "x": "Ingrese siempre sus datos reales y completos (nombre, cédula, cargo, departamento y proyecto) al presentar una evaluación o registrar asistencia."},
+        {"t": "bul", "x": "Presente usted mismo su evaluación; la firma digital es personal e intransferible."},
+        {"t": "bul", "x": "Utilice títulos claros y reconocibles para cada capacitación; recuerde que el tema aparece en el certificado."},
+        {"t": "bul", "x": "Comparta el enlace de asistencia al iniciar la capacitación y el de la evaluación al finalizar."},
+        {"t": "bul", "x": "Mantenga actualizada la planta de personal para que la matriz de asistencia cruce correctamente."},
+        {"t": "bul", "x": "Descargue y respalde periódicamente los resultados y la asistencia para sus informes."},
+        {"t": "bul", "x": "Verifique que las evaluaciones queden en estado “Activa” antes de compartirlas."},
+        {"t": "h2", "x": "QUÉ NO SE DEBE HACER"},
+        {"t": "bul", "x": "No comparta las credenciales del panel de administración con personas no autorizadas."},
+        {"t": "bul", "x": "No presente evaluaciones a nombre de otra persona ni firme por terceros."},
+        {"t": "bul", "x": "No registre datos falsos o incompletos, pues afecta la trazabilidad y los indicadores."},
+        {"t": "bul", "x": "No elimine registros de resultados o asistencia sin autorización; utilice la papelera y verifique antes de eliminar de forma permanente."},
+        {"t": "bul", "x": "No cree evaluaciones de prueba en el entorno real; si lo hace, elimínelas al terminar."},
+        {"t": "bul", "x": "No modifique las preguntas ni las respuestas correctas de una evaluación mientras haya personas presentándola."},
+        {"t": "bul", "x": "No comparta información personal de los participantes (cédulas, correos) fuera de los canales autorizados."}
+      ]
+    }
+  ],
+  "rename": { "findBefore": "Por medio del presente documento", "to": "AUTORIZACIÓN Y VIGENCIA" }
+}

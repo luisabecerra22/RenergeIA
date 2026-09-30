@@ -2,7 +2,7 @@
 
 > Documento de referencia completo del proceso de construcción de la plataforma RenergeIA.
 > Audiencia: equipo interno de Renergeia S.A.S. / desarrolladores que incorporen el proyecto.
-> Última actualización: **16 de septiembre de 2026 — Documentos: carga de la Planificación Documental por proyecto (sin duplicar), alertas de días sin atender, responsables internos por área, validación y seguimiento Redline/As-Built**
+> Última actualización: **30 de septiembre de 2026 — Subproyecto Evaluaciones HSE (Next.js) documentado (nueva sección 32): módulos, despliegue, mejoras (exportar asistencia, rediseño de login, certificado Montserrat), incidente/operación de facturación + `min-instances=1`, y documentación generada (manual y presentación)**
 
 ---
 
@@ -2344,6 +2344,68 @@ builder.Services.AddHttpClient(); // requerido por IAInspeccionService
 ### Navegación
 
 `NavSeguridad.razor` agrega la pestaña **"Matriz Riesgos"** → `/proyectos/{id}/hseq/seguridad/matriz`, junto a la nueva pestaña **"Res. 0312"** → `/proyectos/{id}/hseq/seguridad/resolucion0312` (`ChecklistResolucion0312.razor`, análogo a `ChecklistISO45001.razor` pero usando `Resolucion0312ChecklistData`).
+
+---
+
+## 32. Subproyecto: Plataforma de Evaluaciones HSE (Next.js)
+
+> Este es el **segundo proyecto** del monorepo, independiente de la plataforma .NET. Tiene su propio stack, su propio proyecto de Google Cloud y su propio flujo de despliegue.
+
+### Qué es
+
+Aplicación web para **capacitaciones, evaluaciones de conocimiento y registro de asistencia** del área HSE/SST. Los colaboradores presentan evaluaciones y registran asistencia desde su computador o celular; el área de HSE/Calidad y RRHH administra todo desde un panel.
+
+### Stack y ubicación
+
+| Aspecto | Detalle |
+|---|---|
+| Carpeta | `evaluacion-hse/` |
+| Framework | Next.js 15 + React + TypeScript |
+| Datos | Firestore (Google Cloud) |
+| Tipografía | Montserrat (Google Fonts) |
+| Proyecto GCP | `renergeia-evaluaciones` (#64204106653) |
+| Servicio Cloud Run | `evaluacion-hse` |
+| URL producción | https://evaluacion-hse-64204106653.us-central1.run.app |
+
+### Módulos
+
+- **Público** — Portal (`/`), presentar evaluación (`/evaluacion/[id]`), registro de asistencia (`/asistencia`). Flujo del participante: datos personales → preguntas de conocimiento → retroalimentación del capacitador → firma digital (canvas) → envío → **resultado inmediato**. Si aprueba (nota ≥ 3.0/5.0) descarga su **certificado PDF** (generado con `pdf-lib` sobre `public/diploma-template.png`, nombre en Montserrat).
+- **Panel de administración** (`/admin`, requiere login) — 6 pestañas: **Resultados, Evaluaciones, Dashboard, Asistencia, Personal, Usuarios**.
+- **Roles** — `admin` (ve y gestiona todo) y `area` (ve solo su área: `hse`, `rrhh`).
+- **Personal** — planta de personal + **matriz de asistencia ✓/✗** cruzando por cédula (asistencia registrada O evaluación presentada), con `% Asist.` y exportación a Excel.
+
+### Despliegue (⚠ NO usar `--source .` desde la raíz)
+
+`--source .` toma el `Dockerfile` .NET de la raíz y falla. El flujo correcto se ejecuta **desde `evaluacion-hse/`**:
+
+```bash
+cd evaluacion-hse
+gcloud builds submit \
+  --tag us-central1-docker.pkg.dev/renergeia-evaluaciones/cloud-run-source-deploy/evaluacion-hse \
+  --project renergeia-evaluaciones --quiet
+gcloud run deploy evaluacion-hse \
+  --image us-central1-docker.pkg.dev/renergeia-evaluaciones/cloud-run-source-deploy/evaluacion-hse:latest \
+  --region us-central1 --project renergeia-evaluaciones --allow-unauthenticated --port 8080 \
+  --min-instances=1 --quiet
+```
+
+Hay un `.gcloudignore` en `evaluacion-hse/` que reduce el upload de ~491 MB a ~4 MB.
+
+### Mejoras recientes (septiembre 2026)
+
+- **Exportar asistencia a Excel** — botón "Exportar Excel" en la pestaña Asistencia (ruta `src/app/api/admin/asistencia/export/route.ts`, con `xlsx`), respeta los filtros activos (capacitación/departamento/búsqueda).
+- **Rediseño del login** — "Capacitaciones e Inducciones de Renergeia", fondo verde translúcido, inputs azul claro, botón azul oscuro "Ingresar", texto de soporte del área de Calidad, logo principal nítido.
+- **Certificado** — usa Montserrat incrustada para el nombre del participante.
+
+### Operación — incidente de facturación (2026-09-30)
+
+El servicio se cayó (503 *"The request failed because billing is disabled"*) porque la cuenta de facturación anterior de `renergeia-evaluaciones` (`019C0D-34F6D1-FA0CF4`) quedó inactiva. Se solucionó vinculándolo a la cuenta **activa** `01BA88-414724-57EEBB` (la misma de `renergeia-app`) y fijando **`min-instances=1`** (tras el corte, Cloud Run no escalaba desde cero y devolvía 429 "Rate exceeded" / "no available instance"). Diagnóstico: `gcloud billing projects describe renergeia-evaluaciones` (campo `billingEnabled`) y `gcloud logging read 'resource.type=cloud_run_revision AND resource.labels.service_name=evaluacion-hse'`.
+
+### Documentación generada
+
+- **Manual de usuario** — `docs/manual-evaluaciones/` — dentro de la plantilla corporativa `IN-SG-SS-007` (encabezado, tabla de control, índice, pie). Generado con **docx-js** (`build_manual.js`); capturas reales en `img/final/` (cédulas y correos difuminados). Cubre participante + administrador (paso a paso) + sección de "Buen uso".
+- **Presentación** — `docs/presentacion-evaluaciones/` — PPTX de 17 diapositivas para HSE/RRHH, generada con **pptxgenjs** (`build_deck.js`).
+- **Toolchain de documentos en este equipo** — no hay pandoc, LibreOffice ni Python real, y Word COM es inestable (se desconecta en foreground, se cuelga en ediciones complejas). Patrón confiable: construir el `.docx` con **docx-js**, convertirlo a PDF con **Word COM en background** (Open → `TablesOfContents.Update()` → `Save()` → `ExportAsFixedFormat(pdf,17)`), y renderizar/leer PDFs con **poppler** (`pdftoppm`, `pdftotext`).
 
 ---
 
