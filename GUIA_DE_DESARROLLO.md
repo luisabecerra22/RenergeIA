@@ -39,7 +39,9 @@
 29. [Módulo HSEQ — Social](#29-módulo-hseq--social)
 30. [Módulo HSEQ — Motor de Auditoría Genérico (Corporativo)](#30-módulo-hseq--motor-de-auditoría-genérico-corporativo)
 31. [Módulo HSEQ Seguridad — Matriz de Riesgos IPERV e Inspecciones con IA](#31-módulo-hseq-seguridad--matriz-de-riesgos-iperv-e-inspecciones-con-ia)
-32. [Glosario](#glosario)
+32. [Subproyecto: Plataforma de Evaluaciones HSE (Next.js)](#32-subproyecto-plataforma-de-evaluaciones-hse-nextjs)
+33. [Canal de WhatsApp — Webhook y configuración en Meta Business](#33-canal-de-whatsapp--webhook-y-configuración-en-meta-business)
+34. [Glosario](#glosario)
 
 ---
 
@@ -2406,6 +2408,33 @@ El servicio se cayó (503 *"The request failed because billing is disabled"*) po
 - **Manual de usuario** — `docs/manual-evaluaciones/` — dentro de la plantilla corporativa `IN-SG-SS-007` (encabezado, tabla de control, índice, pie). Generado con **docx-js** (`build_manual.js`); capturas reales en `img/final/` (cédulas y correos difuminados). Cubre participante + administrador (paso a paso) + sección de "Buen uso".
 - **Presentación** — `docs/presentacion-evaluaciones/` — PPTX de 17 diapositivas para HSE/RRHH, generada con **pptxgenjs** (`build_deck.js`).
 - **Toolchain de documentos en este equipo** — no hay pandoc, LibreOffice ni Python real, y Word COM es inestable (se desconecta en foreground, se cuelga en ediciones complejas). Patrón confiable: construir el `.docx` con **docx-js**, convertirlo a PDF con **Word COM en background** (Open → `TablesOfContents.Update()` → `Save()` → `ExportAsFixedFormat(pdf,17)`), y renderizar/leer PDFs con **poppler** (`pdftoppm`, `pdftotext`).
+
+---
+
+## 33. Canal de WhatsApp — Webhook y configuración en Meta Business
+
+### Arquitectura elegida
+
+Se conecta **directo con la WhatsApp Cloud API de Meta, sin BSP** (no Twilio ni 360dialog): directo solo se pagan las tarifas de Meta. El webhook propio vive en `RenergeIA.Web/Services/WhatsApp/` (`WhatsAppOptions`, `WhatsAppClient`, `WhatsAppWebhook`, `WhatsAppConversacion`): endpoint `GET/POST /api/whatsapp` (`.AllowAnonymous()` + `.DisableAntiforgery()`), verificación por `hub.verify_token`, validación de firma `X-Hub-Signature-256` (HMAC-SHA256 del cuerpo crudo con el App Secret), **dedupe por `message.id`** y respuesta **siempre HTTP 200** ante errores propios (si no, Meta reintenta). El bot es de **menú, determinista** (sin IA decidiendo). Config por variables `WhatsApp__VerifyToken|AppSecret|AccessToken|PhoneNumberId`. Reglas de negocio de Meta que condicionan el diseño: solo se puede escribir libre dentro de las **24 h** desde el último mensaje de la persona; fuera de eso, **plantillas aprobadas**; desde el 01/10/2026 Meta cobra también los mensajes de servicio, con 1.000 gratis/mes por número.
+
+### Prerrequisito de seguridad: passkey de cada usuario del Portfolio comercial
+
+Antes de poder **conectar el número** en Meta Business (business.facebook.com → **Configuración → Usuarios → Personas**), Meta muestra el bloqueo rojo **"Passkey required / La llave de acceso no está activada"** y no deja administrar ni vincular activos (número de WhatsApp, Instagram) hasta que **cada persona con acceso al Portfolio active una passkey en SU cuenta**.
+
+Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nunca teclea contraseñas/passkeys):
+
+1. Ir a **Centro de cuentas** → `accountscenter.facebook.com` o `accountscenter.instagram.com` → **Contraseña y seguridad**.
+2. **No hay un botón "Llaves de acceso" suelto.** La opción está dentro de **"Autenticación en dos pasos"** → elegir la cuenta (Facebook/Instagram) → ahí aparece **"Llave de acceso" / "Passkey"** junto a app autenticadora y SMS.
+3. Confirmar con biometría/PIN del dispositivo (Face ID, huella, Windows Hello).
+
+**Gotchas detectados (2026-10-01):**
+- La passkey debe activarse en **la MISMA cuenta que Meta Business marca en rojo** (p. ej. `lbecerra@renergeia.com`), no en otra cuenta de Instagram con la que se haya iniciado sesión en el Centro de cuentas. Si el aviso no se quita, revisar en "Perfiles y datos personales" con qué cuenta está la sesión.
+- En un **PC de escritorio sin Windows Hello** a veces no se ofrece la opción → hacerlo desde la **app de Instagram/Facebook en el celular** (tiene sensor biométrico).
+- **Cada usuario del portfolio** (Marcela, Diana, etc.) debe crear su propia passkey si va a administrar.
+
+### Cómo probar el webhook sin base de datos
+
+En este equipo `dotnet` no está en el PATH (vive en `C:\Users\Luisa Becerra\.dotnet\dotnet.exe`) y no hay PostgreSQL local, así que la app completa no corre aquí. Para probar solo el webhook se levanta un `.csproj` temporal en el scratchpad que enlaza esos `.cs` con `<Compile Include>` y se prueba con `curl` + `openssl dgst -sha256 -hmac`. Cualquier cambio al webhook debe conservar la validación de firma, el dedupe y el 200 siempre.
 
 ---
 
