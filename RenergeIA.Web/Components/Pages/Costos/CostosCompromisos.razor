@@ -85,8 +85,8 @@ else
 <div class="d-flex justify-content-end align-items-center gap-2 mb-3 flex-wrap">
     @if (_proyecto?.FechaCorteTesoreria is not null)
     {
-        <span class="badge me-auto" style="background:#D9D9D6;color:#111921" title="@_proyecto.ArchivoTesoreria">
-            Tesorería cargada · corte @_proyecto.FechaCorteTesoreria.Value.ToString("dd/MM/yyyy")
+        <span class="badge me-auto" style="background:#D9D9D6;color:#111921">
+            Seguimiento de pagos actualizado · corte @_proyecto.FechaCorteTesoreria.Value.ToString("dd/MM/yyyy")
         </span>
     }
     @if (_vista == "OC" && Ocs.Any())
@@ -276,13 +276,13 @@ else
 {
     @if (_compromisos.Any(c => c.Grupo == "Proyectado" && c.Hitos.Count > 0))
     {
-        @SeccionGrupo("Proyectado", "Proyectado (sin OC)", "Costos futuros proyectados que aún no tienen orden de compra (sección PROYECTADO del archivo de tesorería).")
+        @SeccionGrupo("Proyectado", "Proyectado (sin OC)", "Costos futuros proyectados que aún no tienen orden de compra (sección PROYECTADO del archivo de seguimiento de pagos).")
     }
     else
     {
         <div class="card border-0 shadow-sm text-center py-5">
             <i class="bi-calendar2-range display-4 mb-3" style="color:#dde3ed"></i>
-            <p class="text-muted small">No hay costos proyectados. Se cargan con <strong>Importar Tesorería</strong>.</p>
+            <p class="text-muted small">No hay costos proyectados. Se cargan con <strong>Actualizar seguimiento de pagos</strong>.</p>
         </div>
     }
 }
@@ -290,7 +290,7 @@ else if (!_compromisos.Any())
 {
     <div class="card border-0 shadow-sm text-center py-5">
         <i class="bi-file-earmark-text display-4 mb-3" style="color:#dde3ed"></i>
-        <p class="text-muted small">No hay órdenes de compra. Impórtalas con <strong>Importar Tesorería</strong> o regístralas manualmente.</p>
+        <p class="text-muted small">No hay órdenes de compra. Impórtalas con <strong>Actualizar seguimiento de pagos</strong> o regístralas manualmente.</p>
     </div>
 }
 else
@@ -427,7 +427,7 @@ else
                                             }
                                             else
                                             {
-                                                <span>Esta orden de compra no tiene facturas registradas en tesorería.</span>
+                                                <span>Esta orden de compra no tiene facturas registradas en el seguimiento de pagos.</span>
                                             }
                                         </div>
                                     }
@@ -653,7 +653,7 @@ else
         }
         await Db.SaveChangesAsync();
         _codigoGrupoEdit.Remove(clave);
-        _mensaje = $"Código {codigo} asignado a {hitos.Count} registro(s) de {cargo} en {periodo}. Queda recordado; si el archivo de tesorería trae el código, se usa el del archivo.";
+        _mensaje = $"Código {codigo} asignado a {hitos.Count} registro(s) de {cargo} en {periodo}. Queda recordado; si el archivo de seguimiento de pagos trae el código, se usa el del archivo.";
         _mensajeError = false;
     }
 
@@ -888,7 +888,7 @@ else
         _codigoEdit.Clear();
         await CargarAsync();
 
-        var resumen = $"Tesorería importada: {r.OcsNuevas} órdenes de compra nuevas, {r.OcsActualizadas} actualizadas. Flujo de Caja actualizado ({r.ValoresFlujo} valores).";
+        var resumen = $"Seguimiento de pagos actualizado: {r.OcsNuevas} órdenes de compra nuevas, {r.OcsActualizadas} actualizadas. Flujo de Caja actualizado ({r.ValoresFlujo} valores).";
         if (r.OcsEnProcesoSinAsignar > 0) resumen += $" {r.OcsEnProcesoSinAsignar} OC sin consecutivo (asígnales el número).";
         if (r.FacturasSinCodigo > 0) resumen += $" ⚠ Se encontraron {r.FacturasSinCodigo} facturas sin código asignado — asígnalas manualmente.";
         if (r.LineasSinRubro > 0) resumen += $" ⚠ {r.LineasSinRubro} líneas de salarios/impuestos/proyectado sin rubro.";

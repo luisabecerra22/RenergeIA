@@ -55,7 +55,7 @@
     @if (_mapeosGuardados.Count > 0)
     {
         <button class="btn btn-sm btn-outline-secondary"
-                title="Clasificaciones de subcódigos de tesorería guardadas — se aplican automáticamente en cada importación"
+                title="Clasificaciones de subcódigos guardadas — se aplican automáticamente en cada importación"
                 @onclick="() => _mostrarMapeos = !_mostrarMapeos">
             <i class="bi-link-45deg me-1"></i>Equivalencias guardadas (@_mapeosGuardados.Count)
         </button>
@@ -667,7 +667,7 @@ else
                 FechaCorte = grupo.Key.FechaCorte,
                 Moneda = grupo.Key.Moneda,
                 Monto = monto,
-                Descripcion = $"Tesorería {subcodigo}"
+                Descripcion = $"Seguimiento de pagos {subcodigo}"
             });
         }
         await Db.SaveChangesAsync();
@@ -692,7 +692,7 @@ else
         }
         await CargarAsync();
 
-        var resumen = $"Flujo de caja y Compromisos actualizados desde tesorería: {r.ValoresFlujo} valores en el flujo · " +
+        var resumen = $"Flujo de caja y Compromisos actualizados desde el seguimiento de pagos: {r.ValoresFlujo} valores en el flujo · " +
                       $"{r.OcsNuevas + r.OcsActualizadas} órdenes de compra.";
         if (r.FacturasSinCodigo > 0)
             resumen += $" ⚠ {r.FacturasSinCodigo} facturas sin código asignado (asígnalas en Compromisos).";

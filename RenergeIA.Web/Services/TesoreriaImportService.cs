@@ -141,7 +141,7 @@ public partial class TesoreriaImportService(RenergeIADbContext db, CostoService 
                 FechaCorte = fecha,
                 Moneda = mon,
                 Monto = monto,
-                Descripcion = $"Tesorería {vista.Archivo}"
+                Descripcion = "Seguimiento de pagos"
             });
         }
 

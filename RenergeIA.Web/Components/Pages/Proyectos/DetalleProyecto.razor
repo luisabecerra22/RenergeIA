@@ -57,10 +57,10 @@ else
     {
         <div class="card shadow-sm mb-4">
             <div class="card-header text-white d-flex align-items-center gap-2" style="background:#183963">
-                <i class="bi-clipboard-data"></i><strong>Ficha de la Oferta (BOM)</strong>
+                <i class="bi-clipboard-data"></i><strong>Ficha de la Oferta</strong>
                 @if (_proyecto.BomTrm is not null)
                 {
-                    <span class="badge ms-auto" style="background:#6ABF4B">TRM BOM: $@_proyecto.BomTrm.Value.ToString("N0")</span>
+                    <span class="badge ms-auto" style="background:#6ABF4B">TRM base: $@_proyecto.BomTrm.Value.ToString("N0")</span>
                 }
                 @if (!string.IsNullOrEmpty(_proyecto.BomAlcance))
                 {

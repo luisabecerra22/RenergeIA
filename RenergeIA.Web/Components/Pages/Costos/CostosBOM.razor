@@ -6,7 +6,7 @@
 @implements IAsyncDisposable
 
 <!-- KPIs -->
-<SeccionDash Titulo="BOM vs Real" Icono="bi-clipboard-data">
+<SeccionDash Titulo="Presupuesto base vs Real" Icono="bi-clipboard-data">
     <div class="row row-cols-1 row-cols-md-3 g-3 mb-3">
         <div class="col">
             <div class="card border-0 shadow-sm text-center p-3 h-100" style="background:linear-gradient(135deg,#183963 0%,#1e4d7a 100%);color:#fff;border-radius:14px">
@@ -22,7 +22,7 @@
                         <div style="font-size:0.6rem;opacity:0.7">USD</div>
                     </div>
                 </div>
-                <div class="small" style="opacity:0.8">Costo Total BOM</div>
+                <div class="small" style="opacity:0.8">Costo Total Presupuesto base</div>
                 <div style="font-size:0.62rem;opacity:0.6">Lo presupuestado en la oferta</div>
             </div>
         </div>
@@ -60,7 +60,7 @@
                     </div>
                 </div>
                 <div class="small text-muted">Diferencia</div>
-                <div class="text-muted" style="font-size:0.62rem">@(dif >= 0 ? "A favor (BOM − Real)" : "Desfase (Real supera la BOM)")</div>
+                <div class="text-muted" style="font-size:0.62rem">@(dif >= 0 ? "A favor (Base − Real)" : "Desfase (Real supera la base)")</div>
             </div>
         </div>
     </div>
@@ -81,13 +81,13 @@
 <div class="d-flex justify-content-end gap-2 mb-3 align-items-center">
     @if (_lineas.Any())
     {
-        <span class="badge me-auto" style="background:#D9D9D6;color:#111921">@_lineas.Count líneas BOM · @_lineas.Select(l => l.Codigo).Distinct().Count() códigos</span>
-        <button class="btn btn-sm @(_filtroAplicado is not null ? "" : "btn-outline-secondary")" title="Filtrar líneas BOM"
+        <span class="badge me-auto" style="background:#D9D9D6;color:#111921">@_lineas.Count líneas · @_lineas.Select(l => l.Codigo).Distinct().Count() códigos</span>
+        <button class="btn btn-sm @(_filtroAplicado is not null ? "" : "btn-outline-secondary")" title="Filtrar líneas"
                 style="@(_filtroAplicado is not null ? "background:#6ABF4B;color:#fff;border:none" : "")"
                 @onclick="() => _mostrarFiltros = !_mostrarFiltros">
             <i class="bi-funnel me-1"></i>Filtros
         </button>
-        <button class="btn btn-sm btn-outline-success" title="Exportar el comparativo BOM vs Real a Excel (.xlsx)"
+        <button class="btn btn-sm btn-outline-success" title="Exportar el comparativo Presupuesto base vs Real a Excel (.xlsx)"
                 @onclick="ExportarExcelAsync">
             <i class="bi-download me-1"></i>Exportar Excel
         </button>
@@ -100,8 +100,8 @@
         </button>
     }
     <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
-           title="Importar el archivo BOM del proyecto (.xlsx) — lee las hojas General, Sum PPAL y Rend MAT">
-        <i class="bi-upload me-1"></i>Importar BOM
+           title="Importar el presupuesto base del proyecto (.xlsx)">
+        <i class="bi-upload me-1"></i>Importar presupuesto base
         <InputFile OnChange="ImportarBOMAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
     </label>
 </div>
@@ -111,7 +111,7 @@
 {
     <div class="card mb-3" style="border:1px solid #183963">
         <div class="card-header py-1 fw-semibold small text-white" style="background:#183963">
-            <i class="bi-funnel me-1"></i>Filtrar comparativo BOM vs Real
+            <i class="bi-funnel me-1"></i>Filtrar comparativo Presupuesto base vs Real
         </div>
         <div class="card-body py-2">
             <div class="row g-2">
@@ -151,8 +151,8 @@
                     <label class="form-label small mb-0">Diferencia</label>
                     <select class="form-select form-select-sm" @bind="_filtro.TipoDif">
                         <option value="">— Todas las líneas —</option>
-                        <option value="desfase">Con desfase (Real &gt; BOM)</option>
-                        <option value="favor">A favor (Real &le; BOM)</option>
+                        <option value="desfase">Con desfase (Real &gt; base)</option>
+                        <option value="favor">A favor (Real &le; base)</option>
                         <option value="conreal">Solo con real digitado</option>
                         <option value="sinreal">Sin real digitado</option>
                     </select>
@@ -188,15 +188,15 @@
 {
     <div class="text-center py-4">
         <span class="spinner-border" style="color:#183963"></span>
-        <p class="mt-2 text-muted small">Importando BOM...</p>
+        <p class="mt-2 text-muted small">Importando presupuesto base...</p>
     </div>
 }
 else if (!_lineas.Any())
 {
     <div class="card border-0 shadow-sm text-center py-5">
         <i class="bi-clipboard-data display-4 mb-3" style="color:#dde3ed"></i>
-        <p class="text-muted small mb-1">No hay líneas BOM cargadas para este proyecto.</p>
-        <p class="text-muted small">Importa el archivo BOM de la oferta (hojas General, Sum PPAL y Rend MAT).</p>
+        <p class="text-muted small mb-1">No hay presupuesto base cargado para este proyecto.</p>
+        <p class="text-muted small">Importa el archivo del presupuesto base de la oferta.</p>
     </div>
 }
 else
@@ -207,7 +207,7 @@ else
     {
         <div class="mb-2 small text-muted">
             <i class="bi-funnel-fill me-1" style="color:#6ABF4B"></i>
-            Mostrando <strong>@listaFiltrada.Count</strong> de @_lineas.Count líneas BOM
+            Mostrando <strong>@listaFiltrada.Count</strong> de @_lineas.Count líneas
         </div>
     }
 
@@ -221,9 +221,9 @@ else
                         <th style="color:#183963">CONCEPTO</th>
                         <th style="color:#183963">DESCRIPCIÓN</th>
                         <th style="color:#183963">UND</th>
-                        <th class="text-end" style="color:#183963;background:#f0f4ff">CANT. BOM</th>
-                        <th class="text-end" style="color:#183963;background:#f0f4ff">COSTO UNITARIO BOM</th>
-                        <th class="text-end" style="color:#183963;background:#f0f4ff">TOTAL BOM (COP)</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">CANT. BASE</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">COSTO UNIT. BASE</th>
+                        <th class="text-end" style="color:#183963;background:#f0f4ff">TOTAL BASE (COP)</th>
                         <th class="text-end" style="color:#5aa83e;background:#f2faee">CANT. REAL</th>
                         <th class="text-end" style="color:#fd7e14;background:#fff8f0">DIF. CANT.</th>
                         <th class="text-end" style="color:#5aa83e;background:#f2faee">VALOR REAL (COP)</th>
@@ -261,7 +261,7 @@ else
                                     <input type="text" class="form-control form-control-sm border-0 text-muted"
                                            style="font-size:.7rem;background:transparent"
                                            value="@l.Unidad" placeholder="—" maxlength="50"
-                                           title="Unidad de medida — editable si la BOM no la trae"
+                                           title="Unidad de medida — editable si el presupuesto base no la trae"
                                            @onchange="e => CambiarUnidadAsync(l, e.Value?.ToString())" />
                                 </td>
                                 <td class="text-end" style="background:#f8faff">@(l.CantidadBOM != 0 ? l.CantidadBOM.ToString("N2", _co) : "—")</td>
@@ -297,7 +297,7 @@ else
                     }
                     <tr class="fw-bold">
                         <td class="ps-3 py-2" colspan="7" style="background:#183963;color:white">
-                            <span style="letter-spacing:1px">TOTAL BOM vs REAL (COP)</span>
+                            <span style="letter-spacing:1px">TOTAL PRESUPUESTO BASE vs REAL (COP)</span>
                         </td>
                         <td class="text-end py-2" style="background:#183963;color:white">@FormatCOP(listaFiltrada.Sum(l => l.CostoTotalBOM))</td>
                         <td style="background:#183963"></td>
@@ -380,7 +380,7 @@ else
     private async Task MarcarCambiosAsync()
     {
         _hayCambios = true;
-        CambiosPendientes.Marcar("BOM vs Real");
+        CambiosPendientes.Marcar("Presupuesto base vs Real");
         try { await JS.InvokeVoidAsync("setUnsavedGuard", true); } catch { }
     }
 
@@ -394,7 +394,7 @@ else
     private async Task GuardarCambiosAsync()
     {
         await Db.SaveChangesAsync();
-        _mensaje = "Comparativo BOM guardado correctamente.";
+        _mensaje = "Comparativo guardado correctamente.";
         _mensajeError = false;
         await CargarAsync();
         await LimpiarCambiosAsync();
@@ -443,10 +443,10 @@ else
     private async Task ExportarExcelAsync()
     {
         using var workbook = new XLWorkbook();
-        var ws = workbook.Worksheets.Add("BOM vs Real");
+        var ws = workbook.Worksheets.Add("Presupuesto base vs Real");
 
         string[] encabezados = ["Código", "Fuente", "Concepto", "Descripción", "Unidad",
-            "Cant. BOM", "Costo Unitario BOM", "Moneda CU", "Total BOM (COP)", "Cant. Real", "Dif. Cantidad", "Valor Real (COP)", "Diferencia (COP)"];
+            "Cant. Base", "Costo Unitario Base", "Moneda CU", "Total Base (COP)", "Cant. Real", "Dif. Cantidad", "Valor Real (COP)", "Diferencia (COP)"];
         for (int i = 0; i < encabezados.Length; i++)
         {
             var celda = ws.Cell(1, i + 1);
@@ -506,7 +506,7 @@ else
         using var ms = new System.IO.MemoryStream();
         workbook.SaveAs(ms);
         var base64 = Convert.ToBase64String(ms.ToArray());
-        var nombre = $"BOM_vs_Real_{(_proyecto?.Nombre ?? "Proyecto").Replace(" ", "_")}_{DateTime.Today:yyyyMMdd}.xlsx";
+        var nombre = $"Presupuesto_base_vs_Real_{(_proyecto?.Nombre ?? "Proyecto").Replace(" ", "_")}_{DateTime.Today:yyyyMMdd}.xlsx";
         await JS.InvokeVoidAsync("downloadFile", nombre, base64,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
@@ -566,7 +566,7 @@ else
             await Db.SaveChangesAsync();
             await CargarAsync();
 
-            var resumen = $"BOM importada: {nuevas.Count} líneas desde {string.Join(", ", hojasLeidas)}.";
+            var resumen = $"Presupuesto base importado: {nuevas.Count} líneas desde {string.Join(", ", hojasLeidas)}.";
             if (hojasFaltantes.Count > 0) resumen += $" No leídas: {string.Join(", ", hojasFaltantes)}.";
             var conservadas = nuevas.Count(n => n.ValorReal != 0 || n.CantidadReal != 0);
             if (conservadas > 0) resumen += $" Se conservaron valores reales de {conservadas} líneas.";
@@ -575,7 +575,7 @@ else
         }
         catch (Exception ex)
         {
-            _mensaje = $"Error al importar la BOM: {ex.Message}";
+            _mensaje = $"Error al importar el presupuesto base: {ex.Message}";
             _mensajeError = true;
         }
         finally

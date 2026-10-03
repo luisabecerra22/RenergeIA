@@ -17,17 +17,17 @@
 
 <div class="card shadow-sm mb-3" style="max-width:700px;border:2px solid #183963">
     <div class="card-header text-white fw-semibold" style="background:#183963">
-        Paso 1 — Cargar la BOM de la oferta (recomendado)
+        Paso 1 — Cargar el presupuesto base de la oferta (recomendado)
     </div>
     <div class="card-body py-3">
         <p class="small text-muted mb-2">
-            Sube el archivo BOM del proyecto (.xlsx). Se leerá la hoja <strong>Ejecutivo</strong> para prellenar
+            Sube el archivo del presupuesto base del proyecto (.xlsx). Se leerá la hoja <strong>Ejecutivo</strong> para prellenar
             los datos del proyecto y la ficha de la oferta, y al guardar se cargará automáticamente el
-            comparativo <strong>BOM vs Real</strong> en Costos. Todo queda editable antes de guardar.
+            comparativo <strong>Presupuesto base vs Real</strong> en Costos. Todo queda editable antes de guardar.
         </p>
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <label class="btn btn-sm fw-semibold mb-0" style="background:#6ABF4B;color:#fff;border:none">
-                <i class="bi-upload me-1"></i>@(_fichaBom is null ? "Cargar BOM" : "Cargar otra BOM")
+                <i class="bi-upload me-1"></i>@(_fichaBom is null ? "Cargar presupuesto base" : "Cargar otro presupuesto base")
                 <InputFile OnChange="CargarBomAsync" accept=".xlsx,.xlsm,.xls" style="display:none" />
             </label>
             @if (_cargandoBom)
@@ -51,7 +51,7 @@
         {
             <div class="alert alert-warning py-2 mt-2 mb-0 small">
                 <strong>⚠ Proyecto posiblemente repetido:</strong> @_dupMensaje
-                Valida si esta es la BOM correcta — un proyecto repetido genera confusiones y problemas para el personal.
+                Valida si este es el presupuesto base correcto — un proyecto repetido genera confusiones y problemas para el personal.
                 Si no corresponde, corrige el código y el nombre antes de guardar.
             </div>
         }
@@ -148,15 +148,15 @@
                 <div class="alert alert-danger mt-4 mb-0">
                     <strong>⚠ Proyecto repetido:</strong> @_dupMensaje<br />
                     Un proyecto repetido genera <strong>confusiones y problemas para el personal</strong> en campo y en los reportes.
-                    Valida si cargaste la <strong>BOM correcta</strong>:
+                    Valida si cargaste el <strong>presupuesto base correcto</strong>:
                     <div class="d-flex gap-2 mt-2 flex-wrap">
                         <button type="button" class="btn btn-sm btn-danger"
                                 @onclick="ConfirmarDuplicadoYGuardarAsync">
-                            Sí, es la BOM correcta — crear de todas formas
+                            Sí, es el presupuesto base correcto — crear de todas formas
                         </button>
                         <button type="button" class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none"
                                 @onclick="ReiniciarParaCargarBomCorrecta">
-                            No era la correcta — cargar la BOM correcta
+                            No era el correcto — cargar el presupuesto base correcto
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-secondary"
                                 @onclick="() => _mostrarConfirmDuplicado = false">
@@ -235,7 +235,7 @@
         _mostrarConfirmDuplicado = false;
         _dupMensaje = null;
         _dupConfirmadoPara = null;
-        _bomMensaje = "Carga la BOM correcta en el Paso 1 con el botón 'Cargar BOM'. Los datos del formulario se actualizarán con la nueva BOM.";
+        _bomMensaje = "Carga el presupuesto base correcto en el Paso 1 con el botón 'Cargar presupuesto base'. Los datos del formulario se actualizarán con el nuevo archivo.";
         _bomError = false;
     }
 
@@ -277,8 +277,8 @@
                 _form.Descripcion = $"Alcance: {_fichaBom.Alcance}";
 
             var (lineas, _, _) = BomParser.ParseLineas(workbook, 0);
-            _bomMensaje = $"BOM leída correctamente: {_fichaBom.Codigo} — {_fichaBom.Nombre}. " +
-                          $"Se prellenaron los datos y al guardar se cargarán {lineas.Count} líneas al comparativo BOM vs Real. " +
+            _bomMensaje = $"Presupuesto base leído correctamente: {_fichaBom.Codigo} — {_fichaBom.Nombre}. " +
+                          $"Se prellenaron los datos y al guardar se cargarán {lineas.Count} líneas al comparativo Presupuesto base vs Real. " +
                           "Completa estado, ubicación y fechas.";
             _bomError = false;
 
@@ -288,7 +288,7 @@
         }
         catch (Exception ex)
         {
-            _bomMensaje = $"Error al leer la BOM: {ex.Message}";
+            _bomMensaje = $"Error al leer el presupuesto base: {ex.Message}";
             _bomError = true;
             _fichaBom = null;
             _bomBytes = null;

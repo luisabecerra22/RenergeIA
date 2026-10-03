@@ -128,10 +128,10 @@ else
             }
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <span class="small" style="color:#111921">
-                        Usa los mismos nombres de cargo de la nómina. Importa el personal ofertado desde el BOM y luego ajústalo a mano.
+                        Usa los mismos nombres de cargo de la nómina. Importa el personal ofertado desde el presupuesto base y luego ajústalo a mano.
                     </span>
                     <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
-                           title="Lee la hoja H PER del BOM y toma el máximo semanal de cada mes">
+                           title="Lee la hoja H PER del presupuesto base y toma el máximo semanal de cada mes">
                         @if (_leyendoBom)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
@@ -140,7 +140,7 @@ else
                         {
                             <i class="bi-upload me-1"></i>
                         }
-                        Importar desde BOM (H PER)
+                        Importar desde presupuesto base (H PER)
                         <InputFile OnChange="LeerBomAsync" accept=".xlsx,.xlsm" style="display:none" />
                     </label>
                 </div>
@@ -154,19 +154,19 @@ else
                         <div class="modal-dialog modal-lg modal-dialog-scrollable">
                             <div class="modal-content">
                                 <div class="modal-header text-white" style="background:#183963">
-                                    <h6 class="modal-title">Importar personal planificado desde el BOM</h6>
+                                    <h6 class="modal-title">Importar personal planificado desde el presupuesto base</h6>
                                     <button class="btn-close btn-close-white" @onclick="() => _bom = null"></button>
                                 </div>
                                 <div class="modal-body small">
                                     <p class="mb-2">
                                         Se encontraron <strong>@_bom.Cargos.Count cargos</strong> con personal en la hoja H PER.
                                         Cada mes toma el <strong>máximo semanal</strong>. Indica a qué cargo de la nómina corresponde cada uno
-                                        (si lo dejas vacío conserva el nombre del BOM). Las equivalencias quedan recordadas.
+                                        (si lo dejas vacío conserva el nombre del presupuesto base). Las equivalencias quedan recordadas.
                                     </p>
                                     <div class="d-flex align-items-center gap-2 mb-2">
                                         <label class="fw-semibold mb-0" style="color:#183963">Semana 1 inicia el</label>
                                         <input type="date" class="form-control form-control-sm" style="width:160px" @bind="_bomFecha" />
-                                        <span class="text-muted">(del BOM: @_bom.FechaInicio?.ToString("dd/MM/yyyy"))</span>
+                                        <span class="text-muted">(del presupuesto base: @_bom.FechaInicio?.ToString("dd/MM/yyyy"))</span>
                                     </div>
                                     <datalist id="cargos-nomina">
                                         @foreach (var c in CargosParaAsignar())
@@ -176,7 +176,7 @@ else
                                     </datalist>
                                     <table class="table table-sm align-middle mb-0">
                                         <thead style="color:#183963">
-                                            <tr><th>Cargo en el BOM</th><th class="text-center">Semanas</th><th class="text-center">Pico</th><th>Cargo en la nómina</th></tr>
+                                            <tr><th>Cargo en el presupuesto base</th><th class="text-center">Semanas</th><th class="text-center">Pico</th><th>Cargo en la nómina</th></tr>
                                         </thead>
                                         <tbody>
                                             @foreach (var cargo in _bom.Cargos)
@@ -186,7 +186,7 @@ else
                                                     <td class="text-center">@cargo.SemanasConPersonal</td>
                                                     <td class="text-center fw-semibold">@cargo.Pico.ToString("0.##")</td>
                                                     <td>
-                                                        <input class="form-control form-control-sm" list="cargos-nomina" placeholder="(igual al BOM)"
+                                                        <input class="form-control form-control-sm" list="cargos-nomina" placeholder="(igual al presupuesto base)"
                                                                value="@_bomAsignacion.GetValueOrDefault(cargo.Nombre)"
                                                                @onchange="e => _bomAsignacion[cargo.Nombre] = e.Value?.ToString()" />
                                                     </td>
@@ -383,7 +383,7 @@ else
             }
             <div class="alert py-2 small mb-3" style="background:#eef1f6;color:#183963;border:none">
                 <i class="bi-info-circle me-1"></i>
-                Se calcula desde la <strong>nómina de tesorería</strong> (Costos → Compromisos → Salarios): personas distintas por cargo y mes;
+                Se calcula desde la <strong>nómina</strong> (Costos → Compromisos → Salarios): personas distintas por cargo y mes;
                 la I y II quincena del mismo mes cuentan una sola vez. No incluye primas, seguridad social ni liquidaciones.
                 @if (_nomina?.UltimoMes is { } um)
                 {
@@ -445,7 +445,7 @@ else
                         <tbody>
                             @if (!_itemsReal.Any())
                             {
-                                <tr><td colspan="15" class="text-center text-muted py-4">No hay nómina cargada. Importa el archivo de tesorería en Costos → Compromisos.</td></tr>
+                                <tr><td colspan="15" class="text-center text-muted py-4">No hay nómina cargada. Importa el archivo de seguimiento de pagos en Costos → Compromisos.</td></tr>
                             }
                             @foreach (var item in _itemsReal)
                             {
@@ -1198,7 +1198,7 @@ else
         }
         catch (Exception ex)
         {
-            _bomError = $"No se pudo leer el BOM: {ex.Message}";
+            _bomError = $"No se pudo leer el presupuesto base: {ex.Message}";
         }
         finally
         {
@@ -1222,7 +1222,7 @@ else
             await Db.SaveChangesAsync();
         }
         await CargarTabAsync();
-        _mensajeGuardado = $"Personal planificado importado desde el BOM ({meses} valores cargo-mes). Puedes ajustarlo y guardar.";
+        _mensajeGuardado = $"Personal planificado importado desde el presupuesto base ({meses} valores cargo-mes). Puedes ajustarlo y guardar.";
     }
 
     private static decimal[] ValoresReal(ItemHistogramaReal i) =>

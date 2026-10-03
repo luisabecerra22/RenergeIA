@@ -2,14 +2,14 @@
 @using RenergeIA.Web.Services
 
 <label class="btn btn-sm fw-semibold mb-0" style="background:#183963;color:#fff;border:none"
-       title="Actualizar Flujo de Caja y Compromisos desde el Forecast Control de tesorería (.xlsx)">
+       title="Actualizar Flujo de Caja y Compromisos desde el archivo de seguimiento de pagos (.xlsx)">
     @if (_leyendo)
     {
         <span class="spinner-border spinner-border-sm me-1"></span><span>Leyendo…</span>
     }
     else
     {
-        <i class="bi-cloud-arrow-up me-1"></i><span>Importar Tesorería</span>
+        <i class="bi-cloud-arrow-up me-1"></i><span>Actualizar seguimiento de pagos</span>
     }
     <InputFile OnChange="LeerAsync" accept=".xlsx,.xlsm,.xls" style="display:none" disabled="@(_leyendo || _aplicando)" />
 </label>
@@ -25,7 +25,7 @@
         <div class="modal-dialog modal-dialog-centered" style="max-width:620px">
             <div class="modal-content shadow-lg">
                 <div class="modal-header text-white" style="background:#183963">
-                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-cloud-arrow-up me-2"></i>Importar archivo de tesorería</h5>
+                    <h5 class="modal-title" style="font-size:1rem"><i class="bi-cloud-arrow-up me-2"></i>Importar seguimiento de pagos</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="Cancelar" disabled="@_aplicando"></button>
                 </div>
                 <div class="modal-body small">
@@ -67,7 +67,7 @@
                         }
                     </ul>
                     <div class="alert alert-secondary py-2 mb-0">
-                        Esto <strong>reemplaza</strong> el Flujo de Caja y actualiza las órdenes de compra de tesorería con este corte
+                        Esto <strong>reemplaza</strong> el Flujo de Caja y actualiza las órdenes de compra con este corte
                         (no suma ni duplica). Las órdenes digitadas a mano se conservan.
                     </div>
                 </div>
@@ -115,7 +115,7 @@
             var vista = await TesoreriaSvc.LeerAsync(ProyectoId, stream, e.File.Name);
             if (vista.Flujo.Movimientos.Count == 0 && vista.Bloques.Count == 0)
             {
-                _error = "No se encontraron egresos ni órdenes de compra. Verifica que sea el Forecast Control correcto.";
+                _error = "No se encontraron egresos ni órdenes de compra. Verifica que sea el archivo de seguimiento de pagos correcto.";
                 return;
             }
             _vista = vista;

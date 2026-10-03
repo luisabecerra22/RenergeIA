@@ -313,7 +313,7 @@ else if (_vista == "detalle" && _informe is not null)
                     </div>
                     <div class="mt-1" style="font-size:0.7rem;color:#888">del presupuesto ejecutado</div>
                     <div class="mt-1" style="font-size:0.68rem">
-                        <span class="fw-semibold" style="color:#183963">BOM: $@_informe.TRMBomInicial.ToString("N0")</span>
+                        <span class="fw-semibold" style="color:#183963">Base: $@_informe.TRMBomInicial.ToString("N0")</span>
                         <span class="mx-1 text-muted">|</span>
                         <span class="fw-semibold" style="color:#6ABF4B">Actual: $@_informe.TRM.ToString("N0")</span>
                     </div>
@@ -382,7 +382,7 @@ else if (_vista == "detalle" && _informe is not null)
                         <thead>
                             <tr>
                                 <th class="text-start ps-3" style="width:18%">Concepto</th>
-                                <th class="text-end">BOM Inicial</th>
+                                <th class="text-end">Base Inicial</th>
                                 <th class="text-end">%</th>
                                 <th class="text-end">Sem. Anterior</th>
                                 <th class="text-end">%</th>
@@ -525,7 +525,7 @@ else if (_vista == "detalle" && _informe is not null)
     <!-- VARIACIÓN TEMPORAL: pagos por semana, corte de tesorería actual vs anterior -->
     <div class="card shadow-sm border-0 mb-2 no-print" style="border-radius:14px">
         <div class="card-body py-2 d-flex align-items-center gap-2 flex-wrap">
-            <span class="small fw-semibold" style="color:#183963">Comparar cortes de tesorería:</span>
+            <span class="small fw-semibold" style="color:#183963">Comparar cortes de pagos:</span>
             <select class="form-select form-select-sm" style="width:auto" value="@FechaTexto(_corteActual)" @onchange="CambiarCorteActualAsync">
                 <option value="">— actual —</option>
                 @foreach (var c in _cortesDisponibles)
@@ -562,7 +562,7 @@ else if (_vista == "detalle" && _informe is not null)
                 @if (semanas.Count == 0)
                 {
                     <p class="text-muted text-center mb-0 py-2">
-                        Sin cortes de tesorería guardados. Importa el archivo en Costos → Flujo de Caja o Compromisos.
+                        Sin cortes de pagos guardados. Importa el archivo en Costos → Flujo de Caja o Compromisos.
                     </p>
                 }
                 else
