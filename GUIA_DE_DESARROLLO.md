@@ -1263,7 +1263,15 @@ Estados: Abierta → En Gestión → Resuelta / Aceptada.
 | `AddCompromisoCosto` | 2026-06-30 | Tabla nueva `CompromisoCostos` (FK a Proyecto y Partida); agrega `AdjuntoUrl` en `CostosReales`; hace `ProyectoId` nullable (`SetNull`) en `ChecklistsAuditoria` para permitir auditorías corporativas sin proyecto |
 | `DocumentosControlRevisiones` | 2026-07-18 | Campos nuevos en `Documentos`: `Categoria` (CategoriaDocumento), `CodigoCliente`, `Area` (AreaDocumento), `Fase`, `FechaEntrega1-4`, `FechaDevolucion1-4`, `FechaValidacion`, `Transmittal`, `Observaciones`, `Responsable`, `TiempoRetraso1-4` (calculados). Enums nuevos: `CategoriaDocumento` (Procedimientos, HSE, Ingenieria), `AreaDocumento` (Civil, Mecanico, Electrico, General). Ampliación de `EstadoDocumento` (PendienteEmitir, PendienteValidacion, ValidadoConComentarios, Validado, Informativos, NoValidado) |
 | `AddPersonalHistogramaMes` | 2026-09-16 | Tabla `PersonalHistogramaMeses` (Tipo Planificado/Real, Cargo, Año, Mes, Cantidad, CantidadNomina, EsManual) para el histograma de personal |
+| `AddMapeoCodigoTesoreria` | 2026-09-15 | Tabla `MapeosCodigoTesoreria` (memoria de clasificación código de pago → rubro del presupuesto) |
+| `AddHitosCompromisoTesoreria` | 2026-09-15 | Tablas `HitosCompromiso` (facturas/hitos por OC) y `AsignacionesTesoreria` (memoria de asignaciones manuales); en `CompromisoCostos`: Origen, Grupo, ClaveTesoreria, ValorPagado; en `Proyectos`: FechaCorteTesoreria, ArchivoTesoreria |
 | `AddPlanificacionDocumental` | 2026-09-16 | Tabla `ResponsablesAreaDocumento` (único por Proyecto+Área); en `Documentos`: `ObservacionRetraso`, `FechaUltimaImportacion`, `FechaEdicionApp`, `EditadoPor`, `ValidadoPor` y campos Redline/As-Built; en `Proyectos`: `FechaActualizacionPlanDocumental`, `ArchivoPlanDocumental`. `AreaDocumento` ampliado con Calidad, Ambiental, Seguridad, Comunicaciones |
+| `AddPuntosCurvaReal` | 2026-09-26 | Tabla `PuntosCurvaReal` (histórico real de la Curva S, único por Proyecto+SoloConstruccion+Fecha) |
+| `AddCategoriasCurvaS` | 2026-09-26 | Tabla `CategoriasCurvaS` (Nombre, Peso, Incluye/Excluye por prefijo WBS, EsConstruccion) para la Curva S ponderada |
+| `AddRecomendacionManualActividad` | 2026-09-26 | En `ActividadesWBS`: `RecomendacionManual/Por/Fecha` (la recomendación editada gana sobre la generada) |
+| `AddComentariosDisciplinaInforme` | 2026-09-28 | Tabla `ComentariosDisciplinaInforme` (único por InformeDiarioId+Clave) para los comentarios por disciplina del PDF del informe |
+| `AddCortesFlujoTesoreria` | 2026-09-29 | Tabla `CortesFlujoTesoreria` (copia del flujo semanal de cada importación del Seguimiento de pagos); en `InformesConsolidados`: `CorteFlujoActual/Anterior` |
+| `RenombrarDescripcionPagosSeguimiento` | 2026-10-03 | UPDATE de datos: las descripciones "Tesorería…" de `PagosCorteSemanal` pasan a "Seguimiento de pagos" (nombres internos ocultos en la UI) |
 
 ### Comandos de migración
 
@@ -2478,6 +2486,44 @@ Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nu
 ### Cómo probar el webhook sin base de datos
 
 En este equipo `dotnet` no está en el PATH (vive en `C:\Users\Luisa Becerra\.dotnet\dotnet.exe`) y no hay PostgreSQL local, así que la app completa no corre aquí. Para probar solo el webhook se levanta un `.csproj` temporal en el scratchpad que enlaza esos `.cs` con `<Compile Include>` y se prueba con `curl` + `openssl dgst -sha256 -hmac`. Cualquier cambio al webhook debe conservar la validación de firma, el dedupe y el 200 siempre.
+
+---
+
+## 34. Módulo de Costos integrado al Seguimiento de pagos (evolución septiembre–octubre 2026)
+
+> Nombres visibles en la página (pedido de gerencia, 2026-10-03): el archivo de tesorería/Forecast Control se muestra como **"Seguimiento de pagos"** y la BOM como **"Presupuesto base"**. Solo cambió el texto visible (títulos, botones, Excel exportado); los identificadores del código (`LineaBOM`, `TesoreriaImportService`, tab `bom`…) no se tocaron.
+
+### Una sola importación alimenta todo
+
+El botón **Importar** (componente `ImportarTesoreria.razor` + `TesoreriaImportService`) lee el Excel semanal del Seguimiento de pagos (fecha del corte tomada del nombre `MM.DD.AAAA`, con advertencia si el archivo es anterior al ya cargado) y en una sola pasada actualiza:
+
+1. **Flujo de Caja** (`PagosCorteSemanal`): reemplazo total por código de rubro y semana, con la memoria de clasificaciones (`MapeosCodigoTesoreria`).
+2. **Compromisos**: órdenes de compra con sus hitos/facturas (`CompromisoCosto` + `HitoCompromiso`); E = aprobado, H = facturado, relleno verde en K = pagado. Alerta **Sobrepasada** si facturado − aprobado > $1.000 COP o > US$ 1. Las OC sin consecutivo (`CO_..._XXX`) son valor **presupuestado**, no comprometido. Las facturas sin código se asignan a mano y quedan recordadas (`AsignacionesTesoreria`). **Salarios** se muestra sin nombres (quincena → cargo → código de rubro); los pagos de impuestos DIAN no se importan; el **Proyectado (sin OC)** tiene su propia pestaña.
+3. **Presupuesto**: `CostoService.SincronizarEjecutadoDesdeFlujoAsync` recalcula **Ejecutado** (flujo desde el inicio hasta la semana anterior, hora Colombia) y **Comprometido** (flujo desde la semana en curso, descontando las OC XXX vía `PresupuestadoSinOCAsync`), respetando la moneda de cada partida (COP/USD nativos; conversión por TRM solo si el código existe en una sola moneda).
+4. **Histograma de Personal (Real)**: ver sección 35.
+5. **Cortes para variaciones**: copia del flujo semanal en `CortesFlujoTesoreria`.
+
+### Consolidado — Variación temporal y comparativo de semanas
+
+- Las tablas **Variación temporal USD+COP / USD / COP** ya no se digitan: comparan dos cortes del Seguimiento de pagos ("Comparar cortes": el actual contra la semana anterior por defecto, o cualquier semana hacia atrás). Si el corte elegido no fue importado, se **deriva del documento cargado** (el archivo es acumulado): a un cierre X están pagadas las semanas anteriores a X. Estructura intacta: dos bloques Semana/Ingresos/Pagos/Caja + Variación (diferencia de Cajas) + Justificación. Los **Ingresos** siguen digitables hasta que exista la hoja de ingresos. La tabla **USD+COP se expresa en dólares** con la TRM de cierre del informe.
+- El **Comparativo Semana N vs Semana M** (Presupuesto/Ejecutado/Comprometido/Disponible) tiene tres grupos: USD, COP y **USD+COP en dólares**, ambas semanas con la **misma TRM de cierre actual** (la variación refleja solo costos, sin efecto cambiario).
+
+---
+
+## 35. Histograma de Personal automático
+
+- **Real**: ya no se digita. Sale de la nómina del Seguimiento de pagos (sección Salarios): personas distintas por cargo y mes (`PersonalHistogramaMes`, sin tope de 12 meses; la pantalla muestra 12 desde el mes/año elegido). La I y II quincena del mismo mes cuentan una vez; primas, seguridad social y liquidaciones no son personal; una persona con dos cargos en el mes cuenta en ambos cargos pero una sola vez en el total. Los nombres se normalizan (se quita " - PAGO …"); los parecidos se unifican solo con confirmación de la usuaria y la decisión queda recordada. Las celdas editadas a mano quedan marcadas (naranja) y se conservan entre importaciones.
+- **Planificado**: se importa de la hoja **H PER** del Presupuesto base (máximo semanal de cada mes) con equivalencia cargo del archivo → cargo de la nómina (recordada), más edición manual. Los cargos nuevos de la nómina aparecen en 0.
+- **Comparativo**: además del total, tabla por cargo Real/Planificado mes a mes.
+
+---
+
+## 36. Cronograma de Actividades (antes "WBS / Actividades")
+
+- El módulo se renombró a **"Cronograma de Actividades"** en el menú, las tarjetas del proyecto y el título (la ruta `/wbs` se conserva).
+- Las actividades de **nivel 1 son títulos de sección**: fondo gris, sin avance, fechas, disciplina ni estado, y no cuentan en las tarjetas (Activas/Completadas/En progreso/Con problemas).
+- **"Cargar plantilla EPC"** lee el cronograma Timing Template `.mpp` embebido (`RenergeIA.Web/Plantillas/Cronograma_EPC_Template.mpp`) y desplaza las fechas al inicio planeado del proyecto; para cambiar la plantilla basta reemplazar ese archivo y publicar.
+- **"Reiniciar plantilla" nunca borra avances del Informe Diario**: si la versión tiene registros, se crea una versión nueva con la plantilla y la actual queda Histórica.
 
 ---
 
