@@ -1,0 +1,449 @@
+@page "/actas"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject ActasImportService ImportSvc
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services.Actas
+
+<PageTitle>Compromisos — Actas de reunión</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <div class="flex-grow-1">
+        <h1 class="h3 mb-0">Compromisos — Actas de reunión</h1>
+        <small class="text-muted">Actas internas y externas (formato FO-SG-GC-021) y los compromisos de cada reunión.</small>
+    </div>
+    <a href="/actas/compromisos" class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none">
+        <i class="bi-kanban me-1"></i>Tablero de compromisos
+    </a>
+    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="() => _mostrarImportar = true">
+        <i class="bi-upload me-1"></i>Importar desde Actas IA
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2">
+        <span style="white-space:pre-wrap">@_mensaje</span>
+        <button class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+<!-- Tarjetas resumen -->
+<div class="row row-cols-2 row-cols-md-4 g-3 mb-3">
+    @foreach (var (titulo, valor, color) in new[]
+    {
+        ("Actas", _actas.Count.ToString(), "#183963"),
+        ("Aprobadas", _actas.Count(a => a.Estado == EstadoActaReunion.Aprobada).ToString(), "#6ABF4B"),
+        ("En borrador / comentarios", _actas.Count(a => a.Estado != EstadoActaReunion.Aprobada).ToString(), "#c69500"),
+        ("Compromisos abiertos", _abiertos.ToString(), "#dc3545"),
+    })
+    {
+        <div class="col">
+            <div class="card border-0 shadow-sm text-center p-3 h-100" style="border-radius:14px">
+                <div class="fw-bold fs-3" style="color:@color">@valor</div>
+                <div class="small text-muted">@titulo</div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+    <div class="card-body py-2 d-flex gap-2 flex-wrap align-items-center">
+        <input class="form-control form-control-sm" style="max-width:280px" placeholder="Buscar (código, asunto, proyecto…)"
+               @bind="_buscar" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroProyecto">
+            <option value="">Todos los proyectos</option>
+            <option value="(general)">General / corporativas</option>
+            @foreach (var pr in _proyectos)
+            {
+                <option value="@pr">@pr</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroArea">
+            <option value="">Todas las áreas</option>
+            @foreach (var ar in _areas)
+            {
+                <option value="@ar">@ar</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroEstado">
+            <option value="">Todos los estados</option>
+            <option value="Borrador">Borrador</option>
+            <option value="ConComentarios">Con comentarios</option>
+            <option value="Aprobada">Aprobada</option>
+        </select>
+    </div>
+</div>
+
+@if (!_actas.Any())
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <i class="bi-journal-check display-4 mb-3" style="color:#dde3ed"></i>
+        <p class="text-muted">Aún no hay actas. Usa <strong>Importar desde Actas IA</strong> para traer las actas y compromisos del sistema anterior.</p>
+    </div>
+}
+else
+{
+    <div class="card border-0 shadow-sm" style="border-radius:12px;overflow:hidden">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">
+                <thead style="background:#183963;color:#fff">
+                    <tr>
+                        <th class="ps-3">Código</th>
+                        <th>Fecha</th>
+                        <th>Proyecto</th>
+                        <th>Área</th>
+                        <th>Asunto</th>
+                        <th class="text-center">Compromisos</th>
+                        <th class="text-center">Docs</th>
+                        <th class="text-center">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in Filtradas())
+                    {
+                        <tr style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"/actas/{a.Id}"))">
+                            <td class="ps-3 fw-semibold" style="color:#183963;white-space:nowrap">@a.Codigo</td>
+                            <td style="white-space:nowrap">@(a.Fecha?.ToString("dd/MM/yyyy") ?? a.FechaTexto)</td>
+                            <td>@(a.Proyecto ?? "General")</td>
+                            <td>@a.Area</td>
+                            <td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@a.Asunto">@a.Asunto</td>
+                            <td class="text-center">
+                                @a.TotalCompromisos
+                                @if (a.Abiertos > 0)
+                                {
+                                    <span class="badge rounded-pill ms-1" style="background:#fff3e0;color:#b35900;font-size:.62rem">@a.Abiertos abiertos</span>
+                                }
+                            </td>
+                            <td class="text-center">@a.Archivos</td>
+                            <td class="text-center">
+                                <span class="badge rounded-pill" style="@EstiloEstado(a.Estado);font-size:.68rem">@TextoEstado(a.Estado)</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Lotes de importación -->
+@if (_lotes.Any())
+{
+    <div class="card border-0 shadow-sm mt-3" style="border-radius:12px">
+        <div class="card-header py-2 small fw-semibold" style="background:#eef1f6;color:#183963">Importaciones realizadas</div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 small align-middle">
+                <tbody>
+                    @foreach (var l in _lotes)
+                    {
+                        <tr>
+                            <td class="ps-3">@l.FechaCreacion.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td>@l.Archivo</td>
+                            <td>@l.Usuario</td>
+                            <td class="text-end pe-3">
+                                @if (l.Revertido)
+                                {
+                                    <span class="badge bg-secondary">Revertido @l.RevertidoEl?.ToLocalTime().ToString("dd/MM")</span>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-outline-danger py-0" style="font-size:.7rem"
+                                            @onclick="() => _confirmarRevertir = l.Id">Revertir</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<!-- Modal de importación -->
+@if (_mostrarImportar)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h6 class="modal-title">Importar desde Actas IA</h6>
+                    <button class="btn-close btn-close-white" @onclick="CerrarImportar" disabled="@_trabajando"></button>
+                </div>
+                <div class="modal-body small">
+                    @if (_reporte is null)
+                    {
+                        <p>
+                            Sube un <strong>ZIP</strong> con la estructura de la carpeta Actas IA:
+                            <code>Actas/&lt;año&gt;/&lt;código&gt;/</code> (acta.json + Word/PDF),
+                            <code>datos/proyectos.json</code> y, si lo tienes, el <strong>export del tablero</strong>
+                            (estado_actual.json) con los estados y cierres vigentes.
+                        </p>
+                        <p class="text-muted mb-2">
+                            Primero se hace una <strong>simulación</strong>: nada se guarda hasta que revises el resultado y confirmes.
+                            No incluyas credenciales en el ZIP (si vinieran, se ignoran).
+                        </p>
+                        <InputFile OnChange="LeerZipAsync" accept=".zip" class="form-control form-control-sm" disabled="@_trabajando" />
+                        @if (_trabajando)
+                        {
+                            <div class="mt-2"><span class="spinner-border spinner-border-sm me-1"></span>Leyendo y simulando…</div>
+                        }
+                    }
+                    else
+                    {
+                        <h6 style="color:#183963">Resultado de la simulación — @_archivoZip</h6>
+                        <div class="row row-cols-2 row-cols-md-4 g-2 mb-2 text-center">
+                            @foreach (var (t, v) in new[]
+                            {
+                                ("Actas en el paquete", _reporte.ActasEnPaquete), ("Actas nuevas", _reporte.ActasNuevas.Count),
+                                ("Sin cambios", _reporte.ActasSinCambio.Count), ("Con diferencias", _reporte.ActasConDiferencias.Count),
+                                ("Compromisos nuevos", _reporte.CompromisosNuevos.Count), ("Continuidades", _reporte.ContinuidadesResueltas.Count),
+                                ("Archivos nuevos", _reporte.ArchivosNuevos.Count), ("Protegidos (gestión en la app)", _reporte.CompromisosProtegidos.Count),
+                            })
+                            {
+                                <div class="col"><div class="border rounded p-1"><div class="fw-bold">@v</div><div style="font-size:.65rem" class="text-muted">@t</div></div></div>
+                            }
+                        </div>
+                        @if (!_reporte.TieneExportTablero)
+                        {
+                            <div class="alert alert-warning py-1 mb-2">
+                                El paquete no trae el export del tablero: los compromisos entrarán como <strong>pendientes</strong>,
+                                sin los cierres ni estados del sistema anterior. Puedes incluir estado_actual.json y volver a importar.
+                            </div>
+                        }
+                        @Seccion("Conflictos para revisar (no se deciden en silencio)", _reporte.Conflictos, "#dc3545")
+                        @Seccion("Proyectos sin mapear a RenergeIA", _reporte.ProyectosSinMapear.Distinct().ToList(), "#fd7e14")
+                        @Seccion("Archivos históricos que difieren (no se reemplazan)", _reporte.ArchivosDistintos, "#fd7e14")
+                        @Seccion("Fechas descriptivas (se conservan como texto, sin vencimiento)", _reporte.FechasDescriptivas, "#6c757d")
+                        @Seccion("Advertencias", _reporte.Advertencias, "#6c757d")
+                        <div class="text-muted" style="font-size:.7rem">
+                            Catálogos: @_reporte.Personas personas · @_reporte.Alias alias · @_reporte.Externos externos ·
+                            Proyectos nuevos: @_reporte.ProyectosNuevos.Count
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CerrarImportar" disabled="@_trabajando">Cancelar</button>
+                    @if (_reporte is not null)
+                    {
+                        <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none"
+                                @onclick="AplicarAsync" disabled="@_trabajando">
+                            @if (_trabajando)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Aplicar importación (con respaldo)
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_confirmarRevertir is int loteId)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#dc3545">
+                    <h6 class="modal-title">Revertir importación</h6>
+                    <button class="btn-close btn-close-white" @onclick="() => _confirmarRevertir = null"></button>
+                </div>
+                <div class="modal-body small">
+                    Se eliminará lo creado por este lote y se restaurará lo que modificó, usando su respaldo.
+                    Las gestiones hechas en la app sobre compromisos creados por el lote se perderán. ¿Continuar?
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _confirmarRevertir = null">Cancelar</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => RevertirAsync(loteId)" disabled="@_trabajando">Sí, revertir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private sealed record ActaVm(int Id, string Codigo, DateTime? Fecha, string? FechaTexto, string? Proyecto,
+        string? Area, string? Asunto, EstadoActaReunion Estado, int TotalCompromisos, int Abiertos, int Archivos);
+
+    private List<ActaVm> _actas = [];
+    private List<LoteImportacionActas> _lotes = [];
+    private List<string> _proyectos = [];
+    private List<string> _areas = [];
+    private int _abiertos;
+
+    private string _buscar = "";
+    private string _filtroProyecto = "";
+    private string _filtroArea = "";
+    private string _filtroEstado = "";
+
+    private bool _mostrarImportar;
+    private bool _trabajando;
+    private ActasImportService.Reporte? _reporte;
+    private ActasZipParser.PaqueteActas? _paquete;
+    private string? _archivoZip;
+    private string? _mensaje;
+    private bool _mensajeError;
+    private int? _confirmarRevertir;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _actas = await Db.ActasReunion.AsNoTracking()
+            .OrderByDescending(a => a.Fecha)
+            .Select(a => new ActaVm(a.Id, a.Codigo, a.Fecha, a.FechaTexto,
+                a.ProyectoActa != null ? a.ProyectoActa.Nombre : a.ProyectoTexto,
+                a.Area, a.Asunto, a.Estado,
+                a.Compromisos.Count,
+                a.Compromisos.Count(c => c.Estado != EstadoCompromisoReunion.Cerrado),
+                a.Archivos.Count))
+            .ToListAsync();
+        _abiertos = await Db.CompromisosReunion.CountAsync(c => c.Estado != EstadoCompromisoReunion.Cerrado);
+        _proyectos = _actas.Where(a => !string.IsNullOrWhiteSpace(a.Proyecto)).Select(a => a.Proyecto!).Distinct().OrderBy(x => x).ToList();
+        _areas = _actas.Where(a => !string.IsNullOrWhiteSpace(a.Area)).Select(a => a.Area!).Distinct().OrderBy(x => x).ToList();
+        _lotes = await Db.LotesImportacionActas.AsNoTracking().OrderByDescending(l => l.Id).Take(10).ToListAsync();
+    }
+
+    private IEnumerable<ActaVm> Filtradas()
+    {
+        var q = _actas.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_buscar))
+        {
+            var b = _buscar.Trim();
+            q = q.Where(a => (a.Codigo + " " + a.Asunto + " " + a.Proyecto + " " + a.Area)
+                .Contains(b, StringComparison.OrdinalIgnoreCase));
+        }
+        if (_filtroProyecto == "(general)") q = q.Where(a => string.IsNullOrWhiteSpace(a.Proyecto));
+        else if (_filtroProyecto.Length > 0) q = q.Where(a => a.Proyecto == _filtroProyecto);
+        if (_filtroArea.Length > 0) q = q.Where(a => a.Area == _filtroArea);
+        if (_filtroEstado.Length > 0 && Enum.TryParse<EstadoActaReunion>(_filtroEstado, out var est)) q = q.Where(a => a.Estado == est);
+        return q;
+    }
+
+    private async Task LeerZipAsync(InputFileChangeEventArgs e)
+    {
+        _trabajando = true;
+        _mensaje = null;
+        StateHasChanged();
+        try
+        {
+            using var ms = new MemoryStream();
+            // Límite prudente: el paquete real pesa ~12 MB; todo vive en RAM del servidor (Blazor Server)
+            await e.File.OpenReadStream(maxAllowedSize: 150 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            _archivoZip = e.File.Name;
+            _paquete = ActasZipParser.Leer(ms);
+            if (_paquete.Actas.Count == 0)
+            {
+                _mensaje = "El ZIP no contiene ninguna carpeta con acta.json. Comprime la carpeta Actas IA (o su subcarpeta Actas) y vuelve a intentarlo.";
+                _mensajeError = true;
+                _paquete = null;
+                return;
+            }
+            _reporte = await ImportSvc.SimularAsync(_paquete);
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"No se pudo leer el paquete: {ex.Message}";
+            _mensajeError = true;
+        }
+        finally
+        {
+            _trabajando = false;
+        }
+    }
+
+    private async Task AplicarAsync()
+    {
+        if (_paquete is null) return;
+        _trabajando = true;
+        StateHasChanged();
+        try
+        {
+            var (lote, rep) = await ImportSvc.AplicarAsync(_paquete, _archivoZip ?? "paquete.zip", "Importación manual");
+            _mensaje = $"Importación aplicada (lote #{lote.Id}): {rep.ActasNuevas.Count} actas nuevas, {rep.CompromisosNuevos.Count} compromisos nuevos, " +
+                       $"{rep.ArchivosNuevos.Count} documentos, {rep.ContinuidadesResueltas.Count} continuidades. " +
+                       (rep.Conflictos.Count > 0 ? $"\n⚠ {rep.Conflictos.Count} conflicto(s) para revisar (quedaron en el lote)." : "Sin conflictos.");
+            _mensajeError = false;
+            CerrarImportar();
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"La importación falló y no se guardó nada: {ex.InnerException?.Message ?? ex.Message}";
+            _mensajeError = true;
+        }
+        finally
+        {
+            _trabajando = false;
+        }
+    }
+
+    private async Task RevertirAsync(int loteId)
+    {
+        _trabajando = true;
+        try
+        {
+            _mensaje = await ImportSvc.RevertirAsync(loteId);
+            _mensajeError = false;
+            _confirmarRevertir = null;
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _mensaje = $"No se pudo revertir: {ex.InnerException?.Message ?? ex.Message}";
+            _mensajeError = true;
+        }
+        finally
+        {
+            _trabajando = false;
+        }
+    }
+
+    private void CerrarImportar()
+    {
+        _mostrarImportar = false;
+        _reporte = null;
+        _paquete = null;
+        _archivoZip = null;
+    }
+
+    private static string TextoEstado(EstadoActaReunion e) => e switch
+    {
+        EstadoActaReunion.Aprobada => "Aprobada",
+        EstadoActaReunion.ConComentarios => "Con comentarios",
+        _ => "Borrador"
+    };
+
+    private static string EstiloEstado(EstadoActaReunion e) => e switch
+    {
+        EstadoActaReunion.Aprobada => "background:#e8f5e2;color:#3e7d2c",
+        EstadoActaReunion.ConComentarios => "background:#e3ecfb;color:#183963",
+        _ => "background:#fff3e0;color:#b35900"
+    };
+
+    private RenderFragment Seccion(string titulo, List<string> items, string color) => __builder =>
+    {
+        if (items.Count == 0) return;
+        <div class="mb-2">
+            <div class="fw-semibold" style="color:@color">@titulo (@items.Count)</div>
+            <ul class="mb-0" style="max-height:150px;overflow-y:auto">
+                @foreach (var i in items.Take(100))
+                {
+                    <li style="font-size:.72rem">@i</li>
+                }
+                @if (items.Count > 100)
+                {
+                    <li style="font-size:.72rem" class="text-muted">… y @(items.Count - 100) más</li>
+                }
+            </ul>
+        </div>;
+    };
+}

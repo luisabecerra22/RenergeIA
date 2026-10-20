@@ -218,6 +218,110 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("AccionesCorrectivas", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ActaReunion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActaAnteriorCodigo")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Area")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("AsistentesJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Asunto")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("DatosOrigenJson")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Eliminado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("Fecha")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaEliminacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("FechaTexto")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FuenteUrl")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("Hora")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int?>("LoteImportacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Modalidad")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("ProyectoActaId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProyectoTexto")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PuntosJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Resumen")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("SeguimientoPendienteConfirmacion")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TrazabilidadJson")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.HasIndex("ProyectoActaId");
+
+                    b.ToTable("ActasReunion", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.ActividadWBS", b =>
                 {
                     b.Property<int>("Id")
@@ -317,6 +421,66 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("ActividadesWBS", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ActualizacionCompromisoReunion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActaReferencia")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Autor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CambiosJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CompromisoReunionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EstadoAnterior")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EstadoNuevo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Observacion")
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TipoActualizacion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompromisoReunionId");
+
+                    b.ToTable("ActualizacionesCompromisoReunion", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.Alerta", b =>
                 {
                     b.Property<int>("Id")
@@ -363,6 +527,49 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("Alertas", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.ArchivoActaReunion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActaReunionId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Contenido")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Filename")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int?>("LoteImportacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tamano")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActaReunionId", "Tipo")
+                        .IsUnique();
+
+                    b.ToTable("ArchivosActaReunion", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.AsignacionTesoreria", b =>
@@ -450,6 +657,57 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId", "Orden");
 
                     b.ToTable("CategoriasCurvaS", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.ComentarioActaReunion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActaReunionId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Atendido")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("AtendidoEl")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("AtendidoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Autor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("Creado")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("IdOrigen")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActaReunionId");
+
+                    b.ToTable("ComentariosActaReunion", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.ComentarioDisciplinaInforme", b =>
@@ -593,6 +851,141 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("CompromisoCostos", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoReunion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActaReunionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Area")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Categoria")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("CerradoEl")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CerradoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ContinuidadDeId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContinuidadDeOrigen")
+                        .HasMaxLength(170)
+                        .HasColumnType("character varying(170)");
+
+                    b.Property<DateTime?>("CreadoOrigen")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("EditadoEl")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("EditadoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("Eliminado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Empresa")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FechaActa")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaEliminacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaLimite")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("FechaTexto")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("HistorialJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdOrigen")
+                        .IsRequired()
+                        .HasMaxLength(170)
+                        .HasColumnType("character varying(170)");
+
+                    b.Property<int?>("LoteImportacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NotaCierre")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ObservacionSeguimiento")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OrigenOriginalJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProyectoTexto")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<bool>("RequiereConfirmacion")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Responsable")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("ResponsablePrincipal")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("character varying(3000)");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActaReunionId");
+
+                    b.HasIndex("ContinuidadDeId");
+
+                    b.HasIndex("IdOrigen")
+                        .IsUnique();
+
+                    b.ToTable("CompromisosReunion", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.CorteFlujoTesoreria", b =>
@@ -3383,6 +3776,214 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("RiesgosIPERV");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.AsignacionHelvis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ActividadWBSId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ContactoHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Frente")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("VigenteDesde")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("VigenteHasta")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActividadWBSId");
+
+                    b.HasIndex("ContactoHelvisId", "ActividadWBSId")
+                        .IsUnique();
+
+                    b.ToTable("AsignacionesHelvis", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ContactoHelvis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Cargo")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("EsAdministrador")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("MotivoPausa")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("PausadoHasta")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("PuedeAprobar")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("PuedeConsultar")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("PuedeCorregir")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("PuedeReportar")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Telefono")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Telefono")
+                        .IsUnique();
+
+                    b.ToTable("ContactosHelvis", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ContactoHelvisProyecto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ContactoHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProyectoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProyectoId");
+
+                    b.HasIndex("ContactoHelvisId", "ProyectoId")
+                        .IsUnique();
+
+                    b.ToTable("ContactoHelvisProyectos", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.MensajeHelvis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ContactoHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DetalleError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("Entrante")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("OpcionId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Telefono")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Texto")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("WaMessageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactoHelvisId");
+
+                    b.HasIndex("WaMessageId")
+                        .IsUnique()
+                        .HasFilter("\"WaMessageId\" IS NOT NULL");
+
+                    b.HasIndex("Telefono", "FechaCreacion");
+
+                    b.ToTable("MensajesHelvis", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>
                 {
                     b.Property<int>("Id")
@@ -3935,6 +4536,47 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("LineasConsolidado", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.LoteImportacionActas", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Archivo")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("RespaldoJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResumenJson")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Revertido")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevertidoEl")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Usuario")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LotesImportacionActas", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.MapeoCodigoTesoreria", b =>
                 {
                     b.Property<int>("Id")
@@ -4473,6 +5115,55 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("Proyectos", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ProyectoActa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AliasJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AreasJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CodigosAnterioresJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("IdOrigen")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int?>("LoteImportacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ProyectoId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProyectoId");
+
+                    b.ToTable("ProyectosActa", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.PuntoCurvaReal", b =>
                 {
                     b.Property<int>("Id")
@@ -4716,6 +5407,75 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("RegistrosClima", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.RegistroSeguimientoActa", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Accion")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("ActualizadoEl")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("Confirmada")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ConfirmadoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DatosOrigenJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EstadoRegistro")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Evidencia")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("HistorialJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdOrigen")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int?>("LoteImportacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProyectoTexto")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ReferenciasJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tema")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdOrigen")
+                        .IsUnique();
+
+                    b.ToTable("RegistrosSeguimientoActa", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.ResponsableAreaDocumento", b =>
@@ -5036,6 +5796,16 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("NoConformidad");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ActaReunion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ProyectoActa", "ProyectoActa")
+                        .WithMany()
+                        .HasForeignKey("ProyectoActaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ProyectoActa");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.ActividadWBS", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.ActividadWBS", "ActividadPadre")
@@ -5061,6 +5831,17 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ActualizacionCompromisoReunion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.CompromisoReunion", "CompromisoReunion")
+                        .WithMany("Actualizaciones")
+                        .HasForeignKey("CompromisoReunionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompromisoReunion");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.Alerta", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -5072,6 +5853,17 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ArchivoActaReunion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ActaReunion", "ActaReunion")
+                        .WithMany("Archivos")
+                        .HasForeignKey("ActaReunionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ActaReunion");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.CategoriaCurvaS", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -5081,6 +5873,17 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Proyecto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.ComentarioActaReunion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ActaReunion", "ActaReunion")
+                        .WithMany("Comentarios")
+                        .HasForeignKey("ActaReunionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ActaReunion");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.ComentarioDisciplinaInforme", b =>
@@ -5110,6 +5913,24 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Partida");
 
                     b.Navigation("Proyecto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoReunion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ActaReunion", "ActaReunion")
+                        .WithMany("Compromisos")
+                        .HasForeignKey("ActaReunionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RenergeIA.Core.Entities.CompromisoReunion", "ContinuidadDe")
+                        .WithMany()
+                        .HasForeignKey("ContinuidadDeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ActaReunion");
+
+                    b.Navigation("ContinuidadDe");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.CorteFlujoTesoreria", b =>
@@ -5612,6 +6433,54 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.AsignacionHelvis", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ActividadWBS", "Actividad")
+                        .WithMany()
+                        .HasForeignKey("ActividadWBSId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
+                        .WithMany()
+                        .HasForeignKey("ContactoHelvisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Actividad");
+
+                    b.Navigation("Contacto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ContactoHelvisProyecto", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
+                        .WithMany("Proyectos")
+                        .HasForeignKey("ContactoHelvisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
+                        .WithMany()
+                        .HasForeignKey("ProyectoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contacto");
+
+                    b.Navigation("Proyecto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.MensajeHelvis", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
+                        .WithMany()
+                        .HasForeignKey("ContactoHelvisId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Contacto");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -5819,6 +6688,16 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ProyectoActa", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
+                        .WithMany()
+                        .HasForeignKey("ProyectoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Proyecto");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.PuntoCurvaReal", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -5952,6 +6831,15 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Documento");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ActaReunion", b =>
+                {
+                    b.Navigation("Archivos");
+
+                    b.Navigation("Comentarios");
+
+                    b.Navigation("Compromisos");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.ActividadWBS", b =>
                 {
                     b.Navigation("RegistrosAvance");
@@ -5962,6 +6850,11 @@ namespace RenergeIA.Infrastructure.Migrations
             modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoCosto", b =>
                 {
                     b.Navigation("Hitos");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoReunion", b =>
+                {
+                    b.Navigation("Actualizaciones");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.CronogramaVersion", b =>
@@ -5994,6 +6887,11 @@ namespace RenergeIA.Infrastructure.Migrations
             modelBuilder.Entity("RenergeIA.Core.Entities.HSEQ.InspeccionIA", b =>
                 {
                     b.Navigation("RiesgosGenerados");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ContactoHelvis", b =>
+                {
+                    b.Navigation("Proyectos");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>

@@ -48,6 +48,7 @@ builder.Services.AddScoped<CostoService>();
 builder.Services.AddScoped<TesoreriaImportService>();
 builder.Services.AddScoped<HistogramaService>();
 builder.Services.AddScoped<PersonalHistogramaService>();
+builder.Services.AddScoped<RenergeIA.Web.Services.Actas.ActasImportService>();
 builder.Services.AddScoped<HomeDashboardService>();
 builder.Services.AddScoped<ChecklistISO9001Service>();
 builder.Services.AddScoped<NormaChecklistService>();

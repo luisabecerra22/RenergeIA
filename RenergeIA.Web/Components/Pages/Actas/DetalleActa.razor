@@ -1,0 +1,366 @@
+@page "/actas/{Id:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@using System.Text.Json
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+
+<PageTitle>@(_acta?.Codigo ?? "Acta") — Compromisos</PageTitle>
+
+@if (_acta is null && !_cargado)
+{
+    <p>Cargando…</p>
+}
+else if (_acta is null)
+{
+    <div class="card border-0 shadow-sm text-center py-5">
+        <p class="text-muted mb-2">El acta no existe o fue eliminada.</p>
+        <a href="/actas" class="btn btn-sm btn-outline-secondary mx-auto">Volver a Actas</a>
+    </div>
+}
+else
+{
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <a href="/actas" class="btn btn-sm btn-outline-secondary">&larr; Actas</a>
+        <div class="flex-grow-1">
+            <h1 class="h4 mb-0" style="color:#183963">@_acta.Codigo</h1>
+            <small class="text-muted">@_acta.Asunto</small>
+        </div>
+        <span class="badge rounded-pill" style="@EstiloEstado(_acta.Estado);font-size:.75rem">@TextoEstado(_acta.Estado)</span>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                <div class="card-body small">
+                    <div class="row g-2">
+                        <div class="col-md-4"><strong>Fecha:</strong> @(_acta.FechaTexto ?? _acta.Fecha?.ToString("dd/MM/yyyy"))</div>
+                        <div class="col-md-4"><strong>Proyecto:</strong> @(_acta.ProyectoActa?.Nombre ?? _acta.ProyectoTexto ?? "General")</div>
+                        <div class="col-md-4"><strong>Área:</strong> @_acta.Area</div>
+                        <div class="col-md-4"><strong>Modalidad:</strong> @_acta.Modalidad</div>
+                        <div class="col-md-4"><strong>Hora:</strong> @_acta.Hora</div>
+                        @if (_acta.ActaAnteriorCodigo is not null)
+                        {
+                            <div class="col-md-4"><strong>Acta anterior:</strong>
+                                @if (_actaAnteriorId is int idAnt)
+                                {
+                                    <a href="/actas/@idAnt">@_acta.ActaAnteriorCodigo</a>
+                                }
+                                else
+                                {
+                                    @_acta.ActaAnteriorCodigo
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (_asistentes.Count > 0)
+            {
+                <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                    <div class="card-header py-2 small fw-semibold" style="background:#183963;color:#fff">Asistentes</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 small">
+                            <tbody>
+                                @foreach (var p in _asistentes)
+                                {
+                                    <tr><td class="ps-3">@p.Nombre</td><td>@p.Cargo</td><td>@p.Empresa</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_acta.Resumen) || _puntos.Count > 0)
+            {
+                <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                    <div class="card-header py-2 small fw-semibold" style="background:#183963;color:#fff">Resumen y desarrollo</div>
+                    <div class="card-body small">
+                        @if (!string.IsNullOrWhiteSpace(_acta.Resumen))
+                        {
+                            <p style="white-space:pre-wrap">@_acta.Resumen</p>
+                        }
+                        @if (_puntos.Count > 0)
+                        {
+                            <ul class="mb-0">
+                                @foreach (var p in _puntos)
+                                {
+                                    <li>@p</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_seguimiento.Count > 0)
+            {
+                <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                    <div class="card-header py-2 small fw-semibold" style="background:#6ABF4B;color:#fff">
+                        Seguimiento de compromisos anteriores
+                        @if (_acta.SeguimientoPendienteConfirmacion)
+                        {
+                            <span class="badge bg-warning text-dark ms-2" style="font-size:.6rem">Por confirmar</span>
+                        }
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0" style="font-size:.75rem">
+                            <thead><tr style="color:#183963"><th class="ps-3">Origen</th><th>Compromiso / responsable</th><th>Estado</th><th>Fecha</th><th>Observación</th></tr></thead>
+                            <tbody>
+                                @foreach (var s in _seguimiento)
+                                {
+                                    <tr>
+                                        <td class="ps-3" style="white-space:nowrap">@s.Origen</td>
+                                        <td>@s.Titulo</td>
+                                        <td style="white-space:nowrap">
+                                            @s.Estado
+                                            @if (s.Confirmado == true)
+                                            {
+                                                <span class="badge bg-success ms-1" style="font-size:.58rem">Confirmado</span>
+                                            }
+                                            else if (s.Confirmado == false)
+                                            {
+                                                <span class="badge bg-warning text-dark ms-1" style="font-size:.58rem">Por confirmar</span>
+                                            }
+                                        </td>
+                                        <td style="white-space:nowrap">@s.Fecha</td>
+                                        <td>@s.Observacion</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <!-- Compromisos de esta reunión -->
+            <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                <div class="card-header py-2 small fw-semibold d-flex align-items-center" style="background:#183963;color:#fff">
+                    <span>Compromisos de esta reunión</span>
+                    <a href="/actas/compromisos" class="btn btn-sm btn-outline-light py-0 ms-auto" style="font-size:.68rem">Ver tablero</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0" style="font-size:.78rem">
+                        <thead><tr style="color:#183963"><th class="ps-3">#</th><th>Compromiso</th><th>Responsable</th><th>Empresa</th><th>Fecha</th><th>Tipo</th><th>Estado</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in _compromisos)
+                            {
+                                <tr>
+                                    <td class="ps-3">@c.Orden</td>
+                                    <td>@c.Texto</td>
+                                    <td>@c.Responsable</td>
+                                    <td>@c.Empresa</td>
+                                    <td style="white-space:nowrap">@(c.FechaLimite?.ToString("dd/MM/yyyy") ?? c.FechaTexto)</td>
+                                    <td>@(c.Tipo == TipoCompromisoReunion.Recordatorio ? "Recordatorio al cliente" : "Propio")</td>
+                                    <td>
+                                        <span class="badge rounded-pill" style="@EstiloComp(c.Estado);font-size:.64rem">@TextoComp(c.Estado)</span>
+                                    </td>
+                                </tr>
+                            }
+                            @if (_continuados.Count > 0)
+                            {
+                                <tr><td colspan="7" class="small text-muted ps-3">
+                                    Esta reunión además dio seguimiento a: @string.Join(", ", _continuados) (mismo compromiso, sin duplicar).
+                                </td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Documentos oficiales -->
+            <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                <div class="card-header py-2 small fw-semibold" style="background:#183963;color:#fff">Documentos oficiales</div>
+                <div class="card-body d-grid gap-2">
+                    @if (!_archivos.Any())
+                    {
+                        <span class="small text-muted">Sin documentos migrados.</span>
+                    }
+                    @foreach (var f in _archivos)
+                    {
+                        <button class="btn btn-sm btn-outline-primary text-start" style="font-size:.75rem"
+                                @onclick="() => DescargarAsync(f.Id)">
+                            <i class="bi-download me-1"></i>@EtiquetaArchivo(f.Tipo) <span class="text-muted">(@((f.Tamano / 1024.0).ToString("N0")) KB)</span>
+                        </button>
+                    }
+                    <div class="text-muted" style="font-size:.65rem">
+                        El acta interna es de uso exclusivo del equipo Renergeia. Los documentos emitidos no se modifican desde la app.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Comentarios -->
+            <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                <div class="card-header py-2 small fw-semibold" style="background:#183963;color:#fff">Comentarios de revisión</div>
+                <div class="card-body small">
+                    @if (!_comentarios.Any())
+                    {
+                        <span class="text-muted">Sin comentarios.</span>
+                    }
+                    @foreach (var c in _comentarios)
+                    {
+                        <div class="border-bottom pb-1 mb-2">
+                            <div><strong>@c.Autor</strong> <span class="text-muted" style="font-size:.65rem">@c.Creado.ToString("dd/MM/yyyy")</span></div>
+                            <div>@c.Texto</div>
+                            <div style="font-size:.68rem" class="@(c.Atendido ? "text-success" : "text-warning")">
+                                @(c.Atendido ? $"✔ Atendido por {c.AtendidoPor}" : "Pendiente de atender")
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ActaReunion? _acta;
+    private int? _actaAnteriorId;
+    private List<(string Nombre, string? Cargo, string? Empresa)> _asistentes = [];
+    private List<string> _puntos = [];
+    private List<(string? Origen, string? Titulo, string? Estado, string? Fecha, string? Observacion, bool? Confirmado)> _seguimiento = [];
+    private List<CompromisoReunion> _compromisos = [];
+    private List<string> _continuados = [];
+    private List<ArchivoActaReunion> _archivos = [];
+    private List<ComentarioActaReunion> _comentarios = [];
+
+    private bool _cargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _acta = await Db.ActasReunion.AsNoTracking()
+            .Include(a => a.ProyectoActa)
+            .FirstOrDefaultAsync(a => a.Id == Id);
+        _cargado = true;
+        if (_acta is null) return;
+
+        _actaAnteriorId = _acta.ActaAnteriorCodigo is null ? null
+            : await Db.ActasReunion.AsNoTracking().Where(a => a.Codigo == _acta.ActaAnteriorCodigo).Select(a => (int?)a.Id).FirstOrDefaultAsync();
+
+        _compromisos = await Db.CompromisosReunion.AsNoTracking()
+            .Where(c => c.ActaReunionId == Id).OrderBy(c => c.Orden).ToListAsync();
+
+        // Compromisos de actas anteriores a los que esta reunión dio continuidad
+        _continuados = await Db.ActualizacionesCompromisoReunion.AsNoTracking()
+            .Where(x => x.ActaReferencia == _acta.Codigo && x.TipoActualizacion == "continuidad")
+            .Select(x => x.CompromisoReunion.IdOrigen).Distinct().ToListAsync();
+
+        _archivos = await Db.ArchivosActaReunion.AsNoTracking()
+            .Where(x => x.ActaReunionId == Id)
+            .Select(x => new ArchivoActaReunion { Id = x.Id, Tipo = x.Tipo, Filename = x.Filename, Tamano = x.Tamano })
+            .OrderBy(x => x.Tipo).ToListAsync();
+
+        _comentarios = await Db.ComentariosActaReunion.AsNoTracking()
+            .Where(x => x.ActaReunionId == Id).OrderBy(x => x.Creado).ToListAsync();
+
+        _asistentes = LeerAsistentes(_acta.AsistentesJson);
+        _puntos = LeerPuntos(_acta.PuntosJson);
+        _seguimiento = LeerSeguimiento(_acta.TrazabilidadJson);
+    }
+
+    private async Task DescargarAsync(int archivoId)
+    {
+        var f = await Db.ArchivosActaReunion.AsNoTracking().FirstOrDefaultAsync(x => x.Id == archivoId);
+        if (f is null) return;
+        var mime = f.Filename.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)
+            ? "application/pdf"
+            : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        await JS.InvokeVoidAsync("downloadFile", f.Filename, Convert.ToBase64String(f.Contenido), mime);
+    }
+
+    private static List<(string, string?, string?)> LeerAsistentes(string? json)
+    {
+        var lista = new List<(string, string?, string?)>();
+        if (string.IsNullOrWhiteSpace(json)) return lista;
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            foreach (var e in d.RootElement.EnumerateArray())
+                lista.Add((P(e, "nombre") ?? "", P(e, "cargo"), P(e, "empresa")));
+        }
+        catch { }
+        return lista;
+    }
+
+    private static List<string> LeerPuntos(string? json)
+    {
+        var lista = new List<string>();
+        if (string.IsNullOrWhiteSpace(json)) return lista;
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            foreach (var e in d.RootElement.EnumerateArray())
+                if (e.ValueKind == JsonValueKind.String) lista.Add(e.GetString() ?? "");
+                else if (e.ValueKind == JsonValueKind.Object) lista.Add(P(e, "titulo") ?? P(e, "texto") ?? e.GetRawText());
+        }
+        catch { }
+        return lista;
+    }
+
+    private static List<(string?, string?, string?, string?, string?, bool?)> LeerSeguimiento(string? json)
+    {
+        var lista = new List<(string?, string?, string?, string?, string?, bool?)>();
+        if (string.IsNullOrWhiteSpace(json)) return lista;
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            foreach (var e in d.RootElement.EnumerateArray())
+            {
+                if (e.ValueKind != JsonValueKind.Object) continue;
+                bool? conf = e.TryGetProperty("confirmado", out var c) && c.ValueKind is JsonValueKind.True or JsonValueKind.False
+                    ? c.ValueKind == JsonValueKind.True : null;
+                lista.Add((P(e, "origen"), P(e, "titulo") ?? P(e, "descripcion"), P(e, "estado"),
+                    P(e, "fecha") ?? P(e, "fechaAnterior"), P(e, "observacion"), conf));
+            }
+        }
+        catch { }
+        return lista;
+    }
+
+    private static string? P(JsonElement e, string n) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static string EtiquetaArchivo(TipoArchivoActa t) => t switch
+    {
+        TipoArchivoActa.InternaPdf => "Acta interna (PDF)",
+        TipoArchivoActa.InternaDocx => "Acta interna (Word)",
+        TipoArchivoActa.ExternaPdf => "Acta externa (PDF)",
+        _ => "Acta externa (Word)"
+    };
+
+    private static string TextoEstado(EstadoActaReunion e) => e switch
+    {
+        EstadoActaReunion.Aprobada => "Aprobada",
+        EstadoActaReunion.ConComentarios => "Con comentarios",
+        _ => "Borrador"
+    };
+
+    private static string EstiloEstado(EstadoActaReunion e) => e switch
+    {
+        EstadoActaReunion.Aprobada => "background:#e8f5e2;color:#3e7d2c",
+        EstadoActaReunion.ConComentarios => "background:#e3ecfb;color:#183963",
+        _ => "background:#fff3e0;color:#b35900"
+    };
+
+    private static string TextoComp(EstadoCompromisoReunion e) => e switch
+    {
+        EstadoCompromisoReunion.Cerrado => "Cerrado",
+        EstadoCompromisoReunion.EnSeguimiento => "En seguimiento",
+        _ => "Pendiente"
+    };
+
+    private static string EstiloComp(EstadoCompromisoReunion e) => e switch
+    {
+        EstadoCompromisoReunion.Cerrado => "background:#e9ecef;color:#555",
+        EstadoCompromisoReunion.EnSeguimiento => "background:#e3ecfb;color:#183963",
+        _ => "background:#fff3e0;color:#b35900"
+    };
+}

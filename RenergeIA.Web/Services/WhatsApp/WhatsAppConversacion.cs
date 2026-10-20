@@ -1,18 +1,27 @@
+using Microsoft.EntityFrameworkCore;
+using RenergeIA.Core.Entities.Helvis;
+using RenergeIA.Infrastructure.Data;
+
 namespace RenergeIA.Web.Services.WhatsApp;
 
 /// <summary>
-/// Lógica del bot: menú de opciones. Es deliberadamente determinista —el código decide, no un modelo—
+/// Lógica de Helvis: es deliberadamente determinista —el código decide, no un modelo—
 /// para que las respuestas sean predecibles y auditables.
-/// Por ahora solo responde el menú; cada opción se irá conectando a la plataforma por fases.
+/// Etapa 1: identifica a la persona por su celular (ContactosHelvis), guarda TODO el
+/// historial en MensajesHelvis (que además deduplica reintentos de Meta aunque el
+/// servidor se reinicie) y atiende cordialmente a los números no registrados sin
+/// entregarles información (ESPECIFICACION_HELVIS §3).
 /// </summary>
 public class WhatsAppConversacion
 {
     private readonly WhatsAppClient _wa;
+    private readonly RenergeIADbContext _db;
     private readonly ILogger<WhatsAppConversacion> _log;
 
-    public WhatsAppConversacion(WhatsAppClient wa, ILogger<WhatsAppConversacion> log)
+    public WhatsAppConversacion(WhatsAppClient wa, RenergeIADbContext db, ILogger<WhatsAppConversacion> log)
     {
         _wa = wa;
+        _db = db;
         _log = log;
     }
 
@@ -21,53 +30,147 @@ public class WhatsAppConversacion
         _log.LogInformation("WhatsApp: mensaje de {Numero} ({Nombre}), tipo {Tipo}, opción {Opcion}: {Texto}",
             mensaje.De, mensaje.Nombre, mensaje.Tipo, mensaje.OpcionId ?? "-", mensaje.Texto);
 
+        var contacto = await _db.ContactosHelvis
+            .Include(c => c.Proyectos).ThenInclude(p => p.Proyecto)
+            .FirstOrDefaultAsync(c => c.Telefono == mensaje.De, ct);
+
+        // Deduplicación persistente: el índice único de WaMessageId rechaza el duplicado
+        // aunque el proceso se haya reiniciado entre el envío original y el reintento de Meta.
+        if (!await GuardarEntranteAsync(mensaje, contacto, ct)) return;
+
         await _wa.MarcarLeidoAsync(mensaje.Id, ct);
+
+        if (contacto is null || !contacto.Activo)
+        {
+            await AtenderDesconocidoAsync(mensaje, ct);
+            return;
+        }
 
         var opcion = mensaje.OpcionId ?? Interpretar(mensaje.Texto);
 
         switch (opcion)
         {
             case "alertas":
-                await _wa.EnviarTextoAsync(mensaje.De,
+                await EnviarTextoAsync(contacto, mensaje.De,
                     "📋 *Alertas y vencimientos*\n\n" +
                     "Aquí verás los documentos por vencer y tus pendientes de planificación documental.\n\n" +
                     "Esta opción se conecta en la fase 1. Escribe *menú* para volver.", ct);
                 break;
 
             case "consultas":
-                await _wa.EnviarTextoAsync(mensaje.De,
+                await EnviarTextoAsync(contacto, mensaje.De,
                     "📊 *Consultas del proyecto*\n\n" +
                     "Aquí podrás preguntar por avance, documentos y costos.\n\n" +
                     "Esta opción se conecta en la fase 2. Escribe *menú* para volver.", ct);
                 break;
 
             case "informe":
-                await _wa.EnviarTextoAsync(mensaje.De,
+                await EnviarTextoAsync(contacto, mensaje.De,
                     "📝 *Informe diario*\n\n" +
                     "Aquí registrarás avance, clima y fotografías desde campo.\n\n" +
                     "Esta opción se conecta en la fase 4. Escribe *menú* para volver.", ct);
                 break;
 
             default:
-                await EnviarMenuAsync(mensaje, ct);
+                await EnviarMenuAsync(contacto, mensaje, ct);
                 break;
         }
     }
 
-    private Task EnviarMenuAsync(MensajeWhatsApp mensaje, CancellationToken ct)
-    {
-        var saludo = string.IsNullOrWhiteSpace(mensaje.Nombre)
-            ? "Hola 👋"
-            : $"Hola {PrimerNombre(mensaje.Nombre)} 👋";
+    // ==================== Registro del historial ====================
 
-        return _wa.EnviarBotonesAsync(mensaje.De,
-            $"{saludo}\n\nSoy el asistente de *RenergeIA*. ¿Con qué te ayudo?",
+    /// <summary>Guarda el mensaje entrante. Devuelve false si ya estaba registrado (reintento de Meta).</summary>
+    private async Task<bool> GuardarEntranteAsync(MensajeWhatsApp mensaje, ContactoHelvis? contacto, CancellationToken ct)
+    {
+        if (await _db.MensajesHelvis.AnyAsync(x => x.WaMessageId == mensaje.Id, ct))
+        {
+            _log.LogInformation("WhatsApp: mensaje {Id} ya procesado antes; se ignora el reintento.", mensaje.Id);
+            return false;
+        }
+
+        _db.MensajesHelvis.Add(new MensajeHelvis
+        {
+            ContactoHelvisId = contacto?.Id,
+            Telefono = mensaje.De,
+            Entrante = true,
+            WaMessageId = mensaje.Id,
+            Texto = mensaje.Texto,
+            Tipo = mensaje.Tipo,
+            OpcionId = mensaje.OpcionId
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            // Dos instancias recibieron el mismo reintento a la vez: el índice único decide.
+            _log.LogInformation("WhatsApp: mensaje {Id} insertado por otra instancia; se ignora.", mensaje.Id);
+            return false;
+        }
+    }
+
+    private async Task EnviarTextoAsync(ContactoHelvis? contacto, string numero, string texto, CancellationToken ct)
+    {
+        var ok = await _wa.EnviarTextoAsync(numero, texto, ct);
+        await GuardarSalienteAsync(contacto, numero, texto, "text", ok, ct);
+    }
+
+    private async Task GuardarSalienteAsync(ContactoHelvis? contacto, string numero, string texto,
+        string tipo, bool ok, CancellationToken ct)
+    {
+        _db.MensajesHelvis.Add(new MensajeHelvis
+        {
+            ContactoHelvisId = contacto?.Id,
+            Telefono = numero,
+            Entrante = false,
+            Texto = texto,
+            Tipo = tipo,
+            Estado = ok ? "enviado" : "fallo"
+        });
+        await _db.SaveChangesAsync(ct);
+    }
+
+    // ==================== Conversación ====================
+
+    private async Task EnviarMenuAsync(ContactoHelvis contacto, MensajeWhatsApp mensaje, CancellationToken ct)
+    {
+        var nombre = PrimerNombre(string.IsNullOrWhiteSpace(contacto.Nombre) ? mensaje.Nombre : contacto.Nombre);
+        var saludo = string.IsNullOrWhiteSpace(nombre) ? "Hola 👋" : $"Hola, {nombre} 👋";
+
+        var cuerpo = $"{saludo}\n\nSoy *Helvis*, el asistente de Renergeia _(prueba)_. ¿Con qué te ayudo?";
+
+        var ok = await _wa.EnviarBotonesAsync(mensaje.De, cuerpo,
             new[]
             {
                 ("alertas", "📋 Alertas"),
                 ("consultas", "📊 Consultas"),
                 ("informe", "📝 Informe diario")
             }, ct);
+
+        await GuardarSalienteAsync(contacto, mensaje.De, cuerpo, "interactive", ok, ct);
+    }
+
+    /// <summary>
+    /// Número no registrado: pregunta cordialmente qué necesita, conserva todo lo que escriba
+    /// (queda visible en el panel de Helvis) y nunca entrega información ni datos del equipo.
+    /// </summary>
+    private async Task AtenderDesconocidoAsync(MensajeWhatsApp mensaje, CancellationToken ct)
+    {
+        // Si ya se le dio la bienvenida hace poco, no repetirla con cada mensaje.
+        var limite = DateTime.UtcNow.AddHours(-24);
+        var yaSaludado = await _db.MensajesHelvis.AnyAsync(x =>
+            x.Telefono == mensaje.De && !x.Entrante && x.FechaCreacion >= limite, ct);
+
+        var texto = yaSaludado
+            ? "Gracias, quedó registrado tu mensaje y el equipo de Renergeia lo revisará. 🙏"
+            : "Hola 👋 Soy *Helvis*, el asistente de *Renergeia*.\n\n" +
+              "Este número aún no está registrado conmigo. ¿Me cuentas qué necesitas y con quién " +
+              "te gustaría comunicarte? Dejaré el aviso al equipo para que te contacten.";
+
+        await EnviarTextoAsync(null, mensaje.De, texto, ct);
     }
 
     /// <summary>Permite responder con número o con palabras, no solo con los botones.</summary>

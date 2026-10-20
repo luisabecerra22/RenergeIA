@@ -1,0 +1,466 @@
+@page "/helvis"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+@using RenergeIA.Core.Entities.Helvis
+
+<PageTitle>Helvis — Asistente de WhatsApp</PageTitle>
+
+<div class="px-3 py-3 mb-3 rounded-3 text-white" style="background:#183963">
+    <div class="d-flex align-items-center gap-3">
+        <i class="bi-whatsapp" style="font-size:1.6rem;color:#6ABF4B"></i>
+        <div>
+            <div class="small opacity-75">Asistente de WhatsApp</div>
+            <h1 class="h4 mb-0 fw-bold">Helvis</h1>
+        </div>
+        <span class="badge ms-auto" style="background:#6ABF4B">piloto</span>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-4 flex-wrap px-1">
+    <button class="btn d-flex align-items-center gap-2 fw-semibold"
+            style="@EstiloTab(_tab == "contactos")" @onclick='() => _tab = "contactos"'>
+        <i class="bi-people-fill"></i><span>Contactos</span>
+    </button>
+    <button class="btn d-flex align-items-center gap-2 fw-semibold"
+            style="@EstiloTab(_tab == "conversaciones")" @onclick="AbrirConversacionesAsync">
+        <i class="bi-chat-dots-fill"></i><span>Conversaciones</span>
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2 mb-3">
+        @_mensaje
+        <button type="button" class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+@if (_tab == "contactos")
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="text-muted small">
+            Personas autorizadas a conversar con Helvis. El celular es la identidad:
+            a un número que no esté aquí, el bot no le entrega información.
+        </span>
+        <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="NuevoContacto">
+            <i class="bi-person-plus me-1"></i>Nuevo contacto
+        </button>
+    </div>
+
+    @if (!_contactos.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <i class="bi-person-badge display-4 mb-3" style="color:#dde3ed"></i>
+            <p class="text-muted small mb-1">Aún no hay contactos registrados.</p>
+            <p class="text-muted small">Registra primero tu propio celular (con indicativo, ej. 573187222977) para que Helvis te reconozca.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0 small">
+                    <thead style="font-size:.72rem;border-bottom:2px solid #183963">
+                        <tr>
+                            <th class="ps-3" style="color:#183963">NOMBRE</th>
+                            <th style="color:#183963">CELULAR</th>
+                            <th style="color:#183963">CARGO</th>
+                            <th style="color:#183963">PROYECTOS</th>
+                            <th style="color:#183963">PERMISOS</th>
+                            <th style="color:#183963">ESTADO</th>
+                            <th class="text-end pe-3" style="color:#183963">ACCIONES</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in _contactos)
+                        {
+                            <tr style="border-bottom:1px solid #f0f3f8">
+                                <td class="ps-3 fw-semibold">@c.Nombre</td>
+                                <td style="white-space:nowrap">+@c.Telefono</td>
+                                <td class="text-muted">@(c.Cargo ?? "—")</td>
+                                <td>
+                                    @if (c.Proyectos.Count == 0)
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var p in c.Proyectos)
+                                        {
+                                            <span class="badge me-1" style="background:#eef1f6;color:#183963">@p.Proyecto?.Codigo</span>
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    @if (c.PuedeConsultar) { <span class="badge me-1" style="background:#183963">Consulta</span> }
+                                    @if (c.PuedeReportar) { <span class="badge me-1" style="background:#6ABF4B">Reporta</span> }
+                                    @if (c.PuedeCorregir) { <span class="badge me-1" style="background:#fd7e14">Corrige</span> }
+                                    @if (c.PuedeAprobar)  { <span class="badge me-1" style="background:#6f42c1">Aprueba</span> }
+                                    @if (c.EsAdministrador) { <span class="badge me-1" style="background:#111921">Admin</span> }
+                                </td>
+                                <td>
+                                    @if (!c.Activo)
+                                    {
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                    }
+                                    else if (c.PausadoHasta is not null && c.PausadoHasta > DateTime.UtcNow)
+                                    {
+                                        <span class="badge" style="background:#fd7e14" title="@c.MotivoPausa">
+                                            En pausa hasta @c.PausadoHasta.Value.ToString("dd/MM")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge" style="background:#6ABF4B">Activo</span>
+                                    }
+                                </td>
+                                <td class="text-end pe-3" style="white-space:nowrap">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1 me-1" title="Editar"
+                                            @onclick="() => EditarContacto(c)">✎</button>
+                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Eliminar"
+                                            @onclick="() => EliminarContactoAsync(c)">🗑</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header py-2 fw-semibold small text-white" style="background:#183963">
+                    <i class="bi-chat-left-text me-1"></i>Conversaciones (@_resumen.Count)
+                </div>
+                <div style="max-height:65vh;overflow:auto">
+                    @if (!_resumen.Any())
+                    {
+                        <p class="text-muted small text-center py-4 mb-0">Aún no hay mensajes guardados.<br />Escríbele al bot y aparecerán aquí.</p>
+                    }
+                    @foreach (var r in _resumen)
+                    {
+                        <button class="w-100 text-start border-0 px-3 py-2"
+                                style="background:@(r.Telefono == _telefonoSel ? "#eef1f6" : "transparent");border-bottom:1px solid #f0f3f8 !important;cursor:pointer"
+                                @onclick="() => SeleccionarTelefonoAsync(r.Telefono)">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-semibold small" style="color:#183963">@r.Nombre</span>
+                                <span class="text-muted" style="font-size:.68rem">@HoraCol(r.Ultimo).ToString("dd/MM HH:mm")</span>
+                            </div>
+                            <div class="text-muted" style="font-size:.72rem">+@r.Telefono · @r.Total mensajes</div>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header py-2 fw-semibold small text-white d-flex justify-content-between" style="background:#183963">
+                    <span><i class="bi-whatsapp me-1" style="color:#6ABF4B"></i>@(_telefonoSel is null ? "Selecciona una conversación" : $"+{_telefonoSel}")</span>
+                    @if (_telefonoSel is not null)
+                    {
+                        <button class="btn btn-sm btn-outline-light py-0 px-2" style="font-size:.7rem"
+                                @onclick="() => SeleccionarTelefonoAsync(_telefonoSel)">↻ Actualizar</button>
+                    }
+                </div>
+                <div class="card-body" style="max-height:65vh;overflow:auto;background:#f6f7f9">
+                    @foreach (var m in _hilo)
+                    {
+                        <div class="d-flex mb-2 @(m.Entrante ? "justify-content-start" : "justify-content-end")">
+                            <div class="px-3 py-2 rounded-3 shadow-sm"
+                                 style="max-width:75%;background:@(m.Entrante ? "#ffffff" : "#dcebff");white-space:pre-wrap;font-size:.8rem">
+                                @m.Texto
+                                <div class="text-muted mt-1" style="font-size:.62rem">
+                                    @HoraCol(m.FechaCreacion).ToString("dd/MM HH:mm")
+                                    @if (!m.Entrante)
+                                    {
+                                        <span> · @(m.Estado ?? "enviado")</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ==================== Modal contacto ==================== *@
+@if (_mostrarForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white py-2" style="background:#183963">
+                    <h6 class="modal-title">@(_editandoId is null ? "Nuevo contacto" : "Editar contacto")</h6>
+                    <button class="btn-close btn-close-white" @onclick="CerrarForm"></button>
+                </div>
+                <div class="modal-body small">
+                    @if (!string.IsNullOrEmpty(_formError))
+                    {
+                        <div class="alert alert-danger py-2">@_formError</div>
+                    }
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label mb-0 fw-semibold">Nombre *</label>
+                            <input class="form-control form-control-sm" @bind="_fNombre" placeholder="Ej: Eduard Rodríguez" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-0 fw-semibold">Celular *</label>
+                            <input class="form-control form-control-sm" @bind="_fTelefono" placeholder="Ej: 573187222977" />
+                            <div class="form-text" style="font-size:.68rem">Solo números, con indicativo del país. Si escribes 10 dígitos que empiezan por 3, se agrega el 57 solo.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-0 fw-semibold">Cargo</label>
+                            <input class="form-control form-control-sm" @bind="_fCargo" placeholder="Ej: Coordinador mecánico" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-0 fw-semibold">Correo</label>
+                            <input class="form-control form-control-sm" @bind="_fEmail" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1 fw-semibold">Proyectos que puede ver</label>
+                            @foreach (var p in _proyectos)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="@($"proy-{p.Id}")"
+                                           checked="@_fProyectos.Contains(p.Id)"
+                                           @onchange="e => ToggleProyecto(p.Id, e.Value)" />
+                                    <label class="form-check-label" for="@($"proy-{p.Id}")">@p.Codigo — @p.Nombre</label>
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label mb-1 fw-semibold">Qué puede hacer</label>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-con" @bind="_fConsultar" /><label class="form-check-label" for="perm-con">Consultar información</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-rep" @bind="_fReportar" /><label class="form-check-label" for="perm-rep">Reportar avances</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-cor" @bind="_fCorregir" /><label class="form-check-label" for="perm-cor">Corregir avances</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-apr" @bind="_fAprobar" /><label class="form-check-label" for="perm-apr">Aprobar informes</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-adm" @bind="_fAdmin" /><label class="form-check-label" for="perm-adm">Administrador de Helvis</label></div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="chk-activo" @bind="_fActivo" />
+                                <label class="form-check-label fw-semibold" for="chk-activo">Activo</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-0 fw-semibold">En pausa hasta</label>
+                            <input type="date" class="form-control form-control-sm" @bind="_fPausaHasta" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-0 fw-semibold">Motivo de la pausa</label>
+                            <input class="form-control form-control-sm" @bind="_fMotivoPausa" placeholder="Ej: vacaciones" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label mb-0 fw-semibold">Notas</label>
+                            <textarea class="form-control form-control-sm" rows="2" @bind="_fNotas"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="CerrarForm">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none" @onclick="GuardarContactoAsync">
+                        💾 Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _tab = "contactos";
+    private string? _mensaje;
+    private bool _mensajeError;
+
+    private List<ContactoHelvis> _contactos = [];
+    private List<Proyecto> _proyectos = [];
+
+    // Conversaciones
+    private record ResumenConv(string Telefono, string Nombre, DateTime Ultimo, int Total);
+    private List<ResumenConv> _resumen = [];
+    private string? _telefonoSel;
+    private List<MensajeHelvis> _hilo = [];
+
+    // Formulario
+    private bool _mostrarForm;
+    private int? _editandoId;
+    private string? _formError;
+    private string _fNombre = "";
+    private string _fTelefono = "";
+    private string? _fCargo;
+    private string? _fEmail;
+    private bool _fConsultar = true;
+    private bool _fReportar;
+    private bool _fCorregir;
+    private bool _fAprobar;
+    private bool _fAdmin;
+    private bool _fActivo = true;
+    private DateTime? _fPausaHasta;
+    private string? _fMotivoPausa;
+    private string? _fNotas;
+    private HashSet<int> _fProyectos = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _proyectos = await Db.Proyectos.AsNoTracking().OrderBy(p => p.Nombre).ToListAsync();
+        await CargarContactosAsync();
+    }
+
+    private async Task CargarContactosAsync()
+    {
+        _contactos = await Db.ContactosHelvis.AsNoTracking()
+            .Include(c => c.Proyectos).ThenInclude(p => p.Proyecto)
+            .OrderBy(c => c.Nombre)
+            .ToListAsync();
+    }
+
+    // ==================== Conversaciones ====================
+
+    private async Task AbrirConversacionesAsync()
+    {
+        _tab = "conversaciones";
+        var grupos = await Db.MensajesHelvis.AsNoTracking()
+            .GroupBy(m => m.Telefono)
+            .Select(g => new { Telefono = g.Key, Ultimo = g.Max(x => x.FechaCreacion), Total = g.Count() })
+            .OrderByDescending(x => x.Ultimo)
+            .ToListAsync();
+
+        var nombres = _contactos.ToDictionary(c => c.Telefono, c => c.Nombre);
+        _resumen = grupos
+            .Select(g => new ResumenConv(g.Telefono,
+                nombres.TryGetValue(g.Telefono, out var n) ? n : "Desconocido",
+                g.Ultimo, g.Total))
+            .ToList();
+
+        if (_telefonoSel is not null) await SeleccionarTelefonoAsync(_telefonoSel);
+    }
+
+    private async Task SeleccionarTelefonoAsync(string telefono)
+    {
+        _telefonoSel = telefono;
+        var ultimos = await Db.MensajesHelvis.AsNoTracking()
+            .Where(m => m.Telefono == telefono)
+            .OrderByDescending(m => m.FechaCreacion)
+            .Take(200)
+            .ToListAsync();
+        _hilo = ultimos.OrderBy(m => m.FechaCreacion).ToList();
+    }
+
+    // ==================== Contactos ====================
+
+    private void NuevoContacto()
+    {
+        _editandoId = null;
+        _fNombre = ""; _fTelefono = ""; _fCargo = null; _fEmail = null;
+        _fConsultar = true; _fReportar = false; _fCorregir = false; _fAprobar = false; _fAdmin = false;
+        _fActivo = true; _fPausaHasta = null; _fMotivoPausa = null; _fNotas = null;
+        _fProyectos = [];
+        _formError = null;
+        _mostrarForm = true;
+    }
+
+    private void EditarContacto(ContactoHelvis c)
+    {
+        _editandoId = c.Id;
+        _fNombre = c.Nombre; _fTelefono = c.Telefono; _fCargo = c.Cargo; _fEmail = c.Email;
+        _fConsultar = c.PuedeConsultar; _fReportar = c.PuedeReportar; _fCorregir = c.PuedeCorregir;
+        _fAprobar = c.PuedeAprobar; _fAdmin = c.EsAdministrador;
+        _fActivo = c.Activo; _fPausaHasta = c.PausadoHasta; _fMotivoPausa = c.MotivoPausa; _fNotas = c.Notas;
+        _fProyectos = c.Proyectos.Select(p => p.ProyectoId).ToHashSet();
+        _formError = null;
+        _mostrarForm = true;
+    }
+
+    private void CerrarForm() => _mostrarForm = false;
+
+    private void ToggleProyecto(int proyectoId, object? valor)
+    {
+        if (valor is bool marcado && marcado) _fProyectos.Add(proyectoId);
+        else _fProyectos.Remove(proyectoId);
+    }
+
+    private async Task GuardarContactoAsync()
+    {
+        _formError = null;
+
+        var telefono = new string((_fTelefono ?? "").Where(char.IsDigit).ToArray());
+        if (telefono.Length == 10 && telefono.StartsWith('3')) telefono = "57" + telefono;
+
+        if (string.IsNullOrWhiteSpace(_fNombre)) { _formError = "El nombre es obligatorio."; return; }
+        if (telefono.Length < 11) { _formError = "El celular debe llevar el indicativo del país (ej. 573187222977)."; return; }
+
+        var repetido = await Db.ContactosHelvis
+            .AnyAsync(c => c.Telefono == telefono && c.Id != (_editandoId ?? 0));
+        if (repetido) { _formError = "Ya existe un contacto con ese celular."; return; }
+
+        ContactoHelvis contacto;
+        if (_editandoId is int id)
+        {
+            contacto = await Db.ContactosHelvis.Include(c => c.Proyectos).FirstAsync(c => c.Id == id);
+        }
+        else
+        {
+            contacto = new ContactoHelvis();
+            Db.ContactosHelvis.Add(contacto);
+        }
+
+        contacto.Nombre = _fNombre.Trim();
+        contacto.Telefono = telefono;
+        contacto.Cargo = string.IsNullOrWhiteSpace(_fCargo) ? null : _fCargo.Trim();
+        contacto.Email = string.IsNullOrWhiteSpace(_fEmail) ? null : _fEmail.Trim();
+        contacto.PuedeConsultar = _fConsultar;
+        contacto.PuedeReportar = _fReportar;
+        contacto.PuedeCorregir = _fCorregir;
+        contacto.PuedeAprobar = _fAprobar;
+        contacto.EsAdministrador = _fAdmin;
+        contacto.Activo = _fActivo;
+        contacto.PausadoHasta = _fPausaHasta;
+        contacto.MotivoPausa = string.IsNullOrWhiteSpace(_fMotivoPausa) ? null : _fMotivoPausa.Trim();
+        contacto.Notas = string.IsNullOrWhiteSpace(_fNotas) ? null : _fNotas.Trim();
+        contacto.FechaModificacion = DateTime.UtcNow;
+
+        // Sincronizar proyectos
+        foreach (var quitar in contacto.Proyectos.Where(p => !_fProyectos.Contains(p.ProyectoId)).ToList())
+            Db.ContactoHelvisProyectos.Remove(quitar);
+        foreach (var agregar in _fProyectos.Where(pid => contacto.Proyectos.All(p => p.ProyectoId != pid)))
+            contacto.Proyectos.Add(new ContactoHelvisProyecto { ProyectoId = agregar });
+
+        await Db.SaveChangesAsync();
+        _mostrarForm = false;
+        _mensaje = $"Contacto {contacto.Nombre} guardado. Helvis ya lo reconoce por su celular.";
+        _mensajeError = false;
+        await CargarContactosAsync();
+    }
+
+    private async Task EliminarContactoAsync(ContactoHelvis c)
+    {
+        var seguro = await JS.InvokeAsync<bool>("confirm",
+            $"¿Eliminar a {c.Nombre}? Helvis dejará de reconocer su número. El historial de mensajes se conserva.");
+        if (!seguro) return;
+
+        var entidad = await Db.ContactosHelvis.FindAsync(c.Id);
+        if (entidad is null) return;
+        Db.ContactosHelvis.Remove(entidad);
+        await Db.SaveChangesAsync();
+        _mensaje = $"Contacto {c.Nombre} eliminado.";
+        _mensajeError = false;
+        await CargarContactosAsync();
+    }
+
+    // ==================== Utilidades ====================
+
+    private static string EstiloTab(bool activa) => activa
+        ? "background:#183963;color:#fff;border:none;border-radius:10px;padding:8px 18px"
+        : "background:#fff;color:#183963;border:1px solid #D9D9D6;border-radius:10px;padding:8px 18px";
+
+    /// <summary>Las fechas se guardan en UTC; Colombia es UTC-5 sin horario de verano.</summary>
+    private static DateTime HoraCol(DateTime utc) => utc.AddHours(-5);
+}

@@ -1,0 +1,615 @@
+@page "/actas/compromisos"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject AuthenticationStateProvider AuthState
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+
+<PageTitle>Tablero de compromisos</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="/actas" class="btn btn-sm btn-outline-secondary">&larr; Actas</a>
+    <div class="flex-grow-1">
+        <h1 class="h3 mb-0">Tablero de compromisos</h1>
+        <small class="text-muted">Los compromisos conservan su identidad desde la reunión de origen hasta su cierre.</small>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_mensaje))
+{
+    <div class="alert @(_mensajeError ? "alert-danger" : "alert-success") alert-dismissible py-2">
+        @_mensaje
+        <button class="btn-close btn-sm" @onclick="() => _mensaje = null"></button>
+    </div>
+}
+
+<!-- Chips resumen -->
+<div class="d-flex gap-2 mb-3 flex-wrap small">
+    <span class="badge rounded-pill" style="background:#183963">@_todos.Count(EsPropio) propios</span>
+    <span class="badge rounded-pill" style="background:#1e5a9a">@_todos.Count(c => !EsPropio(c)) recordatorios a clientes</span>
+    <span class="badge rounded-pill" style="background:#fff3e0;color:#b35900">@_todos.Count(c => Abierto(c)) abiertos</span>
+    <span class="badge rounded-pill bg-danger">@_todos.Count(c => Situacion(c) == "venc") vencidos</span>
+    <span class="badge rounded-pill" style="background:#e9ecef;color:#555">@_todos.Count(c => c.Estado == EstadoCompromisoReunion.Cerrado) cerrados</span>
+</div>
+
+<!-- Pestañas y filtros -->
+<ul class="nav nav-tabs mb-0">
+    @foreach (var (clave, titulo) in new[] { ("propios", "Compromisos propios"), ("recordatorios", "Recordatorios a clientes"), ("gerencial", "Vista gerencial") })
+    {
+        <li class="nav-item">
+            <button class="nav-link @(_tab == clave ? "active" : "")" @onclick="() => _tab = clave">@titulo</button>
+        </li>
+    }
+</ul>
+<div class="border border-top-0 rounded-bottom p-3 bg-white">
+    <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+        <input class="form-control form-control-sm" style="max-width:260px" placeholder="Buscar (texto, responsable, acta…)"
+               @bind="_buscar" @bind:event="oninput" />
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroEstado">
+            <option value="abiertos">Abiertos</option>
+            <option value="todos">Todos</option>
+            <option value="vencidos">Vencidos</option>
+            <option value="proximos">Próximos a vencer (7 días)</option>
+            <option value="sinfecha">Sin fecha límite</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="seguimiento">En seguimiento</option>
+            <option value="cerrados">Cerrados</option>
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroProyecto">
+            <option value="">Todos los proyectos</option>
+            <option value="(general)">General / corporativos</option>
+            @foreach (var p in _proyectos)
+            {
+                <option value="@p">@p</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroResponsable">
+            <option value="">Todos los responsables</option>
+            @foreach (var r in _responsables)
+            {
+                <option value="@r">@r</option>
+            }
+        </select>
+        <div class="ms-auto d-flex align-items-center gap-1 small">
+            <span class="text-muted">Agrupar:</span>
+            <select class="form-select form-select-sm" style="width:auto" @bind="_agrupar">
+                <option value="area">Por área</option>
+                <option value="persona">Por persona</option>
+                <option value="proyecto">Por proyecto</option>
+            </select>
+        </div>
+    </div>
+
+    @if (_tab == "gerencial")
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle" style="font-size:.78rem">
+                <thead style="background:#183963;color:#fff">
+                    <tr>
+                        <th class="ps-3">Responsable</th>
+                        <th class="text-center">Abiertos</th>
+                        <th class="text-center">Vencidos</th>
+                        <th class="text-center">Próximos (7 días)</th>
+                        <th>Compromiso más urgente</th>
+                        <th>Última gestión</th>
+                        <th>Bloqueo / por aclarar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in Gerencial())
+                    {
+                        <tr>
+                            <td class="ps-3 fw-semibold" style="color:#183963">@g.Responsable</td>
+                            <td class="text-center">@g.Abiertos</td>
+                            <td class="text-center @(g.Vencidos > 0 ? "fw-bold text-danger" : "")">@g.Vencidos</td>
+                            <td class="text-center">@g.Proximos</td>
+                            <td style="max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@g.Urgente">@g.Urgente</td>
+                            <td style="white-space:nowrap">@g.UltimaGestion</td>
+                            <td>@g.Bloqueo</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        var lista = Filtrados(_tab == "recordatorios").ToList();
+        @if (lista.Count == 0)
+        {
+            <p class="text-muted small text-center py-4 mb-0">No hay compromisos con los filtros actuales.</p>
+        }
+        @foreach (var grupo in Agrupados(lista))
+        {
+            <div class="mb-3">
+                <div class="fw-semibold border-bottom pb-1 mb-2" style="color:#183963">
+                    @grupo.Key <span class="text-muted fw-normal small">(@grupo.Count())</span>
+                </div>
+                <div class="row g-2">
+                    @foreach (var c in grupo)
+                    {
+                        var sit = Situacion(c);
+                        <div class="col-12 col-md-6 col-xl-4">
+                            <div class="card h-100 shadow-sm" style="border:none;border-left:4px solid @ColorSituacion(sit);border-radius:10px;@(sit == "cerr" ? "opacity:.75" : "")">
+                                <div class="card-body p-2" style="font-size:.76rem">
+                                    <div class="d-flex">
+                                        <div style="@(sit == "cerr" ? "text-decoration:line-through" : "")">@c.Texto</div>
+                                        <button class="btn btn-sm p-0 ms-auto" style="line-height:1" title="@(sit == "cerr" ? "Reabrir" : "Cerrar")"
+                                                @onclick="() => AbrirCierre(c)">
+                                            <i class="@(sit == "cerr" ? "bi-arrow-counterclockwise" : "bi-check-circle") fs-5"
+                                               style="color:@(sit == "cerr" ? "#6c757d" : "#6ABF4B")"></i>
+                                        </button>
+                                    </div>
+                                    <div class="d-flex gap-1 flex-wrap mt-1 align-items-center">
+                                        <span class="badge rounded-pill" style="background:#eef1f6;color:#183963">@c.Responsable</span>
+                                        @if (c.Responsable.Contains('/'))
+                                        {
+                                            <span class="badge rounded-pill" style="background:#e3ecfb;color:#183963" title="Varios responsables, un solo compromiso">Compartido</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(c.Empresa))
+                                        {
+                                            <span class="badge rounded-pill" style="background:#f1f3f5;color:#555">@c.Empresa</span>
+                                        }
+                                        <a class="badge rounded-pill text-decoration-none" style="background:#183963;color:#fff"
+                                           href="/actas/@c.ActaReunionId" title="Ver acta">@c.IdOrigen</a>
+                                        @if (c.Estado == EstadoCompromisoReunion.EnSeguimiento)
+                                        {
+                                            <span class="badge rounded-pill" style="background:#e3ecfb;color:#183963">En seguimiento</span>
+                                        }
+                                        @if (c.RequiereConfirmacion)
+                                        {
+                                            <span class="badge rounded-pill bg-warning text-dark">Por aclarar</span>
+                                        }
+                                    </div>
+                                    <div class="mt-1 d-flex align-items-center">
+                                        <span style="color:@ColorSituacion(sit);font-weight:600">
+                                            @(sit == "cerr" ? $"✔ Cerrado {c.CerradoEl?.ToLocalTime():dd/MM/yyyy}"
+                                              : c.FechaLimite is null ? (string.IsNullOrWhiteSpace(c.FechaTexto) ? "Sin fecha límite" : c.FechaTexto)
+                                              : sit == "venc" ? $"Venció: {c.FechaLimite:dd/MM/yyyy}" : $"Límite: {c.FechaLimite:dd/MM/yyyy}")
+                                        </span>
+                                        <span class="ms-auto d-flex gap-1">
+                                            <button class="btn btn-sm btn-outline-secondary py-0" style="font-size:.65rem" @onclick="() => AbrirHistorialAsync(c)">Historial</button>
+                                            <button class="btn btn-sm btn-outline-primary py-0" style="font-size:.65rem" @onclick="() => AbrirEditar(c)">✎</button>
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(c.NotaCierre))
+                                    {
+                                        <div class="text-muted mt-1" style="font-size:.68rem">✔ @c.NotaCierre @(string.IsNullOrEmpty(c.CerradoPor) ? "" : $"— {c.CerradoPor}")</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(c.ObservacionSeguimiento))
+                                    {
+                                        <div class="text-muted mt-1" style="font-size:.68rem">@c.ObservacionSeguimiento</div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<!-- Modal cierre / reapertura -->
+@if (_cierre is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h6 class="modal-title">@(_cierre.Estado == EstadoCompromisoReunion.Cerrado ? "Reabrir compromiso" : "Cerrar compromiso")</h6>
+                    <button class="btn-close btn-close-white" @onclick="() => _cierre = null"></button>
+                </div>
+                <div class="modal-body small">
+                    <p>@_cierre.Texto</p>
+                    @if (_cierre.Estado != EstadoCompromisoReunion.Cerrado)
+                    {
+                        <label class="form-label small fw-semibold mb-0">Nota de cierre (evidencia)</label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_notaCierre"></textarea>
+                    }
+                    <label class="form-label small fw-semibold mb-0 mt-2">Tu nombre</label>
+                    <input class="form-control form-control-sm" @bind="_autor" />
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _cierre = null">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none" @onclick="ConfirmarCierreAsync">
+                        @(_cierre.Estado == EstadoCompromisoReunion.Cerrado ? "Reabrir" : "Cerrar compromiso")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal editar -->
+@if (_editar is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h6 class="modal-title">Editar compromiso @_editar.IdOrigen</h6>
+                    <button class="btn-close btn-close-white" @onclick="() => _editar = null"></button>
+                </div>
+                <div class="modal-body small">
+                    <p class="text-muted" style="font-size:.7rem">El texto y la asignación original del acta se conservan; aquí se gestiona el seguimiento.</p>
+                    <div class="row g-2">
+                        <div class="col-12"><label class="form-label small mb-0">Responsable principal (sin borrar los asignados: @_editar.Responsable)</label>
+                            <input class="form-control form-control-sm" @bind="_formPrincipal" /></div>
+                        <div class="col-6"><label class="form-label small mb-0">Categoría (columna del tablero)</label>
+                            <input class="form-control form-control-sm" list="areas-tablero" @bind="_formCategoria" /></div>
+                        <div class="col-6"><label class="form-label small mb-0">Tipo</label>
+                            <select class="form-select form-select-sm" @bind="_formTipo">
+                                <option value="Propio">Propio</option>
+                                <option value="Recordatorio">Recordatorio al cliente</option>
+                            </select></div>
+                        <div class="col-6"><label class="form-label small mb-0">Fecha límite (solo si hay acuerdo explícito)</label>
+                            <input type="date" class="form-control form-control-sm" @bind="_formFecha" /></div>
+                        <div class="col-6"><label class="form-label small mb-0">Estado</label>
+                            <select class="form-select form-select-sm" @bind="_formEstado">
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="EnSeguimiento">En seguimiento</option>
+                                <option value="Cerrado">Cerrado</option>
+                            </select></div>
+                        <div class="col-12"><label class="form-label small mb-0">Motivo / observación del cambio</label>
+                            <input class="form-control form-control-sm" @bind="_formMotivo" /></div>
+                        <div class="col-12"><label class="form-label small mb-0">Tu nombre</label>
+                            <input class="form-control form-control-sm" @bind="_autor" /></div>
+                    </div>
+                    <datalist id="areas-tablero">
+                        @foreach (var a in _areasTablero)
+                        {
+                            <option value="@a"></option>
+                        }
+                    </datalist>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _editar = null">Cancelar</button>
+                    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="GuardarEdicionAsync">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal historial -->
+@if (_historialDe is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h6 class="modal-title">Historial — @_historialDe.IdOrigen</h6>
+                    <button class="btn-close btn-close-white" @onclick="() => _historialDe = null"></button>
+                </div>
+                <div class="modal-body small">
+                    <p class="mb-2">@_historialDe.Texto</p>
+                    @if (_historial.Count == 0)
+                    {
+                        <p class="text-muted">Sin gestiones registradas todavía.</p>
+                    }
+                    @foreach (var h in _historial)
+                    {
+                        <div class="border-start ps-2 mb-2" style="border-color:#6ABF4B!important;border-width:3px!important">
+                            <div><strong>@h.Autor</strong> <span class="text-muted" style="font-size:.68rem">@h.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @h.Origen</span>
+                                @if (!string.IsNullOrEmpty(h.Tipo))
+                                {
+                                    <span class="badge rounded-pill ms-1" style="background:#eef1f6;color:#183963;font-size:.6rem">@h.Tipo</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(h.Observacion))
+                            {
+                                <div>@h.Observacion</div>
+                            }
+                            @if (!string.IsNullOrEmpty(h.ActaReferencia))
+                            {
+                                <div class="text-muted" style="font-size:.68rem">Acta: @h.ActaReferencia</div>
+                            }
+                        </div>
+                    }
+                    <hr />
+                    <label class="form-label small fw-semibold mb-0">Agregar actualización</label>
+                    <textarea class="form-control form-control-sm" rows="2" @bind="_nuevaObservacion" placeholder="Qué se gestionó, acuerdos, bloqueo…"></textarea>
+                    <div class="d-flex gap-2 mt-1">
+                        <input class="form-control form-control-sm" style="max-width:200px" placeholder="Tu nombre" @bind="_autor" />
+                        <input class="form-control form-control-sm" style="max-width:220px" placeholder="Acta de referencia (opcional)" @bind="_nuevaActaRef" />
+                        <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none" @onclick="AgregarActualizacionAsync">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CompromisoReunion> _todos = [];
+    private List<string> _proyectos = [];
+    private List<string> _responsables = [];
+    private static readonly string[] _areasTablero =
+        ["Por clasificar", "Administrativa", "Construcción", "Ingeniería", "O&M", "Propuestas", "Compras",
+         "Recursos Humanos", "Sistemas Integrados de Gestión", "Calidad", "Ambiental", "Seguridad"];
+
+    private string _tab = "propios";
+    private string _buscar = "";
+    private string _filtroEstado = "abiertos";
+    private string _filtroProyecto = "";
+    private string _filtroResponsable = "";
+    private string _agrupar = "area";
+
+    private string? _mensaje;
+    private bool _mensajeError;
+    private string _autor = "";
+
+    private CompromisoReunion? _cierre;
+    private string _notaCierre = "";
+    private CompromisoReunion? _editar;
+    private string? _formPrincipal, _formCategoria, _formMotivo;
+    private string _formTipo = "Propio", _formEstado = "Pendiente";
+    private DateTime? _formFecha;
+
+    private CompromisoReunion? _historialDe;
+    private sealed record EntradaHistorial(DateTime Fecha, string Autor, string? Tipo, string? Observacion, string? ActaReferencia, string Origen);
+    private List<EntradaHistorial> _historial = [];
+    private string _nuevaObservacion = "";
+    private string _nuevaActaRef = "";
+
+    private static DateTime Hoy => DateTime.UtcNow.AddHours(-5).Date;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        _autor = auth.User.Identity?.Name ?? "";
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _todos = await Db.CompromisosReunion.AsNoTracking()
+            .OrderBy(c => c.FechaLimite == null).ThenBy(c => c.FechaLimite).ThenBy(c => c.IdOrigen)
+            .ToListAsync();
+        _proyectos = _todos.Where(c => !string.IsNullOrWhiteSpace(c.ProyectoTexto)).Select(c => c.ProyectoTexto!).Distinct().OrderBy(x => x).ToList();
+        _responsables = _todos.SelectMany(c => c.Responsable.Split(['/', ';', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList();
+
+        // Última gestión por responsable (para la vista gerencial)
+        var ult = await Db.ActualizacionesCompromisoReunion.AsNoTracking()
+            .OrderByDescending(x => x.Fecha)
+            .Select(x => new { x.CompromisoReunion.Responsable, x.Fecha })
+            .Take(2000).ToListAsync();
+        _ultimas = ult
+            .SelectMany(x => x.Responsable.Split(['/', ';', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => (p: p.ToLowerInvariant(), x.Fecha)))
+            .GroupBy(x => x.p)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.Fecha).ToLocalTime().ToString("dd/MM/yyyy"));
+    }
+
+    private static bool EsPropio(CompromisoReunion c) => c.Tipo == TipoCompromisoReunion.Propio;
+    private static bool Abierto(CompromisoReunion c) => c.Estado != EstadoCompromisoReunion.Cerrado;
+
+    private static string Situacion(CompromisoReunion c) =>
+        c.Estado == EstadoCompromisoReunion.Cerrado ? "cerr"
+        : c.FechaLimite is null ? "sinfecha"
+        : c.FechaLimite.Value.Date < Hoy ? "venc"
+        : c.FechaLimite.Value.Date <= Hoy.AddDays(7) ? "prox" : "ok";
+
+    private static string ColorSituacion(string s) => s switch
+    {
+        "venc" => "#B3261E",
+        "prox" => "#B97A0E",
+        "cerr" => "#9aa0a6",
+        "sinfecha" => "#6c757d",
+        _ => "#6ABF4B"
+    };
+
+    private IEnumerable<CompromisoReunion> Filtrados(bool recordatorios)
+    {
+        var q = _todos.Where(c => EsPropio(c) != recordatorios);
+        q = _filtroEstado switch
+        {
+            "todos" => q,
+            "vencidos" => q.Where(c => Situacion(c) == "venc"),
+            "proximos" => q.Where(c => Situacion(c) == "prox"),
+            "sinfecha" => q.Where(c => Abierto(c) && c.FechaLimite is null),
+            "pendiente" => q.Where(c => c.Estado == EstadoCompromisoReunion.Pendiente),
+            "seguimiento" => q.Where(c => c.Estado == EstadoCompromisoReunion.EnSeguimiento),
+            "cerrados" => q.Where(c => c.Estado == EstadoCompromisoReunion.Cerrado),
+            _ => q.Where(Abierto)
+        };
+        if (_filtroProyecto == "(general)") q = q.Where(c => string.IsNullOrWhiteSpace(c.ProyectoTexto));
+        else if (_filtroProyecto.Length > 0) q = q.Where(c => c.ProyectoTexto == _filtroProyecto);
+        if (_filtroResponsable.Length > 0) q = q.Where(c => c.Responsable.Contains(_filtroResponsable, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(_buscar))
+        {
+            var b = _buscar.Trim();
+            q = q.Where(c => (c.Texto + " " + c.Responsable + " " + c.Empresa + " " + c.IdOrigen + " " + c.ProyectoTexto + " " + c.Categoria)
+                .Contains(b, StringComparison.OrdinalIgnoreCase));
+        }
+        // Orden: vencidos → próximos → ok → sin fecha → cerrados
+        return q.OrderBy(c => Situacion(c) switch { "venc" => 0, "prox" => 1, "ok" => 2, "sinfecha" => 3, _ => 4 })
+                .ThenBy(c => c.FechaLimite ?? DateTime.MaxValue);
+    }
+
+    private IEnumerable<IGrouping<string, CompromisoReunion>> Agrupados(List<CompromisoReunion> lista) => _agrupar switch
+    {
+        "persona" => lista.SelectMany(c => c.Responsable
+                .Split(['/', ';', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .DefaultIfEmpty("Por confirmar").Select(p => (Persona: p, Comp: c)))
+            .GroupBy(x => x.Persona, x => x.Comp, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key),
+        "proyecto" => lista.GroupBy(c => string.IsNullOrWhiteSpace(c.ProyectoTexto) ? "General Renergeia" : c.ProyectoTexto!).OrderBy(g => g.Key),
+        _ => lista.GroupBy(c => string.IsNullOrWhiteSpace(c.Categoria) ? "Por clasificar" : c.Categoria!)
+                  .OrderBy(g => Array.IndexOf(_areasTablero, g.Key) is var i && i >= 0 ? i : 99).ThenBy(g => g.Key)
+    };
+
+    private sealed record FilaGerencial(string Responsable, int Abiertos, int Vencidos, int Proximos, string Urgente, string UltimaGestion, string Bloqueo);
+
+    private List<FilaGerencial> Gerencial()
+    {
+        var abiertos = _todos.Where(Abierto).ToList();
+        return abiertos
+            .SelectMany(c => c.Responsable.Split(['/', ';', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .DefaultIfEmpty("Por confirmar").Select(p => (Persona: p, Comp: c)))
+            .GroupBy(x => x.Persona, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var comps = g.Select(x => x.Comp).Distinct().ToList();
+                var urgente = comps.OrderBy(c => c.FechaLimite ?? DateTime.MaxValue).First();
+                var ultima = _ultimas.TryGetValue(g.Key.ToLowerInvariant(), out var u) ? u : "—";
+                var bloqueos = comps.Count(c => c.RequiereConfirmacion);
+                return new FilaGerencial(g.Key, comps.Count,
+                    comps.Count(c => Situacion(c) == "venc"), comps.Count(c => Situacion(c) == "prox"),
+                    $"{urgente.Texto} ({(urgente.FechaLimite?.ToString("dd/MM/yyyy") ?? urgente.FechaTexto ?? "sin fecha")})",
+                    ultima, bloqueos > 0 ? $"{bloqueos} por aclarar" : "—");
+            })
+            .OrderByDescending(f => f.Vencidos).ThenByDescending(f => f.Abiertos)
+            .ToList();
+    }
+
+    private Dictionary<string, string> _ultimas = [];
+
+    // ── Cierre / reapertura ─────────────────────────────────────────────────
+    private void AbrirCierre(CompromisoReunion c)
+    {
+        _cierre = c;
+        _notaCierre = c.NotaCierre ?? "";
+    }
+
+    private async Task ConfirmarCierreAsync()
+    {
+        if (_cierre is null) return;
+        if (string.IsNullOrWhiteSpace(_autor)) { _mensaje = "Escribe tu nombre para registrar la gestión."; _mensajeError = true; return; }
+        var c = await Db.CompromisosReunion.FirstOrDefaultAsync(x => x.Id == _cierre.Id);
+        if (c is null) { _mensaje = "El compromiso ya no existe (pudo revertirse una importación). Recarga la página."; _mensajeError = true; _cierre = null; return; }
+        var reabrir = c.Estado == EstadoCompromisoReunion.Cerrado;
+        var anterior = c.Estado;
+        if (reabrir)
+        {
+            c.Estado = EstadoCompromisoReunion.Pendiente;
+            c.NotaCierre = null; c.CerradoPor = null; c.CerradoEl = null;
+        }
+        else
+        {
+            c.Estado = EstadoCompromisoReunion.Cerrado;
+            c.NotaCierre = _notaCierre;
+            c.CerradoPor = _autor;
+            c.CerradoEl = DateTime.UtcNow;
+        }
+        c.EditadoPor = _autor; c.EditadoEl = DateTime.UtcNow;
+        Db.ActualizacionesCompromisoReunion.Add(new ActualizacionCompromisoReunion
+        {
+            CompromisoReunionId = c.Id, Fecha = DateTime.UtcNow, Autor = _autor,
+            TipoActualizacion = reabrir ? "reapertura" : "cierre_confirmado",
+            EstadoAnterior = anterior.ToString(), EstadoNuevo = c.Estado.ToString(),
+            Observacion = reabrir ? "Compromiso reabierto." : _notaCierre, Origen = "Web"
+        });
+        await Db.SaveChangesAsync();
+        _cierre = null;
+        _mensaje = reabrir ? "Compromiso reabierto." : "Compromiso cerrado con su nota de evidencia.";
+        _mensajeError = false;
+        await CargarAsync();
+    }
+
+    // ── Edición ─────────────────────────────────────────────────────────────
+    private void AbrirEditar(CompromisoReunion c)
+    {
+        _editar = c;
+        _formPrincipal = c.ResponsablePrincipal;
+        _formCategoria = c.Categoria;
+        _formTipo = c.Tipo.ToString();
+        _formEstado = c.Estado.ToString();
+        _formFecha = c.FechaLimite;
+        _formMotivo = null;
+    }
+
+    private async Task GuardarEdicionAsync()
+    {
+        if (_editar is null) return;
+        if (string.IsNullOrWhiteSpace(_autor)) { _mensaje = "Escribe tu nombre para registrar la gestión."; _mensajeError = true; return; }
+        var c = await Db.CompromisosReunion.FirstOrDefaultAsync(x => x.Id == _editar.Id);
+        if (c is null) { _mensaje = "El compromiso ya no existe (pudo revertirse una importación). Recarga la página."; _mensajeError = true; _editar = null; return; }
+        var cambios = new List<string>();
+        if (c.ResponsablePrincipal != _formPrincipal) { cambios.Add($"responsable principal: {c.ResponsablePrincipal ?? "—"} → {_formPrincipal ?? "—"}"); c.ResponsablePrincipal = _formPrincipal; }
+        if (c.Categoria != _formCategoria) { cambios.Add($"categoría: {c.Categoria} → {_formCategoria}"); c.Categoria = _formCategoria; }
+        if (Enum.TryParse<TipoCompromisoReunion>(_formTipo, out var tipo) && c.Tipo != tipo) { cambios.Add($"tipo: {c.Tipo} → {tipo}"); c.Tipo = tipo; }
+        if (c.FechaLimite != _formFecha)
+        {
+            if (string.IsNullOrWhiteSpace(_formMotivo)) { _mensaje = "Cambiar la fecha límite requiere el motivo (acuerdo explícito)."; _mensajeError = true; return; }
+            cambios.Add($"fecha límite: {c.FechaLimite:dd/MM/yyyy} → {_formFecha:dd/MM/yyyy}");
+            c.FechaLimite = _formFecha;
+        }
+        var anterior = c.Estado;
+        if (Enum.TryParse<EstadoCompromisoReunion>(_formEstado, out var est) && c.Estado != est)
+        {
+            cambios.Add($"estado: {anterior} → {est}");
+            c.Estado = est;
+            if (est == EstadoCompromisoReunion.Cerrado) { c.CerradoPor = _autor; c.CerradoEl = DateTime.UtcNow; }
+            else { c.NotaCierre = null; c.CerradoPor = null; c.CerradoEl = null; }
+        }
+        if (cambios.Count == 0) { _editar = null; return; }
+        c.EditadoPor = _autor; c.EditadoEl = DateTime.UtcNow;
+        Db.ActualizacionesCompromisoReunion.Add(new ActualizacionCompromisoReunion
+        {
+            CompromisoReunionId = c.Id, Fecha = DateTime.UtcNow, Autor = _autor, TipoActualizacion = "edicion",
+            EstadoAnterior = anterior.ToString(), EstadoNuevo = c.Estado.ToString(),
+            Observacion = (_formMotivo is null ? "" : _formMotivo + " · ") + string.Join("; ", cambios), Origen = "Web"
+        });
+        await Db.SaveChangesAsync();
+        _editar = null;
+        _mensaje = "Compromiso actualizado (quedó en el historial).";
+        _mensajeError = false;
+        await CargarAsync();
+    }
+
+    // ── Historial ───────────────────────────────────────────────────────────
+    private async Task AbrirHistorialAsync(CompromisoReunion c)
+    {
+        _historialDe = c;
+        _nuevaObservacion = ""; _nuevaActaRef = "";
+        var propias = await Db.ActualizacionesCompromisoReunion.AsNoTracking()
+            .Where(x => x.CompromisoReunionId == c.Id)
+            .Select(x => new EntradaHistorial(x.Fecha, x.Autor, x.TipoActualizacion, x.Observacion, x.ActaReferencia, x.Origen))
+            .ToListAsync();
+        propias.AddRange(LeerHistorialImportado(c.HistorialJson));
+        _historial = propias.OrderBy(h => h.Fecha).ToList();
+    }
+
+    private static IEnumerable<EntradaHistorial> LeerHistorialImportado(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) yield break;
+        List<EntradaHistorial> lista = [];
+        try
+        {
+            using var d = JsonDocument.Parse(json);
+            foreach (var e in d.RootElement.EnumerateArray())
+            {
+                DateTime.TryParse(P(e, "fecha"), out var f);
+                lista.Add(new EntradaHistorial(f == default ? DateTime.MinValue : f, P(e, "autor") ?? "Sistema anterior",
+                    P(e, "tipo") ?? P(e, "estado"), P(e, "observacion"), P(e, "acta") ?? P(e, "actas"), "Migracion"));
+            }
+        }
+        catch { }
+        foreach (var x in lista) yield return x;
+    }
+
+    private static string? P(JsonElement e, string n) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private async Task AgregarActualizacionAsync()
+    {
+        if (_historialDe is null || string.IsNullOrWhiteSpace(_nuevaObservacion)) return;
+        if (string.IsNullOrWhiteSpace(_autor)) { _mensaje = "Escribe tu nombre para registrar la gestión."; _mensajeError = true; return; }
+        Db.ActualizacionesCompromisoReunion.Add(new ActualizacionCompromisoReunion
+        {
+            CompromisoReunionId = _historialDe.Id, Fecha = DateTime.UtcNow, Autor = _autor,
+            TipoActualizacion = "avance", Observacion = _nuevaObservacion,
+            ActaReferencia = string.IsNullOrWhiteSpace(_nuevaActaRef) ? null : _nuevaActaRef.Trim().ToUpperInvariant(),
+            Origen = "Web"
+        });
+        await Db.SaveChangesAsync();
+        await AbrirHistorialAsync(_historialDe);
+        _mensaje = null;
+    }
+}

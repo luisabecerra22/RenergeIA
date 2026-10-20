@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RenergeIA.Core.Entities;
+using RenergeIA.Core.Entities.Helvis;
 using RenergeIA.Core.Entities.HSEQ;
 using RenergeIA.Infrastructure.Identity;
 
@@ -13,6 +14,12 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public RenergeIADbContext(DbContextOptions<RenergeIADbContext> options) : base(options) { }
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    // Helvis — asistente de WhatsApp
+    public DbSet<ContactoHelvis> ContactosHelvis => Set<ContactoHelvis>();
+    public DbSet<ContactoHelvisProyecto> ContactoHelvisProyectos => Set<ContactoHelvisProyecto>();
+    public DbSet<MensajeHelvis> MensajesHelvis => Set<MensajeHelvis>();
+    public DbSet<AsignacionHelvis> AsignacionesHelvis => Set<AsignacionHelvis>();
 
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<CronogramaVersion> CronogramasVersion => Set<CronogramaVersion>();
@@ -33,6 +40,14 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
     public DbSet<CorteFlujoTesoreria> CortesFlujoTesoreria => Set<CorteFlujoTesoreria>();
+    public DbSet<ActaReunion> ActasReunion => Set<ActaReunion>();
+    public DbSet<CompromisoReunion> CompromisosReunion => Set<CompromisoReunion>();
+    public DbSet<ActualizacionCompromisoReunion> ActualizacionesCompromisoReunion => Set<ActualizacionCompromisoReunion>();
+    public DbSet<ComentarioActaReunion> ComentariosActaReunion => Set<ComentarioActaReunion>();
+    public DbSet<ArchivoActaReunion> ArchivosActaReunion => Set<ArchivoActaReunion>();
+    public DbSet<RegistroSeguimientoActa> RegistrosSeguimientoActa => Set<RegistroSeguimientoActa>();
+    public DbSet<ProyectoActa> ProyectosActa => Set<ProyectoActa>();
+    public DbSet<LoteImportacionActas> LotesImportacionActas => Set<LoteImportacionActas>();
     public DbSet<PuntoCurvaReal> PuntosCurvaReal => Set<PuntoCurvaReal>();
     public DbSet<CategoriaCurvaS> CategoriasCurvaS => Set<CategoriaCurvaS>();
     public DbSet<ComentarioDisciplinaInforme> ComentariosDisciplinaInforme => Set<ComentarioDisciplinaInforme>();
@@ -267,6 +282,114 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ── Módulo Compromisos (actas de reunión) ────────────────────────────
+        modelBuilder.Entity<ActaReunion>(e =>
+        {
+            e.ToTable("ActasReunion");
+            e.Property(x => x.Codigo).HasMaxLength(150);
+            e.HasIndex(x => x.Codigo).IsUnique();
+            e.Property(x => x.Estado).HasConversion<int>();
+            e.Property(x => x.FechaTexto).HasMaxLength(200);
+            e.Property(x => x.ProyectoTexto).HasMaxLength(300);
+            e.Property(x => x.Area).HasMaxLength(50);
+            e.Property(x => x.Asunto).HasMaxLength(500);
+            e.Property(x => x.Modalidad).HasMaxLength(150);
+            e.Property(x => x.Hora).HasMaxLength(150);
+            e.Property(x => x.ActaAnteriorCodigo).HasMaxLength(150);
+            e.Property(x => x.FuenteUrl).HasMaxLength(600);
+            e.Property(x => x.Origen).HasMaxLength(20);
+            e.Property(x => x.Eliminado).HasDefaultValue(false);
+            e.HasQueryFilter(x => !x.Eliminado);
+            e.HasOne(x => x.ProyectoActa).WithMany().HasForeignKey(x => x.ProyectoActaId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CompromisoReunion>(e =>
+        {
+            e.ToTable("CompromisosReunion");
+            e.Property(x => x.IdOrigen).HasMaxLength(170);
+            e.HasIndex(x => x.IdOrigen).IsUnique();
+            e.Property(x => x.Estado).HasConversion<int>();
+            e.Property(x => x.Tipo).HasConversion<int>();
+            e.Property(x => x.Texto).HasMaxLength(3000);
+            e.Property(x => x.Responsable).HasMaxLength(400);
+            e.Property(x => x.ResponsablePrincipal).HasMaxLength(200);
+            e.Property(x => x.Empresa).HasMaxLength(200);
+            e.Property(x => x.FechaTexto).HasMaxLength(400);
+            e.Property(x => x.Categoria).HasMaxLength(100);
+            e.Property(x => x.NotaCierre).HasMaxLength(2000);
+            e.Property(x => x.CerradoPor).HasMaxLength(200);
+            e.Property(x => x.ObservacionSeguimiento).HasMaxLength(2000);
+            e.Property(x => x.ContinuidadDeOrigen).HasMaxLength(170);
+            e.Property(x => x.ProyectoTexto).HasMaxLength(300);
+            e.Property(x => x.Area).HasMaxLength(50);
+            e.Property(x => x.EditadoPor).HasMaxLength(200);
+            e.Property(x => x.Eliminado).HasDefaultValue(false);
+            e.HasQueryFilter(x => !x.Eliminado);
+            e.HasOne(x => x.ActaReunion).WithMany(a => a.Compromisos).HasForeignKey(x => x.ActaReunionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.ContinuidadDe).WithMany().HasForeignKey(x => x.ContinuidadDeId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ActualizacionCompromisoReunion>(e =>
+        {
+            e.ToTable("ActualizacionesCompromisoReunion");
+            e.Property(x => x.Autor).HasMaxLength(200);
+            e.Property(x => x.TipoActualizacion).HasMaxLength(50);
+            e.Property(x => x.EstadoAnterior).HasMaxLength(30);
+            e.Property(x => x.EstadoNuevo).HasMaxLength(30);
+            e.Property(x => x.Observacion).HasMaxLength(3000);
+            e.Property(x => x.ActaReferencia).HasMaxLength(150);
+            e.Property(x => x.Origen).HasMaxLength(20);
+            e.HasOne(x => x.CompromisoReunion).WithMany(c => c.Actualizaciones).HasForeignKey(x => x.CompromisoReunionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ComentarioActaReunion>(e =>
+        {
+            e.ToTable("ComentariosActaReunion");
+            e.Property(x => x.Texto).HasMaxLength(3000);
+            e.Property(x => x.Autor).HasMaxLength(200);
+            e.Property(x => x.AtendidoPor).HasMaxLength(200);
+            e.Property(x => x.IdOrigen).HasMaxLength(100);
+            e.HasOne(x => x.ActaReunion).WithMany(a => a.Comentarios).HasForeignKey(x => x.ActaReunionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ArchivoActaReunion>(e =>
+        {
+            e.ToTable("ArchivosActaReunion");
+            e.Property(x => x.Tipo).HasConversion<int>();
+            e.Property(x => x.Filename).HasMaxLength(300);
+            e.HasIndex(x => new { x.ActaReunionId, x.Tipo }).IsUnique();
+            e.HasOne(x => x.ActaReunion).WithMany(a => a.Archivos).HasForeignKey(x => x.ActaReunionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RegistroSeguimientoActa>(e =>
+        {
+            e.ToTable("RegistrosSeguimientoActa");
+            e.Property(x => x.IdOrigen).HasMaxLength(150);
+            e.HasIndex(x => x.IdOrigen).IsUnique();
+            e.Property(x => x.ProyectoTexto).HasMaxLength(300);
+            e.Property(x => x.Tema).HasMaxLength(600);
+            e.Property(x => x.Accion).HasMaxLength(2000);
+            e.Property(x => x.EstadoRegistro).HasMaxLength(100);
+            e.Property(x => x.Evidencia).HasMaxLength(2000);
+            e.Property(x => x.ConfirmadoPor).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<ProyectoActa>(e =>
+        {
+            e.ToTable("ProyectosActa");
+            e.Property(x => x.Nombre).HasMaxLength(200);
+            e.Property(x => x.Codigo).HasMaxLength(50);
+            e.Property(x => x.IdOrigen).HasMaxLength(100);
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<LoteImportacionActas>(e =>
+        {
+            e.ToTable("LotesImportacionActas");
+            e.Property(x => x.Archivo).HasMaxLength(300);
+            e.Property(x => x.Usuario).HasMaxLength(200);
+        });
+
         // CorteFlujoTesoreria — copia del flujo semanal de cada importación de tesorería
         modelBuilder.Entity<CorteFlujoTesoreria>(e =>
         {
@@ -276,6 +399,51 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(x => x.PagosUSD).HasColumnType("decimal(18,2)");
             e.HasIndex(x => new { x.ProyectoId, x.FechaCorte, x.Semana }).IsUnique();
             e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ===== Helvis (asistente de WhatsApp) =====
+        modelBuilder.Entity<ContactoHelvis>(e =>
+        {
+            e.ToTable("ContactosHelvis");
+            e.Property(x => x.Nombre).HasMaxLength(150);
+            e.Property(x => x.Telefono).HasMaxLength(20);
+            e.Property(x => x.Cargo).HasMaxLength(100);
+            e.Property(x => x.Email).HasMaxLength(150);
+            e.Property(x => x.MotivoPausa).HasMaxLength(300);
+            e.Property(x => x.Notas).HasMaxLength(1000);
+            e.HasIndex(x => x.Telefono).IsUnique();
+        });
+
+        modelBuilder.Entity<ContactoHelvisProyecto>(e =>
+        {
+            e.ToTable("ContactoHelvisProyectos");
+            e.HasIndex(x => new { x.ContactoHelvisId, x.ProyectoId }).IsUnique();
+            e.HasOne(x => x.Contacto).WithMany(c => c.Proyectos).HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MensajeHelvis>(e =>
+        {
+            e.ToTable("MensajesHelvis");
+            e.Property(x => x.Telefono).HasMaxLength(20);
+            e.Property(x => x.WaMessageId).HasMaxLength(128);
+            e.Property(x => x.Tipo).HasMaxLength(30);
+            e.Property(x => x.OpcionId).HasMaxLength(64);
+            e.Property(x => x.Estado).HasMaxLength(20);
+            e.Property(x => x.DetalleError).HasMaxLength(1000);
+            e.HasIndex(x => x.WaMessageId).IsUnique().HasFilter("\"WaMessageId\" IS NOT NULL");
+            e.HasIndex(x => new { x.Telefono, x.FechaCreacion });
+            e.HasOne(x => x.Contacto).WithMany().HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AsignacionHelvis>(e =>
+        {
+            e.ToTable("AsignacionesHelvis");
+            e.Property(x => x.Frente).HasMaxLength(100);
+            e.Property(x => x.Notas).HasMaxLength(500);
+            e.HasIndex(x => new { x.ContactoHelvisId, x.ActividadWBSId }).IsUnique();
+            e.HasOne(x => x.Contacto).WithMany().HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Actividad).WithMany().HasForeignKey(x => x.ActividadWBSId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // PersonalHistogramaMes
