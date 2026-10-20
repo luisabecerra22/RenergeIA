@@ -2432,6 +2432,49 @@ Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nu
 - En un **PC de escritorio sin Windows Hello** a veces no se ofrece la opción → hacerlo desde la **app de Instagram/Facebook en el celular** (tiene sensor biométrico).
 - **Cada usuario del portfolio** (Marcela, Diana, etc.) debe crear su propia passkey si va a administrar.
 
+### Conexión realizada (octubre 2026) — paso a paso y datos definitivos
+
+**Identificadores (no secretos — los secretos nunca van en este repo, que es público):**
+
+| Activo | Valor |
+|---|---|
+| App de Meta | "Bot Renergeia" — **App ID `1867947977538846`** |
+| Cuenta de WhatsApp (WABA) | **`1571718120841130`** |
+| Número (de PRUEBA) | +1 555-305-7165 — **Phone Number ID `1384862258040037`** |
+| Usuario del sistema | "Bot Proyectos Renergeia" — `61595076063172` |
+| Portfolio comercial | Renergeia Group — `2239149336895790` |
+
+⚠ **Gotcha que costó días:** el App ID se transcribió mal desde un pantallazo del Business Manager (`…797…` en vez de `…977…`) y todos los comandos daban `Invalid Client ID` / error 190 como si la app no existiera. **Los IDs se confirman SIEMPRE por copiar/pegar**, nunca leídos de una captura. El WABA ID se obtiene fácil: en *Business Settings → Cuentas de WhatsApp*, al seleccionar la cuenta, la URL del navegador trae `selected_asset_id=<WABA_ID>`.
+
+**Limitación de la cuenta:** la cuenta de la usuaria es de **solo-negocio** y no puede entrar a developers.facebook.com (`out_of_scope_redirect` / "No tienes acceso"). La App la creó **btodigital (Carlos Betancur)** con su Facebook personal; el App Secret y las pantallas del portal (API Setup, lista de números de prueba) son de ellos. **Pero el webhook NO necesitó el portal: se configuró por Graph API.**
+
+**Pasos ejecutados (todos respondieron `{"success":true}`):**
+
+1. **Usuario del sistema** (*Business Settings → Usuarios → Usuarios del sistema*): creado con acceso de Admin y con estos activos asignados en control total: la App, la cuenta de WhatsApp y la Messaging account.
+2. **Token permanente**: *Generar token* → App "Bot Renergeia" → caducidad **Nunca** → permisos `whatsapp_business_messaging` + `whatsapp_business_management` (se muestra una sola vez; guardarlo en lugar seguro).
+3. **Variables en Cloud Run** (las carga la usuaria desde SU terminal porque llevan secretos; el clasificador bloquea al agente):
+   ```bash
+   gcloud run services update renergeia-web --region us-central1 --project renergeia-app --update-env-vars WhatsApp__VerifyToken=...,WhatsApp__AppSecret=...,WhatsApp__AccessToken=...,WhatsApp__PhoneNumberId=1384862258040037
+   ```
+   Usar **`--update-env-vars`** (nunca `--set-env-vars`, que borra las demás). Armar el comando en el **Bloc de notas**: los dos errores reales fueron (a) pegar los placeholders literales (`TU_VERIFY_TOKEN`…) y (b) arrastrar texto pegado después del token → "Malformed access token".
+4. **Webhook de la App por Graph API** (equivale a la pantalla WhatsApp → Configuración → Webhook del portal; exige el *app token* `APP_ID|APP_SECRET`, no sirve el token del usuario del sistema):
+   ```bash
+   curl -X POST "https://graph.facebook.com/v21.0/1867947977538846/subscriptions" -d "object=whatsapp_business_account" -d "callback_url=https://renergeia-web-577313322290.us-central1.run.app/api/whatsapp" -d "verify_token=<VERIFY_TOKEN>" -d "fields=messages" -d "access_token=1867947977538846|<APP_SECRET>"
+   ```
+   Al ejecutarlo, Meta hace el GET de verificación contra el servidor (que ya debe tener cargado el MISMO verify token) y devuelve `success:true`.
+5. **Suscribir la cuenta (WABA) a la App** (este endpoint es al revés: NO acepta app token; va con el token del usuario del sistema):
+   ```bash
+   curl -X POST "https://graph.facebook.com/v21.0/1571718120841130/subscribed_apps" -d "access_token=<ACCESS_TOKEN>"
+   ```
+
+**Diagnóstico sin tocar secretos:** `GET /api/whatsapp?hub.mode=subscribe&hub.verify_token=cualquiera` → **403** = endpoint vivo y verify token cargado (**503** = falta el verify token). Mensajes entrantes: `gcloud logging read '… httpRequest.requestUrl:"/api/whatsapp"'` y buscar **POST** (los GET son solo verificaciones).
+
+**Pendiente al 2026-10-19:**
+
+- El número de PRUEBA **descarta en silencio** los mensajes de celulares que no estén en su **lista de prueba** (máx. 5 números verificados con código). Esa lista vive en el portal (*API Setup → campo "Para" → administrar lista*) → la maneja **btodigital**: falta que agreguen el celular de la usuaria y repetir la prueba ("hola" al +1 555 → el bot debe responder su menú).
+- **Rotación del token**: el primer AccessToken quedó expuesto en un mensaje de error de Meta; ya se generó y cargó uno nuevo (revisión `renergeia-web-00193`), pero al cerrar conviene *Revocar tokens* (**ojo: revoca TODOS, incluido el vigente**) → generar el definitivo → recargar la env var.
+- **Producción**: agregar un **número REAL** en *Business Settings → Cuentas de WhatsApp → Agregar* (eso SÍ puede hacerlo la usuaria, sin portal); con número real desaparece la lista de prueba y cualquier persona puede escribirle al bot.
+
 ### Cómo probar el webhook sin base de datos
 
 En este equipo `dotnet` no está en el PATH (vive en `C:\Users\Luisa Becerra\.dotnet\dotnet.exe`) y no hay PostgreSQL local, así que la app completa no corre aquí. Para probar solo el webhook se levanta un `.csproj` temporal en el scratchpad que enlaza esos `.cs` con `<Compile Include>` y se prueba con `curl` + `openssl dgst -sha256 -hmac`. Cualquier cambio al webhook debe conservar la validación de firma, el dedupe y el 200 siempre.
