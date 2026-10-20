@@ -2477,11 +2477,17 @@ Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nu
 
 **Diagnóstico sin tocar secretos:** `GET /api/whatsapp?hub.mode=subscribe&hub.verify_token=cualquiera` → **403** = endpoint vivo y verify token cargado (**503** = falta el verify token). Mensajes entrantes: `gcloud logging read '… httpRequest.requestUrl:"/api/whatsapp"'` y buscar **POST** (los GET son solo verificaciones).
 
-**Pendiente al 2026-10-19:**
+**Estado final (2026-10-20): ✅ FUNCIONANDO DE PUNTA A PUNTA.**
 
-- El número de PRUEBA **descarta en silencio** los mensajes de celulares que no estén en su **lista de prueba** (máx. 5 números verificados con código). Esa lista vive en el portal (*API Setup → campo "Para" → administrar lista*) → la maneja **btodigital**: falta que agreguen el celular de la usuaria y repetir la prueba ("hola" al +1 555 → el bot debe responder su menú).
-- **Rotación del token**: el primer AccessToken quedó expuesto en un mensaje de error de Meta; ya se generó y cargó uno nuevo (revisión `renergeia-web-00193`), pero al cerrar conviene *Revocar tokens* (**ojo: revoca TODOS, incluido el vigente**) → generar el definitivo → recargar la env var.
-- **Producción**: agregar un **número REAL** en *Business Settings → Cuentas de WhatsApp → Agregar* (eso SÍ puede hacerlo la usuaria, sin portal); con número real desaparece la lista de prueba y cualquier persona puede escribirle al bot.
+- La **lista de números de prueba** quedó resuelta: btodigital agregó el celular de la usuaria en *API Setup → campo "Para"* (el nº de PRUEBA **descarta en silencio** los mensajes de celulares fuera de esa lista, máx. 5 verificados — por eso los primeros "hola" nunca llegaban al servidor).
+- El **token definitivo** quedó rotado y cargado: *Revocar tokens* (mata TODOS, incluido uno que se había expuesto) → *Generar token* (caducidad Nunca, permisos `whatsapp_business_messaging` + `whatsapp_business_management`) → recargar `WhatsApp__AccessToken` con `gcloud run services update … --update-env-vars`.
+- **Prueba final superada**: "hola" al +1 555 → POSTs 200 de Meta en el servidor → **el bot respondió su menú en el WhatsApp de la usuaria**. (Un envío del bot genera además POSTs de estado enviado/entregado.)
+- **Gotcha de operación**: un token revocado se manifiesta como `error 401 "Authentication Error" (code 190)` en los logs del `WhatsAppClient` **al enviar** — el webhook sigue recibiendo bien porque recibir no usa el token. Si el bot deja de responder pero los POST llegan, sospechar primero del token.
+
+**Pendiente para producción:**
+
+- Agregar un **número REAL** en *Business Settings → Cuentas de WhatsApp → Agregar* (lo puede hacer la usuaria, sin portal); con número real desaparece la lista de prueba y cualquier persona puede escribirle al bot.
+- Crear **plantillas aprobadas** para poder escribirle a la gente fuera de la ventana de 24 h.
 
 ### Cómo probar el webhook sin base de datos
 
