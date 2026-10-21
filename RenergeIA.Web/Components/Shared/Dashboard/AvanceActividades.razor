@@ -1,0 +1,343 @@
+@* Avance por actividad a cualquier semana (pasada, actual o futura): misma lógica de la Curva S.
+   Un solo filtro por área (disciplina); el responsable del área sale de Documentos → Responsables por área. *@
+@inject InformeDiarioService InformeSvc
+@inject RenergeIADbContext Db
+@using System.Globalization
+
+<style>
+    .aa-chip { padding:3px 11px;border-radius:6px;border:1px solid #c9ced6;font-size:0.76rem;background:white;color:#111921 }
+    .aa-chip.on { background:#183963;color:white;border-color:#183963 }
+    .aa-pill { display:inline-block;border-radius:12px;padding:2px 9px;font-size:0.7rem;font-weight:600;white-space:nowrap }
+    .aa-track { position:relative;height:14px }
+    .aa-mini { display:inline-block;width:56px;height:7px;border-radius:2px;background:#eceeef;overflow:hidden;vertical-align:middle;margin-right:4px }
+    .aa-mini > span { display:block;height:100% }
+</style>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <strong>Avance por actividad</strong>
+        <span class="text-muted" style="font-size:.75rem">Clic en la Curva S o use las flechas para ver otra semana</span>
+    </div>
+    <div class="card-body">
+        @if (_cargando)
+        {
+            <div class="text-muted" style="font-size:.85rem"><span class="spinner-border spinner-border-sm me-2"></span>Calculando avance por actividad…</div>
+        }
+        else if (_acts.Count == 0)
+        {
+            <p class="text-muted mb-0">El cronograma vigente no tiene actividades.</p>
+        }
+        else
+        {
+            <!-- Selector de semana -->
+            <div class="d-flex align-items-center gap-2 flex-wrap p-2 mb-3" style="background:#f4f6f8;border-radius:8px">
+                <i class="bi bi-calendar-week" style="color:#183963;font-size:1.1rem"></i>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => IrSemana(_semana - 1)" title="Semana anterior"><i class="bi bi-chevron-left"></i></button>
+                <input type="range" class="form-range" style="flex:1;min-width:140px" min="0" max="@_totalSemanas" step="1" value="@_semana" @onchange="CambiarRango" />
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => IrSemana(_semana + 1)" title="Semana siguiente"><i class="bi bi-chevron-right"></i></button>
+                <button class="btn btn-sm" style="border:1px solid #dc3545;color:#dc3545" @onclick="IrHoy">Hoy</button>
+                <div style="min-width:220px">
+                    <div style="font-weight:700;font-size:.82rem">Semana del @Lunes.ToString("dd/MM/yy") al @Lunes.AddDays(6).ToString("dd/MM/yy")</div>
+                    @if (_semana == _semanaHoy)
+                    {
+                        <span class="aa-pill" style="background:#f8d7da;color:#a52834">Semana actual · hoy @_hoy.ToString("dd/MM/yyyy")</span>
+                    }
+                    else if (EsFutura)
+                    {
+                        <span class="aa-pill" style="background:#e3ecf7;color:#183963">Futura · faltan @(_semana - _semanaHoy) semanas</span>
+                    }
+                    else
+                    {
+                        <span class="aa-pill" style="background:#eceeef;color:#5f6b7a">Pasada · hace @(_semanaHoy - _semana) semanas</span>
+                    }
+                </div>
+            </div>
+
+            <!-- Filtro por área -->
+            <div class="d-flex gap-2 flex-wrap mb-2">
+                <button class="aa-chip @(_area is null ? "on" : "")" @onclick="() => _area = null">Todas las áreas</button>
+                @foreach (var d in Areas)
+                {
+                    <button class="aa-chip @(_area == d ? "on" : "")" @onclick="() => _area = d">@NombreArea(d)</button>
+                }
+            </div>
+            @if (_area is { } areaSel)
+            {
+                <div style="font-size:.8rem;color:#5f6b7a" class="mb-2"><i class="bi bi-person me-1"></i>Responsable del área: <strong style="color:#111921">@Responsable(areaSel)</strong></div>
+            }
+
+            var lista = Visibles;
+            var (pProg, pReal) = Ponderado(lista);
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2" style="font-size:.8rem">
+                @if (EsFutura)
+                {
+                    <span class="text-muted">Programado a esa fecha: <strong style="color:#111921">@Pct(pProg)</strong> · el avance real aún no existe (fecha futura)</span>
+                }
+                else
+                {
+                    <span class="text-muted">Programado <strong style="color:#111921">@Pct(pProg)</strong> · Real <strong style="color:#111921">@Pct(pReal ?? 0)</strong></span>
+                    <span class="aa-pill" style="background:#e6f4e0;color:#3d7a28">@lista.Count(a => a.Real >= 100) terminadas</span>
+                    <span class="aa-pill" style="background:#fff3cd;color:#856404">@lista.Count(a => a.Real is > 0 and < 100) en ejecución</span>
+                    <span class="aa-pill" style="background:#eceeef;color:#5f6b7a">@lista.Count(a => (a.Real ?? 0) == 0) sin iniciar</span>
+                    <span class="aa-pill" style="background:#f8d7da;color:#a52834">@lista.Count(a => a.Real < 100 && a.Real - a.Programado < -5) atrasadas</span>
+                }
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm mb-1" style="font-size:.78rem">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:62px">Código</th>
+                            <th>Actividad</th>
+                            <th style="width:48px;text-align:right">Prog.</th>
+                            <th style="width:110px">Real</th>
+                            <th style="width:70px;text-align:right">Brecha</th>
+                            <th style="width:96px">Estado</th>
+                            <th style="min-width:260px;width:34%">
+                                <div class="aa-track" style="height:18px">
+                                    @foreach (var (pos, txt) in Meses)
+                                    {
+                                        <span style="position:absolute;left:@Css(pos)%;transform:translateX(-50%);font-size:.66rem;color:#8892a0;font-weight:400">@txt</span>
+                                    }
+                                    @if (HoyVisible)
+                                    {
+                                        <span style="position:absolute;left:@Css(Pos(_hoy))%;bottom:-4px;transform:translateX(-50%);font-size:.62rem;color:white;background:#dc3545;padding:0 4px;border-radius:3px">Hoy</span>
+                                    }
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var grupo in lista.GroupBy(a => a.Disciplina))
+                        {
+                            @if (_area is null)
+                            {
+                                <tr>
+                                    <td colspan="7" style="background:#f4f6f8;font-weight:700;color:#183963">
+                                        @(grupo.Key is { } dg ? NombreArea(dg) : "Sin disciplina")
+                                        <span style="font-weight:400;color:#5f6b7a;font-size:.72rem"> · @(grupo.Key is { } dr ? Responsable(dr) : "asigne la disciplina en el cronograma")</span>
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var a in grupo)
+                            {
+                                var brecha = a.Real is { } r ? r - a.Programado : (decimal?)null;
+                                <tr>
+                                    <td class="text-muted">@a.Codigo</td>
+                                    <td>@a.Nombre @if (a.EsCritica) { <span class="aa-pill ms-1" style="background:#f8d7da;color:#a52834" title="Ruta crítica">RC</span> }</td>
+                                    <td style="text-align:right">@(a.Programado.ToString("0"))%</td>
+                                    <td>
+                                        @if (a.Real is { } rv)
+                                        {
+                                            <span><span class="aa-mini"><span style="width:@Css(Math.Min(rv, 100))%;background:@ColorReal(rv)"></span></span>@(rv.ToString("0"))%</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td style="text-align:right;color:@(brecha is null ? "#8892a0" : brecha < -5 ? "#dc3545" : "#4e9a35")">@(brecha is { } b ? (b > 0 ? "+" : "") + b.ToString("0") + " p.p." : "—")</td>
+                                    <td>@((MarkupString)Estado(a))</td>
+                                    <td>
+                                        <div class="aa-track">
+                                            @if (HoyVisible)
+                                            {
+                                                <div style="position:absolute;left:0;width:@Css(Pos(_hoy))%;top:0;bottom:0;background:#f1f3f5"></div>
+                                            }
+                                            <div style="position:absolute;left:@Css(Pos(a.Inicio))%;width:@Css(Math.Max(0.6, Pos(a.Fin) - Pos(a.Inicio)))%;top:3px;height:8px;background:#B4B2A9;border-radius:2px;overflow:hidden"
+                                                 title="@a.Inicio.ToString("dd/MM/yy") → @a.Fin.ToString("dd/MM/yy")">
+                                                <div style="width:@Css(Math.Min(a.RealHoy, 100))%;height:100%;background:#6ABF4B"></div>
+                                            </div>
+                                            @if (HoyVisible)
+                                            {
+                                                <div style="position:absolute;left:@Css(Pos(_hoy))%;top:-3px;bottom:-3px;width:2px;background:#dc3545"></div>
+                                            }
+                                            @if (_semana != _semanaHoy)
+                                            {
+                                                <div style="position:absolute;left:@Css(Pos(Fecha))%;top:-3px;bottom:-3px;border-left:2px dashed #185FA5"></div>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-muted" style="font-size:.7rem">
+                Barra: gris = duración planeada, verde = avance real a hoy, fondo sombreado = tiempo transcurrido. Rojo = hoy; azul punteado = semana consultada.
+                Brecha en puntos porcentuales (p.p.): real − programado. Atrasada = más de 5 p.p. por debajo de lo programado; crítica = más de 15 p.p. (mismo criterio de las tarjetas del Dashboard).
+            </div>
+
+            <!-- Cumplimiento por área y próximas -->
+            <div class="row g-3 mt-1">
+                <div class="col-lg-6">
+                    <div class="fw-bold mb-1" style="font-size:.82rem;color:#183963">Cumplimiento por área (a hoy)</div>
+                    <table class="table table-sm mb-0" style="font-size:.76rem">
+                        <thead class="table-light"><tr><th>Área · responsable</th><th style="text-align:right">Pendientes</th><th style="text-align:right">Atrasadas</th><th style="text-align:right">Terminadas</th></tr></thead>
+                        <tbody>
+                            @foreach (var g in _acts.GroupBy(a => a.Disciplina))
+                            {
+                                var atr = g.Count(a => a.RealHoy < 100 && a.RealHoy - ProgHoy(a) < -5);
+                                <tr>
+                                    <td>@(g.Key is { } d1 ? NombreArea(d1) : "Sin disciplina")<div class="text-muted" style="font-size:.68rem">@(g.Key is { } d2 ? Responsable(d2) : "—")</div></td>
+                                    <td style="text-align:right">@g.Count(a => a.RealHoy < 100)</td>
+                                    <td style="text-align:right">@if (atr > 0) { <span class="aa-pill" style="background:#f8d7da;color:#a52834">@atr</span> } else { <span>0</span> }</td>
+                                    <td style="text-align:right">@g.Count(a => a.RealHoy >= 100)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-lg-6">
+                    <div class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size:.82rem;color:#183963">
+                        Próximas a iniciar en
+                        <input type="number" class="form-control form-control-sm" style="width:70px" min="1" step="1" @bind="_diasProximas" @bind:event="oninput" /> días
+                    </div>
+                    @{ var prox = _acts.Where(a => a.Inicio > _hoy && a.Inicio <= _hoy.AddDays(Math.Max(1, _diasProximas))).OrderBy(a => a.Inicio).ToList(); }
+                    @if (prox.Count == 0)
+                    {
+                        <p class="text-muted mb-0" style="font-size:.76rem">No hay actividades que inicien en ese período.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm mb-0" style="font-size:.76rem">
+                            <thead class="table-light"><tr><th>Código</th><th>Actividad</th><th>Inicio</th><th>Área</th></tr></thead>
+                            <tbody>
+                                @foreach (var a in prox)
+                                {
+                                    <tr><td class="text-muted">@a.Codigo</td><td>@a.Nombre</td><td>@a.Inicio.ToString("dd/MM/yy")</td><td>@(a.Disciplina is { } d ? NombreArea(d) : "—")</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private static readonly CultureInfo Es = new("es-CO");
+    private List<AvanceActividadFecha> _acts = [];
+    private List<ResponsableAreaDocumento> _responsables = [];
+    private bool _cargando = true;
+    private DateTime _hoy, _t0, _t1;
+    private int _semana, _semanaHoy, _totalSemanas;
+    private Disciplina? _area;
+    private int _diasProximas = 30;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hoy = SeguimientoDocumento.HoyColombia();
+        _responsables = await Db.ResponsablesAreaDocumento.AsNoTracking().Where(r => r.ProyectoId == ProyectoId).ToListAsync();
+        _acts = await InformeSvc.AvanceActividadesAFechaAsync(ProyectoId, _hoy);
+        if (_acts.Count > 0)
+        {
+            var ini = _acts.Min(a => a.Inicio);
+            _t0 = ini.AddDays(-(((int)ini.DayOfWeek + 6) % 7));
+            _t1 = _acts.Max(a => a.Fin);
+            if (_t1 <= _t0) _t1 = _t0.AddDays(7);
+            _totalSemanas = (int)Math.Ceiling((_t1 - _t0).TotalDays / 7);
+            _semanaHoy = Math.Clamp((int)Math.Floor((_hoy - _t0).TotalDays / 7), 0, _totalSemanas);
+            _semana = _semanaHoy;
+        }
+        _cargando = false;
+    }
+
+    // Llamado desde el Dashboard al hacer clic en la Curva S.
+    public async Task IrAFechaAsync(DateTime fecha)
+    {
+        if (_acts.Count == 0) return;
+        await IrSemana((int)Math.Floor((fecha.Date - _t0).TotalDays / 7));
+        StateHasChanged();
+    }
+
+    private async Task IrSemana(int s)
+    {
+        _semana = Math.Clamp(s, 0, _totalSemanas);
+        _acts = await InformeSvc.AvanceActividadesAFechaAsync(ProyectoId, Fecha);
+    }
+    private Task IrHoy() => IrSemana(_semanaHoy);
+    private Task CambiarRango(ChangeEventArgs e) => IrSemana(int.TryParse(e.Value?.ToString(), out var v) ? v : _semana);
+
+    private DateTime Lunes => _t0.AddDays(_semana * 7);
+    // Corte de la semana: hoy si es la semana actual; si no, el domingo de esa semana.
+    private DateTime Fecha => _semana == _semanaHoy ? _hoy : Lunes.AddDays(6);
+    private bool EsFutura => Fecha > _hoy;
+    private bool HoyVisible => _hoy >= _t0 && _hoy <= _t1;
+
+    private IEnumerable<Disciplina> Areas => _acts.Where(a => a.Disciplina.HasValue).Select(a => a.Disciplina!.Value).Distinct()
+        .OrderBy(d => Orden(d));
+
+    private List<AvanceActividadFecha> Visibles => _acts.Where(a => _area is null || a.Disciplina == _area)
+        .OrderBy(a => a.Disciplina is { } d ? Orden(d) : 99)
+        .ToList();
+
+    // Promedio ponderado por duración (mismo criterio de la Curva S sin categorías).
+    private static (decimal Prog, decimal? Real) Ponderado(List<AvanceActividadFecha> l)
+    {
+        decimal w = 0, sp = 0, sr = 0;
+        foreach (var a in l)
+        {
+            var d = Math.Max(0m, (decimal)(a.Fin - a.Inicio).TotalDays);
+            w += d; sp += a.Programado * d; sr += (a.Real ?? 0) * d;
+        }
+        if (w == 0) return (l.Count > 0 ? l.Average(a => a.Programado) : 0, l.Count > 0 ? l.Average(a => a.Real ?? 0) : 0);
+        return (sp / w, sr / w);
+    }
+
+    private decimal ProgHoy(AvanceActividadFecha a) => InformeSvc.CalcularAvanceEsperado(a.Inicio, a.Fin, _hoy);
+
+    private string Estado(AvanceActividadFecha a)
+    {
+        string P(string bg, string fg, string t) => $"<span class=\"aa-pill\" style=\"background:{bg};color:{fg}\">{t}</span>";
+        if (a.Real is not { } r)
+            return a.Programado >= 100 ? P("#e3ecf7", "#183963", "Debe terminar")
+                 : a.Programado > 0 ? P("#e3ecf7", "#183963", $"Debe ir {a.Programado:0}%")
+                 : P("#eceeef", "#5f6b7a", "No programada");
+        var b = r - a.Programado;
+        if (r >= 100) return P("#e6f4e0", "#3d7a28", "Terminada");
+        if (b < -15) return P("#f8d7da", "#a52834", "Crítica");
+        if (b < -5) return P("#fff3cd", "#856404", "Atrasada");
+        if (r > 0) return P("#e6f4e0", "#3d7a28", "Al día");
+        return a.Programado > 0 ? P("#f8d7da", "#a52834", "Sin iniciar") : P("#eceeef", "#5f6b7a", "Sin iniciar");
+    }
+
+    private string Responsable(Disciplina d)
+    {
+        AreaDocumento? area = d switch
+        {
+            Disciplina.Civil => AreaDocumento.Civil,
+            Disciplina.Mecanica => AreaDocumento.Mecanico,
+            Disciplina.Electrica => AreaDocumento.Electrico,
+            _ => null
+        };
+        var r = area is null ? null : _responsables.FirstOrDefault(x => x.Area == area);
+        return r is null ? "responsable no asignado" : string.IsNullOrWhiteSpace(r.Nombre) ? r.Cargo : $"{r.Cargo} – {r.Nombre}";
+    }
+
+    private static int Orden(Disciplina d) { var i = Array.IndexOf(InformeDiarioService.DisciplinasDashboard, d); return i < 0 ? 50 + (int)d : i; }
+
+    private static string NombreArea(Disciplina d) => EnumDisplay.Mostrar(d);
+
+    private double Pos(DateTime d) => Math.Clamp((d - _t0).TotalDays / Math.Max(1, (_t1 - _t0).TotalDays) * 100, 0, 100);
+
+    private IEnumerable<(double, string)> Meses
+    {
+        get
+        {
+            var meses = (_t1.Year - _t0.Year) * 12 + _t1.Month - _t0.Month;
+            var paso = meses > 24 ? 4 : meses > 12 ? 3 : meses > 6 ? 2 : 1;
+            for (var d = new DateTime(_t0.Year, _t0.Month, 1).AddMonths(1); d <= _t1; d = d.AddMonths(paso))
+                yield return (Pos(d), d.ToString("MMM-yy", Es));
+        }
+    }
+
+    private static string ColorReal(decimal r) => r >= 100 ? "#6ABF4B" : r >= 50 ? "#ffc107" : "#dc3545";
+    private static string Pct(decimal v) => v.ToString("0.0", Es) + " %";
+    private static string Css(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Css(decimal v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+}

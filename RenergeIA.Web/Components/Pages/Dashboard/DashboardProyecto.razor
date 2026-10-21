@@ -6,6 +6,8 @@
 @inject InformeDiarioService InformeSvc
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthState
+@inject PortafolioService PortafolioSvc
+@implements IDisposable
 
 <PageTitle>Dashboard — @(_proyecto?.Nombre ?? "Proyecto")</PageTitle>
 
@@ -41,11 +43,14 @@ else
         <a href="/proyectos/@ProyectoId" class="btn btn-sm btn-outline-secondary">&larr; Volver</a>
         <div class="flex-grow-1">
             <h1 class="h3 mb-0 fw-bold" style="color:#183963">Dashboard</h1>
-            <small class="text-muted">@_proyecto.Nombre &bull; @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</small>
+            <small class="text-muted">@_proyecto.Nombre &bull; corte @_dash.CurvaS.FechaCorte.ToString("dd/MM/yyyy")@(_ind?.VersionCronograma is { } ver ? $" • cronograma {ver}" : "")@(_ind?.UltimoDatoAvance is { } ud ? $" • último dato de avance {ud:dd/MM/yyyy}" : "")</small>
         </div>
-        @if (_dash.TieneDatos)
+        @if (_ind is not null)
         {
-            <span class="estado-badge" style="background:@(ColorSPI())22;color:@ColorSPI()">@_dash.EstadoGeneral</span>
+            <div class="text-end">
+                <span class="estado-badge" style="@EstiloEstado(_ind.Estado)">@_ind.Estado</span>
+                <div class="text-muted mt-1" style="font-size:.72rem">Motivo: @_ind.Motivo</div>
+            </div>
         }
     </div>
 
@@ -94,13 +99,19 @@ else
                 <div class="card kpi-card shadow-sm h-100">
                     <div class="card-body p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="kpi-label">DESVIACIÓN</span>
+                            <span class="kpi-label">BRECHA DE AVANCE <i class="bi bi-question-circle" style="cursor:pointer;color:#183963" @onclick="() => _ayudaBrecha = !_ayudaBrecha"></i></span>
                             <span class="kpi-icon" style="background:@ColorDesv(_dash.DesviacionTotal)"><i class="bi-arrow-left-right"></i></span>
                         </div>
                         <div class="kpi-value" style="color:@ColorDesv(_dash.DesviacionTotal)">
-                            @(_dash.DesviacionTotal >= 0 ? "+" : "")@_dash.DesviacionTotal.ToString("F1")%
+                            @(_dash.DesviacionTotal >= 0 ? "+" : "")@_dash.DesviacionTotal.ToString("F1") <span style="font-size:1rem">p.p.</span>
                         </div>
-                        <div class="kpi-sub">real vs programado</div>
+                        <div class="kpi-sub">@(_dash.DesviacionTotal < 0 ? $"vamos {Math.Abs(_dash.DesviacionTotal):F1} puntos atrás" : "al día o adelantados")</div>
+                        @if (_ayudaBrecha)
+                        {
+                            <div class="mt-2 p-2" style="font-size:.72rem;background:#eef3f9;color:#183963;border-radius:6px">
+                                p.p. = puntos porcentuales: la resta directa entre dos porcentajes. Real @_dash.AvanceRealTotal.ToString("F1") − programado @_dash.AvanceProgramadoTotal.ToString("F1") = @_dash.DesviacionTotal.ToString("F1"). Negativo = atrasados.
+                            </div>
+                        }
                         <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min(Math.Abs((double)_dash.DesviacionTotal) * 3, 100))%;background:@ColorDesv(_dash.DesviacionTotal)"></div></div>
                     </div>
                 </div>
@@ -109,15 +120,21 @@ else
                 <div class="card kpi-card shadow-sm h-100">
                     <div class="card-body p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="kpi-label">SPI GLOBAL</span>
+                            <span class="kpi-label">ÍNDICE DE CUMPLIMIENTO <i class="bi bi-question-circle" style="cursor:pointer;color:#183963" @onclick="() => _ayudaIndice = !_ayudaIndice"></i></span>
                             <span class="kpi-icon" style="background:@ColorSPI()"><i class="bi-speedometer2"></i></span>
                         </div>
                         <div class="kpi-value" style="color:@ColorSPI()">
-                            @_dash.SPIGlobal.ToString("F2")
+                            @(_dash.AvanceProgramadoTotal > 0 ? _dash.SPIGlobal.ToString("F2") : "No aplica")
                         </div>
                         <div class="kpi-sub">
-                            @(_dash.SPIGlobal >= 1m ? "Al día o adelantado" : _dash.SPIGlobal >= 0.9m ? "Leve atraso" : "Atraso significativo")
+                            @(_dash.AvanceProgramadoTotal > 0 ? $"de cada 100 programado, hicimos {Math.Round(_dash.SPIGlobal * 100)}" : "aún no hay avance programado")
                         </div>
+                        @if (_ayudaIndice)
+                        {
+                            <div class="mt-2 p-2" style="font-size:.72rem;background:#eef3f9;color:#183963;border-radius:6px">
+                                Real ÷ programado. 1,00 = al día; menos de 1 = atrasados; más de 1 = adelantados. Es un índice de avance físico, no el SPI de valor ganado (el cronograma no trae costos por actividad).
+                            </div>
+                        }
                         <div class="kpi-bar"><div class="kpi-bar-fill" style="width:@(Math.Min((double)_dash.SPIGlobal * 100, 100))%;background:@ColorSPI()"></div></div>
                     </div>
                 </div>
@@ -173,13 +190,22 @@ else
                 <div class="card kpi-card shadow-sm h-100">
                     <div class="card-body p-3">
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="kpi-label">ESTADO GENERAL</span>
-                            <span class="kpi-icon" style="background:@ColorSPI()"><i class="bi-activity"></i></span>
+                            <span class="kpi-label">PLAZO</span>
+                            <span class="kpi-icon" style="background:@(_ind?.RetrasoDias > 0 ? "#dc3545" : "#6ABF4B")"><i class="bi-calendar-event"></i></span>
                         </div>
-                        <div class="kpi-value" style="color:@ColorSPI();font-size:1.5rem">
-                            @_dash.EstadoGeneral
-                        </div>
-                        <div class="kpi-sub">@_dash.EnLinea en línea &bull; @_dash.NoIniciadas sin iniciar</div>
+                        @if (_ind?.FechaContractual is { } fcon && _ind.FechaProyectada is { } fpro)
+                        {
+                            <div class="kpi-value" style="font-size:1.05rem;color:#111921">@fcon.ToString("dd/MM/yy") → @fpro.ToString("dd/MM/yy")</div>
+                            <div class="kpi-sub" style="color:@(_ind.RetrasoDias > 0 ? "#dc3545" : "#4e9a35")">
+                                @(_ind.RetrasoDias > 0 ? $"+{_ind.RetrasoDias} días calendario sobre la fecha contractual" : "dentro de la fecha contractual")
+                            </div>
+                            <div class="kpi-sub">contractual → fin del cronograma vigente</div>
+                        }
+                        else
+                        {
+                            <div class="kpi-value" style="font-size:1.1rem;color:#6c757d">Sin información</div>
+                            <div class="kpi-sub">falta la fecha fin contractual del proyecto</div>
+                        }
                     </div>
                 </div>
             </div>
@@ -512,6 +538,13 @@ else
             </div>
         }
 
+        <AvanceActividades @ref="_avanceActs" ProyectoId="@ProyectoId" />
+
+        @if (_ind is not null)
+        {
+            <PresupuestoProyecto Indicadores="@_ind" />
+        }
+
         <!-- Disciplinas + Donut -->
         <div class="row g-4 mb-4">
             <div class="col-lg-8">
@@ -708,7 +741,43 @@ else
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
         _dash = await InformeSvc.ObtenerDashboardCompletoAsync(ProyectoId);
+        _ind = await PortafolioSvc.ObtenerProyectoAsync(ProyectoId);
     }
+
+    // Indicadores compartidos con el Centro de control (estado, plazo, costos).
+    private IndicadoresProyecto? _ind;
+    private bool _ayudaBrecha, _ayudaIndice;
+    private AvanceActividades? _avanceActs;
+    private DotNetObjectReference<DashboardProyecto>? _ref;
+
+    // Curva S: línea de Hoy y clic para ver el avance por actividad de esa semana.
+    private async Task ActivarCurvaAsync()
+    {
+        if (_dash.CurvaS.FechasIso.Count == 0) return;
+        _ref ??= DotNetObjectReference.Create(this);
+        var hoy = _dash.CurvaS.FechaCorte.ToString("yyyy-MM-dd");
+        var hoyIdx = _dash.CurvaS.FechasIso.IndexOf(hoy);
+        await JS.InvokeVoidAsync("curvaSInteractiva", "curvaSChart", _ref, hoyIdx);
+    }
+
+    [JSInvokable]
+    public async Task SeleccionarIndiceCurva(int indice)
+    {
+        if (indice < 0 || indice >= _dash.CurvaS.FechasIso.Count || _avanceActs is null) return;
+        await JS.InvokeVoidAsync("curvaSMarcarSeleccion", "curvaSChart", indice);
+        await _avanceActs.IrAFechaAsync(DateTime.Parse(_dash.CurvaS.FechasIso[indice], System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static string EstiloEstado(string e) => e switch
+    {
+        "Saludable" => "background:#e6f4e0;color:#3d7a28",
+        "En riesgo" => "background:#fff3cd;color:#856404",
+        "Crítico" => "background:#f8d7da;color:#a52834",
+        "Por iniciar" => "background:#e3ecf7;color:#183963",
+        _ => "background:#eceeef;color:#5f6b7a"
+    };
+
+    public void Dispose() => _ref?.Dispose();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -722,6 +791,7 @@ else
                 _dash.CurvaS.AvancePlanificado,
                 _dash.CurvaS.AvanceReal,
                 _dash.CurvaS.RealEstimado);
+        await ActivarCurvaAsync();
 
         if (_dash.PorDisciplina.Any())
         {
@@ -768,6 +838,7 @@ else
                 _dash.CurvaS.AvancePlanificado,
                 _dash.CurvaS.AvanceReal,
                 _dash.CurvaS.RealEstimado);
+        await ActivarCurvaAsync();
 
         _actualizandoCurvaS = false;
         _curvaActualizada = true;
@@ -950,6 +1021,7 @@ else
                 _dash.CurvaS.AvancePlanificado,
                 _dash.CurvaS.AvanceReal,
                 _dash.CurvaS.RealEstimado);
+        await ActivarCurvaAsync();
     }
 
     private async Task CambiarAlcanceCurvaAsync(ChangeEventArgs e)
@@ -965,6 +1037,7 @@ else
                 _dash.CurvaS.AvancePlanificado,
                 _dash.CurvaS.AvanceReal,
                 _dash.CurvaS.RealEstimado);
+        await ActivarCurvaAsync();
     }
 
     private string ColorDesv(decimal desv) =>

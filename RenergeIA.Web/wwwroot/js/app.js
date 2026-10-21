@@ -1380,3 +1380,130 @@ window.renderFlujoComparativo = function (labels, actual, anterior, etiquetaActu
         }
     });
 };
+
+// ── Centro de control (portafolio) ─────────────────────────────────────────────
+// Dona de estados (clic = filtrar la tabla vía .NET), presupuesto vs costo al cierre y avance real
+// vs programado por proyecto (clic en una barra = abrir el dashboard del proyecto).
+window.renderPortafolio = function (dotnet, dona, ppto, avance) {
+    const gris = '#898781', rejilla = 'rgba(137,135,129,.2)';
+    const fmtM = v => '$' + Math.round(v / 1e6).toLocaleString('es-CO') + ' M';
+
+    destroyChart('portDona');
+    const cDona = document.getElementById('portDona');
+    if (cDona) {
+        const total = dona.data.reduce((a, b) => a + b, 0);
+        _charts.portDona = new Chart(cDona, {
+            type: 'doughnut',
+            data: { labels: dona.labels, datasets: [{ data: dona.data, backgroundColor: dona.colors, borderColor: '#fff', borderWidth: 2 }] },
+            options: {
+                cutout: '62%', responsive: true, maintainAspectRatio: false,
+                onClick: (e, els) => { if (els.length && dotnet) dotnet.invokeMethodAsync('FiltrarEstado', dona.labels[els[0].index]); },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.label + ': ' + c.raw + ' proyecto' + (c.raw === 1 ? '' : 's') } } }
+            },
+            plugins: [{
+                id: 'pct', afterDatasetsDraw(c) {
+                    const g = c.ctx; g.save(); g.font = '600 12px Montserrat, Verdana'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+                    c.getDatasetMeta(0).data.forEach((a, i) => { if (!dona.data[i] || !total) return; const p = a.tooltipPosition(); g.fillText(Math.round(dona.data[i] / total * 100) + '%', p.x, p.y); });
+                    g.restore();
+                }
+            }]
+        });
+    }
+
+    destroyChart('portPresupuesto');
+    const cP = document.getElementById('portPresupuesto');
+    if (cP && ppto.labels.length) {
+        _charts.portPresupuesto = new Chart(cP, {
+            type: 'bar',
+            data: {
+                labels: ppto.labels, datasets: [
+                    { label: 'Presupuesto aprobado', data: ppto.presupuesto, backgroundColor: '#B4B2A9', borderRadius: 3, maxBarThickness: 22 },
+                    { label: 'Ejecutado a la fecha', data: ppto.ejecutado, backgroundColor: '#183963', borderRadius: 3, maxBarThickness: 22 },
+                    { label: 'Costo estimado al cierre', data: ppto.cierre, backgroundColor: ppto.sobrecosto.map(s => s ? '#E24B4A' : '#6ABF4B'), borderRadius: 3, maxBarThickness: 22 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                onClick: (e, els) => { if (els.length) location.href = ppto.urls[els[0].index]; },
+                plugins: {
+                    legend: { display: false }, tooltip: {
+                        callbacks: {
+                            label: c => c.dataset.label + ': ' + fmtM(c.raw),
+                            afterBody: t => ppto.sobrecosto[t[0].dataIndex] ? 'Sobrecosto: ' + fmtM(ppto.cierre[t[0].dataIndex] - ppto.presupuesto[t[0].dataIndex]) : 'Dentro del presupuesto'
+                        }
+                    }
+                },
+                scales: {
+                    y: { ticks: { color: gris, callback: v => '$' + (v / 1e9).toLocaleString('es-CO') + ' mil M' }, grid: { color: rejilla } },
+                    x: { ticks: { color: c => ppto.sobrecosto[c.index] ? '#E24B4A' : gris }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    destroyChart('portAvance');
+    const cA = document.getElementById('portAvance');
+    if (cA && avance.labels.length) {
+        _charts.portAvance = new Chart(cA, {
+            type: 'bar',
+            data: {
+                labels: avance.labels, datasets: [
+                    { label: 'Programado a hoy', data: avance.programado, backgroundColor: '#D3D1C7', borderRadius: 3, barThickness: 12 },
+                    { label: 'Real', data: avance.real, backgroundColor: avance.colores, borderRadius: 3, barThickness: 12 }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                onClick: (e, els) => { if (els.length) location.href = avance.urls[els[0].index]; },
+                plugins: {
+                    legend: { display: false }, tooltip: {
+                        callbacks: {
+                            label: c => c.dataset.label + ': ' + c.raw.toLocaleString('es-CO') + ' %',
+                            afterBody: t => avance.textos[t[0].dataIndex]
+                        }
+                    }
+                },
+                scales: { x: { min: 0, max: 100, ticks: { color: gris, callback: v => v + ' %' }, grid: { color: rejilla } }, y: { ticks: { color: '#5F5E5A' }, grid: { display: false } } }
+            },
+            plugins: [{
+                id: 'lbl', afterDatasetsDraw(c) {
+                    const g = c.ctx, m0 = c.getDatasetMeta(0), m1 = c.getDatasetMeta(1);
+                    g.save(); g.font = '600 11px Montserrat, Verdana'; g.fillStyle = '#5F5E5A'; g.textBaseline = 'middle';
+                    m1.data.forEach((b, i) => g.fillText(avance.real[i].toLocaleString('es-CO') + ' %', Math.max(b.x, m0.data[i].x) + 6, b.y));
+                    g.restore();
+                }
+            }]
+        });
+    }
+};
+
+// ── Curva S interactiva: línea de Hoy, semana consultada y clic para ir a una fecha ──
+window.curvaSInteractiva = function (canvasId, dotnet, hoyIdx) {
+    const ch = _charts[canvasId];
+    if (!ch) return;
+    ch._marcas = { hoy: hoyIdx, sel: null };
+    ch.options.onClick = (e) => {
+        const i = ch.scales.x.getValueForPixel(e.x);
+        if (i != null && dotnet) dotnet.invokeMethodAsync('SeleccionarIndiceCurva', Math.max(0, Math.min(ch.data.labels.length - 1, Math.round(i))));
+    };
+    ch.config.plugins.push({
+        id: 'marcas', afterDraw(c) {
+            const m = c._marcas; if (!m) return;
+            const linea = (i, color, dash, texto, dy) => {
+                if (i == null || i < 0) return;
+                const x = c.scales.x.getPixelForValue(i), a = c.chartArea, g = c.ctx;
+                g.save(); g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dash);
+                g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke();
+                g.fillStyle = color; g.font = '600 11px Montserrat, Verdana';
+                g.fillText(texto, Math.min(x + 4, a.right - g.measureText(texto).width), a.top + dy); g.restore();
+            };
+            linea(m.hoy, '#E24B4A', [], 'Hoy', 12);
+            if (m.sel != null && m.sel !== m.hoy) linea(m.sel, '#185FA5', [4, 3], 'Consultada', 26);
+        }
+    });
+    ch.update();
+};
+window.curvaSMarcarSeleccion = function (canvasId, idx) {
+    const ch = _charts[canvasId];
+    if (!ch || !ch._marcas) return;
+    ch._marcas.sel = idx;
+    ch.update('none');
+};

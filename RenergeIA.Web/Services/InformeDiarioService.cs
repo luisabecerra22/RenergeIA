@@ -565,6 +565,51 @@ public class InformeDiarioService(RenergeIADbContext db)
         return calc.RealesPorActividad(fechaCorte, HoyColombia());
     }
 
+    // Actividades hoja del cronograma vigente (para el Centro de control y la tabla de avance por actividad).
+    public Task<List<ActividadWBS>> ActividadesHojaVigentesAsync(int proyectoId) => HojasVigentesAsync(proyectoId);
+
+    // Avance programado y real de cada actividad hoja a una fecha (pasada, hoy o futura). En fechas
+    // futuras solo hay programado: el real queda null. Misma lógica de la Curva S.
+    public async Task<List<AvanceActividadFecha>> AvanceActividadesAFechaAsync(int proyectoId, DateTime fecha)
+    {
+        var hojas = await HojasVigentesAsync(proyectoId);
+        if (hojas.Count == 0) return [];
+        var hoy = HoyColombia();
+        var calc = new CalculadoraCurvaS([new GrupoCurva("Todo", 100m, hojas, false)], await RegistrosCurvaAsync(proyectoId, hojas));
+        var actualesHoy = calc.RealesPorActividad(hoy, hoy);
+        var reales = fecha.Date <= hoy ? calc.RealesPorActividad(fecha, hoy) : null;
+        return hojas
+            .OrderBy(a => a.CodigoWBS, Comparer<string>.Create(CompararCodigoWbs))
+            .Select(a => new AvanceActividadFecha
+            {
+                Id = a.Id,
+                Codigo = a.CodigoWBS,
+                Nombre = a.Nombre,
+                Disciplina = a.Disciplina,
+                Inicio = a.FechaInicioPlaneada.Date,
+                Fin = a.FechaFinPlaneada.Date,
+                EsCritica = a.EsCritica,
+                Programado = Math.Round(CalcularAvanceEsperado(a.FechaInicioPlaneada, a.FechaFinPlaneada, fecha.Date), 0),
+                Real = reales is not null && reales.TryGetValue(a.Id, out var r) ? Math.Round(r, 0) : null,
+                RealHoy = actualesHoy.TryGetValue(a.Id, out var rh) ? Math.Round(rh, 0) : 0m
+            })
+            .ToList();
+    }
+
+    // Orden natural de códigos WBS (2.10 después de 2.9).
+    private static int CompararCodigoWbs(string? x, string? y)
+    {
+        var a = (x ?? "").Split('.');
+        var b = (y ?? "").Split('.');
+        for (var i = 0; i < Math.Min(a.Length, b.Length); i++)
+        {
+            var c = int.TryParse(a[i], out var na) && int.TryParse(b[i], out var nb)
+                ? na.CompareTo(nb) : string.Compare(a[i], b[i], StringComparison.OrdinalIgnoreCase);
+            if (c != 0) return c;
+        }
+        return a.Length.CompareTo(b.Length);
+    }
+
     // Datos para la Curva S: planificado desde cronograma WBS vigente (ponderado por categorías
     // con peso y, dentro de cada una, por duración), real desde el histórico cargado + informes
     // diarios. `soloConstruccion` limita el alcance a las categorías marcadas como construcción
@@ -678,6 +723,7 @@ public class InformeDiarioService(RenergeIADbContext db)
         return new CurvaSData
         {
             Fechas            = puntos.Select(p => p.Fecha.ToString("dd-MMM-yy")).ToList(),
+            FechasIso         = puntos.Select(p => p.Fecha.ToString("yyyy-MM-dd")).ToList(),
             AvancePlanificado = puntos.Select(p => p.Planificado).ToList(),
             AvanceReal        = puntos.Select(p => p.Real).ToList(),
             RealEstimado      = estimado,
@@ -875,6 +921,20 @@ public class InformeDiarioService(RenergeIADbContext db)
     }
 }
 
+public class AvanceActividadFecha
+{
+    public int Id { get; set; }
+    public string Codigo { get; set; } = "";
+    public string Nombre { get; set; } = "";
+    public Disciplina? Disciplina { get; set; }
+    public DateTime Inicio { get; set; }
+    public DateTime Fin { get; set; }
+    public bool EsCritica { get; set; }
+    public decimal Programado { get; set; }
+    public decimal? Real { get; set; }
+    public decimal RealHoy { get; set; }
+}
+
 public class ResumenDisciplina
 {
     public Disciplina Disciplina { get; set; }
@@ -899,6 +959,7 @@ public class KPIsProyecto
 public class CurvaSData
 {
     public List<string> Fechas { get; set; } = [];
+    public List<string> FechasIso { get; set; } = [];
     public List<double?> AvanceReal { get; set; } = [];
     public List<double> AvancePlanificado { get; set; } = [];
     public List<bool> RealEstimado { get; set; } = [];

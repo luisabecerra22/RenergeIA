@@ -49,7 +49,7 @@ builder.Services.AddScoped<TesoreriaImportService>();
 builder.Services.AddScoped<HistogramaService>();
 builder.Services.AddScoped<PersonalHistogramaService>();
 builder.Services.AddScoped<RenergeIA.Web.Services.Actas.ActasImportService>();
-builder.Services.AddScoped<HomeDashboardService>();
+builder.Services.AddScoped<PortafolioService>();
 builder.Services.AddScoped<ChecklistISO9001Service>();
 builder.Services.AddScoped<NormaChecklistService>();
 builder.Services.AddScoped<IAInspeccionService>();

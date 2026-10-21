@@ -1,0 +1,107 @@
+@* Presupuesto y costos del proyecto en el Dashboard: mismos números del Centro de control (PortafolioService). *@
+@using System.Globalization
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <strong>Presupuesto y costos</strong>
+        <a href="/proyectos/@Indicadores.ProyectoId/costos" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">Ver costos <i class="bi bi-arrow-right"></i></a>
+    </div>
+    <div class="card-body">
+        @if (!Indicadores.TieneCostos)
+        {
+            <p class="text-muted mb-0">El proyecto aún no tiene presupuesto cargado. Cárguelo en <a href="/proyectos/@Indicadores.ProyectoId/costos">Costos</a> para ver ejecutado, comprometido y costo al cierre.</p>
+        }
+        else
+        {
+            var i = Indicadores;
+            var consumido = i.Presupuesto > 0 ? i.Ejecutado / i.Presupuesto * 100 : 0;
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 h-100" style="background:#f4f6f8;border-radius:8px">
+                        <div class="kpi-label">PRESUPUESTO APROBADO</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:#183963">@M(i.Presupuesto)</div>
+                        <div class="kpi-sub">COP (USD a la TRM del proyecto)</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 h-100" style="background:#f4f6f8;border-radius:8px">
+                        <div class="kpi-label">EJECUTADO (PAGADO)</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:#111921">@M(i.Ejecutado)</div>
+                        <div class="kpi-sub">@consumido.ToString("0", Es) % del presupuesto</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 h-100" style="background:#f4f6f8;border-radius:8px">
+                        <div class="kpi-label">COMPROMETIDO (POR PAGAR)</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:#111921">@M(i.Comprometido)</div>
+                        <div class="kpi-sub">órdenes de compra desde esta semana</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="p-3 h-100" style="background:#f4f6f8;border-radius:8px">
+                        <div class="kpi-label">COSTO ESTIMADO AL CIERRE</div>
+                        <div style="font-size:1.4rem;font-weight:800;color:@(i.Sobrecosto > 0 ? "#dc3545" : "#4e9a35")">@M(i.EstimadoCierre)</div>
+                        <div class="kpi-sub" style="color:@(i.Sobrecosto > 0 ? "#dc3545" : "#4e9a35")">@(i.Sobrecosto > 0 ? $"+{M(i.Sobrecosto)} sobre el presupuesto" : "dentro del presupuesto")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Avance físico vs presupuesto consumido -->
+            <div class="mb-3" style="max-width:720px">
+                <div class="d-flex justify-content-between" style="font-size:.78rem"><span>Avance físico real</span><strong>@i.AvanceReal.ToString("0.0", Es) %</strong></div>
+                <div class="progress mb-2" style="height:10px;background:#eceeef"><div class="progress-bar" style="width:@Css(i.AvanceReal)%;background:#6ABF4B"></div></div>
+                <div class="d-flex justify-content-between" style="font-size:.78rem"><span>Presupuesto consumido (ejecutado)</span><strong>@consumido.ToString("0.0", Es) %</strong></div>
+                <div class="progress" style="height:10px;background:#eceeef"><div class="progress-bar" style="width:@Css(Math.Min(consumido, 100))%;background:#183963"></div></div>
+                <div class="kpi-sub mt-1">
+                    @if (consumido > i.AvanceReal + 5)
+                    {
+                        <span style="color:#dc3545">Se ha pagado más (@consumido.ToString("0", Es) %) de lo que se ha avanzado (@i.AvanceReal.ToString("0", Es) %). Revisar si hay anticipos o sobrecostos.</span>
+                    }
+                    else
+                    {
+                        <span>El gasto va en línea con el avance físico.</span>
+                    }
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm mb-1" style="font-size:.8rem">
+                    <thead class="table-light">
+                        <tr><th>Categoría</th><th style="text-align:right">Presupuesto</th><th style="text-align:right">Ejecutado</th><th style="text-align:right">Comprometido</th><th style="text-align:right">Sobrecosto</th><th style="width:160px">Consumo</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in i.CostosPorCategoria)
+                        {
+                            var color = c.Consumo > 100 ? "#dc3545" : c.Consumo > 85 ? "#ffc107" : "#6ABF4B";
+                            <tr>
+                                <td>@c.Categoria</td>
+                                <td style="text-align:right">@M(c.Presupuesto)</td>
+                                <td style="text-align:right">@M(c.Ejecutado)</td>
+                                <td style="text-align:right">@M(c.Comprometido)</td>
+                                <td style="text-align:right;color:@(c.Sobrecosto > 0 ? "#dc3545" : "#8892a0")">@(c.Sobrecosto > 0 ? M(c.Sobrecosto) : "—")</td>
+                                <td>
+                                    <span style="display:inline-block;width:90px;height:8px;border-radius:2px;background:#eceeef;overflow:hidden;vertical-align:middle">
+                                        <span style="display:block;height:100%;width:@Css(Math.Min(c.Consumo, 100))%;background:@color"></span>
+                                    </span>
+                                    @c.Consumo.ToString("0", Es) %
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="kpi-sub">
+                Fuente: seguimiento de pagos@(i.FechaCorteCostos is { } fc ? $" con corte al {fc:dd/MM/yyyy}" : "") y presupuesto del proyecto.
+                Consumo = (ejecutado + comprometido) ÷ presupuesto. Costo al cierre = presupuesto + lo que el ejecutado y el comprometido de cada código superan su presupuesto.
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IndicadoresProyecto Indicadores { get; set; } = default!;
+
+    private static readonly CultureInfo Es = new("es-CO");
+    private static string M(decimal v) => "$" + Math.Round(v / 1_000_000m).ToString("N0", Es) + " M";
+    private static string Css(decimal v) => Math.Max(0, v).ToString("0.##", CultureInfo.InvariantCulture);
+}
