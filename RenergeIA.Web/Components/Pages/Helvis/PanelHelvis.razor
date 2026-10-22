@@ -262,8 +262,18 @@ else
     }
     else
     {
-        <div class="mb-2 small text-muted">
-            <strong style="color:#183963">@_asigSeleccion.Count</strong> de @_asigHojas.Count actividades asignadas a <strong>@_asigContacto.Nombre</strong>
+        <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
+            <span class="small text-muted">
+                <strong style="color:#183963">@_asigSeleccion.Count</strong> de @_asigHojas.Count actividades asignadas a <strong>@_asigContacto.Nombre</strong>
+            </span>
+            <button class="btn btn-sm btn-outline-secondary py-0 ms-auto" style="font-size:.72rem"
+                    @onclick="AsignarTodas" disabled="@(_asigSeleccion.Count == _asigHojas.Count)">
+                ✓ Asignar todas
+            </button>
+            <button class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem"
+                    @onclick="QuitarTodas" disabled="@(_asigSeleccion.Count == 0)">
+                ✕ Quitar todas
+            </button>
         </div>
         <div class="card border-0 shadow-sm">
             <div class="table-responsive" style="max-height:62vh;overflow:auto">
@@ -540,6 +550,10 @@ else
             .GroupBy(a => a.ActividadWBSId)
             .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(x => PrimerNombreDe(x.Contacto?.Nombre))));
     }
+
+    private void AsignarTodas() => _asigSeleccion = _asigHojas.Select(h => h.Id).ToHashSet();
+
+    private void QuitarTodas() => _asigSeleccion.Clear();
 
     private void ToggleAsignacion(int actividadId, object? valor)
     {
