@@ -1484,8 +1484,11 @@ window.curvaSInteractiva = function (canvasId, dotnet, hoyIdx) {
         const i = ch.scales.x.getValueForPixel(e.x);
         if (i != null && dotnet) dotnet.invokeMethodAsync('SeleccionarIndiceCurva', Math.max(0, Math.min(ch.data.labels.length - 1, Math.round(i))));
     };
-    ch.config.plugins.push({
-        id: 'marcas', afterDraw(c) {
+    ch.update();
+};
+// Plugin global: solo dibuja en gráficas que tengan _marcas (la Curva S interactiva).
+if (window.Chart) Chart.register({
+        id: 'marcasCurvaS', afterDraw(c) {
             const m = c._marcas; if (!m) return;
             const linea = (i, color, dash, texto, dy) => {
                 if (i == null || i < 0) return;
@@ -1499,11 +1502,13 @@ window.curvaSInteractiva = function (canvasId, dotnet, hoyIdx) {
             if (m.sel != null && m.sel !== m.hoy) linea(m.sel, '#185FA5', [4, 3], 'Consultada', 26);
         }
     });
-    ch.update();
-};
 window.curvaSMarcarSeleccion = function (canvasId, idx) {
     const ch = _charts[canvasId];
     if (!ch || !ch._marcas) return;
     ch._marcas.sel = idx;
     ch.update('none');
+};
+window.chartExiste = function (canvasId) {
+    const c = document.getElementById(canvasId);
+    return !!(c && window.Chart && Chart.getChart(c));
 };

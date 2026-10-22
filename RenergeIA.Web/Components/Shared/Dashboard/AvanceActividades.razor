@@ -67,7 +67,7 @@
             }
 
             var lista = Visibles;
-            var (pProg, pReal) = Ponderado(lista);
+            var (pProg, pReal) = _area is null && _totalCurva is { } tc ? (tc.Prog, tc.Real) : Ponderado(lista);
             <div class="d-flex flex-wrap gap-2 align-items-center mb-2" style="font-size:.8rem">
                 @if (EsFutura)
                 {
@@ -75,11 +75,11 @@
                 }
                 else
                 {
-                    <span class="text-muted">Programado <strong style="color:#111921">@Pct(pProg)</strong> · Real <strong style="color:#111921">@Pct(pReal ?? 0)</strong></span>
+                    <span class="text-muted">Programado <strong style="color:#111921">@Pct(pProg)</strong> · Real <strong style="color:#111921">@Pct(pReal ?? 0)</strong>@(_area is null ? " (igual a la Curva S)" : " (ponderado por duración dentro del área)")</span>
                     <span class="aa-pill" style="background:#e6f4e0;color:#3d7a28">@lista.Count(a => a.Real >= 100) terminadas</span>
                     <span class="aa-pill" style="background:#fff3cd;color:#856404">@lista.Count(a => a.Real is > 0 and < 100) en ejecución</span>
-                    <span class="aa-pill" style="background:#eceeef;color:#5f6b7a">@lista.Count(a => (a.Real ?? 0) == 0) sin iniciar</span>
-                    <span class="aa-pill" style="background:#f8d7da;color:#a52834">@lista.Count(a => a.Real < 100 && a.Real - a.Programado < -5) atrasadas</span>
+                    <span class="aa-pill" style="background:#eceeef;color:#5f6b7a">@lista.Count(a => (a.Real ?? 0) == 0) sin iniciar@(lista.Count(a => (a.Real ?? 0) == 0 && a.Programado > 5) is var deb && deb > 0 ? $" ({deb} ya debían ir más de 5 %)" : "")</span>
+                    <span class="aa-pill" style="background:#f8d7da;color:#a52834">@lista.Count(a => a.Real is > 0 and < 100 && a.Real - a.Programado < -5) atrasadas o críticas</span>
                 }
             </div>
 
@@ -234,6 +234,7 @@
         _hoy = SeguimientoDocumento.HoyColombia();
         _responsables = await Db.ResponsablesAreaDocumento.AsNoTracking().Where(r => r.ProyectoId == ProyectoId).ToListAsync();
         _acts = await InformeSvc.AvanceActividadesAFechaAsync(ProyectoId, _hoy);
+        await CargarTotalAsync();
         if (_acts.Count > 0)
         {
             var ini = _acts.Min(a => a.Inicio);
@@ -255,10 +256,22 @@
         StateHasChanged();
     }
 
+    // Totales de "Todas las áreas" = la Curva S oficial a esa fecha (con categorías y pesos), para que
+    // la tabla diga lo mismo que la curva y las tarjetas. En fechas futuras solo hay programado.
+    private (decimal Prog, decimal? Real)? _totalCurva;
+    private async Task CargarTotalAsync()
+    {
+        var f = _acts.Count == 0 ? _hoy : Fecha;
+        var c = await InformeSvc.DatosCurvaSAsync(ProyectoId, false, f);
+        _totalCurva = c.TotalActividades == 0 ? null
+            : (Math.Round((decimal)c.PlanificadoHoy, 1), f > _hoy ? null : Math.Round((decimal)c.EjecutadoHoy, 1));
+    }
+
     private async Task IrSemana(int s)
     {
         _semana = Math.Clamp(s, 0, _totalSemanas);
         _acts = await InformeSvc.AvanceActividadesAFechaAsync(ProyectoId, Fecha);
+        await CargarTotalAsync();
     }
     private Task IrHoy() => IrSemana(_semanaHoy);
     private Task CambiarRango(ChangeEventArgs e) => IrSemana(int.TryParse(e.Value?.ToString(), out var v) ? v : _semana);

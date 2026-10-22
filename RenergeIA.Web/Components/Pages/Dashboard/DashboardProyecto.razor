@@ -757,14 +757,17 @@ else
         _ref ??= DotNetObjectReference.Create(this);
         var hoy = _dash.CurvaS.FechaCorte.ToString("yyyy-MM-dd");
         var hoyIdx = _dash.CurvaS.FechasIso.IndexOf(hoy);
-        await JS.InvokeVoidAsync("curvaSInteractiva", "curvaSChart", _ref, hoyIdx);
+        // Las marcas son un extra: si el navegador falla (p. ej. un app.js viejo en caché), la página sigue viva.
+        try { await JS.InvokeVoidAsync("curvaSInteractiva", "curvaSChart", _ref, hoyIdx); }
+        catch (JSException) { }
     }
 
     [JSInvokable]
     public async Task SeleccionarIndiceCurva(int indice)
     {
         if (indice < 0 || indice >= _dash.CurvaS.FechasIso.Count || _avanceActs is null) return;
-        await JS.InvokeVoidAsync("curvaSMarcarSeleccion", "curvaSChart", indice);
+        try { await JS.InvokeVoidAsync("curvaSMarcarSeleccion", "curvaSChart", indice); }
+        catch (JSException) { }
         await _avanceActs.IrAFechaAsync(DateTime.Parse(_dash.CurvaS.FechasIso[indice], System.Globalization.CultureInfo.InvariantCulture));
     }
 
@@ -779,19 +782,30 @@ else
 
     public void Dispose() => _ref?.Dispose();
 
+    // La Curva S se dibuja hasta confirmar que existe en el navegador: en la carga inicial (prerender →
+    // circuito interactivo) el canvas puede no estar aún en el DOM y renderCurvaS se salta en silencio.
+    private bool _curvaDibujada;
+    private int _intentosCurva;
+
+    private async Task AsegurarCurvaAsync()
+    {
+        if (_curvaDibujada || !_dash.TieneDatos || _dash.CurvaS.Fechas.Count == 0) return;
+        await JS.InvokeVoidAsync("renderCurvaS", "curvaSChart",
+            _dash.CurvaS.Fechas, _dash.CurvaS.AvancePlanificado, _dash.CurvaS.AvanceReal, _dash.CurvaS.RealEstimado);
+        _curvaDibujada = await JS.InvokeAsync<bool>("chartExiste", "curvaSChart");
+        if (_curvaDibujada) { await ActivarCurvaAsync(); return; }
+        if (++_intentosCurva <= 10)
+        {
+            await Task.Delay(300);
+            StateHasChanged();
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !_dash.TieneDatos || _chartsRendered) return;
+        await AsegurarCurvaAsync();
+        if (!_dash.TieneDatos || _chartsRendered) return;
         _chartsRendered = true;
-
-        if (_dash.CurvaS.Fechas.Count > 0)
-            await JS.InvokeVoidAsync("renderCurvaS",
-                "curvaSChart",
-                _dash.CurvaS.Fechas,
-                _dash.CurvaS.AvancePlanificado,
-                _dash.CurvaS.AvanceReal,
-                _dash.CurvaS.RealEstimado);
-        await ActivarCurvaAsync();
 
         if (_dash.PorDisciplina.Any())
         {

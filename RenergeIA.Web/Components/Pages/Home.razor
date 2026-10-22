@@ -251,7 +251,7 @@ else
                             <tr class="cc-fila" @onclick="() => Abrir(p)" title="Abrir dashboard de @p.Nombre">
                                 <td style="padding:9px 14px">
                                     <div class="fw-semibold" style="color:#183963">@p.Nombre</div>
-                                    <div style="font-size:0.72rem;color:#5f6b7a">@p.Codigo@(p.CapacidadKWp > 0 ? $" · {(p.CapacidadKWp / 1000m).ToString("0.0", Es)} MWp" : "")</div>
+                                    <div style="font-size:0.72rem;color:#5f6b7a">@p.Codigo@(p.CapacidadKWp >= 1000 ? $" · {(p.CapacidadKWp / 1000m).ToString("0.0", Es)} MWp" : p.CapacidadKWp > 0 ? $" · {p.CapacidadKWp.ToString("N1", Es)} kWp" : "")</div>
                                 </td>
                                 <td><span class="cc-pill" style="@EstiloEstado(p.Estado)" title="@p.Motivo">@p.Estado</span></td>
                                 <td><span class="cc-pill" style="@EstiloDato(p.CalidadDato)">@p.CalidadDato</span></td>
@@ -326,7 +326,7 @@ else
                 <div class="mb-2">
                     <i class="bi @(p.Estado == "Crítico" ? "bi-exclamation-octagon-fill" : "bi-exclamation-triangle-fill") me-1" style="color:@(p.Estado == "Crítico" ? "#dc3545" : "#d39e00")"></i>
                     <a href="@p.UrlDashboard" style="color:#183963;font-weight:600">@p.Nombre</a> está <strong>@p.Estado.ToLower()</strong>: @p.Motivo.
-                    Avance real @Pct(p.AvanceReal) frente a @Pct(p.AvanceProgramado) programado@(p.Sobrecosto > 0 ? $"; sobrecosto estimado de {Millones(p.Sobrecosto)}" : "").
+                    Avance real @Pct(p.AvanceReal) frente a @Pct(p.AvanceProgramado) programado@(p.TieneCostos && p.Sobrecosto > 0 ? $"; sobrecosto estimado de {Millones(p.Sobrecosto)}" : !p.TieneCostos && p.Ejecutado + p.Comprometido > 0 ? $"; tiene {Millones(p.Ejecutado + p.Comprometido)} pagados o comprometidos sin presupuesto cargado" : "").
                     @if (p.PrincipalBloqueo is not null)
                     {
                         <span>Bloqueo registrado@(string.IsNullOrWhiteSpace(p.BloqueoNumero) ? "" : $" ({p.BloqueoNumero})"): @Recortar(p.PrincipalBloqueo, 140)@(p.BloqueoDiasVencido > 0 ? $", vencido hace {p.BloqueoDiasVencido} días" : "").</span>

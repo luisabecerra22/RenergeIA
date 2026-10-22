@@ -170,8 +170,9 @@ public class PortafolioService(RenergeIADbContext db, InformeDiarioService infor
         else
             ind.CalidadDato = "Actualizado";
 
-        var porIniciar = ind.EstadoProyecto == EstadoProyecto.Planificacion && ind.AvanceReal == 0
-                         || ind.FechaInicio is { } fi && fi > hoy;
+        // "Por iniciar" solo si su inicio es futuro: si la fecha ya pasó y no hay avance, es un atraso.
+        var porIniciar = ind.FechaInicio is { } fi ? fi > hoy
+                         : ind.EstadoProyecto == EstadoProyecto.Planificacion && ind.AvanceReal == 0;
         if (!ind.TieneCronograma)
         {
             ind.Estado = "Sin información";
