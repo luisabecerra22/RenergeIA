@@ -65,10 +65,7 @@ public class WhatsAppConversacion
                 break;
 
             case "informe":
-                await EnviarTextoAsync(contacto, mensaje.De,
-                    "📝 *Informe diario*\n\n" +
-                    "Aquí registrarás avance, clima y fotografías desde campo.\n\n" +
-                    "Esta opción se conecta en la fase 4. Escribe *menú* para volver.", ct);
+                await EnviarActividadesAsignadasAsync(contacto, mensaje.De, ct);
                 break;
 
             default:
@@ -134,6 +131,60 @@ public class WhatsAppConversacion
     }
 
     // ==================== Conversación ====================
+
+    /// <summary>
+    /// Responde al botón "Informe diario" con las actividades asignadas al contacto
+    /// (solo las de cronogramas VIGENTES). El registro de avance llega en la Etapa 2.
+    /// </summary>
+    private async Task EnviarActividadesAsignadasAsync(ContactoHelvis contacto, string numero, CancellationToken ct)
+    {
+        var asignadas = await _db.AsignacionesHelvis.AsNoTracking()
+            .Where(a => a.ContactoHelvisId == contacto.Id && a.Activa &&
+                        a.Actividad.CronogramaVersion != null && a.Actividad.CronogramaVersion.EsVigente)
+            .Select(a => new
+            {
+                Proyecto = a.Actividad.Proyecto.Codigo,
+                a.Actividad.CodigoWBS,
+                a.Actividad.Nombre,
+                a.Actividad.AvanceReal,
+                a.Frente
+            })
+            .OrderBy(a => a.Proyecto).ThenBy(a => a.CodigoWBS)
+            .ToListAsync(ct);
+
+        string texto;
+        if (asignadas.Count == 0)
+        {
+            texto = "📝 *Informe diario*\n\n" +
+                    "Aún no tienes actividades asignadas. Se asignan desde el panel de Helvis en RenergeIA.\n\n" +
+                    "Escribe *menú* para volver.";
+        }
+        else
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("📝 *Informe diario*");
+            sb.AppendLine();
+            sb.AppendLine("Estas son tus actividades asignadas:");
+            string? proyectoActual = null;
+            foreach (var a in asignadas.Take(20))
+            {
+                if (a.Proyecto != proyectoActual)
+                {
+                    proyectoActual = a.Proyecto;
+                    sb.AppendLine();
+                    sb.AppendLine($"*{a.Proyecto}*");
+                }
+                var frente = string.IsNullOrWhiteSpace(a.Frente) ? "" : $" ({a.Frente})";
+                sb.AppendLine($"• {a.CodigoWBS} {a.Nombre}{frente} — {a.AvanceReal:N0}%");
+            }
+            if (asignadas.Count > 20) sb.AppendLine($"… y {asignadas.Count - 20} más.");
+            sb.AppendLine();
+            sb.AppendLine("El registro de avance por aquí se conecta en la Etapa 2. Escribe *menú* para volver.");
+            texto = sb.ToString();
+        }
+
+        await EnviarTextoAsync(contacto, numero, texto, ct);
+    }
 
     private async Task EnviarMenuAsync(ContactoHelvis contacto, MensajeWhatsApp mensaje, CancellationToken ct)
     {

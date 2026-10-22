@@ -27,6 +27,10 @@
             style="@EstiloTab(_tab == "conversaciones")" @onclick="AbrirConversacionesAsync">
         <i class="bi-chat-dots-fill"></i><span>Conversaciones</span>
     </button>
+    <button class="btn d-flex align-items-center gap-2 fw-semibold"
+            style="@EstiloTab(_tab == "asignaciones")" @onclick='() => _tab = "asignaciones"'>
+        <i class="bi-diagram-3-fill"></i><span>Asignaciones</span>
+    </button>
 </div>
 
 @if (!string.IsNullOrEmpty(_mensaje))
@@ -130,7 +134,7 @@
         </div>
     }
 }
-else
+else if (_tab == "conversaciones")
 {
     <div class="row g-3">
         <div class="col-md-4">
@@ -189,6 +193,127 @@ else
             </div>
         </div>
     </div>
+}
+
+else
+{
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <label class="form-label small mb-0 fw-semibold">Responsable</label>
+            <select class="form-select form-select-sm" value="@_asigContactoId" @onchange="OnContactoAsigAsync">
+                <option value="0">— Elige un contacto —</option>
+                @foreach (var c in _contactos)
+                {
+                    <option value="@c.Id">@c.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label small mb-0 fw-semibold">Proyecto</label>
+            <select class="form-select form-select-sm" value="@_asigProyectoId" @onchange="OnProyectoAsigAsync" disabled="@(_asigContacto is null)">
+                <option value="0">— Elige un proyecto —</option>
+                @foreach (var p in _asigProyectos)
+                {
+                    <option value="@p.Id">@p.Codigo — @p.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end justify-content-end">
+            @if (_asigHojas.Any())
+            {
+                <button class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none" @onclick="GuardarAsignacionesAsync">
+                    💾 Guardar asignaciones
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (_asigContacto is not null && !_asigContacto.PuedeReportar)
+    {
+        <div class="alert alert-warning py-2 small">
+            @_asigContacto.Nombre no tiene el permiso <strong>Reportar avances</strong>. Puedes asignarle actividades,
+            pero el bot no le recibirá reportes hasta activarle ese permiso en Contactos.
+        </div>
+    }
+
+    @if (_asigViejas.Any())
+    {
+        <div class="alert alert-warning py-2 small d-flex justify-content-between align-items-center gap-2">
+            <span>
+                ⚠ @_asigViejas.Count asignación(es) de este responsable apuntan a una <strong>versión anterior</strong> del
+                cronograma: @string.Join(", ", _asigViejas.Select(v => v.Codigo)). Revísalas y vuelve a asignar en la versión vigente.
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" style="white-space:nowrap" @onclick="DesactivarViejasAsync">Desactivarlas</button>
+        </div>
+    }
+
+    @if (_asigContacto is null || _asigProyectoId == 0)
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <i class="bi-diagram-3 display-4 mb-3" style="color:#dde3ed"></i>
+            <p class="text-muted small mb-0">Elige un responsable y un proyecto para asignarle actividades del cronograma vigente.</p>
+        </div>
+    }
+    else if (!_asigHojas.Any())
+    {
+        <div class="card border-0 shadow-sm text-center py-5">
+            <p class="text-muted small mb-0">Este proyecto no tiene actividades hoja en su cronograma vigente.</p>
+        </div>
+    }
+    else
+    {
+        <div class="mb-2 small text-muted">
+            <strong style="color:#183963">@_asigSeleccion.Count</strong> de @_asigHojas.Count actividades asignadas a <strong>@_asigContacto.Nombre</strong>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive" style="max-height:62vh;overflow:auto">
+                <table class="table table-sm align-middle mb-0 small">
+                    <thead style="font-size:.7rem;position:sticky;top:0;z-index:2;background:#fff;border-bottom:2px solid #183963">
+                        <tr>
+                            <th class="ps-3" style="color:#183963;width:36px"></th>
+                            <th style="color:#183963">CÓDIGO</th>
+                            <th style="color:#183963">ACTIVIDAD</th>
+                            <th style="color:#183963">FECHAS</th>
+                            <th class="text-end" style="color:#183963">AVANCE</th>
+                            <th style="color:#183963">FRENTE</th>
+                            <th style="color:#183963">TAMBIÉN ASIGNADA A</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in _asigHojas)
+                        {
+                            var marcada = _asigSeleccion.Contains(h.Id);
+                            <tr style="border-bottom:1px solid #f0f3f8;background:@(marcada ? "#f2faee" : "transparent")">
+                                <td class="ps-3">
+                                    <input class="form-check-input" type="checkbox" checked="@marcada"
+                                           @onchange="e => ToggleAsignacion(h.Id, e.Value)" />
+                                </td>
+                                <td><span class="badge" style="background:#183963;font-size:.68rem">@h.CodigoWBS</span></td>
+                                <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="@h.Nombre">@h.Nombre</td>
+                                <td class="text-muted" style="font-size:.7rem;white-space:nowrap">@h.FechaInicioPlaneada.ToString("dd/MM/yy") → @h.FechaFinPlaneada.ToString("dd/MM/yy")</td>
+                                <td class="text-end fw-semibold" style="color:@(h.AvanceReal >= h.AvancePlanificado ? "#5aa83e" : "#dc3545")">@h.AvanceReal.ToString("N0")%</td>
+                                <td class="p-0" style="min-width:110px">
+                                    @if (marcada)
+                                    {
+                                        <input type="text" class="form-control form-control-sm border-0" style="font-size:.72rem;background:transparent"
+                                               placeholder="@(h.FrenteTrabajo ?? "—")"
+                                               value="@_asigFrentes.GetValueOrDefault(h.Id)"
+                                               @onchange="e => _asigFrentes[h.Id] = e.Value?.ToString()" />
+                                    }
+                                </td>
+                                <td style="font-size:.7rem">
+                                    @if (_asigOtros.TryGetValue(h.Id, out var otros))
+                                    {
+                                        <span class="text-muted">@otros</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
 }
 
 @* ==================== Modal contacto ==================== *@
@@ -353,6 +478,162 @@ else
             .ToListAsync();
         _hilo = ultimos.OrderBy(m => m.FechaCreacion).ToList();
     }
+
+    // ==================== Asignaciones ====================
+
+    private int _asigContactoId;
+    private ContactoHelvis? _asigContacto;
+    private int _asigProyectoId;
+    private List<Proyecto> _asigProyectos = [];
+    private List<ActividadWBS> _asigHojas = [];
+    private HashSet<int> _asigSeleccion = [];
+    private Dictionary<int, string?> _asigFrentes = [];
+    private Dictionary<int, string> _asigOtros = [];
+    private record AsigVieja(int Id, string Codigo);
+    private List<AsigVieja> _asigViejas = [];
+
+    private async Task OnContactoAsigAsync(ChangeEventArgs e)
+    {
+        _asigContactoId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        _asigContacto = _contactos.FirstOrDefault(c => c.Id == _asigContactoId);
+        _asigProyectos = _asigContacto?.Proyectos
+            .Where(p => p.Proyecto is not null)
+            .Select(p => p.Proyecto)
+            .OrderBy(p => p.Nombre)
+            .ToList() ?? [];
+        _asigProyectoId = 0;
+        _asigHojas = []; _asigSeleccion = []; _asigFrentes = []; _asigOtros = [];
+        await CargarAsigViejasAsync();
+    }
+
+    private async Task OnProyectoAsigAsync(ChangeEventArgs e)
+    {
+        _asigProyectoId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await CargarHojasAsync();
+    }
+
+    private async Task CargarHojasAsync()
+    {
+        _asigHojas = []; _asigSeleccion = []; _asigFrentes = []; _asigOtros = [];
+        if (_asigProyectoId == 0 || _asigContacto is null) return;
+
+        // Solo hojas (sin hijas) del cronograma VIGENTE: son las únicas que reciben avance.
+        var actividades = await Db.ActividadesWBS.AsNoTracking()
+            .Where(a => a.ProyectoId == _asigProyectoId && a.CronogramaVersion != null && a.CronogramaVersion.EsVigente)
+            .ToListAsync();
+        var padres = actividades.Where(a => a.ActividadPadreId != null).Select(a => a.ActividadPadreId!.Value).ToHashSet();
+        _asigHojas = actividades.Where(a => !padres.Contains(a.Id)).OrderBy(a => a.Id).ToList();
+
+        var ids = _asigHojas.Select(h => h.Id).ToList();
+        var asignaciones = await Db.AsignacionesHelvis.AsNoTracking()
+            .Where(a => a.Activa && ids.Contains(a.ActividadWBSId))
+            .Include(a => a.Contacto)
+            .ToListAsync();
+
+        foreach (var a in asignaciones.Where(a => a.ContactoHelvisId == _asigContacto.Id))
+        {
+            _asigSeleccion.Add(a.ActividadWBSId);
+            _asigFrentes[a.ActividadWBSId] = a.Frente;
+        }
+        _asigOtros = asignaciones
+            .Where(a => a.ContactoHelvisId != _asigContacto.Id)
+            .GroupBy(a => a.ActividadWBSId)
+            .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(x => PrimerNombreDe(x.Contacto?.Nombre))));
+    }
+
+    private void ToggleAsignacion(int actividadId, object? valor)
+    {
+        if (valor is bool marcado && marcado) _asigSeleccion.Add(actividadId);
+        else _asigSeleccion.Remove(actividadId);
+    }
+
+    private async Task GuardarAsignacionesAsync()
+    {
+        if (_asigContacto is null) return;
+        var ids = _asigHojas.Select(h => h.Id).ToHashSet();
+        var existentes = await Db.AsignacionesHelvis
+            .Where(a => a.ContactoHelvisId == _asigContacto.Id && ids.Contains(a.ActividadWBSId))
+            .ToListAsync();
+
+        int activadas = 0, retiradas = 0;
+        foreach (var actividadId in _asigSeleccion)
+        {
+            var frente = string.IsNullOrWhiteSpace(_asigFrentes.GetValueOrDefault(actividadId))
+                ? null : _asigFrentes[actividadId]!.Trim();
+            var existente = existentes.FirstOrDefault(a => a.ActividadWBSId == actividadId);
+            if (existente is null)
+            {
+                Db.AsignacionesHelvis.Add(new AsignacionHelvis
+                {
+                    ContactoHelvisId = _asigContacto.Id,
+                    ActividadWBSId = actividadId,
+                    Activa = true,
+                    VigenteDesde = DateTime.UtcNow,
+                    Frente = frente
+                });
+                activadas++;
+            }
+            else
+            {
+                if (!existente.Activa)
+                {
+                    existente.Activa = true;
+                    existente.VigenteDesde = DateTime.UtcNow;
+                    existente.VigenteHasta = null;
+                    activadas++;
+                }
+                existente.Frente = frente;
+                existente.FechaModificacion = DateTime.UtcNow;
+            }
+        }
+        // Retirar = desactivar conservando el historial (nunca se borra la fila).
+        foreach (var existente in existentes.Where(a => a.Activa && !_asigSeleccion.Contains(a.ActividadWBSId)))
+        {
+            existente.Activa = false;
+            existente.VigenteHasta = DateTime.UtcNow;
+            existente.FechaModificacion = DateTime.UtcNow;
+            retiradas++;
+        }
+
+        await Db.SaveChangesAsync();
+        _mensaje = $"Asignaciones guardadas para {_asigContacto.Nombre}: {activadas} activada(s), {retiradas} retirada(s). El historial se conserva.";
+        _mensajeError = false;
+        await CargarHojasAsync();
+        await CargarAsigViejasAsync();
+    }
+
+    /// <summary>Asignaciones activas que apuntan a una versión NO vigente del cronograma (quedaron viejas tras una reprogramación).</summary>
+    private async Task CargarAsigViejasAsync()
+    {
+        _asigViejas = [];
+        if (_asigContacto is null) return;
+        var viejas = await Db.AsignacionesHelvis.AsNoTracking()
+            .Where(a => a.ContactoHelvisId == _asigContacto.Id && a.Activa &&
+                        (a.Actividad.CronogramaVersion == null || !a.Actividad.CronogramaVersion.EsVigente))
+            .Select(a => new { a.Id, a.Actividad.CodigoWBS })
+            .ToListAsync();
+        _asigViejas = viejas.Select(v => new AsigVieja(v.Id, v.CodigoWBS)).ToList();
+    }
+
+    private async Task DesactivarViejasAsync()
+    {
+        if (!_asigViejas.Any()) return;
+        var ids = _asigViejas.Select(v => v.Id).ToList();
+        var filas = await Db.AsignacionesHelvis.Where(a => ids.Contains(a.Id)).ToListAsync();
+        foreach (var f in filas)
+        {
+            f.Activa = false;
+            f.VigenteHasta = DateTime.UtcNow;
+            f.FechaModificacion = DateTime.UtcNow;
+        }
+        await Db.SaveChangesAsync();
+        _mensaje = $"{filas.Count} asignación(es) de versiones anteriores desactivada(s).";
+        _mensajeError = false;
+        await CargarAsigViejasAsync();
+    }
+
+    private static string PrimerNombreDe(string? nombre) =>
+        (nombre ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
 
     // ==================== Contactos ====================
 
