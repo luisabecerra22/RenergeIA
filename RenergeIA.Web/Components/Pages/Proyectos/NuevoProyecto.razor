@@ -143,6 +143,11 @@
                 </div>
             </div>
 
+            @if (!string.IsNullOrEmpty(_errorGuardar))
+            {
+                <div class="alert alert-danger mt-4 mb-0 small">@_errorGuardar</div>
+            }
+
             @if (_mostrarConfirmDuplicado)
             {
                 <div class="alert alert-danger mt-4 mb-0">
@@ -150,7 +155,7 @@
                     Un proyecto repetido genera <strong>confusiones y problemas para el personal</strong> en campo y en los reportes.
                     Valida si cargaste el <strong>presupuesto base correcto</strong>:
                     <div class="d-flex gap-2 mt-2 flex-wrap">
-                        <button type="button" class="btn btn-sm btn-danger"
+                        <button type="button" class="btn btn-sm btn-danger" disabled="@_guardando"
                                 @onclick="ConfirmarDuplicadoYGuardarAsync">
                             Sí, es el presupuesto base correcto — crear de todas formas
                         </button>
@@ -167,7 +172,16 @@
             }
 
             <div class="mt-4 d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Guardar proyecto</button>
+                <button type="submit" class="btn btn-primary" disabled="@_guardando">
+                    @if (_guardando)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span><span>Guardando…</span>
+                    }
+                    else
+                    {
+                        <span>Guardar proyecto</span>
+                    }
+                </button>
                 <a href="/proyectos" class="btn btn-outline-secondary">Cancelar</a>
             </div>
         </EditForm>
@@ -187,6 +201,10 @@
     private string? _dupMensaje;
     private bool _mostrarConfirmDuplicado;
     private string? _dupConfirmadoPara;
+
+    // Evita guardar dos veces: varios clics seguidos usaban el mismo DbContext a la vez y tumbaban el circuito
+    private bool _guardando;
+    private string? _errorGuardar;
 
     private string ClaveDuplicado => $"{_form.Codigo.Trim().ToLowerInvariant()}|{_form.Nombre.Trim().ToLowerInvariant()}";
 
@@ -241,6 +259,7 @@
 
     private async Task CargarBomAsync(InputFileChangeEventArgs e)
     {
+        if (_guardando) return;
         _cargandoBom = true;
         _bomMensaje = null;
         StateHasChanged();
@@ -300,6 +319,26 @@
     }
 
     private async Task GuardarAsync()
+    {
+        if (_guardando || _cargandoBom) return;
+        _guardando = true;
+        _errorGuardar = null;
+        try
+        {
+            await GuardarProyectoAsync();
+        }
+        catch (Exception ex)
+        {
+            Db.ChangeTracker.Clear(); // que un reintento no vuelva a insertar lo que quedó a medias
+            _errorGuardar = $"No se pudo guardar el proyecto: {ex.Message}";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task GuardarProyectoAsync()
     {
         var dup = await BuscarDuplicadoAsync();
         if (dup is not null && _dupConfirmadoPara != ClaveDuplicado)

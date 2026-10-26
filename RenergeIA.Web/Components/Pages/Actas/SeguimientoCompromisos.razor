@@ -32,7 +32,6 @@
         </select>
         <select class="form-select form-select-sm" style="width:auto" @bind="_filtroProyecto">
             <option value="">Todos los proyectos</option>
-            <option value="(general)">General / corporativos</option>
             @foreach (var p in _proyectos)
             {
                 <option value="@p">@p</option>
@@ -255,6 +254,8 @@ else
     private List<CompromisoReunion> _todos = [];
     private List<SeguimientoPersonas.FichaPersona> _fichasBase = [];
     private List<string> _proyectos = [];
+    private ProyectoCompromiso _proy = ProyectoCompromiso.Crear([], []);
+    private Dictionary<int, string> _proyectoDe = [];
     private List<string> _areas = [];
     private string _filtroProyecto = "";
     private string _filtroArea = "";
@@ -271,7 +272,9 @@ else
             .Include(c => c.ActaReunion)
             .ToListAsync();
         var propios = _todos.Where(SeguimientoPersonas.EsDeRenergeia).ToList();
-        _proyectos = propios.Where(c => !string.IsNullOrWhiteSpace(c.ProyectoTexto)).Select(c => c.ProyectoTexto!).Distinct().OrderBy(x => x).ToList();
+        _proy = ProyectoCompromiso.Crear(await Db.ProyectosActa.AsNoTracking().ToListAsync(), _todos);
+        _proyectoDe = _todos.ToDictionary(c => c.Id, c => _proy.De(c));
+        _proyectos = propios.Select(ProyectoDe).Distinct().OrderBy(x => x == ProyectoCompromiso.General).ThenBy(x => x).ToList();
         _areas = propios.Select(c => c.Categoria).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct().OrderBy(x => x).ToList();
         _fichasBase = SeguimientoPersonas.Fichas(_todos, Hoy);
         _cargando = false;
@@ -281,8 +284,7 @@ else
     private List<SeguimientoPersonas.FichaPersona> Fichas()
     {
         var incluidos = _todos.Where(c =>
-            (_filtroProyecto.Length == 0
-                || (_filtroProyecto == "(general)" ? string.IsNullOrWhiteSpace(c.ProyectoTexto) : c.ProyectoTexto == _filtroProyecto))
+            (_filtroProyecto.Length == 0 || ProyectoDe(c) == _filtroProyecto)
             && (_filtroArea.Length == 0 || c.Categoria == _filtroArea)
             && (_desde is null || (c.FechaActa ?? c.ActaReunion?.Fecha) >= _desde)
             && (_hasta is null || (c.FechaActa ?? c.ActaReunion?.Fecha) <= _hasta))
@@ -328,8 +330,9 @@ else
         return o.ThenBy(f => f.PorcentajeCumplimiento).ThenBy(f => f.Persona);
     }
 
-    private static string ProyectoDe(CompromisoReunion c) =>
-        string.IsNullOrWhiteSpace(c.ProyectoTexto) ? "General Renergeia" : c.ProyectoTexto!;
+    // Proyecto efectivo: el del acta o, en actas multiproyecto, el de la etiqueta [Proyecto] del texto
+    private string ProyectoDe(CompromisoReunion c) =>
+        _proyectoDe.TryGetValue(c.Id, out var p) ? p : _proy.De(c);
 
     private static string Pct(int parte, int total) =>
         total == 0 ? "0%" : (100.0 * parte / total).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";

@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services.Actas
 
 <PageTitle>Tablero de compromisos</PageTitle>
 
@@ -63,7 +64,6 @@
         </select>
         <select class="form-select form-select-sm" style="width:auto" @bind="_filtroProyecto">
             <option value="">Todos los proyectos</option>
-            <option value="(general)">General / corporativos</option>
             @foreach (var p in _proyectos)
             {
                 <option value="@p">@p</option>
@@ -330,6 +330,7 @@
 @code {
     private List<CompromisoReunion> _todos = [];
     private List<string> _proyectos = [];
+    private Dictionary<int, string> _proyectoDe = [];   // proyecto efectivo (etiqueta [Proyecto] en actas multiproyecto)
     private List<string> _responsables = [];
     private static readonly string[] _areasTablero =
         ["Por clasificar", "Administrativa", "Construcción", "Ingeniería", "O&M", "Propuestas", "Compras",
@@ -373,7 +374,9 @@
         _todos = await Db.CompromisosReunion.AsNoTracking()
             .OrderBy(c => c.FechaLimite == null).ThenBy(c => c.FechaLimite).ThenBy(c => c.IdOrigen)
             .ToListAsync();
-        _proyectos = _todos.Where(c => !string.IsNullOrWhiteSpace(c.ProyectoTexto)).Select(c => c.ProyectoTexto!).Distinct().OrderBy(x => x).ToList();
+        var proy = ProyectoCompromiso.Crear(await Db.ProyectosActa.AsNoTracking().ToListAsync(), _todos);
+        _proyectoDe = _todos.ToDictionary(c => c.Id, c => proy.De(c));
+        _proyectos = _proyectoDe.Values.Distinct().OrderBy(x => x == ProyectoCompromiso.General).ThenBy(x => x).ToList();
         _responsables = _todos.SelectMany(c => c.Responsable.Split(['/', ';', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList();
 
@@ -388,6 +391,9 @@
             .GroupBy(x => x.p)
             .ToDictionary(g => g.Key, g => g.Max(x => x.Fecha).ToLocalTime().ToString("dd/MM/yyyy"));
     }
+
+    private string ProyectoDe(CompromisoReunion c) =>
+        _proyectoDe.TryGetValue(c.Id, out var p) ? p : ProyectoCompromiso.General;
 
     private static bool EsPropio(CompromisoReunion c) => c.Tipo == TipoCompromisoReunion.Propio;
     private static bool Abierto(CompromisoReunion c) => c.Estado != EstadoCompromisoReunion.Cerrado;
@@ -421,13 +427,12 @@
             "cerrados" => q.Where(c => c.Estado == EstadoCompromisoReunion.Cerrado),
             _ => q.Where(Abierto)
         };
-        if (_filtroProyecto == "(general)") q = q.Where(c => string.IsNullOrWhiteSpace(c.ProyectoTexto));
-        else if (_filtroProyecto.Length > 0) q = q.Where(c => c.ProyectoTexto == _filtroProyecto);
+        if (_filtroProyecto.Length > 0) q = q.Where(c => ProyectoDe(c) == _filtroProyecto);
         if (_filtroResponsable.Length > 0) q = q.Where(c => c.Responsable.Contains(_filtroResponsable, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_buscar))
         {
             var b = _buscar.Trim();
-            q = q.Where(c => (c.Texto + " " + c.Responsable + " " + c.Empresa + " " + c.IdOrigen + " " + c.ProyectoTexto + " " + c.Categoria)
+            q = q.Where(c => (c.Texto + " " + c.Responsable + " " + c.Empresa + " " + c.IdOrigen + " " + ProyectoDe(c) + " " + c.Categoria)
                 .Contains(b, StringComparison.OrdinalIgnoreCase));
         }
         // Orden: vencidos → próximos → ok → sin fecha → cerrados
@@ -442,7 +447,7 @@
                 .DefaultIfEmpty("Por confirmar").Select(p => (Persona: p, Comp: c)))
             .GroupBy(x => x.Persona, x => x.Comp, StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key),
-        "proyecto" => lista.GroupBy(c => string.IsNullOrWhiteSpace(c.ProyectoTexto) ? "General Renergeia" : c.ProyectoTexto!).OrderBy(g => g.Key),
+        "proyecto" => lista.GroupBy(ProyectoDe).OrderBy(g => g.Key == ProyectoCompromiso.General).ThenBy(g => g.Key),
         _ => lista.GroupBy(c => string.IsNullOrWhiteSpace(c.Categoria) ? "Por clasificar" : c.Categoria!)
                   .OrderBy(g => Array.IndexOf(_areasTablero, g.Key) is var i && i >= 0 ? i : 99).ThenBy(g => g.Key)
     };
