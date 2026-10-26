@@ -272,7 +272,8 @@ else
             .Include(c => c.ActaReunion)
             .ToListAsync();
         var propios = _todos.Where(SeguimientoPersonas.EsDeRenergeia).ToList();
-        _proy = ProyectoCompromiso.Crear(await Db.ProyectosActa.AsNoTracking().ToListAsync(), _todos);
+        _proy = ProyectoCompromiso.Crear(await Db.ProyectosActa.AsNoTracking().ToListAsync(), _todos,
+            (await Db.Proyectos.AsNoTracking().Select(x => new { x.Codigo, x.Nombre }).ToListAsync()).Select(x => ((string?)x.Codigo, (string?)x.Nombre)));
         _proyectoDe = _todos.ToDictionary(c => c.Id, c => _proy.De(c));
         _proyectos = propios.Select(ProyectoDe).Distinct().OrderBy(x => x == ProyectoCompromiso.General).ThenBy(x => x).ToList();
         _areas = propios.Select(c => c.Categoria).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct().OrderBy(x => x).ToList();

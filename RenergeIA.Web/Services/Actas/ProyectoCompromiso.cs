@@ -22,7 +22,10 @@ public sealed partial class ProyectoCompromiso
     private readonly Dictionary<string, string> _nombrePorCodigo = [];   // COS6AU → La Aurora
     private readonly Dictionary<string, string> _codigoPorNombre = [];   // "la aurora", "aurora" → COS6AU
 
-    public static ProyectoCompromiso Crear(IEnumerable<ProyectoActa> catalogo, IEnumerable<CompromisoReunion> compromisos)
+    // proyectosApp = (Codigo, Nombre) de los proyectos de RenergeIA: reconocen las etiquetas desde ya,
+    // aunque todavía no se haya subido ninguna acta de ese proyecto con su código
+    public static ProyectoCompromiso Crear(IEnumerable<ProyectoActa> catalogo, IEnumerable<CompromisoReunion> compromisos,
+        IEnumerable<(string? Codigo, string? Nombre)>? proyectosApp = null)
     {
         var p = new ProyectoCompromiso();
         foreach (var pa in catalogo.Where(x => !string.IsNullOrWhiteSpace(x.Codigo)))
@@ -31,6 +34,16 @@ public sealed partial class ProyectoCompromiso
             p._nombrePorCodigo.TryAdd(cod, pa.Nombre.Trim());
             p.Aprender(pa.Nombre, cod);
             foreach (var a in Alias(pa.AliasJson)) p.Aprender(a, cod);
+        }
+        foreach (var (codigo, nombreApp) in proyectosApp ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(codigo) || string.IsNullOrWhiteSpace(nombreApp)) continue;
+            var cod = codigo.Trim().ToUpperInvariant();
+            // el nombre de la app puede traer el código ("COS5SO - La Soberana"): se deja solo el nombre
+            var nombre = RxCodigo().Match(nombreApp.ToUpperInvariant()) is { Success: true } mn ? NombreTrasCodigo(nombreApp, mn) : nombreApp.Trim();
+            if (nombre.Length == 0) continue;
+            p._nombrePorCodigo.TryAdd(cod, nombre);
+            p.Aprender(nombre, cod);
         }
         // Lo que enseñan los propios datos: textos del acta y etiquetas con código
         var lista = compromisos.ToList();
