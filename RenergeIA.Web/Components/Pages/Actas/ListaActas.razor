@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject ActasImportService ImportSvc
+@inject AuthenticationStateProvider AuthState
 @using Microsoft.EntityFrameworkCore
 @using RenergeIA.Core.Enums
 @using RenergeIA.Web.Services.Actas
@@ -17,8 +18,11 @@
     <a href="/actas/compromisos" class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none">
         <i class="bi-kanban me-1"></i>Tablero de compromisos
     </a>
-    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="() => _mostrarImportar = true">
-        <i class="bi-upload me-1"></i>Importar desde Actas IA
+    <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="AbrirWord">
+        <i class="bi-file-earmark-word me-1"></i>Subir actas (Word)
+    </button>
+    <button class="btn btn-sm btn-outline-secondary fw-semibold" @onclick="() => _mostrarImportar = true">
+        <i class="bi-upload me-1"></i>Importar paquete ZIP
     </button>
 </div>
 
@@ -82,7 +86,7 @@
 {
     <div class="card border-0 shadow-sm text-center py-5">
         <i class="bi-journal-check display-4 mb-3" style="color:#dde3ed"></i>
-        <p class="text-muted">Aún no hay actas. Usa <strong>Importar desde Actas IA</strong> para traer las actas y compromisos del sistema anterior.</p>
+        <p class="text-muted">Aún no hay actas. Usa <strong>Subir actas (Word)</strong> para cargarlas una a una o <strong>Importar paquete ZIP</strong> para traer todo el sistema anterior.</p>
     </div>
 }
 else
@@ -237,6 +241,159 @@ else
                             }
                             Aplicar importación (con respaldo)
                         </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: subir actas en Word, una a una o varias -->
+@if (_mostrarWord)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white" style="background:#183963">
+                    <h6 class="modal-title"><i class="bi-file-earmark-word me-1"></i>Subir actas en Word</h6>
+                    <button class="btn-close btn-close-white" @onclick="CerrarWord" disabled="@_trabajando"></button>
+                </div>
+                <div class="modal-body small">
+                    @if (_wordResultado is not null)
+                    {
+                        <div class="alert alert-success py-2" style="white-space:pre-wrap">@_wordResultado</div>
+                        <p class="mb-0 text-muted">Puedes seguir subiendo otras actas cuando quieras; cada carga se suma a lo que ya está.</p>
+                    }
+                    else if (_wordPaquete is null)
+                    {
+                        <p>
+                            Sube el <strong>Word del acta</strong> (formato FO-SG-GC-021). Puedes subir una sola o varias a la vez
+                            (hasta @MaxWord), e ir subiendo <strong>poco a poco</strong>: cada carga se suma a lo que ya está y
+                            <strong>nunca reescribe</strong> un acta ni un compromiso ya cargado.
+                        </p>
+                        <ul class="text-muted mb-2">
+                            <li>Los compromisos se leen del <strong>acta interna</strong> (la externa trae solo una parte). Si hoy subes la externa, los compromisos entran cuando subas la interna.</li>
+                            <li>Si el acta ya existe, solo se le agregan los documentos y compromisos que le falten.</li>
+                            <li>La tabla <em>Seguimiento de compromisos anteriores</em> queda en el historial de cada compromiso de origen, sin cambiar su estado.</li>
+                            <li>Antes de guardar verás una vista previa; nada se guarda hasta que confirmes.</li>
+                        </ul>
+                        <InputFile OnChange="LeerWordAsync" accept=".docx" multiple class="form-control form-control-sm" disabled="@_trabajando" />
+                        @if (_trabajando)
+                        {
+                            <div class="mt-2"><span class="spinner-border spinner-border-sm me-1"></span>Leyendo los documentos…</div>
+                        }
+                        @if (_wordErrores.Count > 0)
+                        {
+                            <div class="alert alert-danger py-1 mt-2 mb-0">
+                                @foreach (var er in _wordErrores) { <div>@er</div> }
+                            </div>
+                        }
+                    }
+                    else if (_wordReporte is not null)
+                    {
+                        @if (_wordErrores.Count > 0)
+                        {
+                            <div class="alert alert-danger py-1 mb-2">
+                                <div class="fw-semibold">No se pudieron leer (no se cargarán):</div>
+                                @foreach (var er in _wordErrores) { <div>@er</div> }
+                            </div>
+                        }
+                        <div class="table-responsive mb-2">
+                            <table class="table table-sm align-middle mb-0" style="font-size:.8rem">
+                                <thead style="background:#eef1f6;color:#183963">
+                                    <tr>
+                                        <th>Acta</th><th>Fecha</th><th>Proyecto</th><th>Asunto</th>
+                                        <th>Documentos</th><th class="text-center">Compromisos</th><th>Qué pasará</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var a in _wordPaquete.Actas)
+                                    {
+                                        var nueva = _wordReporte.ActasNuevas.Contains(a.Codigo);
+                                        var compNuevos = _wordReporte.CompromisosNuevos.Count(id => id.StartsWith(a.Codigo + "-"));
+                                        var compYa = _wordReporte.CompromisosExistentes.Count(id => id.StartsWith(a.Codigo + "-"));
+                                        <tr>
+                                            <td class="fw-semibold" style="color:#183963;white-space:nowrap">@a.Codigo</td>
+                                            <td style="white-space:nowrap">@(a.Fecha?.ToString("dd/MM/yyyy") ?? a.FechaTexto)</td>
+                                            <td>@a.ProyectoTexto</td>
+                                            <td style="max-width:260px">@a.Asunto</td>
+                                            <td>
+                                                @foreach (var f in a.Archivos)
+                                                {
+                                                    var esNuevo = _wordReporte.ArchivosNuevos.Contains($"{a.Codigo} · {f.Filename}");
+                                                    <div style="white-space:nowrap">
+                                                        <span class="badge" style="background:@(f.Tipo == TipoArchivoActa.InternaDocx ? "#183963" : "#6c757d")">@(f.Tipo == TipoArchivoActa.InternaDocx ? "Interna" : "Externa")</span>
+                                                        <span class="@(esNuevo ? "" : "text-muted")" style="font-size:.7rem">@(esNuevo ? "se guarda" : "ya estaba cargada")</span>
+                                                    </div>
+                                                }
+                                            </td>
+                                            <td class="text-center">
+                                                @if (!a.TieneInterna)
+                                                {
+                                                    <span class="text-muted" style="font-size:.7rem">falta la interna</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="fw-bold">@compNuevos</span> <span style="font-size:.7rem">nuevos</span>
+                                                    @if (compYa > 0)
+                                                    {
+                                                        <div class="text-muted" style="font-size:.7rem">@compYa ya cargados</div>
+                                                    }
+                                                }
+                                            </td>
+                                            <td style="min-width:170px">
+                                                @if (nueva)
+                                                {
+                                                    <div class="mb-1"><span class="badge" style="background:#6ABF4B">Acta nueva</span></div>
+                                                    <select class="form-select form-select-sm py-0" style="font-size:.75rem" @bind="a.EstadoTexto" title="Estado con el que queda el acta">
+                                                        <option value="borrador">Borrador</option>
+                                                        <option value="comentarios">Con comentarios</option>
+                                                        <option value="aprobada">Aprobada</option>
+                                                    </select>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge" style="background:#e3ecfb;color:#183963">Ya existe — se complementa</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @Seccion("Conflictos para revisar", _wordReporte.Conflictos, "#dc3545")
+                        @Seccion("Seguimiento que quedará en el historial de los compromisos de origen", _wordReporte.SeguimientosNuevos, "#183963")
+                        @Seccion("Seguimiento sin compromiso de origen en la app", _wordReporte.SeguimientosSinOrigen, "#fd7e14")
+                        @Seccion("Documentos ya cargados con otro contenido (no se reemplazan)", _wordReporte.ArchivosDistintos, "#fd7e14")
+                        @Seccion("Proyectos nuevos en el catálogo de actas", _wordReporte.ProyectosNuevos, "#6c757d")
+                        @Seccion("Proyectos sin vincular a RenergeIA", _wordReporte.ProyectosSinMapear.Distinct().ToList(), "#fd7e14")
+                        @Seccion("Fechas descriptivas (se conservan como texto, sin vencimiento)", _wordReporte.FechasDescriptivas, "#6c757d")
+                        @Seccion("Advertencias", _wordReporte.Advertencias, "#6c757d")
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (_wordResultado is not null)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CerrarWord">Cerrar</button>
+                        <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none" @onclick="ReiniciarWord">
+                            <i class="bi-plus-lg me-1"></i>Subir más actas
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="CerrarWord" disabled="@_trabajando">Cancelar</button>
+                        @if (_wordPaquete is not null)
+                        {
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="ReiniciarWord" disabled="@_trabajando">Elegir otros archivos</button>
+                            <button class="btn btn-sm fw-semibold" style="background:#183963;color:#fff;border:none"
+                                    @onclick="GuardarWordAsync" disabled="@(_trabajando || _wordPaquete.Actas.Count == 0)">
+                                @if (_trabajando)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                Guardar @_wordPaquete.Actas.Count acta(s)
+                            </button>
+                        }
                     }
                 </div>
             </div>
@@ -400,6 +557,105 @@ else
         {
             _mensaje = $"No se pudo revertir: {ex.InnerException?.Message ?? ex.Message}";
             _mensajeError = true;
+        }
+        finally
+        {
+            _trabajando = false;
+        }
+    }
+
+    // ── Carga de actas Word (una a una o varias) ──
+    private const int MaxWord = 20;
+    private bool _mostrarWord;
+    private ActasZipParser.PaqueteActas? _wordPaquete;
+    private ActasImportService.Reporte? _wordReporte;
+    private List<string> _wordErrores = [];
+    private string? _wordResultado;
+
+    private void AbrirWord()
+    {
+        ReiniciarWord();
+        _mostrarWord = true;
+    }
+
+    private void ReiniciarWord()
+    {
+        _wordPaquete = null;
+        _wordReporte = null;
+        _wordErrores = [];
+        _wordResultado = null;
+    }
+
+    private void CerrarWord()
+    {
+        _mostrarWord = false;
+        ReiniciarWord();
+    }
+
+    private async Task LeerWordAsync(InputFileChangeEventArgs e)
+    {
+        _trabajando = true;
+        _wordErrores = [];
+        StateHasChanged();
+        try
+        {
+            if (e.FileCount > MaxWord)
+                _wordErrores.Add($"Seleccionaste {e.FileCount} archivos; se leen los primeros {MaxWord}. Sube el resto en otra carga.");
+            var archivos = new List<ActasWordParser.ArchivoWord>();
+            foreach (var f in e.GetMultipleFiles(MaxWord))
+            {
+                if (!f.Name.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+                {
+                    _wordErrores.Add($"{f.Name}: no es un Word .docx (si es .doc antiguo, ábrelo en Word y guárdalo como .docx).");
+                    continue;
+                }
+                try
+                {
+                    using var ms = new MemoryStream();
+                    await f.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024).CopyToAsync(ms);
+                    archivos.Add(new ActasWordParser.ArchivoWord(f.Name, ms.ToArray()));
+                }
+                catch (IOException)
+                {
+                    _wordErrores.Add($"{f.Name}: supera 30 MB.");
+                }
+            }
+            var (paquete, _, errores) = ActasWordParser.LeerVarios(archivos);
+            _wordErrores.AddRange(errores);
+            if (paquete.Actas.Count == 0) return;
+            _wordPaquete = paquete;
+            _wordReporte = await ImportSvc.SimularAsync(paquete);
+        }
+        catch (Exception ex)
+        {
+            _wordErrores.Add($"No se pudieron leer los documentos: {ex.Message}");
+        }
+        finally
+        {
+            _trabajando = false;
+        }
+    }
+
+    private async Task GuardarWordAsync()
+    {
+        if (_wordPaquete is null) return;
+        _trabajando = true;
+        StateHasChanged();
+        try
+        {
+            var usuario = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.Name ?? "Carga de Word";
+            var nombre = string.Join(", ", _wordPaquete.Actas.Select(a => a.Codigo));
+            var (lote, rep) = await ImportSvc.AplicarAsync(_wordPaquete, $"Word: {nombre}", usuario);
+            _wordResultado = $"Guardado (carga #{lote.Id}): {rep.ActasNuevas.Count} acta(s) nueva(s), {rep.ActasComplementadas.Count} complementada(s), " +
+                             $"{rep.CompromisosNuevos.Count} compromiso(s) nuevo(s), {rep.ArchivosNuevos.Count} documento(s) y " +
+                             $"{rep.SeguimientosNuevos.Count} seguimiento(s) en el historial.";
+            _wordPaquete = null;
+            _wordReporte = null;
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _wordErrores = [$"No se guardó nada: {ex.InnerException?.Message ?? ex.Message}"];
         }
         finally
         {

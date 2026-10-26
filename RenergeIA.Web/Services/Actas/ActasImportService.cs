@@ -37,6 +37,11 @@ public class ActasImportService(RenergeIADbContext db)
         public List<string> FechasDescriptivas = [];         // se conservan como texto, sin vencimiento
         public List<string> Conflictos = [];
         public List<string> Advertencias = [];
+        // Carga de Word sueltos
+        public List<string> ActasComplementadas = [];        // ya existían: solo se agregan documentos/compromisos que falten
+        public List<string> CompromisosExistentes = [];      // ya cargados: no se tocan
+        public List<string> SeguimientosNuevos = [];         // filas de "Seguimiento de compromisos anteriores" que quedan como actualización
+        public List<string> SeguimientosSinOrigen = [];      // el compromiso de origen aún no está en la app
         public int Personas, Alias, Externos;
         public bool TieneExportTablero;
     }
@@ -72,6 +77,26 @@ public class ActasImportService(RenergeIADbContext db)
         var proyectosDb = await db.ProyectosActa.AsNoTracking().ToListAsync();
         var proyectosRen = await db.Proyectos.AsNoTracking().Select(x => new { x.Id, x.Codigo, x.Nombre }).ToListAsync();
 
+        // Word sueltos: el proyecto con código reconocible que aún no está en el catálogo se agrega
+        // (solo si no existe: un ProyectoLeido sobre uno existente le borraría alias y áreas)
+        if (p.DesdeWord)
+            foreach (var a in p.Actas)
+            {
+                var cod = CodigoProyectoDe(a.ProyectoTexto);
+                if (cod is null || proyectosDb.Any(x => Igual(x.Codigo, cod)) || p.Proyectos.Any(x => Igual(x.Codigo, cod))) continue;
+                var txt = a.ProyectoTexto!.Trim();
+                var guion = txt.IndexOf(" - ", StringComparison.Ordinal);
+                var nombre = guion > 0 ? txt[(guion + 3)..].Trim() : txt;
+                if (proyectosDb.Any(x => Igual(x.Nombre, nombre))) continue;
+                p.Proyectos.Add(new ProyectoLeido(nombre.Length > 0 ? nombre : cod, cod, null, null, null, null));
+            }
+
+        var seguimientosDb = p.DesdeWord
+            ? await db.ActualizacionesCompromisoReunion.AsNoTracking()
+                .Where(x => x.TipoActualizacion == "seguimiento" && x.ActaReferencia != null)
+                .Select(x => x.CompromisoReunion.IdOrigen + "|" + x.ActaReferencia).ToListAsync()
+            : [];
+
         foreach (var pr in p.Proyectos)
             if (!proyectosDb.Any(x => Igual(x.Codigo, pr.Codigo) || Igual(x.Nombre, pr.Nombre)))
             {
@@ -86,11 +111,14 @@ public class ActasImportService(RenergeIADbContext db)
             if (!vistos.Add(a.Codigo)) continue;
 
             var codProy = CodigoProyectoDe(a.ProyectoTexto);
-            if (a.ProyectoTexto is not null && codProy is null && !p.Proyectos.Any(x => Igual(x.Nombre, a.ProyectoTexto)))
+            if (a.ProyectoTexto is not null && codProy is null && !p.Proyectos.Any(x => Igual(x.Nombre, a.ProyectoTexto))
+                && !proyectosDb.Any(x => Igual(x.Nombre, a.ProyectoTexto)))
                 r.ProyectosSinMapear.Add($"Acta {a.Codigo}: proyecto \"{a.ProyectoTexto}\" sin código reconocible ni entrada en el catálogo.");
 
             if (!actasPorCodigo.TryGetValue(a.Codigo, out var ex))
                 r.ActasNuevas.Add(a.Codigo);
+            else if (p.DesdeWord)
+                r.ActasComplementadas.Add(a.Codigo);
             else if (JsonIgual(ex.DatosOrigenJson, a.Json))
                 r.ActasSinCambio.Add(a.Codigo);
             else
@@ -106,6 +134,8 @@ public class ActasImportService(RenergeIADbContext db)
                 {
                     if (c.ContinuidadDe is null) r.CompromisosNuevos.Add(c.IdOrigen);
                 }
+                else if (p.DesdeWord)
+                    r.CompromisosExistentes.Add(c.IdOrigen);
                 else if (cex.Gestiones > 0 || cex.EditadoPor is not null)
                     r.CompromisosProtegidos.Add(c.IdOrigen);
                 else if (p.Tablero.ContainsKey(c.IdOrigen))
@@ -121,6 +151,22 @@ public class ActasImportService(RenergeIADbContext db)
             }
             if (a.ArchivosFaltantes.Count > 0 && a.ArchivosFaltantes.Count < 4)
                 r.Advertencias.Add($"{a.Codigo}: sin {string.Join(", ", a.ArchivosFaltantes)} en el paquete.");
+
+            // Seguimiento de compromisos anteriores: se registra como actualización del compromiso
+            // de origen (solo agrega historia; el estado del compromiso NO cambia)
+            foreach (var s in a.SeguimientoAnterior)
+            {
+                if (s.Candidatos.Count == 0)
+                {
+                    r.SeguimientosSinOrigen.Add($"{a.Codigo}: el Word no indica el número del compromiso (origen \"{s.Origen}\") — queda visible en el acta, sin pasar al historial");
+                    continue;
+                }
+                var id = s.Candidatos.FirstOrDefault(c => compsPorId.ContainsKey(c) || p.Actas.Any(x => x.Compromisos.Any(k => k.IdOrigen == c)));
+                if (id is null)
+                    r.SeguimientosSinOrigen.Add($"{a.Codigo} → {string.Join(" o ", s.Candidatos)}: el compromiso de origen aún no está cargado (queda visible en el acta; sube primero el acta de origen si quieres verlo en su historial)");
+                else if (!seguimientosDb.Contains(id + "|" + a.Codigo))
+                    r.SeguimientosNuevos.Add($"{id}: {s.Estado ?? "sin estado"} — {s.Observacion}");
+            }
         }
 
         // Compromisos del export del tablero sin acta en el paquete
@@ -181,6 +227,13 @@ public class ActasImportService(RenergeIADbContext db)
                 // Estado inicial: el del export del tablero si existe; si no, el del acta.json; si no, borrador
                 ex.Estado = MapEstadoActa(p.EstadosActaTablero.GetValueOrDefault(a.Codigo) ?? a.EstadoTexto);
             }
+            else if (p.DesdeWord)
+            {
+                // Word suelto sobre un acta ya cargada: el acta no se reescribe; solo recibe
+                // los documentos y compromisos que le falten (pasos siguientes)
+                actasMap[a.Codigo] = ex;
+                continue;
+            }
             else
             {
                 respaldo.ActasModificadas.Add(Snapshot(ex));
@@ -192,7 +245,7 @@ public class ActasImportService(RenergeIADbContext db)
             ex.Resumen = a.Resumen; ex.AsistentesJson = a.AsistentesJson; ex.PuntosJson = a.PuntosJson;
             ex.ActaAnteriorCodigo = Corta(a.ActaAnterior, 150); ex.TrazabilidadJson = a.TrazabilidadJson;
             ex.SeguimientoPendienteConfirmacion = a.SeguimientoPendienteConfirmacion;
-            ex.FuenteUrl = Corta(a.FuenteUrl, 600); ex.DatosOrigenJson = a.Json; ex.Origen = "ActasIA";
+            ex.FuenteUrl = Corta(a.FuenteUrl, 600); ex.DatosOrigenJson = a.Json; ex.Origen = p.DesdeWord ? "Word" : "ActasIA";
             var codProy = CodigoProyectoDe(a.ProyectoTexto);
             ex.ProyectoActaId = (proyectosDb.FirstOrDefault(x => codProy is not null && Igual(x.Codigo, codProy))
                 ?? proyectosDb.FirstOrDefault(x => Igual(x.Nombre, a.ProyectoTexto)))?.Id;
@@ -240,6 +293,7 @@ public class ActasImportService(RenergeIADbContext db)
                 }
 
                 porIdOrigen.TryGetValue(c.IdOrigen, out var ex);
+                if (p.DesdeWord && ex is not null) continue; // Word suelto: lo ya cargado no se toca
                 var protegido = ex is not null && (ex.EditadoPor is not null || ex.Actualizaciones.Any(x => x.Origen != "Migracion"));
                 if (ex is null)
                 {
@@ -328,6 +382,40 @@ public class ActasImportService(RenergeIADbContext db)
             }
         }
         await db.SaveChangesAsync();
+
+        // 3c. Word suelto: cada fila de "Seguimiento de compromisos anteriores" queda como
+        // actualización del compromiso de origen. Solo agrega historia: el estado NO cambia
+        // (un cierre propuesto en una reunión nunca retira un pendiente).
+        if (p.DesdeWord)
+        {
+            vistos.Clear();
+            foreach (var a in p.Actas)
+            {
+                if (!vistos.Add(a.Codigo)) continue;
+                foreach (var s in a.SeguimientoAnterior)
+                {
+                    var original = s.Candidatos.Select(c => porIdOrigen.GetValueOrDefault(c)).FirstOrDefault(c => c is not null);
+                    if (original is null || original.Id == 0) continue;
+                    var ya = await db.ActualizacionesCompromisoReunion.AnyAsync(x => x.CompromisoReunionId == original.Id
+                        && x.ActaReferencia == a.Codigo && x.TipoActualizacion == "seguimiento");
+                    if (ya) continue;
+                    var obs = string.Join(" ", new[] { s.Estado is null ? null : $"[{s.Estado}]", s.Observacion }.Where(x => x is not null));
+                    var act = new ActualizacionCompromisoReunion
+                    {
+                        CompromisoReunionId = original.Id,
+                        Fecha = a.Fecha ?? DateTime.UtcNow,
+                        Autor = "Carga de acta Word",
+                        TipoActualizacion = "seguimiento",
+                        Observacion = Corta($"Seguimiento en el acta {a.Codigo}: {obs}", 3000),
+                        ActaReferencia = a.Codigo,
+                        Origen = "Migracion"
+                    };
+                    db.ActualizacionesCompromisoReunion.Add(act);
+                    respaldo.ActualizacionesCreadas.Add(act);
+                }
+            }
+            await db.SaveChangesAsync();
+        }
 
         // 4. Archivos (los históricos NO se reemplazan si difieren)
         vistos.Clear();

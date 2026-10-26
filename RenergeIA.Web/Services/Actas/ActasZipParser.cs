@@ -34,7 +34,14 @@ public static partial class ActasZipParser
         public List<CompromisoLeido> Compromisos = [];
         public List<ArchivoLeido> Archivos = [];
         public List<string> ArchivosFaltantes = [];
+        public bool TieneInterna = true;                                // carga Word: false si solo llegó la externa
+        public List<SeguimientoLeido> SeguimientoAnterior = [];         // carga Word: tabla "Seguimiento de compromisos anteriores"
     }
+
+    // Fila de "Seguimiento de compromisos anteriores". Origen = texto de la celda (ya completado si venía
+    // abreviado); Candidatos = ids <codigoActa>-NN posibles, en orden de preferencia (vacío si la celda
+    // no trae número de compromiso). Se usa el primer candidato que exista.
+    public sealed record SeguimientoLeido(string Origen, IReadOnlyList<string> Candidatos, string? Titulo, string? Responsable, string? Estado, string? Fecha, string? Observacion);
 
     public sealed record CompromisoTablero(
         string Id, string Json, string? Estado, string? NotaCierre, string? CerradoPor, DateTime? CerradoEl,
@@ -53,6 +60,7 @@ public static partial class ActasZipParser
         public List<(string IdOrigen, string Json)> Seguimientos = [];
         public int Personas, Alias, Externos;
         public List<string> Advertencias = [];
+        public bool DesdeWord;   // carga de actas Word sueltas: complementa, nunca reescribe lo ya cargado
     }
 
     private static readonly string[] _clientes = ["GreenYellow", "Atera Energy", "Atera", "Celsia"]; // misma lista del sistema anterior
