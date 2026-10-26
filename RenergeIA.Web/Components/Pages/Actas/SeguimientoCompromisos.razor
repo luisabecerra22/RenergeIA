@@ -1,0 +1,435 @@
+@page "/actas/seguimiento"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject RenergeIADbContext Db
+@inject NavigationManager Nav
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Enums
+@using RenergeIA.Web.Services.Actas
+
+<PageTitle>Seguimiento por persona — Compromisos</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="/actas" class="btn btn-sm btn-outline-secondary">&larr; Actas</a>
+    <div class="flex-grow-1">
+        <h1 class="h3 mb-0">Seguimiento por persona</h1>
+        <small class="text-muted">Compromisos propios de Renergeia, contados para su responsable principal. % de cumplimiento = cumplidos ÷ total asignado.</small>
+    </div>
+    <a href="/actas/compromisos" class="btn btn-sm fw-semibold" style="background:#6ABF4B;color:#fff;border:none">
+        <i class="bi-kanban me-1"></i>Tablero de compromisos
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+    <div class="card-body py-2 d-flex gap-2 flex-wrap align-items-center small">
+        <select class="form-select form-select-sm" style="width:auto;min-width:240px" value="@Persona" @onchange="CambiarPersona">
+            <option value="">Todas las personas (resumen)</option>
+            @foreach (var f in _fichasBase.Where(f => f.Persona != SeguimientoPersonas.SinPersona))
+            {
+                <option value="@f.Persona">@f.Persona</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroProyecto">
+            <option value="">Todos los proyectos</option>
+            <option value="(general)">General / corporativos</option>
+            @foreach (var p in _proyectos)
+            {
+                <option value="@p">@p</option>
+            }
+        </select>
+        <select class="form-select form-select-sm" style="width:auto" @bind="_filtroArea">
+            <option value="">Todas las áreas</option>
+            @foreach (var a in _areas)
+            {
+                <option value="@a">@a</option>
+            }
+        </select>
+        <span class="text-muted ms-2">Actas del</span>
+        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_desde" />
+        <span class="text-muted">al</span>
+        <input type="date" class="form-control form-control-sm" style="width:auto" @bind="_hasta" />
+        @if (_filtroProyecto.Length > 0 || _filtroArea.Length > 0 || _desde is not null || _hasta is not null)
+        {
+            <button class="btn btn-sm btn-link" @onclick="LimpiarFiltros">Quitar filtros</button>
+        }
+    </div>
+</div>
+
+@{
+    var fichas = Fichas();
+    var ficha = string.IsNullOrEmpty(Persona) ? null : fichas.FirstOrDefault(f => f.Persona == Persona);
+}
+
+@if (_cargando)
+{
+    <div class="text-center py-5"><span class="spinner-border spinner-border-sm me-1"></span>Cargando…</div>
+}
+else if (!string.IsNullOrEmpty(Persona))
+{
+    <!-- ── Ficha de una persona ── -->
+    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => IrA(""))">&larr; Todas las personas</button>
+        <h2 class="h5 mb-0" style="color:#183963">@Persona</h2>
+        @if (ficha?.TambienComo.Count > 0)
+        {
+            <small class="text-muted">También aparece en las actas como: @string.Join(", ", ficha.TambienComo)</small>
+        }
+    </div>
+
+    @if (ficha is null || ficha.Total == 0)
+    {
+        <div class="card border-0 shadow-sm text-center py-5 text-muted">No tiene compromisos con los filtros actuales.</div>
+    }
+    else
+    {
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-lg-4">
+                <div class="card border-0 shadow-sm h-100 p-3" style="border-radius:14px">
+                    <div class="small text-muted">Cumplimiento</div>
+                    <div class="fw-bold" style="font-size:2.6rem;line-height:1.1;color:@ColorPct(ficha.PorcentajeCumplimiento)">@ficha.PorcentajeCumplimiento.ToString("0")%</div>
+                    <div class="progress my-2" style="height:10px">
+                        <div class="progress-bar" style="width:@Pct(ficha.Cumplidos, ficha.Total);background:#6ABF4B" title="Cumplidos"></div>
+                        <div class="progress-bar" style="width:@Pct(ficha.Vencidos, ficha.Total);background:#B3261E" title="Vencidos"></div>
+                        <div class="progress-bar" style="width:@Pct(ficha.Pendientes - ficha.Vencidos, ficha.Total);background:#D9D9D6" title="Pendientes en plazo o sin fecha"></div>
+                    </div>
+                    <div class="small">
+                        <strong>@ficha.Cumplidos</strong> de <strong>@ficha.Total</strong> cumplidos · le faltan <strong>@ficha.Pendientes</strong>
+                    </div>
+                    @if (ficha.CumplidosATiempo + ficha.CumplidosTarde > 0)
+                    {
+                        <div class="small text-muted mt-1">
+                            Con fecha límite: @ficha.CumplidosATiempo a tiempo, @ficha.CumplidosTarde tarde
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="col-12 col-lg-8">
+                <div class="row row-cols-2 row-cols-md-3 g-2 h-100">
+                    @foreach (var (titulo, valor, color, sub) in new[]
+                    {
+                        ("Asignados", ficha.Total, "#183963", ""),
+                        ("Cumplidos", ficha.Cumplidos, "#3e7d2c", ""),
+                        ("Pendientes", ficha.Pendientes, "#b35900", "incluye vencidos"),
+                        ("Vencidos", ficha.Vencidos, "#B3261E", ""),
+                        ("Vencen en 7 días", ficha.Proximos, "#B97A0E", ""),
+                        ("Sin fecha límite", ficha.SinFecha, "#6c757d", "abiertos"),
+                    })
+                    {
+                        <div class="col">
+                            <div class="card border-0 shadow-sm text-center p-2 h-100" style="border-radius:12px">
+                                <div class="fw-bold fs-3" style="color:@color">@valor</div>
+                                <div class="small text-muted">@titulo</div>
+                                @if (sub.Length > 0)
+                                {
+                                    <div class="text-muted" style="font-size:.62rem">@sub</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (ficha.Compromisos.Select(c => ProyectoDe(c.Compromiso)).Distinct().Count() > 1)
+        {
+            <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+                <div class="card-header py-2 small fw-semibold" style="background:#eef1f6;color:#183963">Por proyecto</div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 small align-middle">
+                        <thead><tr><th class="ps-3">Proyecto</th><th class="text-center">Asignados</th><th class="text-center">Cumplidos</th><th class="text-center">Vencidos</th><th style="width:30%">Cumplimiento</th></tr></thead>
+                        <tbody>
+                            @foreach (var g in ficha.Compromisos.GroupBy(c => ProyectoDe(c.Compromiso)).OrderBy(g => g.Key))
+                            {
+                                var tot = g.Count();
+                                var cum = g.Count(c => c.Situacion == "cerr");
+                                <tr>
+                                    <td class="ps-3">@g.Key</td>
+                                    <td class="text-center">@tot</td>
+                                    <td class="text-center">@cum</td>
+                                    <td class="text-center @(g.Any(c => c.Situacion == "venc") ? "text-danger fw-bold" : "")">@g.Count(c => c.Situacion == "venc")</td>
+                                    <td>@BarraPct(100.0 * cum / tot)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        @Lista("Vencidos — no se han cumplido", "#B3261E",
+               ficha.Compromisos.Where(c => c.Situacion == "venc").OrderByDescending(c => c.DiasAtraso).ToList())
+        @Lista("Pendientes en plazo o sin fecha", "#b35900",
+               ficha.Compromisos.Where(c => c.Situacion is "prox" or "ok" or "sinfecha")
+                   .OrderBy(c => c.Compromiso.FechaLimite ?? DateTime.MaxValue).ToList())
+        @Lista("Cumplidos", "#3e7d2c",
+               ficha.Compromisos.Where(c => c.Situacion == "cerr").OrderByDescending(c => c.Compromiso.CerradoEl).ToList())
+    }
+}
+else
+{
+    <!-- ── Resumen de todas las personas ── -->
+    var personas = fichas.Where(f => f.Persona != SeguimientoPersonas.SinPersona && f.Total > 0).ToList();
+    var sinPersona = fichas.FirstOrDefault(f => f.Persona == SeguimientoPersonas.SinPersona);
+    var total = personas.Sum(f => f.Total);
+    var cumplidos = personas.Sum(f => f.Cumplidos);
+    <div class="row row-cols-2 row-cols-md-5 g-3 mb-3">
+        @foreach (var (titulo, valor, color) in new[]
+        {
+            ("Personas con compromisos", personas.Count.ToString(), "#183963"),
+            ("Compromisos asignados", total.ToString(), "#183963"),
+            ("Cumplidos", cumplidos.ToString(), "#3e7d2c"),
+            ("Vencidos", personas.Sum(f => f.Vencidos).ToString(), "#B3261E"),
+            ("Cumplimiento general", total == 0 ? "—" : $"{100.0 * cumplidos / total:0}%", "#6ABF4B"),
+        })
+        {
+            <div class="col">
+                <div class="card border-0 shadow-sm text-center p-3 h-100" style="border-radius:14px">
+                    <div class="fw-bold fs-3" style="color:@color">@valor</div>
+                    <div class="small text-muted">@titulo</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (personas.Count == 0)
+    {
+        <div class="card border-0 shadow-sm text-center py-5 text-muted">No hay compromisos de Renergeia con los filtros actuales.</div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm" style="border-radius:12px;overflow:hidden">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem">
+                    <thead style="background:#183963;color:#fff">
+                        <tr>
+                            <th class="ps-3" role="button" @onclick="@(() => Ordenar("persona"))">Persona @Flecha("persona")</th>
+                            <th class="text-center" role="button" @onclick="@(() => Ordenar("total"))">Asignados @Flecha("total")</th>
+                            <th class="text-center" role="button" @onclick="@(() => Ordenar("cumplidos"))">Cumplidos @Flecha("cumplidos")</th>
+                            <th class="text-center" role="button" @onclick="@(() => Ordenar("pendientes"))">Pendientes @Flecha("pendientes")</th>
+                            <th class="text-center" role="button" @onclick="@(() => Ordenar("vencidos"))">Vencidos @Flecha("vencidos")</th>
+                            <th class="text-center">Vencen en 7 días</th>
+                            <th style="min-width:200px" role="button" @onclick="@(() => Ordenar("pct"))">% cumplimiento @Flecha("pct")</th>
+                            <th class="text-center">A tiempo / tarde</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in Ordenadas(personas))
+                        {
+                            <tr style="cursor:pointer" @onclick="@(() => IrA(f.Persona))">
+                                <td class="ps-3 fw-semibold" style="color:#183963">@f.Persona</td>
+                                <td class="text-center">@f.Total</td>
+                                <td class="text-center">@f.Cumplidos</td>
+                                <td class="text-center">@f.Pendientes</td>
+                                <td class="text-center @(f.Vencidos > 0 ? "fw-bold text-danger" : "")">@f.Vencidos</td>
+                                <td class="text-center">@f.Proximos</td>
+                                <td>@BarraPct(f.PorcentajeCumplimiento)</td>
+                                <td class="text-center text-muted">@f.CumplidosATiempo / @f.CumplidosTarde</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @if (sinPersona?.Total > 0)
+    {
+        <div class="card border-0 shadow-sm mt-3" style="border-radius:12px">
+            <div class="card-header py-2 small fw-semibold d-flex" style="background:#fff3e0;color:#b35900">
+                <span>@sinPersona.Total compromiso(s) sin una persona responsable (equipos, áreas o "por confirmar") — no entran en el % de nadie</span>
+                <button class="btn btn-sm btn-link py-0 ms-auto" style="font-size:.75rem" @onclick="() => _verSinPersona = !_verSinPersona">@(_verSinPersona ? "Ocultar" : "Ver")</button>
+            </div>
+            @if (_verSinPersona)
+            {
+                <div class="card-body p-2">@Items(sinPersona.Compromisos.OrderBy(c => c.Situacion == "cerr").ThenBy(c => c.Compromiso.FechaLimite ?? DateTime.MaxValue).ToList())</div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "persona")] public string? Persona { get; set; }
+
+    private bool _cargando = true;
+    private List<CompromisoReunion> _todos = [];
+    private List<SeguimientoPersonas.FichaPersona> _fichasBase = [];
+    private List<string> _proyectos = [];
+    private List<string> _areas = [];
+    private string _filtroProyecto = "";
+    private string _filtroArea = "";
+    private DateTime? _desde, _hasta;
+    private bool _verSinPersona;
+    private string _orden = "vencidos";
+    private bool _desc = true;
+
+    private static DateTime Hoy => DateTime.UtcNow.AddHours(-5).Date;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _todos = await Db.CompromisosReunion.AsNoTracking()
+            .Include(c => c.ActaReunion)
+            .ToListAsync();
+        var propios = _todos.Where(SeguimientoPersonas.EsDeRenergeia).ToList();
+        _proyectos = propios.Where(c => !string.IsNullOrWhiteSpace(c.ProyectoTexto)).Select(c => c.ProyectoTexto!).Distinct().OrderBy(x => x).ToList();
+        _areas = propios.Select(c => c.Categoria).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).Distinct().OrderBy(x => x).ToList();
+        _fichasBase = SeguimientoPersonas.Fichas(_todos, Hoy);
+        _cargando = false;
+    }
+
+    // La unificación de nombres usa TODOS los compromisos; los filtros solo eligen cuáles se cuentan
+    private List<SeguimientoPersonas.FichaPersona> Fichas()
+    {
+        var incluidos = _todos.Where(c =>
+            (_filtroProyecto.Length == 0
+                || (_filtroProyecto == "(general)" ? string.IsNullOrWhiteSpace(c.ProyectoTexto) : c.ProyectoTexto == _filtroProyecto))
+            && (_filtroArea.Length == 0 || c.Categoria == _filtroArea)
+            && (_desde is null || (c.FechaActa ?? c.ActaReunion?.Fecha) >= _desde)
+            && (_hasta is null || (c.FechaActa ?? c.ActaReunion?.Fecha) <= _hasta))
+            .Select(c => c.Id).ToHashSet();
+        return _fichasBase.Select(f => new SeguimientoPersonas.FichaPersona
+        {
+            Persona = f.Persona,
+            TambienComo = f.TambienComo,
+            Compromisos = f.Compromisos.Where(c => incluidos.Contains(c.Compromiso.Id)).ToList()
+        }).ToList();
+    }
+
+    private void CambiarPersona(ChangeEventArgs e) => IrA(e.Value?.ToString() ?? "");
+
+    private void IrA(string persona) =>
+        Nav.NavigateTo(string.IsNullOrEmpty(persona) ? "/actas/seguimiento" : $"/actas/seguimiento?persona={Uri.EscapeDataString(persona)}");
+
+    private void LimpiarFiltros()
+    {
+        _filtroProyecto = ""; _filtroArea = ""; _desde = null; _hasta = null;
+    }
+
+    private void Ordenar(string col)
+    {
+        if (_orden == col) _desc = !_desc;
+        else { _orden = col; _desc = col != "persona" && col != "pct"; }
+    }
+
+    private string Flecha(string col) => _orden == col ? (_desc ? "▼" : "▲") : "";
+
+    private IEnumerable<SeguimientoPersonas.FichaPersona> Ordenadas(List<SeguimientoPersonas.FichaPersona> l)
+    {
+        Func<SeguimientoPersonas.FichaPersona, object> k = _orden switch
+        {
+            "persona" => f => f.Persona,
+            "total" => f => f.Total,
+            "cumplidos" => f => f.Cumplidos,
+            "pendientes" => f => f.Pendientes,
+            "pct" => f => f.PorcentajeCumplimiento,
+            _ => f => f.Vencidos
+        };
+        var o = _desc ? l.OrderByDescending(k) : l.OrderBy(k);
+        return o.ThenBy(f => f.PorcentajeCumplimiento).ThenBy(f => f.Persona);
+    }
+
+    private static string ProyectoDe(CompromisoReunion c) =>
+        string.IsNullOrWhiteSpace(c.ProyectoTexto) ? "General Renergeia" : c.ProyectoTexto!;
+
+    private static string Pct(int parte, int total) =>
+        total == 0 ? "0%" : (100.0 * parte / total).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private static string ColorPct(double p) => p >= 80 ? "#3e7d2c" : p >= 50 ? "#B97A0E" : "#B3261E";
+
+    private RenderFragment BarraPct(double p) => __builder =>
+    {
+        <div class="d-flex align-items-center gap-2">
+            <div class="progress flex-grow-1" style="height:8px">
+                <div class="progress-bar" style="width:@p.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%;background:@ColorPct(p)"></div>
+            </div>
+            <span class="fw-semibold" style="min-width:38px;color:@ColorPct(p)">@p.ToString("0")%</span>
+        </div>
+    };
+
+    private RenderFragment Lista(string titulo, string color, List<SeguimientoPersonas.CompromisoPersona> items) => __builder =>
+    {
+        <div class="card border-0 shadow-sm mb-3" style="border-radius:12px">
+            <div class="card-header py-2 small fw-semibold" style="background:#fff;color:@color;border-bottom:2px solid @color">
+                @titulo <span class="text-muted fw-normal">(@items.Count)</span>
+            </div>
+            <div class="card-body p-2">
+                @if (items.Count == 0)
+                {
+                    <div class="text-muted small px-1">Ninguno.</div>
+                }
+                else
+                {
+                    @Items(items)
+                }
+            </div>
+        </div>
+    };
+
+    private RenderFragment Items(List<SeguimientoPersonas.CompromisoPersona> items) => __builder =>
+    {
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+                <thead style="color:#183963">
+                    <tr><th>Compromiso</th><th>Acta</th><th>Proyecto</th><th>Fecha límite</th><th>Situación</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in items)
+                    {
+                        var c = i.Compromiso;
+                        <tr>
+                            <td style="max-width:460px">
+                                @c.Texto
+                                @if (c.Responsable.Contains('/'))
+                                {
+                                    <div class="text-muted" style="font-size:.68rem">Compartido: @c.Responsable</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(c.NotaCierre))
+                                {
+                                    <div class="text-muted" style="font-size:.68rem">✔ @c.NotaCierre @(string.IsNullOrEmpty(c.CerradoPor) ? "" : $"— {c.CerradoPor}")</div>
+                                }
+                            </td>
+                            <td style="white-space:nowrap">
+                                <a href="/actas/@c.ActaReunionId" class="text-decoration-none">@c.IdOrigen</a>
+                                <div class="text-muted" style="font-size:.66rem">@((c.FechaActa ?? c.ActaReunion?.Fecha)?.ToString("dd/MM/yyyy"))</div>
+                            </td>
+                            <td>@ProyectoDe(c)</td>
+                            <td style="white-space:nowrap">@(c.FechaLimite?.ToString("dd/MM/yyyy") ?? c.FechaTexto ?? "Sin fecha")</td>
+                            <td style="white-space:nowrap">
+                                @switch (i.Situacion)
+                                {
+                                    case "venc":
+                                        <span class="badge bg-danger">Vencido hace @i.DiasAtraso día(s)</span>
+                                        break;
+                                    case "prox":
+                                        <span class="badge" style="background:#B97A0E">Vence pronto</span>
+                                        break;
+                                    case "ok":
+                                        <span class="badge" style="background:#6ABF4B">En plazo</span>
+                                        break;
+                                    case "sinfecha":
+                                        <span class="badge bg-secondary">Sin fecha límite</span>
+                                        break;
+                                    default:
+                                        <span class="badge" style="background:#e8f5e2;color:#3e7d2c">Cumplido @(c.CerradoEl?.ToUniversalTime().AddHours(-5).ToString("dd/MM/yyyy"))</span>
+                                        @if (i.ATiempo == true)
+                                        {
+                                            <div style="font-size:.66rem;color:#3e7d2c">a tiempo</div>
+                                        }
+                                        else if (i.ATiempo == false)
+                                        {
+                                            <div style="font-size:.66rem;color:#B3261E">@i.DiasAtraso día(s) tarde</div>
+                                        }
+                                        break;
+                                }
+                                @if (c.Estado == EstadoCompromisoReunion.EnSeguimiento)
+                                {
+                                    <div style="font-size:.66rem;color:#183963">En seguimiento</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    };
+}
