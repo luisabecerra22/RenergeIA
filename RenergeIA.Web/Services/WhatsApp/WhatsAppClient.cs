@@ -101,26 +101,44 @@ public class WhatsAppClient
         }
 
         var url = $"{_opciones.ApiVersion}/{_opciones.PhoneNumberId}/messages";
-        using var peticion = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = JsonContent.Create(cuerpo)
-        };
-        peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.AccessToken);
 
-        try
+        // Meta a veces rechaza envíos de forma INTERMITENTE (visto el 2026-10-27 con el
+        // error 131037 del nombre visible): se reintenta un par de veces antes de rendirse.
+        const int intentos = 3;
+        for (var intento = 1; intento <= intentos; intento++)
         {
-            using var respuesta = await _http.SendAsync(peticion, ct);
-            if (respuesta.IsSuccessStatusCode) return true;
+            using var peticion = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(cuerpo)
+            };
+            peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.AccessToken);
 
-            var detalle = await respuesta.Content.ReadAsStringAsync(ct);
-            _log.LogError("WhatsApp: error {Codigo} al enviar: {Detalle}", (int)respuesta.StatusCode, detalle);
-            return false;
+            try
+            {
+                using var respuesta = await _http.SendAsync(peticion, ct);
+                if (respuesta.IsSuccessStatusCode)
+                {
+                    if (intento > 1)
+                        _log.LogInformation("WhatsApp: envío recuperado en el intento {Intento}.", intento);
+                    return true;
+                }
+
+                var detalle = await respuesta.Content.ReadAsStringAsync(ct);
+                _log.LogError("WhatsApp: error {Codigo} al enviar (intento {Intento}/{Total}): {Detalle}",
+                    (int)respuesta.StatusCode, intento, intentos, detalle);
+
+                // 401 = token inválido: reintentar no ayuda.
+                if ((int)respuesta.StatusCode == 401) return false;
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "WhatsApp: falló el envío (intento {Intento}/{Total}).", intento, intentos);
+            }
+
+            if (intento < intentos) await Task.Delay(TimeSpan.FromSeconds(2 * intento), ct);
         }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "WhatsApp: falló el envío del mensaje.");
-            return false;
-        }
+
+        return false;
     }
 
     private static string Recortar(string texto, int largo) =>
