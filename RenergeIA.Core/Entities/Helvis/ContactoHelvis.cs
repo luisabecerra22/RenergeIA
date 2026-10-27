@@ -25,6 +25,11 @@ public class ContactoHelvis : EntidadBase
     public DateTime? PausadoHasta { get; set; }
     public string? MotivoPausa { get; set; }
 
+    // Proyecto "activo" de la conversación: el bot lo pregunta al saludar y lo recuerda
+    // unas horas; "proyecto" lo cambia. Sin FK: se valida contra los proyectos asignados.
+    public int? ProyectoActivoId { get; set; }
+    public DateTime? ProyectoActivoFecha { get; set; }
+
     public string? Notas { get; set; }
 
     public List<ContactoHelvisProyecto> Proyectos { get; set; } = [];

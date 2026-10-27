@@ -3867,6 +3867,12 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<DateTime?>("PausadoHasta")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<DateTime?>("ProyectoActivoFecha")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("ProyectoActivoId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("PuedeAprobar")
                         .HasColumnType("boolean");
 
