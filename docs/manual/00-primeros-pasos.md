@@ -13,9 +13,11 @@ RenergeIA es la plataforma de Renergeia para gestionar proyectos solares fotovol
 - **Planeación:** cronograma de actividades y histogramas de recursos.
 - **Ejecución:** informe diario de avance, clima y restricciones.
 - **Documentos:** planificación documental con alertas por días sin atender.
-- **Costos:** presupuesto, órdenes de compra, flujo de caja y comparación contra la oferta (BOM).
+- **Costos:** presupuesto, órdenes de compra, flujo de caja y comparación contra la oferta (presupuesto base).
 - **HSEQ:** seguridad y salud en el trabajo, calidad, ambiental, social y auditorías.
 - **Control de ingreso:** documentos de personas, equipos y proveedores con vencimiento.
+- **Compromisos:** actas de reunión y seguimiento de compromisos por persona.
+- **Helvis:** asistente de WhatsApp para consultar avance y alertas desde el celular.
 
 La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 
@@ -25,7 +27,7 @@ La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 
 1. Abre la dirección de la aplicación en Chrome o Edge.
 2. Escribe tu **correo** y **contraseña** y haz clic en **Ingresar** (detalle en el capítulo 1).
-3. El **menú lateral** tiene el Inicio (Centro de Control del portafolio), la lista de **Proyectos** y, dentro de cada proyecto, sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, Restricciones, Histogramas, Clima y Alertas.
+3. El **menú lateral** tiene el Inicio (**Centro de control** del portafolio, capítulo 18), la lista de **Proyectos** y, dentro de cada proyecto, sus módulos: Dashboard, Informe Diario, Cronograma de Actividades, Documentos, Costos, HSEQ, Restricciones, Histogramas, Clima y Alertas. También tiene los módulos corporativos **Compromisos** (actas de reunión, capítulo 17), **Helvis** (asistente de WhatsApp, capítulo 19) y **HSEQ**.
 4. Desde el **detalle del proyecto** también encuentras accesos directos a cada módulo.
 
 > Si al iniciar sesión aparece **HTTP 400**, borra las cookies del sitio o usa una ventana de incógnito (capítulo 16).
@@ -36,13 +38,13 @@ La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 
 | Paso | Qué hacer | Archivo fuente | Capítulo |
 |---|---|---|---|
-| 1 | **Crear el proyecto** cargando la BOM de la oferta | BOM (Excel de oferta) | 1 |
+| 1 | **Crear el proyecto** cargando el presupuesto base de la oferta | Presupuesto base (Excel de oferta) | 1 |
 | 2 | **Cargar el cronograma**: plantilla EPC, MS Project (.mpp), Excel o PDF | Cronograma | 2 |
 | 3 | **Cargar la codificación y el presupuesto** de costos | Codificación / presupuesto | 5 |
 | 4 | **Cargar la planificación documental** y asignar responsables por área | FO-SI-GC-002-1 | 4 |
 | 5 | **Configurar HSEQ**: plan de trabajo HSE, matriz IPERV, capacitaciones | — | 7 a 11 |
 | 6 | **Diario:** registrar el informe diario de avance | — | 3 |
-| 7 | **Semanal:** importar el archivo de tesorería (Forecast Control) y actualizar la planificación documental | Tesorería / planificación | 5 y 4 |
+| 7 | **Semanal:** importar el archivo de Seguimiento de pagos y actualizar la planificación documental | Seguimiento de pagos / planificación | 5 y 4 |
 | 8 | **Semanal:** revisar alertas (documentos en rojo, vencimientos de control de ingreso, clima) | — | 4, 12 y 13 |
 | 9 | **Semanal / mensual:** revisar el Dashboard, histogramas y generar el consolidado de costos | — | 14, 6 y 5 |
 | 10 | **Cierre:** Redline / As-Built validados, auditorías y consolidado final | — | 4 y 11 |
@@ -51,7 +53,7 @@ La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 
 ## Reglas generales que conviene saber
 
-- **Muchos datos no se digitan: se calculan** a partir de archivos que se importan (tesorería, BOM, planificación documental, cronograma). Si un número no cuadra, revisa primero el archivo fuente y vuelve a importarlo.
+- **Muchos datos no se digitan: se calculan** a partir de archivos que se importan (seguimiento de pagos, presupuesto base, planificación documental, cronograma). Si un número no cuadra, revisa primero el archivo fuente y vuelve a importarlo.
 - **Las importaciones no duplican:** actualizan lo existente y avisan si el archivo es más antiguo que el último cargado.
 - **Lo que se borra de la papelera de proyectos no se recupera.**
 - **Los cambios de otros usuarios** se ven al recargar la página (F5).

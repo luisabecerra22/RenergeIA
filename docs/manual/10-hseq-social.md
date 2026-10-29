@@ -118,7 +118,7 @@
 ## Relación con otros módulos
 
 - **HSEQ del proyecto** (`/hseq`): entrada común a [Calidad](08-hseq-calidad.md), [Seguridad](07-hseq-seguridad.md), [Ambiental](09-hseq-ambiental.md) y Social.
-- **Costos** ([capítulo 5](05-costos.md)): las **Compras Locales** son un registro aparte; no se cruzan con las órdenes de compra ni con el archivo de tesorería. Si una compra ya está en Costos, regístrala aquí solo para el indicador social.
+- **Costos** ([capítulo 5](05-costos.md)): las **Compras Locales** son un registro aparte; no se cruzan con las órdenes de compra ni con el archivo de Seguimiento de pagos. Si una compra ya está en Costos, regístrala aquí solo para el indicador social.
 - **Histogramas** ([capítulo 6](06-histogramas.md)): la **Contratación Local** no se alimenta de la nómina; se digita aquí.
 - **Documentos** ([capítulo 4](04-documentos.md)) y SharePoint: las actas no se suben a la app; se guarda el enlace.
 - **Auditorías** ([capítulo 11](11-hseq-auditorias.md)): las auditorías de Cliente o Interventoría pueden revisar la gestión social; las evidencias se toman de este módulo.

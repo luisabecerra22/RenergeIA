@@ -1,7 +1,7 @@
 # Manual de Usuario — RenergeIA
 
 > Plataforma de gestión integral de proyectos EPC fotovoltaicos de Renergeia.
-> **Estado del manual:** en construcción (inició el 16 de septiembre de 2026). Cada capítulo se actualiza cuando cambia el módulo.
+> **Estado del manual:** actualizado al 28 de octubre de 2026 (inició el 16 de septiembre de 2026). Cada capítulo se actualiza cuando cambia el módulo.
 > **Aplicación:** https://renergeia-web-577313322290.us-central1.run.app
 
 ---
@@ -24,7 +24,7 @@
 | 2 | [Cronograma de Actividades](02-cronograma-actividades.md) | WBS, plantilla EPC, MS Project, reprogramaciones, restricciones |
 | 3 | [Informe Diario](03-informe-diario.md) | Avance diario, clima, fotos, aprobación |
 | 4 | [Documentos](04-documentos.md) | Planificación documental, alertas sin atender, responsables, validación |
-| 5 | [Costos](05-costos.md) | Presupuesto, tesorería, órdenes de compra, flujo de caja, BOM vs Real, consolidado |
+| 5 | [Costos](05-costos.md) | Presupuesto, seguimiento de pagos, órdenes de compra, flujo de caja, Presupuesto base vs Real, consolidado |
 | 6 | [Histogramas](06-histogramas.md) | Personal y equipos planificado vs real |
 | 7 | [HSEQ — Seguridad](07-hseq-seguridad.md) | SST, IPERV, inspecciones, capacitaciones, permisos |
 | 8 | [HSEQ — Calidad](08-hseq-calidad.md) | ISO 9001, no conformidades, calibración, PPIs |
@@ -36,6 +36,17 @@
 | 14 | [Dashboard del proyecto](14-dashboard-proyecto.md) | Indicadores del proyecto |
 | 15 | [Evaluaciones HSE](15-evaluaciones-hse.md) | Plataforma de evaluaciones y asistencia (aplicación aparte) |
 | 16 | [Problemas frecuentes](16-problemas-frecuentes.md) | Qué hacer en caso de fallas generales |
+| 17 | [Compromisos](17-compromisos.md) | Actas de reunión, carga de actas en Word, tablero y seguimiento por persona |
+| 18 | [Centro de control](18-centro-de-control.md) | Inicio: estado del portafolio, avance, costos al cierre y bloqueos |
+| 19 | [Helvis — asistente de WhatsApp](19-helvis-whatsapp.md) | Consultas por WhatsApp y panel de administración |
+
+---
+
+## Documentos complementarios
+
+- **Manual general de la plataforma** (visión para gerencia): `docs/manual-general/Manual-General-RenergeIA.md` y su PDF.
+- **Instructivo de Helvis (WhatsApp):** `docs/instructivo-helvis/Instructivo-Helvis-WhatsApp.md` y su PDF.
+- Los PDF con colores de marca se regeneran con `node docs/build-pdf/build.js`.
 
 ---
 
@@ -43,6 +54,7 @@
 
 | Fecha | Cambio |
 |---|---|
+| 2026-10-28 | Nuevos capítulos **17 Compromisos**, **18 Centro de control** y **19 Helvis**; Dashboard (avance por actividades y presupuesto) y Costos (variación temporal desde cortes de pagos, etiquetas Presupuesto base y Seguimiento de pagos) actualizados. Se crean el Manual general para gerencia y el Instructivo de Helvis, con PDF en colores de marca. |
 | 2026-09-26 | Documentos: columna **Acciones** fija al inicio de la tabla, ventana **Editar documento** con todos los campos (incluidos Redline/As-Built y responsables), estado **No aplica** con motivo obligatorio, Informe PDF corregido (abría en blanco) y la página ya no se ensancha con la tabla. Se retiró el módulo **No Conformidades** del menú del proyecto (duplicado con HSEQ → Calidad). |
 | 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**; las actividades con subactividades ya no llevan disciplina (promedian a sus hijas). |
 | 2026-09-26 | Dashboard: la **Recomendación** del Plan de acción se arma con datos reales (fechas, restricciones abiertas ligadas por el Informe Diario, última observación, ruta crítica) y se puede corregir a mano por actividad (✎, etiqueta Manual). |

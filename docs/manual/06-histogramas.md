@@ -1,6 +1,6 @@
 # 6. Histogramas — Personal y equipos planificado vs real
 
-> **Para qué sirve:** comparar, mes a mes, cuánto personal (por cargo) y cuántos equipos se planearon para el proyecto contra lo que realmente hubo en obra. El personal real **no se digita**: sale de la nómina del archivo de tesorería. El planificado se importa del BOM (hoja H PER) o se digita.
+> **Para qué sirve:** comparar, mes a mes, cuánto personal (por cargo) y cuántos equipos se planearon para el proyecto contra lo que realmente hubo en obra. El personal real **no se digita**: sale de la nómina del archivo de Seguimiento de pagos. El planificado se importa del presupuesto base (hoja H PER) o se digita.
 > **Quién lo usa:** dirección de proyecto, control de proyectos / planeación, administración de obra, costos.
 > **Dónde está:** menú lateral del proyecto → **Histogramas**, o la tarjeta **Histogramas** en el detalle del proyecto (`/proyectos/{id}/histogramas`).
 
@@ -13,10 +13,10 @@
 | **Personal / Equipos** | Las dos pestañas principales. Cada una tiene tres sub-pestañas: **Planificado**, **Real** y **Comparativo**. |
 | **Mes inicial / Año inicial** | El primer mes de la ventana que se ve en pantalla. La pantalla siempre muestra **12 meses** desde ahí (ej. *Marzo 2026 → Febrero 2027*). |
 | **Plantilla de referencia** | Histograma tipo que la app propone según la potencia del proyecto: hasta 5 MW → **1 MW**; hasta 12,5 MW → **10 MW**; hasta 17,5 MW → **15 MW**; más de 17,5 MW → **20 MW**. Aparece junto al título. |
-| **Personal Real** | Personas **distintas** por cargo y por mes según la nómina (Salarios) del archivo de tesorería. |
-| **Personal Planificado** | Personas por cargo y por mes según la oferta (BOM, hoja **H PER**) y/o lo digitado a mano. |
-| **Máximo semanal** | Al importar del BOM, cada mes toma el **pico** de las semanas de ese mes (no el promedio ni la suma). |
-| **Ajuste manual (naranja)** | Celda del Personal Real que alguien cambió y quedó distinta a lo que dice la nómina. Se conserva al volver a importar tesorería. |
+| **Personal Real** | Personas **distintas** por cargo y por mes según la nómina (Salarios) del archivo de Seguimiento de pagos. |
+| **Personal Planificado** | Personas por cargo y por mes según la oferta (presupuesto base, hoja **H PER**) y/o lo digitado a mano. |
+| **Máximo semanal** | Al importar del presupuesto base, cada mes toma el **pico** de las semanas de ese mes (no el promedio ni la suma). |
+| **Ajuste manual (naranja)** | Celda del Personal Real que alguien cambió y quedó distinta a lo que dice la nómina. Se conserva al volver a importar el Seguimiento de pagos. |
 | **Fila manual** | Fila del Personal Real que no viene de la nómina (por ejemplo, personal de un contratista). |
 | **Personas-mes / equipos-mes** | Suma de los 12 meses de la ventana. Se usa en las tarjetas del Comparativo. |
 | **Mes actual** | El mes de hoy se resalta en verde en las tarjetas y en el encabezado de las tablas. |
@@ -27,7 +27,7 @@
 
 ### Personal Real — lo calcula la app sola
 
-1. La fuente es la **nómina** que llega con el archivo de tesorería (Costos → Compromisos → Salarios). Se recalcula **cada vez que se importa tesorería** y **cada vez que se abre Histogramas**.
+1. La fuente es la **nómina** que llega con el archivo de Seguimiento de pagos (Costos → Compromisos → Salarios). Se recalcula **cada vez que se importa el Seguimiento de pagos** y **cada vez que se abre Histogramas**.
 2. **El mes sale del periodo de pago** (ej. *Mar-2026*). La **I y la II quincena del mismo mes son un solo mes**: quien cobró en ambas cuenta **1**.
 3. **No cuentan** como personal en obra: primas, seguridad social (planillas) ni liquidaciones.
 4. **Una persona con dos cargos en el mes** cuenta en cada cargo, pero **una sola vez** en la fila **TOTAL PERSONAS**.
@@ -40,9 +40,9 @@
 
 ### Personal Planificado — se importa o se digita
 
-- **Importar desde BOM (H PER):** la app busca la fila de fechas semanales de la hoja **H PER**, toma el tipo (columna C) y el cargo (columna D) y calcula el **máximo semanal de cada mes**. Si varios cargos del BOM se asignan al mismo cargo de la nómina, **se suman semana a semana** antes de sacar el máximo. Los valores con decimales se redondean hacia arriba.
+- **Importar desde presupuesto base (H PER):** la app busca la fila de fechas semanales de la hoja **H PER**, toma el tipo (columna C) y el cargo (columna D) y calcula el **máximo semanal de cada mes**. Si varios cargos del presupuesto base se asignan al mismo cargo de la nómina, **se suman semana a semana** antes de sacar el máximo. Los valores con decimales se redondean hacia arriba.
 - La importación **reemplaza todo el personal planificado** del proyecto.
-- Las **equivalencias** "cargo del BOM → cargo de la nómina" quedan recordadas para la próxima importación.
+- Las **equivalencias** "cargo del presupuesto base → cargo de la nómina" quedan recordadas para la próxima importación.
 - Después de importar, la ventana de 12 meses se ubica automáticamente en el **primer mes planificado**.
 - Los **cargos nuevos que aparecen en la nómina** y no están en el planificado se muestran en el Planificado con **0**, para que los completes.
 
@@ -78,15 +78,15 @@ Los equipos siguen usando **12 posiciones fijas** (Mes 1 a Mes 12) contadas desd
 2. La app reemplaza **el personal planificado y los equipos planificados** con la plantilla de referencia, ubicada desde el mes inicial actual.
 3. Aparece el mensaje *Plantilla X MW cargada exitosamente.*
 
-> Atención: recargar la plantilla **borra** el personal planificado importado del BOM y los equipos planificados que hayas digitado.
+> Atención: recargar la plantilla **borra** el personal planificado importado del presupuesto base y los equipos planificados que hayas digitado.
 
-### Importar el personal planificado desde el BOM
+### Importar el personal planificado desde el presupuesto base
 
 1. Ve a **Personal → Planificado**.
-2. Pulsa **Importar desde BOM (H PER)** y elige el Excel del BOM (`.xlsx` o `.xlsm`).
-3. En la ventana **Importar personal planificado desde el BOM** revisa la lista de cargos (con **Semanas** con personal y **Pico**).
-4. En **Semana 1 inicia el** confirma la fecha de inicio (la app propone la *Fecha inicio* del BOM). Si la cambias, todo el histograma se corre esas semanas.
-5. En la columna **Cargo en la nómina** escribe o elige el cargo equivalente de la nómina. Si lo dejas vacío, se conserva el nombre del BOM.
+2. Pulsa **Importar desde presupuesto base (H PER)** y elige el Excel del presupuesto base (`.xlsx` o `.xlsm`).
+3. En la ventana **Importar personal planificado desde el presupuesto base** revisa la lista de cargos (con **Semanas** con personal y **Pico**).
+4. En **Semana 1 inicia el** confirma la fecha de inicio (la app propone la *Fecha inicio* del presupuesto base). Si la cambias, todo el histograma se corre esas semanas.
+5. En la columna **Cargo en la nómina** escribe o elige el cargo equivalente de la nómina. Si lo dejas vacío, se conserva el nombre del presupuesto base.
 6. Pulsa **Importar**. (Con **Cancelar** no se cambia nada.)
 7. Revisa la tabla y, si hace falta, ajusta a mano y pulsa **Guardar cambios**.
 
@@ -134,24 +134,24 @@ Los equipos siguen usando **12 posiciones fijas** (Mes 1 a Mes 12) contadas desd
 
 | Situación | Causa probable | Qué hacer |
 |---|---|---|
-| Personal Real dice *No hay nómina cargada* | No se ha importado el archivo de tesorería, o no trae la sección Salarios. | Importa el archivo en **Costos → Compromisos** y vuelve a abrir Histogramas. |
+| Personal Real dice *No hay nómina cargada* | No se ha importado el archivo de Seguimiento de pagos, o no trae la sección Salarios. | Importa el archivo en **Costos → Compromisos** y vuelve a abrir Histogramas. |
 | Aviso amarillo *La nómina tiene datos de … fuera del período* | La ventana de 12 meses no incluye ningún mes con nómina. | Pulsa **Ver ese período** o cambia el mes/año inicial. |
-| Al importar el BOM: *El archivo no tiene la hoja "H PER"* | El Excel no es el BOM o la hoja tiene otro nombre. | Usa el BOM de la oferta y verifica que la hoja se llame **H PER**. |
+| Al importar el presupuesto base: *El archivo no tiene la hoja "H PER"* | El Excel no es el presupuesto base o la hoja tiene otro nombre. | Usa el presupuesto base de la oferta y verifica que la hoja se llame **H PER**. |
 | *No se encontró la fila de fechas semanales en la hoja H PER* | Las fechas no están en las primeras 30 filas desde la columna G, o no tienen formato de fecha. | Revisa en el Excel que las semanas sean fechas reales (no texto) y vuelve a importar. |
 | *La hoja H PER no tiene cargos con personal planificado* | Las filas no tienen tipo (col. C), cargo (col. D) o cantidades. | Revisa el contenido de la hoja H PER. |
-| *No se pudo leer el BOM: …* | Archivo dañado, protegido, en formato no soportado o mayor a 60 MB. | Guarda una copia como `.xlsx` sin contraseña e intenta de nuevo. |
-| Un mismo cargo aparece dos veces en el Comparativo por cargo (uno solo con planificado y otro solo con real) | El cargo planificado tiene un nombre distinto al de la nómina. | Renombra el cargo en el Planificado igual a la nómina y guarda, o reimporta el BOM asignando el **Cargo en la nómina**. |
+| *No se pudo leer el presupuesto base: …* | Archivo dañado, protegido, en formato no soportado o mayor a 60 MB. | Guarda una copia como `.xlsx` sin contraseña e intenta de nuevo. |
+| Un mismo cargo aparece dos veces en el Comparativo por cargo (uno solo con planificado y otro solo con real) | El cargo planificado tiene un nombre distinto al de la nómina. | Renombra el cargo en el Planificado igual a la nómina y guarda, o reimporta el presupuesto base asignando el **Cargo en la nómina**. |
 | El total de personas del mes es menor que la suma de los cargos | Hay personas con dos cargos en el mes: cuentan una sola vez en el total. | Es correcto; no requiere acción. |
 | Una persona parece contada dos veces | Su nombre viene escrito distinto en la nómina. | Resuelve el par en el recuadro **posible(s) nombre(s) repetido(s)** con **Sí, unificar**. Si no aparece como parecido, repórtalo. |
-| Después de **Recargar plantilla** desapareció el planificado del BOM | La plantilla reemplaza todo el personal y los equipos planificados. | Vuelve a **Importar desde BOM (H PER)**. |
+| Después de **Recargar plantilla** desapareció el planificado del presupuesto base | La plantilla reemplaza todo el personal y los equipos planificados. | Vuelve a **Importar desde presupuesto base (H PER)**. |
 | En Equipos, al cambiar el mes inicial las cantidades quedaron en meses equivocados | Equipos usa 12 posiciones fijas; los valores no se mueven con el calendario. | Vuelve a poner el mes inicial anterior o reubica los valores y guarda. |
 
 ---
 
 ## Relación con otros módulos
 
-- **Costos → Compromisos (tesorería):** la sección **Salarios** del archivo de tesorería es la fuente del Personal Real. Cada importación recalcula el histograma. Ver [5. Costos](05-costos.md).
-- **Costos → BOM:** la hoja **H PER** del mismo BOM de la oferta alimenta el Personal Planificado.
+- **Costos → Compromisos (Seguimiento de pagos):** la sección **Salarios** del archivo de Seguimiento de pagos es la fuente del Personal Real. Cada importación recalcula el histograma. Ver [5. Costos](05-costos.md).
+- **Costos → Presupuesto base:** la hoja **H PER** del mismo presupuesto base de la oferta alimenta el Personal Planificado.
 - **Proyectos:** la **potencia (kWp)** del proyecto define la plantilla de referencia. Al crear un proyecto se carga su plantilla automáticamente. Ver [1. Proyectos](01-proyectos.md).
 
 > ⚠ Por confirmar: si se cambia la potencia en **Editar proyecto**, la app actualiza la plantilla de equipos, pero el personal planificado de un proyecto que ya se abrió en Histogramas podría no cambiar. En ese caso usa **Recargar plantilla**.
@@ -160,10 +160,10 @@ Los equipos siguen usando **12 posiciones fijas** (Mes 1 a Mes 12) contadas desd
 
 ## Buenas prácticas
 
-- **Nunca digites el personal real a mano** si viene en la nómina: importa la tesorería y deja que la app lo calcule. Usa ajustes solo para excepciones justificadas.
+- **Nunca digites el personal real a mano** si viene en la nómina: importa el Seguimiento de pagos y deja que la app lo calcule. Usa ajustes solo para excepciones justificadas.
 - Usa **los mismos nombres de cargo de la nómina** en el planificado; así el comparativo por cargo cruza bien.
-- Al importar el BOM, **completa la columna Cargo en la nómina** la primera vez; las siguientes importaciones la recordarán.
+- Al importar el presupuesto base, **completa la columna Cargo en la nómina** la primera vez; las siguientes importaciones la recordarán.
 - Resuelve los **nombres repetidos** apenas aparezcan, para que el total de personas sea confiable.
 - Registra en filas manuales al personal de contratistas que no pasa por nómina, con un nombre de cargo claro.
-- Antes de **Recargar plantilla**, confirma que no vas a perder un planificado importado del BOM.
+- Antes de **Recargar plantilla**, confirma que no vas a perder un planificado importado del presupuesto base.
 - Pulsa **Guardar cambios** antes de cambiar entre **Personal** y **Equipos**, cambiar el mes inicial o salir de la página: lo digitado sin guardar se pierde.
