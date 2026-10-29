@@ -30,6 +30,10 @@ public class ContactoHelvis : EntidadBase
     public int? ProyectoActivoId { get; set; }
     public DateTime? ProyectoActivoFecha { get; set; }
 
+    // Opción pedida mientras Helvis preguntaba el proyecto (decisión H del panel):
+    // se responde apenas la persona elige el proyecto y se limpia.
+    public string? OpcionPendiente { get; set; }
+
     public string? Notas { get; set; }
 
     public List<ContactoHelvisProyecto> Proyectos { get; set; } = [];

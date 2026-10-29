@@ -1,0 +1,595 @@
+<title>Helvis · Mapa de conversación</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: encabezado de marca + pestañas; simulador = controles a la izquierda y teléfono a la derecha (una columna en celular) */
+:root{
+  --azul:#183963; --verde:#6ABF4B; --gris:#D9D9D6; --oscuro:#111921;
+  --bg:#f5f7f9; --panel:#ffffff; --fg:#111921; --muted:#5b6673; --line:#dfe3e8;
+  --chat-bg:#ece5dd; --bub-in:#ffffff; --bub-out:#d9fdd3; --btn-wa:#0a7cff;
+  --ok:#2f8f3a; --warn:#b7791f; --bad:#c0392b; --info:#183963;
+  --ok-bg:#e8f5e4; --warn-bg:#fdf3e1; --bad-bg:#fbe9e7; --info-bg:#e7edf6;
+  --f-body:"Montserrat",Verdana,system-ui,sans-serif; --f-mono:"JetBrains Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141b; --panel:#16202b; --fg:#e8edf2; --muted:#9aa7b4; --line:#26323f;
+  --chat-bg:#0b141a; --bub-in:#202c33; --bub-out:#005c4b; --btn-wa:#53bdeb;
+  --ok:#7fd07a; --warn:#e8b45a; --bad:#ff8a7a; --info:#8fb3e8;
+  --ok-bg:#1a2e1c; --warn-bg:#33270f; --bad-bg:#3a1d19; --info-bg:#18263a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e141b; --panel:#16202b; --fg:#e8edf2; --muted:#9aa7b4; --line:#26323f;
+  --chat-bg:#0b141a; --bub-in:#202c33; --bub-out:#005c4b; --btn-wa:#53bdeb;
+  --ok:#7fd07a; --warn:#e8b45a; --bad:#ff8a7a; --info:#8fb3e8;
+  --ok-bg:#1a2e1c; --warn-bg:#33270f; --bad-bg:#3a1d19; --info-bg:#18263a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+header.top{background:var(--azul);color:#fff}
+header.top .wrap{padding-block:22px 0}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--verde);font-weight:700}
+h1{margin:4px 0 6px;font-size:26px;text-wrap:balance}
+.sub{color:#c9d3df;max-width:70ch;margin:0 0 16px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{font:inherit;font-weight:600;border:0;background:transparent;color:#c9d3df;padding:10px 14px;border-radius:8px 8px 0 0;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--bg);color:var(--fg)}
+.tabs button:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+section.view{padding-top:22px}
+h2{font-size:18px;margin:0 0 4px}
+h3{font-size:14px;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+p.lead{color:var(--muted);margin:0 0 16px;max-width:75ch}
+.note{background:var(--info-bg);border-left:4px solid var(--info);padding:10px 14px;border-radius:6px;margin:0 0 18px;max-width:90ch}
+
+/* Simulador */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:24px;align-items:start}
+@media (max-width:900px){.sim{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+label{font-weight:600;font-size:13px}
+select,input[type=text],textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);width:100%}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:7px 12px;border-radius:8px;cursor:pointer}
+.btn:hover{border-color:var(--azul)}
+.btn.primary{background:var(--azul);color:#fff;border-color:var(--azul)}
+.btn:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:inherit;font-size:12px;border:1px dashed var(--muted);background:transparent;color:var(--fg);padding:4px 10px;border-radius:999px;cursor:pointer}
+.chip:hover{border-style:solid;border-color:var(--azul)}
+.log{font-family:var(--f-mono);font-size:12px;max-height:260px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.log div{padding:3px 0;border-bottom:1px dotted var(--line)}
+.log div:last-child{border-bottom:0}
+
+.phone{background:var(--oscuro);border-radius:28px;padding:10px;box-shadow:0 8px 30px rgba(17,25,33,.25);max-width:400px;width:100%;margin:0 auto}
+.ph-head{display:flex;align-items:center;gap:10px;background:#1f2c34;color:#fff;padding:10px 12px;border-radius:18px 18px 0 0}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--verde);display:grid;place-items:center;font-weight:700;color:var(--oscuro)}
+.ph-head small{display:block;color:#a9b7c0;font-size:11px}
+.chat{background:var(--chat-bg);height:520px;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:6px}
+.msg{max-width:85%;padding:6px 9px 4px;border-radius:8px;white-space:pre-wrap;word-wrap:break-word;font-size:13.5px;box-shadow:0 1px .5px rgba(0,0,0,.13);color:var(--fg)}
+.msg.in{align-self:flex-start;background:var(--bub-in)}
+.msg.out{align-self:flex-end;background:var(--bub-out)}
+.msg .t{display:block;text-align:right;font-size:10.5px;color:var(--muted);margin-top:2px}
+.msg.fail{outline:2px solid var(--bad)}
+.wa-btns{align-self:flex-start;display:flex;flex-direction:column;gap:3px;max-width:85%;width:85%}
+.wa-btns button{font:inherit;font-size:13.5px;background:var(--bub-in);color:var(--btn-wa);border:0;border-radius:8px;padding:8px;cursor:pointer;font-weight:600;box-shadow:0 1px .5px rgba(0,0,0,.13)}
+.wa-btns button:disabled{opacity:.55;cursor:default}
+.rule{align-self:flex-start;font-family:var(--f-mono);font-size:10.5px;color:var(--muted);background:transparent;max-width:92%;padding:0 4px}
+.sys{align-self:center;font-size:11px;background:var(--info-bg);color:var(--info);padding:3px 10px;border-radius:8px}
+.ph-input{display:flex;gap:6px;padding:8px;background:#1f2c34;border-radius:0 0 18px 18px}
+.ph-input input{background:#2a3942;border:0;color:#fff;border-radius:20px;padding:9px 14px}
+.ph-input button{font:inherit;border:0;border-radius:50%;width:40px;height:40px;background:var(--verde);color:var(--oscuro);font-weight:700;cursor:pointer;flex:none}
+.ph-extra{display:flex;gap:6px;padding:6px 8px 0;flex-wrap:wrap}
+.ph-extra button{font:inherit;font-size:11.5px;border:1px solid #3b4a54;background:transparent;color:#c9d3df;border-radius:999px;padding:3px 10px;cursor:pointer}
+
+/* Tablas */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--bg);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td pre{margin:0;white-space:pre-wrap;font-family:var(--f-body);font-size:12.5px;background:var(--bg);border-radius:6px;padding:6px 8px;min-width:240px}
+code{font-family:var(--f-mono);font-size:12px}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.info{background:var(--info-bg);color:var(--info)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 12px;font-size:12px;color:var(--muted)}
+
+/* Decisiones */
+.dec{display:grid;gap:12px}
+.dec article{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.dec h4{margin:0 0 6px;font-size:14.5px}
+.dec .hoy,.dec .prop{font-size:13px;margin:4px 0}
+.dec .hoy b{color:var(--bad)} .dec .prop b{color:var(--ok)}
+.dec textarea{margin-top:8px;min-height:54px;font-size:13px}
+.dec .tag{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.copybar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+#copyMsg{font-size:12px;color:var(--ok)}
+#copyFallback{display:none;width:100%;min-height:120px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">RenergeIA · Asistente de WhatsApp</div>
+    <h1>Helvis · Mapa de conversación</h1>
+    <p class="sub">Cómo responde Helvis a cada mensaje y cada botón, con las decisiones A–I del 28/10/2026 ya aplicadas en el código. Si pides un cambio, se corrige el código y esta página en el mismo cambio.</p>
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="simulador" id="tab-simulador">Simulador</button>
+      <button role="tab" aria-selected="false" data-view="respuestas" id="tab-respuestas">Todas las respuestas</button>
+      <button role="tab" aria-selected="false" data-view="especificacion" id="tab-especificacion">Especificación vs hoy</button>
+      <button role="tab" aria-selected="false" data-view="decisiones" id="tab-decisiones">Para decidir</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============ SIMULADOR ============ -->
+<section class="view" id="simulador">
+  <div class="note">El simulador repite la lógica del bot paso a paso. Las cifras de <b>Ver avance</b> y <b>Alertas</b> son de ejemplo; en WhatsApp salen del Dashboard y de la planificación documental reales del proyecto. Debajo de cada respuesta aparece la regla que la produjo, en gris.</div>
+  <div class="sim">
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <div class="card">
+        <div class="field">
+          <label for="esc">¿Quién escribe?</label>
+          <select id="esc"></select>
+        </div>
+        <dl class="kv" id="ficha"></dl>
+        <div class="field" style="margin-top:12px">
+          <label><input type="checkbox" id="asig"> Tiene actividades asignadas en el panel</label>
+        </div>
+        <div class="btnrow">
+          <button class="btn primary" id="reiniciar">Reiniciar conversación</button>
+          <button class="btn" id="mas12">Pasan 12 horas</button>
+          <button class="btn" id="mas24">Pasan 24 horas</button>
+          <button class="btn" id="fallo">Simular rechazo de Meta en la próxima respuesta</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Mensajes para probar</h3>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">Qué queda guardado (historial del panel)</h3>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <div class="phone" aria-label="Simulación de WhatsApp">
+      <div class="ph-head"><div class="avatar">H</div><div><b>Helvis</b><small id="reloj">+1 555-305-7165</small></div></div>
+      <div class="chat" id="chat" aria-live="polite"></div>
+      <div class="ph-extra">
+        <button id="foto">📷 Enviar foto</button>
+        <button id="voz">🎤 Nota de voz</button>
+      </div>
+      <form class="ph-input" id="form">
+        <input type="text" id="txt" placeholder="Escribe un mensaje" autocomplete="off">
+        <button type="submit" aria-label="Enviar">➤</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TODAS LAS RESPUESTAS ============ -->
+<section class="view" id="respuestas" hidden>
+  <h2>Todas las respuestas posibles</h2>
+  <p class="lead">Cada fila es una situación y lo que Helvis contesta exactamente. Están en el orden en que el bot las revisa: la primera que se cumple es la que responde.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Situación</th><th>Lo que escribe la persona</th><th>Lo que responde Helvis</th><th>Botones</th></tr></thead>
+    <tbody id="tablaResp"></tbody>
+  </table></div>
+
+  <h3>Cómo entiende las palabras</h3>
+  <p class="lead">Si la persona escribe en vez de tocar un botón, Helvis busca estas palabras (sin importar tildes ni mayúsculas). Si no encuentra ninguna, responde con el menú.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Si el mensaje es o contiene…</th><th>Helvis lo toma como</th><th>Ojo</th></tr></thead>
+    <tbody>
+      <tr><td><code>1</code> · avance · consulta</td><td>📊 Ver avance</td><td>—</td></tr>
+      <tr><td><code>2</code> · alerta · vencim… · pendiente</td><td>📋 Alertas</td><td>"¿Qué tengo pendiente?" abre las alertas documentales.</td></tr>
+      <tr><td><code>3</code> · informe · reporte · diario</td><td>📝 Informe diario</td><td>"Te reporto que…" abre el informe, no registra nada.</td></tr>
+      <tr><td>costo · presupuesto · pago</td><td>Aviso: aún no disponible</td><td>Decisión I: avisa que los costos llegan en una etapa posterior y muestra el menú.</td></tr>
+      <tr><td>proyecto · cambiar</td><td>Cambiar de proyecto</td><td>"informe del proyecto" cuenta como informe (se revisa en ese orden).</td></tr>
+      <tr><td>Un número mientras elige proyecto en lista (4 o más proyectos)</td><td>Ese proyecto</td><td>Mientras elige proyecto, "2" es el proyecto 2 y no Alertas.</td></tr>
+      <tr><td>Números con varias palabras, o palabras de obra (hincado, pilotes, metros…)</td><td>Aviso: el reporte aún no se guarda</td><td>Decisión D: «Hoy hincamos 80 pilotes» recibe el aviso de que NO quedó registrado.</td></tr>
+      <tr><td>Una foto, video o documento</td><td>Aviso: aún no se guarda</td><td>Decisión C: pide subirla al Informe diario de la app mientras llega la Etapa 2.</td></tr>
+      <tr><td>Una nota de voz</td><td>Aviso: aún no las escucha</td><td>Decisión C: pide escribirlo en texto.</td></tr>
+      <tr><td>Cualquier otra cosa (hola, gracias, ok, menú)</td><td>Menú del proyecto</td><td>Con saludo por el nombre si es el primer mensaje del día (decisión A).</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ ESPECIFICACIÓN ============ -->
+<section class="view" id="especificacion" hidden>
+  <h2>Especificación vs lo que hace hoy</h2>
+  <p class="lead">Cada punto de la especificación funcional de Helvis (versión 1.0, 19/10/2026) y en qué estado está en producción.</p>
+  <div class="legend"><span><span class="pill ok">Hecho</span> funciona en WhatsApp</span><span><span class="pill warn">Parcial</span> existe pero le falta algo</span><span><span class="pill bad">Pendiente</span> aún no existe</span><span><span class="pill info">Posterior</span> fuera del piloto por decisión</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Tema (sección)</th><th>Estado</th><th>Qué hace hoy</th><th>Etapa</th></tr></thead>
+    <tbody id="tablaSpec"></tbody>
+  </table></div>
+</section>
+
+<!-- ============ DECISIONES ============ -->
+<section class="view" id="decisiones" hidden>
+  <h2>Para decidir</h2>
+  <p class="lead">El 28/10/2026 se aplicaron las propuestas A–I tal como estaban (marcadas <span class="pill ok">Aplicada</span>). Si algo no te gusta, escribe la corrección en su caja, copia todo y pégamelo en el chat. J y K siguen abiertas.</p>
+  <div class="dec" id="listaDec"></div>
+  <div class="copybar">
+    <button class="btn primary" id="copiar">Copiar mis decisiones</button>
+    <span id="copyMsg"></span>
+    <textarea id="copyFallback" readonly></textarea>
+  </div>
+</section>
+</main>
+
+<script>
+/* ================= Datos de ejemplo ================= */
+const P = {
+  SO:{id:1, codigo:"COS5SO", nombre:"La Soberana"},
+  VL:{id:3, codigo:"COS6VL", nombre:"Villanueva"},
+  ML:{id:4, codigo:"COS6ML", nombre:"Malambo"},
+  AU:{id:5, codigo:"COS6AU", nombre:"La Aurora"}
+};
+const ESCENARIOS = {
+  uno:{etq:"Luisa Becerra · 1 proyecto", contacto:{nombre:"Luisa Becerra", activo:true, puedeConsultar:true, proyectos:[P.SO]}},
+  dos:{etq:"Yesid Cortés · 2 proyectos (botones)", contacto:{nombre:"Helvis Yesid Cortés", activo:true, puedeConsultar:true, proyectos:[P.SO,P.VL]}},
+  cuatro:{etq:"Juan Francisco · 4 proyectos (lista numerada)", contacto:{nombre:"Juan Francisco", activo:true, puedeConsultar:true, proyectos:[P.AU,P.SO,P.ML,P.VL]}},
+  sin:{etq:"Stephania Quintana · sin proyectos asignados", contacto:{nombre:"Stephania Quintana", activo:true, puedeConsultar:true, proyectos:[]}},
+  sinpermiso:{etq:"Contacto sin el permiso «Consultar»", contacto:{nombre:"Carlos Obrero", activo:true, puedeConsultar:false, proyectos:[P.SO]}},
+  inactivo:{etq:"Eduard Rodríguez · contacto inactivo", contacto:{nombre:"Eduard Rodríguez", activo:false, puedeConsultar:true, proyectos:[P.SO]}},
+  desconocido:{etq:"Número no registrado en el panel", contacto:null}
+};
+const VIGENCIA_H = 12;
+
+/* ================= Estado ================= */
+let esc = "uno", contacto = null, ahora = Date.now(), salientes = [], forzarFallo = false;
+const $ = s => document.querySelector(s);
+const chat = $("#chat"), log = $("#log");
+
+function hoyStr(){ const d=new Date(ahora); return d.toLocaleDateString("es-CO",{day:"2-digit",month:"2-digit",year:"numeric"}); }
+function horaStr(){ return new Date(ahora).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"}); }
+
+function cargar(){
+  const e = ESCENARIOS[esc];
+  contacto = e.contacto ? JSON.parse(JSON.stringify(e.contacto)) : null;
+  if (contacto){ contacto.proyectos.sort((a,b)=>a.nombre.localeCompare(b.nombre,"es")); contacto.activoId=null; contacto.activoFecha=null; contacto.opcionPendiente=null; }
+  salientes = []; forzarFallo = false;
+  chat.innerHTML=""; log.innerHTML="";
+  sys("Conversación nueva · "+e.etq);
+  ficha();
+}
+function ficha(){
+  const f=$("#ficha");
+  if(!contacto){ f.innerHTML="<dt>Registro</dt><dd>No existe en el panel</dd><dt>Datos que ve</dt><dd>Ninguno</dd>"; return; }
+  const act = proyectoActivo();
+  f.innerHTML = `<dt>Nombre en el panel</dt><dd>${contacto.nombre}</dd>
+    <dt>Estado</dt><dd>${contacto.activo?"Activo":"Inactivo"}</dd>
+    <dt>Puede consultar</dt><dd>${contacto.puedeConsultar?"Sí":"No"}</dd>
+    <dt>Proyectos</dt><dd>${contacto.proyectos.map(p=>p.codigo).join(", ")||"Ninguno"}</dd>
+    <dt>Proyecto elegido</dt><dd>${act?act.codigo+" (recordado "+VIGENCIA_H+" h)":"—"}</dd>
+    <dt>Opción pendiente</dt><dd>${contacto.opcionPendiente||"—"}</dd>`;
+}
+
+/* ================= Render del chat ================= */
+function fmt(t){
+  const esc = t.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  return esc.replace(/\*([^*\n]+)\*/g,"<b>$1</b>").replace(/(^|[\s(])_([^_\n]+)_/g,"$1<i>$2</i>");
+}
+function sys(t){ const d=document.createElement("div"); d.className="sys"; d.textContent=t; chat.appendChild(d); scroll(); }
+function burbuja(cls, texto){
+  const d=document.createElement("div"); d.className="msg "+cls; d.innerHTML=fmt(texto)+`<span class="t">${horaStr()}</span>`;
+  chat.appendChild(d); scroll(); return d;
+}
+function regla(t){ const d=document.createElement("div"); d.className="rule"; d.textContent="↳ "+t; chat.appendChild(d); scroll(); }
+function scroll(){ chat.scrollTop = chat.scrollHeight; }
+function registrar(t){ const d=document.createElement("div"); d.textContent=horaStr()+"  "+t; log.appendChild(d); log.scrollTop=log.scrollHeight; }
+
+/* Envíos (equivalen a EnviarTextoAsync / EnviarBotonesAsync) */
+function enviarTexto(texto, porque){
+  if (forzarFallo){ forzarFallo=false; return fallo(texto, porque); }
+  burbuja("in", texto); regla(porque); salientes.push(ahora);
+  registrar("SALIENTE texto · enviado");
+}
+function enviarBotones(texto, botones, porque){
+  if (forzarFallo){ forzarFallo=false; return fallo(texto, porque); }
+  burbuja("in", texto);
+  const g=document.createElement("div"); g.className="wa-btns";
+  botones.forEach(([id,titulo])=>{
+    const b=document.createElement("button"); b.textContent=titulo.length>20?titulo.slice(0,20):titulo;
+    b.onclick=()=>{ recibir({texto:b.textContent, opcionId:id, tipo:"interactive"}); };
+    g.appendChild(b);
+  });
+  chat.appendChild(g); regla(porque); salientes.push(ahora); scroll();
+  registrar("SALIENTE botones ["+botones.map(b=>b[1]).join(" | ")+"] · enviado");
+}
+function fallo(texto, porque){
+  sys("Meta rechazó el envío 3 veces (error 131037). La persona no recibe nada.");
+  regla(porque+" · el mensaje queda en el panel como «fallo»");
+  registrar("SALIENTE · FALLO: "+texto.split("\n")[0]);
+}
+
+/* ================= Lógica (copia de WhatsAppConversacion.cs) ================= */
+function normalizar(t){ return t.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+function interpretar(texto){
+  const t = normalizar(texto||"");
+  if (!t.length) return null;
+  if (t==="1" || t.includes("avance") || t.includes("consulta")) return "avance";
+  if (t==="2" || t.includes("alerta") || t.includes("vencim") || t.includes("pendiente")) return "alertas";
+  if (t==="3" || t.includes("informe") || t.includes("reporte") || t.includes("diario")) return "informe";
+  if (t.includes("costo") || t.includes("presupuesto") || t.includes("pago")) return "costos";
+  if (t.includes("proyecto") || t==="cambiar") return "cambiar";
+  return null;
+}
+function esPosibleReporte(texto){
+  const t = normalizar(texto||"");
+  if (t.length < 8) return false;
+  const claves = ["hincad","pilot","instal","excav","vaciad","fundid","montaj","zanja","panel","modulo","mesa","cable","avanzamos","terminamos","hicimos","ejecutamos","metros"," ml"," m2"," m3"," und"];
+  const tieneClave = claves.some(c=>t.includes(c));
+  const tieneNumero = /\d/.test(t);
+  const palabras = t.split(/\s+/).filter(Boolean).length;
+  return tieneClave || (tieneNumero && palabras >= 4);
+}
+function diaDe(t){ return new Date(t).toDateString(); }
+function primeraVezHoy(){ return !salientes.some(t => diaDe(t)===diaDe(ahora)); }
+function primerNombre(n){ return (n||"").split(" ").filter(Boolean)[0]||""; }
+function saludo(perfil){
+  const n = primerNombre(contacto.nombre || perfil);
+  return (n ? `Hola, ${n} 👋` : "Hola 👋") + " Soy *Helvis*, el asistente de Renergeia _(prueba)_.";
+}
+function proyectoActivo(){
+  if (!contacto || contacto.activoId==null || contacto.activoFecha==null) return null;
+  if (ahora - contacto.activoFecha > VIGENCIA_H*3600e3) return null;
+  return contacto.proyectos.find(p=>p.id===contacto.activoId) || null;
+}
+function activar(id){ contacto.activoId=id; contacto.activoFecha=ahora; contacto.opcionPendiente=null; ficha(); }
+
+function recibir(m){
+  // Mensaje entrante
+  burbuja("out", m.tipo==="image" ? "📷 Foto" : m.tipo==="audio" ? "🎤 Nota de voz (0:07)" : m.texto);
+  registrar("ENTRANTE "+m.tipo+(m.opcionId?" · opción "+m.opcionId:"")+" · "+(m.texto||"(sin texto)"));
+  setTimeout(()=>{ atender(m); ficha(); }, 250);
+}
+
+function atender(m){
+  if (!contacto || !contacto.activo) return desconocido(m);
+  const proyectos = contacto.proyectos;
+
+  // Decisión A: saludar por el nombre la primera vez del día
+  const sal = primeraVezHoy() ? saludo(m.perfil)+"\n\n" : "";
+
+  // Decisión E: sin el permiso Consultar no hay información
+  if (!contacto.puedeConsultar){
+    return enviarTexto(sal+"Este número está registrado, pero aún no tiene habilitada la consulta de información. El administrador puede activarla en el panel de Helvis. 🙌",
+      "Decisión E · contacto sin el permiso «Consultar» → no se entrega información");
+  }
+
+  // Decisión C: fotos y notas de voz se reconocen y se avisa que no se guardan
+  if (m.tipo==="image"){
+    return enviarTexto(sal+"📷 Recibí el archivo, pero por ahora *no queda guardado*: el registro de fotos por WhatsApp llega en la siguiente etapa. Mientras tanto, va en el Informe diario de la app.\n\nEscribe *menú* para ver las opciones.",
+      "Decisión C · foto, video o documento: se avisa que aún no se guarda");
+  }
+  if (m.tipo==="audio"){
+    return enviarTexto(sal+"🎙️ Recibí la nota de voz, pero aún no puedo escucharlas. ¿Me lo escribes en un mensaje de texto?",
+      "Decisión C · nota de voz: se pide el texto");
+  }
+
+  let opcion = m.opcionId ?? interpretar(m.texto);
+
+  // Decisión I: «costos» avisa que llega después (ya no abre el avance físico)
+  if (opcion==="costos"){
+    enviarTexto("💰 La consulta de costos por WhatsApp aún no está disponible; llega en una etapa posterior. Por ahora puedo mostrar el avance físico, las alertas documentales y el informe diario.",
+      "Decisión I · costo/presupuesto/pago → avisa que no está disponible y sigue el menú");
+    opcion = null;
+  }
+
+  if (opcion==="cambiar") return selector(proyectos, sal, "Escribió «proyecto»/«cambiar» → selector de proyecto");
+
+  if (opcion && opcion.startsWith("proy_")){
+    const id = parseInt(opcion.slice(5));
+    const p = proyectos.find(x=>x.id===id);
+    if (p){
+      const pend = contacto.opcionPendiente; activar(id);
+      return ejecutar(p, pend, proyectos.length>1, "", pend
+        ? `Decisión H · eligió ${p.codigo} y Helvis responde de una vez la opción que había pedido («${pend}»)`
+        : "Tocó el botón de un proyecto → lo recuerda "+VIGENCIA_H+" h y muestra su menú");
+    }
+  }
+
+  let activo = proyectoActivo();
+
+  const num = parseInt((m.texto||"").trim());
+  if (!activo && proyectos.length>1 && !m.opcionId && /^\d+$/.test((m.texto||"").trim()) && num>=1 && num<=proyectos.length){
+    const p = proyectos[num-1]; const pend = contacto.opcionPendiente; activar(p.id);
+    return ejecutar(p, pend, true, "", `Respondió el número ${num} mientras elegía proyecto → ${p.codigo}`+(pend?` · responde la opción pendiente «${pend}» (decisión H)`:""));
+  }
+
+  if (proyectos.length===0){
+    return enviarTexto(`${sal}Este número aún no tiene proyectos asignados. El administrador puede asignarlos en el panel de Helvis y seguimos hablando. 🙌`,
+      "Registrado sin proyectos · decisión B: redacción neutra, sin «tienes»/«pídele»");
+  }
+
+  let notaUnico = "";
+  if (!activo){
+    if (proyectos.length===1){ activo = proyectos[0]; activar(activo.id); notaUnico = "Tiene un solo proyecto → lo elige solo, sin preguntar. "; }
+    else {
+      contacto.opcionPendiente = ["avance","alertas","informe"].includes(opcion) ? opcion : null; ficha();
+      return selector(proyectos, sal, contacto.opcionPendiente
+        ? `Pidió «${opcion}» sin proyecto elegido → pregunta el proyecto y RECUERDA la opción para responderla después (decisión H)`
+        : "No hay proyecto elegido (o pasaron "+VIGENCIA_H+" h) → pregunta el proyecto");
+    }
+  }
+
+  // Decisión D: texto con pinta de reporte → avisa que no quedó guardado
+  if (!opcion && !m.opcionId && esPosibleReporte(m.texto)){
+    return enviarTexto("📝 El reporte de avance por WhatsApp aún no está activo, así que este mensaje *no quedó guardado* como avance. Por ahora el avance se registra en el Informe diario de la app; pronto se podrá reportar por aquí.",
+      "Decisión D · números o palabras de obra → avisa claro que NO quedó guardado");
+  }
+
+  ejecutar(activo, opcion, proyectos.length>1, sal, notaUnico+(opcion ? "Opción "+opcion : "Mensaje sin opción reconocida (hola, gracias, menú…) → menú del proyecto"));
+}
+function ejecutar(p, opcion, varios, sal, porque){
+  switch(opcion){
+    case "avance": return avance(p, porque);
+    case "alertas": return alertas(p, porque);
+    case "informe": return informe(p, porque);
+    default: return menu(p, varios, sal, porque);
+  }
+}
+
+function selector(proyectos, sal, porque){
+  if (proyectos.length===0) return enviarTexto(sal+"Este número aún no tiene proyectos asignados. El administrador puede asignarlos en el panel de Helvis.", porque);
+  if (proyectos.length<=3){
+    enviarBotones(sal+"¿Sobre qué proyecto trabajamos hoy?", proyectos.map(p=>["proy_"+p.id, p.codigo||p.nombre]), porque+" · hasta 3 proyectos = botones");
+  } else {
+    const lineas = proyectos.map((p,i)=>`*${i+1}.* ${p.codigo} — ${p.nombre}`).join("\n");
+    enviarTexto(sal+"¿Sobre qué proyecto trabajamos hoy? Responde con el número:\n"+lineas, porque+" · 4 o más proyectos = lista numerada");
+  }
+}
+function menu(p, varios, sal, porque){
+  let cuerpo = `${sal}📍 *${p.codigo} — ${p.nombre}*\n\n¿Qué miramos?`;
+  if (varios) cuerpo += "\n\n_Escribe *proyecto* para cambiar de proyecto._";
+  enviarBotones(cuerpo, [["avance","📊 Ver avance"],["alertas","📋 Alertas"],["informe","📝 Informe diario"]], porque);
+}
+function avance(p, porque){
+  const prog=58, real=51, brecha=real-prog;
+  const icono = brecha>=-1?"✅":brecha>=-5?"⚠️":"🔴";
+  const asign = $("#asig").checked;
+  const titulo = asign ? "Actividades asignadas más atrasadas" : "Actividades más atrasadas del proyecto";
+  const acts = asign
+    ? ["• 2.8.3 Hincado de pilotes — 62% (prog. 80%)","• 2.8.4 Montaje de estructura — 35% (prog. 48%)"]
+    : ["• 2.8.3 Hincado de pilotes — 62% (prog. 80%)","• 2.9.1 Tendido de cable DC — 10% (prog. 25%)","• 2.8.4 Montaje de estructura — 35% (prog. 48%)"];
+  enviarTexto(`📊 *${p.codigo} — avance al ${hoyStr()}*\n\nProgramado: *${prog}%* · Real: *${real}%*\nBrecha: *${brecha} p.p.* ${icono}\n\n*${titulo}:*\n${acts.join("\n")}\n\nEscribe *menú* para volver.`,
+    porque+" · cifras de la Curva S del Dashboard (aquí de ejemplo). ✅ brecha ≥ −1 · ⚠️ hasta −5 · 🔴 peor que −5. Actividades: primero las asignadas a la persona; si no tiene, las 3 hojas más atrasadas del proyecto");
+}
+function alertas(p, porque){
+  enviarTexto(`📋 *${p.codigo} — alertas documentales*\n\n🔴 Críticos (8+ días): *2*\n🟡 En alerta (4-7 días): *3*\n📄 Pendientes en total: *9*\n\n*Los más urgentes:*\n🔴 ING-045 Memoria de cálculo estructura — 15 días, en cancha de Cliente\n🔴 PRC-012 Procedimiento de hincado — 9 días, en cancha de Renergeia\n🟡 HSE-007 Plan de emergencias — 6 días, en cancha de Cliente\n🟡 ING-051 Planos de puesta a tierra — 5 días, en cancha de Renergeia\n🟡 ING-060 Diagrama unifilar — 4 días, en cancha de Cliente\n\nEscribe *menú* para volver.`,
+    porque+" · planificación documental del proyecto (aquí de ejemplo). Cuenta Pendiente emitir / Pendiente validación / No validado; si no hay ninguno responde «✅ Sin documentos pendientes de atención. ¡Todo al día!»");
+}
+function informe(p, porque){
+  if ($("#asig").checked){
+    enviarTexto(`📝 *Informe diario — ${p.codigo}*\n\nActividades asignadas:\n• 2.8.3 Hincado de pilotes (Frente 1) — 62%\n• 2.8.4 Montaje de estructura — 35%\n\nEl registro de avance por aquí llega en la siguiente etapa. Escribe *menú* para volver.`, porque+" · lista las actividades asignadas en el panel (máx. 20); todavía no recibe reportes");
+  } else {
+    enviarTexto(`📝 *Informe diario — ${p.codigo}*\n\nAún no hay actividades asignadas a este número en este proyecto. Se asignan desde el panel de Helvis en RenergeIA.\n\nEscribe *menú* para volver.`, porque+" · sin actividades asignadas");
+  }
+}
+function desconocido(m){
+  const ya = salientes.some(t => ahora - t < 24*3600e3);
+  const texto = ya ? "Gracias, el mensaje quedó registrado y el equipo de Renergeia lo revisará. 🙏"
+    : "Hola 👋 Soy *Helvis*, el asistente de *Renergeia*.\n\nEste número aún no está registrado conmigo. ¿Me cuentas el motivo del mensaje y con quién quieres hablar? Dejo el aviso al equipo de Renergeia para que te contacten.";
+  enviarTexto(texto, (contacto?"Contacto INACTIVO: se trata igual que un número no registrado (a los administradores NO les llega aviso)":"Número no registrado")+(ya?" · ya se le respondió en las últimas 24 h":" · primera respuesta en 24 h")+". No entrega ninguna información; el mensaje queda en el panel");
+  if (!contacto){
+    const detalle = m.texto ? "«"+m.texto+"»" : "(envió un archivo o una nota de voz)";
+    sys("📨 Decisión F · a cada administrador le llega por WhatsApp: «Aviso de Helvis: el número +57 3XX… escribió sin estar registrado: "+detalle+" La conversación completa está en el panel de Helvis.»");
+    registrar("SALIENTE aviso a administradores (decisión F)");
+  }
+}
+
+/* ================= Controles ================= */
+const sel=$("#esc");
+Object.entries(ESCENARIOS).forEach(([k,v])=>{ const o=document.createElement("option"); o.value=k; o.textContent=v.etq; sel.appendChild(o); });
+sel.onchange=()=>{ esc=sel.value; cargar(); };
+$("#reiniciar").onclick=cargar;
+$("#mas12").onclick=()=>{ ahora+=12*3600e3+60e3; sys("Pasaron 12 horas · el proyecto elegido se olvida"); ficha(); };
+$("#mas24").onclick=()=>{ ahora+=24*3600e3+60e3; sys("Pasaron 24 horas · es otro día: Helvis vuelve a saludar por el nombre"); ficha(); };
+$("#fallo").onclick=()=>{ forzarFallo=true; sys("La próxima respuesta será rechazada por Meta"); };
+$("#form").addEventListener("submit",e=>{ e.preventDefault(); const t=$("#txt").value.trim(); if(!t) return; $("#txt").value=""; recibir({texto:t, opcionId:null, tipo:"text"}); });
+$("#foto").onclick=()=>recibir({texto:"", opcionId:null, tipo:"image"});
+$("#voz").onclick=()=>recibir({texto:"", opcionId:null, tipo:"audio"});
+["hola","menú","proyecto","1","2","3","avance","¿qué tengo pendiente?","Hoy hincamos 80 pilotes","costos","gracias"].forEach(t=>{
+  const c=document.createElement("button"); c.className="chip"; c.textContent=t; c.onclick=()=>recibir({texto:t, opcionId:null, tipo:"text"}); $("#chips").appendChild(c);
+});
+
+/* ================= Pestañas ================= */
+const VISTAS=["simulador","respuestas","especificacion","decisiones"];
+function mostrar(v){
+  VISTAS.forEach(x=>{ $("#"+x).hidden = x!==v; $("#tab-"+x).setAttribute("aria-selected", x===v); });
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{ mostrar(b.dataset.view); try{history.replaceState(null,"","#"+b.dataset.view)}catch(e){} });
+if (VISTAS.includes(location.hash.slice(1))) mostrar(location.hash.slice(1));
+
+/* ================= Tabla de respuestas ================= */
+const RESP = [
+  ["Número no registrado o contacto inactivo · primera vez en 24 h","Cualquier cosa","Hola 👋 Soy *Helvis*, el asistente de *Renergeia*.\n\nEste número aún no está registrado conmigo. ¿Me cuentas el motivo del mensaje y con quién quieres hablar? Dejo el aviso al equipo de Renergeia para que te contacten.","—"],
+  ["Número no registrado · ya se le respondió en las últimas 24 h","Cualquier cosa","Gracias, el mensaje quedó registrado y el equipo de Renergeia lo revisará. 🙏","—"],
+  ["Número no registrado (aviso interno · decisión F)","—","A cada administrador del panel le llega: 📨 *Aviso de Helvis:* el número +… escribió sin estar registrado:\n\n«texto»\n\nLa conversación completa está en el panel de Helvis.","—"],
+  ["Registrado sin el permiso «Consultar» (decisión E)","Cualquier cosa","(Saludo si es la primera vez del día)\nEste número está registrado, pero aún no tiene habilitada la consulta de información. El administrador puede activarla en el panel de Helvis. 🙌","—"],
+  ["Registrado envía foto, video o documento (decisión C)","📷","📷 Recibí el archivo, pero por ahora *no queda guardado*: el registro de fotos por WhatsApp llega en la siguiente etapa. Mientras tanto, va en el Informe diario de la app.\n\nEscribe *menú* para ver las opciones.","—"],
+  ["Registrado envía nota de voz (decisión C)","🎤","🎙️ Recibí la nota de voz, pero aún no puedo escucharlas. ¿Me lo escribes en un mensaje de texto?","—"],
+  ["Registrado escribe de costos (decisión I)","costos · presupuesto · pagos","💰 La consulta de costos por WhatsApp aún no está disponible; llega en una etapa posterior. Por ahora puedo mostrar el avance físico, las alertas documentales y el informe diario.  (y sigue el menú)","—"],
+  ["Registrado escribe algo que parece un reporte (decisión D)","«Hoy hincamos 80 pilotes»","📝 El reporte de avance por WhatsApp aún no está activo, así que este mensaje *no quedó guardado* como avance. Por ahora el avance se registra en el Informe diario de la app; pronto se podrá reportar por aquí.","—"],
+  ["Registrado, cualquier momento","«proyecto» o «cambiar»","¿Sobre qué proyecto trabajamos hoy?","Un botón por proyecto (hasta 3) o lista numerada (4+)"],
+  ["Registrado","Toca el botón de un proyecto","📍 *COS5SO — La Soberana*\n\n¿Qué miramos?\n\n_Escribe *proyecto* para cambiar de proyecto._  (esta última línea solo si tiene 2+ proyectos). Si había pedido una opción antes de elegir, Helvis la responde de una vez (decisión H).","📊 Ver avance · 📋 Alertas · 📝 Informe diario"],
+  ["4+ proyectos, sin proyecto elegido","Un número de la lista (1, 2, 3…)","Menú de ese proyecto, o la opción que había pedido (decisión H)","📊 Ver avance · 📋 Alertas · 📝 Informe diario"],
+  ["Registrado sin proyectos","Cualquier cosa","(Saludo si es la primera vez del día)\nEste número aún no tiene proyectos asignados. El administrador puede asignarlos en el panel de Helvis y seguimos hablando. 🙌","—"],
+  ["2+ proyectos, sin proyecto elegido (o pasaron 12 h)","Cualquier cosa (incluso un botón del menú viejo)","Hola, Yesid 👋 Soy *Helvis*, el asistente de Renergeia _(prueba)_.  (solo la primera vez del día · decisión A)\n\n¿Sobre qué proyecto trabajamos hoy?  — y si venía pidiendo una opción, la recuerda (decisión H)","Un botón por proyecto (hasta 3) o lista numerada (4+)"],
+  ["1 solo proyecto, o proyecto ya elegido","hola, gracias, menú, texto no reconocido","(Saludo si es la primera vez del día · decisión A)\nMenú del proyecto","📊 Ver avance · 📋 Alertas · 📝 Informe diario"],
+  ["Proyecto elegido","📊 Ver avance · «1» · «avance»","📊 *COS5SO — avance al dd/mm/aaaa*\n\nProgramado: *58%* · Real: *51%*\nBrecha: *-7 p.p.* 🔴\n\n*Actividades asignadas más atrasadas:* (o del proyecto, si no tiene)\n• código nombre — real% (prog. %)  ×3\n\nEscribe *menú* para volver.","—"],
+  ["Proyecto elegido","📋 Alertas · «2» · «pendiente»","📋 *COS5SO — alertas documentales*\n\n🔴 Críticos (8+ días): *n*\n🟡 En alerta (4-7 días): *n*\n📄 Pendientes en total: *n*\n\n*Los más urgentes:* hasta 5, con días y en cancha de quién\n\nEscribe *menú* para volver.\n\n(si no hay: ✅ Sin documentos pendientes de atención. ¡Todo al día!)","—"],
+  ["Proyecto elegido · sin actividades asignadas","📝 Informe diario · «3» · «reporte»","📝 *Informe diario — COS5SO*\n\nAún no hay actividades asignadas a este número en este proyecto. Se asignan desde el panel de Helvis en RenergeIA.\n\nEscribe *menú* para volver.","—"],
+  ["Proyecto elegido · con actividades asignadas","📝 Informe diario","📝 *Informe diario — COS5SO*\n\nActividades asignadas:\n• código nombre (frente) — avance%  (máx. 20)\n\nEl registro de avance por aquí llega en la siguiente etapa. Escribe *menú* para volver.","—"],
+  ["Meta rechaza el envío 3 veces seguidas","—","La persona no recibe nada. En el panel queda el mensaje con estado «fallo». Lo definitivo es aprobar el nombre visible del número en Meta.","—"]
+];
+$("#tablaResp").innerHTML = RESP.map((r,i)=>`<tr><td>${i+1}</td><td>${r[0]}</td><td>${r[1]}</td><td><pre>${fmt(r[2])}</pre></td><td>${r[3]}</td></tr>`).join("");
+
+/* ================= Especificación ================= */
+const SPEC = [
+  ["Identificar a la persona por su celular (§3)","ok","El celular registrado en el panel es la identidad; saluda con el nombre del panel.","1"],
+  ["Número no registrado (§3, P45)","ok","Pregunta el motivo sin entregar información, el mensaje queda en el panel y a los administradores les llega el aviso por WhatsApp (decisión F).","1"],
+  ["Permisos independientes: consultar, reportar, corregir, aprobar (§3)","warn","El bot ya respeta «Consultar» (decisión E). Reportar, corregir y aprobar se usan desde la Etapa 2.","1 / 2"],
+  ["Varios proyectos por persona (§4)","ok","Pregunta el proyecto, lo recuerda 12 horas, «proyecto» lo cambia y la opción pedida antes de elegir no se pierde (decisión H).","1"],
+  ["Mensajes identificados «Helvis — RenergeIA · prueba» (§2.1)","warn","Solo el saludo dice «(prueba)»; el resto de mensajes no lo dicen.","1"],
+  ["Trato cordial, sin repetir «tú» o «usted» (§4)","ok","Textos reescritos en forma neutra (decisión B) y saludo por el nombre la primera vez del día (decisión A).","1"],
+  ["Historial de todos los mensajes y deduplicación (§15, P08)","ok","Todo entrante y saliente queda en el panel; los reintentos de Meta no se duplican.","1"],
+  ["Fallo de envío visible, sin culpar a la persona (§13, P46)","warn","Se reintenta 3 veces y queda «fallo» en el panel. La persona no recibe ningún aviso.","1"],
+  ["Consultar avance y atrasos (§5.2)","warn","«Ver avance» muestra programado, real, brecha y las 3 actividades más atrasadas. La consulta automática de la 1:00 p. m. aún no existe.","2 / 4"],
+  ["Alertas documentales","ok","Semáforo rojo (8+ días) y amarillo (4–7) de la planificación documental. No está en la especificación; se agregó el 23/10.","1"],
+  ["Reportar avance conversando: cantidades, %, confirmación (§7)","bad","«Informe diario» solo lista las actividades asignadas. «Hoy hincamos 80 pilotes» recibe el aviso de que NO quedó guardado (decisión D).","2"],
+  ["Personal, equipos y horas por actividad (§8.1)","bad","No existe.","2"],
+  ["Fotografías (§8.2)","warn","Una foto recibe el aviso de que aún no se guarda y de que va en el Informe diario de la app (decisión C).","2"],
+  ["Notas de voz (§4)","info","Quedan para después. Hoy Helvis contesta que aún no las escucha y pide el texto (decisión C).","—"],
+  ["Actividades al 100 % y detalles de cierre (§9)","bad","No existe.","4"],
+  ["Jornadas y horarios: 12:00, 12:30, 1:00, cierre +10/20/30 (§5)","bad","No hay mensajes automáticos. Se necesitan plantillas aprobadas por Meta para escribir primero.","4"],
+  ["Causas y planes de acción (§10)","bad","No existe por WhatsApp. En la app están la recomendación y las restricciones.","4"],
+  ["Informe diario: consolidación, aprobación Yesid → Luisa → Michelle, PDF y envío (§12)","bad","No existe por WhatsApp. El informe se aprueba en la app.","3"],
+  ["Bloqueos: maquinaria, suministros, compras y pagos (§11)","bad","No existe.","5"],
+  ["Panel: contactos, permisos y conversaciones (§13)","ok","Pestañas Contactos y Conversaciones en /helvis.","1"],
+  ["Panel: pausas y suspensión de alertas (§13)","warn","Los campos de pausa existen; no tienen efecto porque aún no hay mensajes automáticos.","1 / 4"],
+  ["Asignación de actividades por persona (§6)","warn","La tabla de asignaciones existe y el bot la lee; falta la pantalla para asignar.","2"]
+];
+const PILL={ok:["ok","Hecho"],warn:["warn","Parcial"],bad:["bad","Pendiente"],info:["info","Posterior"]};
+$("#tablaSpec").innerHTML = SPEC.map(s=>`<tr><td>${s[0]}</td><td><span class="pill ${PILL[s[1]][0]}">${PILL[s[1]][1]}</span></td><td>${s[2]}</td><td>${s[3]}</td></tr>`).join("");
+
+/* ================= Decisiones ================= */
+const DEC = [
+  ["A","Saludo cuando ya hay proyecto","«Hola» mostraba el menú sin saludar si ya había proyecto elegido.","Helvis saluda por el nombre <b>la primera vez del día</b> (hora Colombia) y luego va al grano.","ok"],
+  ["B","Tuteo","Los textos decían «tienes», «pídele», «¿me cuentas?».","Textos reescritos en forma neutra: «Este número aún no tiene proyectos asignados. El administrador puede asignarlos…».","ok"],
+  ["C","Fotos y notas de voz","Respondían con el menú y nada se guardaba, sin avisar.","Foto/archivo: «Recibí el archivo, pero por ahora no queda guardado… va en el Informe diario de la app». Nota de voz: «aún no puedo escucharlas, ¿me lo escribes?».","ok"],
+  ["D","Texto que parece un reporte","«Hoy hincamos 80 pilotes» devolvía el menú como si nada.","Si trae números con varias palabras o vocabulario de obra, Helvis avisa que el reporte aún no está activo y que <b>no quedó guardado</b>.","ok"],
+  ["E","Permisos","Todo contacto activo veía avance y alertas, aunque no tuviera «Consultar».","Sin el permiso «Consultar» del panel no se entrega información: solo el aviso de que falta activarlo.","ok"],
+  ["F","Aviso por números desconocidos","El mensaje quedaba en el panel, pero nadie se enteraba.","A cada contacto marcado <b>Administrador</b> en el panel le llega por WhatsApp el número y el texto del desconocido. Ojo: si el administrador no ha escrito a Helvis en 24 h, Meta puede rechazar ese aviso (queda en «fallo»); se resuelve con una plantilla aprobada.","ok"],
+  ["G","Cuando Meta rechaza el envío","La persona no recibe nada y cree que el bot no funciona.","El bot ya reintenta 3 veces y el panel marca el fallo. Lo definitivo es aprobar el <b>nombre visible</b> del número en Meta (pendiente de revisar en WhatsApp Manager).","warn"],
+  ["H","Botón de un menú viejo","Si pasaron 12 h y tocaba «Ver avance», Helvis preguntaba el proyecto y perdía lo pedido.","Helvis recuerda la opción pedida y la responde apenas la persona elige el proyecto.","ok"],
+  ["I","Palabras que se confunden","«costos» abría el avance físico.","«costo», «presupuesto» y «pago» ahora avisan que la consulta de costos llega en una etapa posterior, y sigue el menú.","ok"],
+  ["J","Más opciones en el menú","WhatsApp permite máximo 3 botones.","Cuando entre una cuarta opción (p. ej. Compromisos de actas) se pasa a un menú de lista. Aún no se necesita.","warn"],
+  ["K","Tiempo que recuerda el proyecto","12 horas (así quedó por ahora).","¿Te sirve 12 h, o prefieres «hasta el final del día»? Escríbelo aquí si quieres cambiarlo.","warn"]
+];
+let notas={}; try{ notas=JSON.parse(localStorage.getItem("helvis-decisiones")||"{}"); }catch(e){}
+$("#listaDec").innerHTML = DEC.map(d=>`<article><span class="tag">${d[0]}</span> <span class="pill ${d[4]}">${d[4]==="ok"?"Aplicada":"Abierta"}</span><h4>${d[1]}</h4>
+  <p class="hoy"><b>Antes:</b> ${d[2]}</p><p class="prop"><b>${d[4]==="ok"?"Cómo quedó":"Qué falta"}:</b> ${d[3]}</p>
+  <label for="dec-${d[0]}" style="font-weight:500;color:var(--muted);font-size:12px">Tu corrección (si quieres cambiar algo)</label>
+  <textarea id="dec-${d[0]}" data-k="${d[0]}" placeholder="Ej.: así está bien · cambiar el texto a…"></textarea></article>`).join("");
+document.querySelectorAll("#listaDec textarea").forEach(t=>{
+  t.value = notas[t.dataset.k]||"";
+  t.addEventListener("input",()=>{ notas[t.dataset.k]=t.value; try{localStorage.setItem("helvis-decisiones",JSON.stringify(notas))}catch(e){} });
+});
+$("#copiar").onclick=()=>{
+  const txt = "Decisiones sobre Helvis:\n" + DEC.map(d=>`${d[0]}. ${d[1]}: ${(notas[d[0]]||"(sin respuesta)").trim()}`).join("\n");
+  const ok=()=>{ $("#copyMsg").textContent="Copiado. Pégalo en el chat."; };
+  const fb=()=>{ const f=$("#copyFallback"); f.style.display="block"; f.value=txt; f.select(); $("#copyMsg").textContent="Selecciona el texto y cópialo (Ctrl+C)."; };
+  try{ navigator.clipboard.writeText(txt).then(ok,fb); }catch(e){ fb(); }
+};
+
+cargar();
+recibir({texto:"hola", opcionId:null, tipo:"text"});
+</script>

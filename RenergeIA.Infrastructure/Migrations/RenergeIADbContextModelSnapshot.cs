@@ -3864,6 +3864,9 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("OpcionPendiente")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("PausadoHasta")
                         .HasColumnType("timestamp without time zone");
 

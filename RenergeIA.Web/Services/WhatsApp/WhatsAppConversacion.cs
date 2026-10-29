@@ -14,6 +14,8 @@ namespace RenergeIA.Web.Services.WhatsApp;
 /// del proyecto: Ver avance (Curva S), Alertas (planificación documental) e Informe
 /// diario (actividades asignadas; el registro conversacional llega en la Etapa 2).
 /// Todo mensaje entrante y saliente queda guardado en MensajesHelvis.
+/// Las decisiones A–I del panel de revisión (docs/helvis/panel-conversacion.html) están
+/// aplicadas aquí: si cambia este flujo, el panel se actualiza en el mismo cambio.
 /// </summary>
 public class WhatsAppConversacion
 {
@@ -51,7 +53,37 @@ public class WhatsAppConversacion
 
         if (contacto is null || !contacto.Activo)
         {
-            await AtenderDesconocidoAsync(mensaje, ct);
+            await AtenderDesconocidoAsync(mensaje, esDesconocido: contacto is null, ct);
+            return;
+        }
+
+        // Decisión A: saludar por el nombre la primera vez del día; después, directo al grano.
+        var saludo = await PrimeraVezHoyAsync(mensaje.De, ct) ? Saludo(contacto, mensaje) + "\n\n" : "";
+
+        // Decisión E: sin el permiso Consultar no se entrega información.
+        if (!contacto.PuedeConsultar)
+        {
+            await EnviarTextoAsync(contacto, mensaje.De,
+                saludo + "Este número está registrado, pero aún no tiene habilitada la consulta de información. " +
+                "El administrador puede activarla en el panel de Helvis. 🙌", ct);
+            return;
+        }
+
+        // Decisión C: fotos, videos, documentos y notas de voz se reconocen y se avisa
+        // que todavía no se guardan (el registro de fotos llega en la Etapa 2).
+        if (mensaje.Tipo is "image" or "video" or "document" or "sticker")
+        {
+            await EnviarTextoAsync(contacto, mensaje.De,
+                saludo + "📷 Recibí el archivo, pero por ahora *no queda guardado*: el registro de fotos " +
+                "por WhatsApp llega en la siguiente etapa. Mientras tanto, va en el Informe diario de la app.\n\n" +
+                "Escribe *menú* para ver las opciones.", ct);
+            return;
+        }
+        if (mensaje.Tipo is "audio" or "voice")
+        {
+            await EnviarTextoAsync(contacto, mensaje.De,
+                saludo + "🎙️ Recibí la nota de voz, pero aún no puedo escucharlas. " +
+                "¿Me lo escribes en un mensaje de texto?", ct);
             return;
         }
 
@@ -64,21 +96,32 @@ public class WhatsAppConversacion
 
         var opcion = mensaje.OpcionId ?? Interpretar(mensaje.Texto);
 
+        // Decisión I: "costos" ya no abre el avance físico; se avisa que llega después.
+        if (opcion == "costos")
+        {
+            await EnviarTextoAsync(contacto, mensaje.De,
+                "💰 La consulta de costos por WhatsApp aún no está disponible; llega en una etapa " +
+                "posterior. Por ahora puedo mostrar el avance físico, las alertas documentales y el informe diario.", ct);
+            opcion = null; // y a continuación va el menú
+        }
+
         // Cambio explícito de proyecto
         if (opcion == "cambiar")
         {
-            await EnviarSelectorProyectoAsync(contacto, proyectos, mensaje, saludar: false, ct);
+            await EnviarSelectorProyectoAsync(contacto, proyectos, mensaje, saludo, ct);
             return;
         }
 
-        // Botón de proyecto pulsado
+        // Botón de proyecto pulsado. Decisión H: si había una opción pedida antes de
+        // elegir el proyecto, se responde de una vez en lugar de perderla.
         if (opcion is not null && opcion.StartsWith("proy_") &&
             int.TryParse(opcion[5..], out var elegidoId) &&
             proyectos.Any(p => p.Id == elegidoId))
         {
+            var pendiente = contacto.OpcionPendiente;
             await ActivarProyectoAsync(contacto, elegidoId, ct);
-            await EnviarMenuProyectoAsync(contacto, proyectos.First(p => p.Id == elegidoId),
-                proyectos.Count > 1, mensaje.De, ct);
+            await EjecutarOpcionAsync(contacto, proyectos.First(p => p.Id == elegidoId),
+                pendiente, proyectos.Count > 1, mensaje.De, saludo: "", ct);
             return;
         }
 
@@ -90,17 +133,19 @@ public class WhatsAppConversacion
             indice >= 1 && indice <= proyectos.Count)
         {
             var elegido = proyectos[indice - 1];
+            var pendiente = contacto.OpcionPendiente;
             await ActivarProyectoAsync(contacto, elegido.Id, ct);
-            await EnviarMenuProyectoAsync(contacto, elegido, proyectos.Count > 1, mensaje.De, ct);
+            await EjecutarOpcionAsync(contacto, elegido, pendiente, proyectos.Count > 1,
+                mensaje.De, saludo: "", ct);
             return;
         }
 
         if (proyectos.Count == 0)
         {
+            // Decisión B: redacción neutra, sin "tienes"/"pídele".
             await EnviarTextoAsync(contacto, mensaje.De,
-                $"{Saludo(contacto, mensaje)}\n\n" +
-                "Aún no tienes proyectos asignados. Pídele al administrador que te los asigne " +
-                "en el panel de Helvis y volvemos a hablar. 🙌", ct);
+                $"{saludo}Este número aún no tiene proyectos asignados. " +
+                "El administrador puede asignarlos en el panel de Helvis y seguimos hablando. 🙌", ct);
             return;
         }
 
@@ -114,27 +159,48 @@ public class WhatsAppConversacion
             }
             else
             {
-                await EnviarSelectorProyectoAsync(contacto, proyectos, mensaje, saludar: true, ct);
+                // Decisión H: recordar qué pidió para responderlo tras elegir proyecto.
+                contacto.OpcionPendiente = opcion is "avance" or "alertas" or "informe" ? opcion : null;
+                await _db.SaveChangesAsync(ct);
+                await EnviarSelectorProyectoAsync(contacto, proyectos, mensaje, saludo, ct);
                 return;
             }
         }
 
+        // Decisión D: un texto que parece un reporte de obra no debe quedar "como si"
+        // se hubiera registrado. Se avisa claro que aún no se guarda.
+        if (opcion is null && mensaje.OpcionId is null && EsPosibleReporte(mensaje.Texto))
+        {
+            await EnviarTextoAsync(contacto, mensaje.De,
+                "📝 El reporte de avance por WhatsApp aún no está activo, así que este mensaje " +
+                "*no quedó guardado* como avance. Por ahora el avance se registra en el Informe " +
+                "diario de la app; pronto se podrá reportar por aquí.", ct);
+            return;
+        }
+
+        await EjecutarOpcionAsync(contacto, activo, opcion, proyectos.Count > 1, mensaje.De, saludo, ct);
+    }
+
+    /// <summary>Despacha la opción elegida; cualquier otra cosa muestra el menú del proyecto.</summary>
+    private async Task EjecutarOpcionAsync(ContactoHelvis contacto, Proyecto proyecto, string? opcion,
+        bool variosProyectos, string numero, string saludo, CancellationToken ct)
+    {
         switch (opcion)
         {
             case "avance":
-                await EnviarAvanceAsync(contacto, activo, mensaje.De, ct);
+                await EnviarAvanceAsync(contacto, proyecto, numero, ct);
                 break;
 
             case "alertas":
-                await EnviarAlertasAsync(contacto, activo, mensaje.De, ct);
+                await EnviarAlertasAsync(contacto, proyecto, numero, ct);
                 break;
 
             case "informe":
-                await EnviarActividadesAsignadasAsync(contacto, activo, mensaje.De, ct);
+                await EnviarActividadesAsignadasAsync(contacto, proyecto, numero, ct);
                 break;
 
             default:
-                await EnviarMenuProyectoAsync(contacto, activo, proyectos.Count > 1, mensaje.De, ct);
+                await EnviarMenuProyectoAsync(contacto, proyecto, variosProyectos, numero, saludo, ct);
                 break;
         }
     }
@@ -153,24 +219,23 @@ public class WhatsAppConversacion
     {
         contacto.ProyectoActivoId = proyectoId;
         contacto.ProyectoActivoFecha = DateTime.UtcNow;
+        contacto.OpcionPendiente = null; // la opción recordada se consume al elegir
         await _db.SaveChangesAsync(ct);
     }
 
     private async Task EnviarSelectorProyectoAsync(ContactoHelvis contacto, List<Proyecto> proyectos,
-        MensajeWhatsApp mensaje, bool saludar, CancellationToken ct)
+        MensajeWhatsApp mensaje, string saludo, CancellationToken ct)
     {
         if (proyectos.Count == 0)
         {
             await EnviarTextoAsync(contacto, mensaje.De,
-                "Aún no tienes proyectos asignados. Pídele al administrador que te los asigne en el panel de Helvis.", ct);
+                saludo + "Este número aún no tiene proyectos asignados. El administrador puede asignarlos en el panel de Helvis.", ct);
             return;
         }
 
-        var encabezado = saludar ? $"{Saludo(contacto, mensaje)}\n\n" : "";
-
         if (proyectos.Count <= 3)
         {
-            var cuerpo = $"{encabezado}¿Sobre qué proyecto trabajamos hoy?";
+            var cuerpo = $"{saludo}¿Sobre qué proyecto trabajamos hoy?";
             var botones = proyectos
                 .Select(p => ($"proy_{p.Id}", string.IsNullOrWhiteSpace(p.Codigo) ? p.Nombre : p.Codigo))
                 .ToArray();
@@ -180,7 +245,7 @@ public class WhatsAppConversacion
         else
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append(encabezado).AppendLine("¿Sobre qué proyecto trabajamos hoy? Responde con el número:");
+            sb.Append(saludo).AppendLine("¿Sobre qué proyecto trabajamos hoy? Responde con el número:");
             for (var i = 0; i < proyectos.Count; i++)
                 sb.AppendLine($"*{i + 1}.* {proyectos[i].Codigo} — {proyectos[i].Nombre}");
             await EnviarTextoAsync(contacto, mensaje.De, sb.ToString().TrimEnd(), ct);
@@ -190,9 +255,9 @@ public class WhatsAppConversacion
     // ==================== Menú del proyecto ====================
 
     private async Task EnviarMenuProyectoAsync(ContactoHelvis contacto, Proyecto proyecto,
-        bool variosProyectos, string numero, CancellationToken ct)
+        bool variosProyectos, string numero, string saludo, CancellationToken ct)
     {
-        var cuerpo = $"📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué necesitas?";
+        var cuerpo = $"{saludo}📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué miramos?";
         if (variosProyectos) cuerpo += "\n\n_Escribe *proyecto* para cambiar de proyecto._";
 
         var ok = await _wa.EnviarBotonesAsync(numero, cuerpo,
@@ -225,7 +290,7 @@ public class WhatsAppConversacion
             .Select(a => new { a.Actividad.CodigoWBS, a.Actividad.Nombre, a.Actividad.AvanceReal, a.Actividad.AvancePlanificado })
             .ToListAsync(ct);
 
-        var titulo = "Tus actividades más atrasadas";
+        var titulo = "Actividades asignadas más atrasadas";
         var fuente = asignadas
             .Where(a => a.AvanceReal < a.AvancePlanificado)
             .OrderByDescending(a => a.AvancePlanificado - a.AvanceReal)
@@ -339,7 +404,7 @@ public class WhatsAppConversacion
         if (asignadas.Count == 0)
         {
             texto = $"📝 *Informe diario — {proyecto.Codigo}*\n\n" +
-                    "Aún no tienes actividades asignadas en este proyecto. " +
+                    "Aún no hay actividades asignadas a este número en este proyecto. " +
                     "Se asignan desde el panel de Helvis en RenergeIA.\n\n" +
                     "Escribe *menú* para volver.";
         }
@@ -348,7 +413,7 @@ public class WhatsAppConversacion
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"📝 *Informe diario — {proyecto.Codigo}*");
             sb.AppendLine();
-            sb.AppendLine("Tus actividades asignadas:");
+            sb.AppendLine("Actividades asignadas:");
             foreach (var a in asignadas.Take(20))
             {
                 var frente = string.IsNullOrWhiteSpace(a.Frente) ? "" : $" ({a.Frente})";
@@ -356,7 +421,7 @@ public class WhatsAppConversacion
             }
             if (asignadas.Count > 20) sb.AppendLine($"… y {asignadas.Count - 20} más.");
             sb.AppendLine();
-            sb.AppendLine("El registro de avance por aquí se conecta en la Etapa 2. Escribe *menú* para volver.");
+            sb.AppendLine("El registro de avance por aquí llega en la siguiente etapa. Escribe *menú* para volver.");
             texto = sb.ToString().TrimEnd();
         }
 
@@ -422,10 +487,11 @@ public class WhatsAppConversacion
     // ==================== Desconocidos ====================
 
     /// <summary>
-    /// Número no registrado: pregunta cordialmente qué necesita, conserva todo lo que escriba
-    /// (queda visible en el panel de Helvis) y nunca entrega información ni datos del equipo.
+    /// Número no registrado (o contacto desactivado): pregunta cordialmente qué necesita,
+    /// conserva todo lo que escriba (queda visible en el panel de Helvis) y nunca entrega
+    /// información ni datos del equipo. Decisión F: a los administradores les llega el aviso.
     /// </summary>
-    private async Task AtenderDesconocidoAsync(MensajeWhatsApp mensaje, CancellationToken ct)
+    private async Task AtenderDesconocidoAsync(MensajeWhatsApp mensaje, bool esDesconocido, CancellationToken ct)
     {
         // Si ya se le dio la bienvenida hace poco, no repetirla con cada mensaje.
         var limite = DateTime.UtcNow.AddHours(-24);
@@ -433,12 +499,39 @@ public class WhatsAppConversacion
             x.Telefono == mensaje.De && !x.Entrante && x.FechaCreacion >= limite, ct);
 
         var texto = yaSaludado
-            ? "Gracias, quedó registrado tu mensaje y el equipo de Renergeia lo revisará. 🙏"
+            ? "Gracias, el mensaje quedó registrado y el equipo de Renergeia lo revisará. 🙏"
             : "Hola 👋 Soy *Helvis*, el asistente de *Renergeia*.\n\n" +
-              "Este número aún no está registrado conmigo. ¿Me cuentas qué necesitas y con quién " +
-              "te gustaría comunicarte? Dejaré el aviso al equipo para que te contacten.";
+              "Este número aún no está registrado conmigo. ¿Me cuentas el motivo del mensaje y con quién " +
+              "quieres hablar? Dejo el aviso al equipo de Renergeia para que te contacten.";
 
         await EnviarTextoAsync(null, mensaje.De, texto, ct);
+
+        // Decisión F: avisar a los administradores (solo si es un número realmente desconocido;
+        // un contacto desactivado ya es conocido y su mensaje queda en el panel).
+        if (esDesconocido)
+            await AvisarAdministradoresAsync(mensaje, ct);
+    }
+
+    /// <summary>
+    /// Reenvía a los administradores activos el número y el mensaje de un desconocido,
+    /// sin compartirles al desconocido ningún dato del equipo. Si el administrador no ha
+    /// escrito en 24 h, Meta puede rechazar el envío (queda en "fallo" en el panel).
+    /// </summary>
+    private async Task AvisarAdministradoresAsync(MensajeWhatsApp mensaje, CancellationToken ct)
+    {
+        var admins = await _db.ContactosHelvis
+            .Where(c => c.Activo && c.EsAdministrador && c.Telefono != mensaje.De)
+            .ToListAsync(ct);
+        if (admins.Count == 0) return;
+
+        var detalle = string.IsNullOrWhiteSpace(mensaje.Texto)
+            ? "(envió un archivo o una nota de voz)"
+            : $"«{Recortar(mensaje.Texto, 300)}»";
+        var aviso = $"📨 *Aviso de Helvis:* el número +{mensaje.De} escribió sin estar registrado:\n\n" +
+                    $"{detalle}\n\nLa conversación completa está en el panel de Helvis.";
+
+        foreach (var admin in admins)
+            await EnviarTextoAsync(admin, admin.Telefono, aviso, ct);
     }
 
     // ==================== Utilidades ====================
@@ -450,18 +543,50 @@ public class WhatsAppConversacion
         return $"{saludo} Soy *Helvis*, el asistente de Renergeia _(prueba)_.";
     }
 
+    /// <summary>¿Es el primer contacto del día (hora Colombia)? Entonces se saluda por el nombre.</summary>
+    private async Task<bool> PrimeraVezHoyAsync(string numero, CancellationToken ct)
+    {
+        var inicioDiaUtc = DateTime.SpecifyKind(SeguimientoDocumento.HoyColombia().AddHours(5), DateTimeKind.Utc);
+        return !await _db.MensajesHelvis.AnyAsync(x =>
+            x.Telefono == numero && !x.Entrante && x.FechaCreacion >= inicioDiaUtc, ct);
+    }
+
     /// <summary>Permite responder con número o con palabras, no solo con los botones.</summary>
     private static string? Interpretar(string texto)
     {
         var t = Normalizar(texto);
         if (t.Length == 0) return null;
 
-        if (t is "1" || t.Contains("avance") || t.Contains("consulta") || t.Contains("costo")) return "avance";
+        if (t is "1" || t.Contains("avance") || t.Contains("consulta")) return "avance";
         if (t is "2" || t.Contains("alerta") || t.Contains("vencim") || t.Contains("pendiente")) return "alertas";
         if (t is "3" || t.Contains("informe") || t.Contains("reporte") || t.Contains("diario")) return "informe";
+        if (t.Contains("costo") || t.Contains("presupuesto") || t.Contains("pago")) return "costos";
         if (t.Contains("proyecto") || t is "cambiar") return "cambiar";
 
         return null; // cualquier otra cosa devuelve el menú
+    }
+
+    /// <summary>
+    /// Heurística de la decisión D: ¿el texto parece un reporte de obra?
+    /// (números con varias palabras, o vocabulario típico de avance). Sirve solo para
+    /// avisar que el reporte aún no se guarda; no intenta entender el contenido.
+    /// </summary>
+    private static bool EsPosibleReporte(string texto)
+    {
+        var t = Normalizar(texto);
+        if (t.Length < 8) return false;
+
+        string[] claves =
+        [
+            "hincad", "pilot", "instal", "excav", "vaciad", "fundid", "montaj", "zanja",
+            "panel", "modulo", "mesa", "cable", "avanzamos", "terminamos", "hicimos",
+            "ejecutamos", "metros", " ml", " m2", " m3", " und"
+        ];
+        var tieneClave = claves.Any(t.Contains);
+        var tieneNumero = t.Any(char.IsDigit);
+        var palabras = t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+
+        return tieneClave || (tieneNumero && palabras >= 4);
     }
 
     private static string Normalizar(string texto)
