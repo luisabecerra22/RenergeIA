@@ -51,9 +51,10 @@ else if (_pestana == "usuarios")
         <div class="alert alert-warning small d-flex gap-2 align-items-start">
             <i class="bi-exclamation-triangle-fill mt-1"></i>
             <div>
-                <strong>@sinConfig usuario@(sinConfig == 1 ? "" : "s") sin configurar.</strong>
-                Mientras no guardes sus permisos conserva@(sinConfig == 1 ? "" : "n") el acceso total que tenía@(sinConfig == 1 ? "" : "n") antes del panel.
-                Ábrelo@(sinConfig == 1 ? "" : "s") y guarda para que aplique la matriz.
+                <strong>@(sinConfig == 1 ? "1 usuario sin configurar." : $"{sinConfig} usuarios sin configurar.")</strong>
+                @(sinConfig == 1
+                    ? "Mientras no guardes sus permisos conserva el acceso total que tenía antes del panel. Ábrelo y guarda para que aplique la matriz."
+                    : "Mientras no guardes sus permisos conservan el acceso total que tenían antes del panel. Ábrelos y guarda para que aplique la matriz.")
             </div>
         </div>
     }
@@ -270,9 +271,9 @@ else
                             @foreach (var (id, nombre) in _proyectos)
                             {
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="p@id" checked="@_edit.Proyectos.Contains(id)"
+                                    <input class="form-check-input" type="checkbox" id="@($"proy-{id}")" checked="@_edit.Proyectos.Contains(id)"
                                            @onchange="ev => AlternarProyecto(id, (bool)ev.Value!)" />
-                                    <label class="form-check-label" for="p@id">@nombre</label>
+                                    <label class="form-check-label" for="@($"proy-{id}")">@nombre</label>
                                 </div>
                             }
                         </div>
