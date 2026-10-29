@@ -1,0 +1,48 @@
+# Respaldo diario de la base de datos RenergeIA (capa 2).
+# Exporta la base "RenergeIA" de la instancia Cloud SQL renergeia-db a un archivo
+# .sql.gz en gs://renergeia-app-respaldos-db/AAAA/MM/renergeia_AAAA-MM-DD.sql.gz
+# (fecha de Colombia). Lo dispara Cloud Scheduler todas las noches.
+# Desplegar: ver directives/respaldos_base_datos.md
+main:
+  steps:
+    - fecha:
+        assign:
+          - ahora: ${time.format(sys.now(), "America/Bogota")}
+          - dia: ${text.substring(ahora, 0, 10)}
+          - anio: ${text.substring(ahora, 0, 4)}
+          - mes: ${text.substring(ahora, 5, 7)}
+          - hora: ${text.replace_all(text.substring(ahora, 11, 16), ":", "")}
+          - archivo: ${"gs://renergeia-app-respaldos-db/" + anio + "/" + mes + "/renergeia_" + dia + "_" + hora + ".sql.gz"}
+    - exportar:
+        try:
+          call: googleapis.sqladmin.v1.instances.export
+          args:
+            project: renergeia-app
+            instance: renergeia-db
+            body:
+              exportContext:
+                fileType: SQL
+                uri: ${archivo}
+                databases: ["RenergeIA"]
+            connector_params:
+              timeout: 3600
+        retry:
+          # 409 = la instancia está ocupada (p. ej. haciendo su copia automática).
+          predicate: ${reintentable}
+          max_retries: 6
+          backoff:
+            initial_delay: 300
+            max_delay: 900
+            multiplier: 2
+    - fin:
+        return: ${"Respaldo guardado en " + archivo}
+
+reintentable:
+  params: [e]
+  steps:
+    - revisar:
+        switch:
+          - condition: ${"code" in e and (e.code == 409 or e.code == 429 or e.code >= 500)}
+            return: true
+    - no:
+        return: false
