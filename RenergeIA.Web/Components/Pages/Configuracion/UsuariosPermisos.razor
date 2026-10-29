@@ -1,0 +1,580 @@
+@page "/configuracion/usuarios"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using RenergeIA.Web.Services.Acceso
+@using RenergeIA.Core.Entities.Acceso
+@inject UsuariosAccesoService Svc
+@inject PermisosService Permisos
+
+<PageTitle>Usuarios y permisos — RenergeIA</PageTitle>
+
+<style>
+    .nivel-sel { font-size: .75rem; padding: .1rem .3rem; min-width: 78px; border-radius: 4px; }
+    .nivel-0 { color: #8a8f95; background: #fff; }
+    .nivel-1 { background: #e7eef8; color: #183963; }
+    .nivel-2 { background: #e5f4df; color: #2f6b1c; }
+    .nivel-3 { background: #6ABF4B; color: #fff; font-weight: 700; }
+    .matriz th { font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; color: #183963; white-space: nowrap; }
+    .matriz td, .matriz th { vertical-align: middle; }
+    .matriz .col-proy { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 170px; }
+</style>
+
+<div class="px-3 py-3 mb-3 rounded-3 text-white" style="background:#183963">
+    <div class="d-flex align-items-center gap-3">
+        <i class="bi-gear-fill" style="font-size:1.6rem;color:#6ABF4B"></i>
+        <div>
+            <div class="small opacity-75">Configuración</div>
+            <h1 class="h4 mb-0 fw-bold">Usuarios y permisos</h1>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+    @foreach (var (clave, texto, icono) in _pestanas)
+    {
+        <li class="nav-item">
+            <button class="nav-link @(_pestana == clave ? "active fw-semibold" : "")" @onclick="() => CambiarPestanaAsync(clave)">
+                <i class="@icono me-1"></i>@texto
+            </button>
+        </li>
+    }
+</ul>
+
+@if (_cargando)
+{
+    <p class="text-muted">Cargando…</p>
+}
+else if (_pestana == "usuarios")
+{
+    @if (_usuarios.Count(u => u.Activo && !u.Configurado && !u.EsAdministrador) is var sinConfig && sinConfig > 0)
+    {
+        <div class="alert alert-warning small d-flex gap-2 align-items-start">
+            <i class="bi-exclamation-triangle-fill mt-1"></i>
+            <div>
+                <strong>@sinConfig usuario@(sinConfig == 1 ? "" : "s") sin configurar.</strong>
+                Mientras no guardes sus permisos conserva@(sinConfig == 1 ? "" : "n") el acceso total que tenía@(sinConfig == 1 ? "" : "n") antes del panel.
+                Ábrelo@(sinConfig == 1 ? "" : "s") y guarda para que aplique la matriz.
+            </div>
+        </div>
+    }
+
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <input class="form-control form-control-sm" style="max-width:280px" placeholder="Buscar por nombre, cargo o correo"
+               @bind="_buscar" @bind:event="oninput" />
+        <div class="ms-auto">
+            <button class="btn btn-sm text-white" style="background:#6ABF4B" @onclick="NuevoUsuario">
+                <i class="bi-person-plus me-1"></i>Nuevo usuario
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle small">
+            <thead class="table-light">
+                <tr>
+                    <th></th>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Acceso</th>
+                    <th class="text-center">Proyectos</th>
+                    <th>Estado</th>
+                    <th>Último ingreso</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var u in UsuariosFiltrados)
+                {
+                    <tr class="@(u.Activo ? "" : "text-muted")">
+                        <td>
+                            <button class="btn btn-outline-primary btn-sm py-0 px-1" title="Editar usuario y permisos" @onclick="() => EditarUsuarioAsync(u.Id)">
+                                <i class="bi-pencil"></i>
+                            </button>
+                        </td>
+                        <td>
+                            <div class="fw-semibold">@u.Nombre</div>
+                            <div class="text-muted" style="font-size:.75rem">@(u.Cargo ?? "—")</div>
+                        </td>
+                        <td>@u.Email</td>
+                        <td>
+                            @if (u.EsAdministrador)
+                            {
+                                <span class="badge" style="background:#183963">Administrador</span>
+                            }
+                            else if (!u.Configurado)
+                            {
+                                <span class="badge bg-warning text-dark">Sin configurar · acceso total</span>
+                            }
+                            else
+                            {
+                                <span>@(u.Perfil ?? "Personalizado")</span>
+                            }
+                        </td>
+                        <td class="text-center">@(u.EsAdministrador || !u.Configurado ? "Todos" : u.Proyectos.ToString())</td>
+                        <td>
+                            @if (u.Activo)
+                            {
+                                <span class="badge" style="background:#6ABF4B">Activo</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Desactivado</span>
+                            }
+                        </td>
+                        <td>@(u.UltimoIngreso is { } f ? Colombia(f).ToString("dd/MM/yyyy HH:mm") : "Nunca")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else if (_pestana == "perfiles")
+{
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <p class="small text-muted mb-0">Un perfil precarga los permisos al configurar a una persona; después puedes ajustarla sin cambiar el perfil.</p>
+        <div class="ms-auto d-flex gap-2">
+            @if (_perfiles.Count < 5)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="CrearSugeridosAsync">
+                    <i class="bi-magic me-1"></i>Crear perfiles sugeridos
+                </button>
+            }
+            <button class="btn btn-sm text-white" style="background:#6ABF4B" @onclick="NuevoPerfil">
+                <i class="bi-plus-lg me-1"></i>Nuevo perfil
+            </button>
+        </div>
+    </div>
+
+    @if (_perfiles.Count == 0)
+    {
+        <div class="alert alert-info small">Aún no hay perfiles. Crea los sugeridos (Gerente, Residente, HSE, Costos, Consulta) o uno propio.</div>
+    }
+    <div class="row g-3">
+        @foreach (var p in _perfiles)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body small">
+                        <div class="d-flex align-items-start gap-2 mb-1">
+                            <h6 class="fw-bold mb-0 flex-grow-1" style="color:#183963">@p.Nombre</h6>
+                            <button class="btn btn-outline-primary btn-sm py-0 px-1" @onclick="() => EditarPerfil(p)" title="Editar perfil"><i class="bi-pencil"></i></button>
+                            @if (_confirmarBorrarPerfil == p.Id)
+                            {
+                                <button class="btn btn-danger btn-sm py-0 px-1" @onclick="() => EliminarPerfilAsync(p.Id)" title="Confirmar"><i class="bi-check-lg"></i></button>
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => _confirmarBorrarPerfil = null"><i class="bi-x-lg"></i></button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _confirmarBorrarPerfil = p.Id" title="Eliminar perfil"><i class="bi-trash3"></i></button>
+                            }
+                        </div>
+                        <p class="text-muted mb-2">@p.Descripcion</p>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (var m in ModulosAcceso.DeProyecto.Concat(ModulosAcceso.Corporativos).Where(m => p.Nivel(m.Clave) > NivelAcceso.Ninguno))
+                            {
+                                <span class="badge nivel-@((int)p.Nivel(m.Clave))" style="font-weight:500">@m.Nombre · @ModulosAcceso.NombreNivel(p.Nivel(m.Clave))</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p class="small text-muted">Últimos @_bitacora.Count cambios de accesos (hora Colombia).</p>
+    <div class="table-responsive">
+        <table class="table table-sm small align-middle">
+            <thead class="table-light"><tr><th>Fecha</th><th>Quién</th><th>Acción</th><th>Usuario</th><th>Detalle</th></tr></thead>
+            <tbody>
+                @foreach (var b in _bitacora)
+                {
+                    <tr>
+                        <td class="text-nowrap">@Colombia(b.FechaCreacion).ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@b.Autor</td>
+                        <td>@b.Accion</td>
+                        <td>@b.UsuarioAfectado</td>
+                        <td style="max-width:560px">@b.Detalle</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ── Modal: usuario ──────────────────────────────────────────────────────── *@
+@if (_edit is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white py-2" style="background:#183963">
+                    <h6 class="modal-title">@(_edit.Id is null ? "Nuevo usuario" : $"Editar: {_edit.Nombre}")</h6>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => _edit = null"></button>
+                </div>
+                <div class="modal-body small">
+                    <h6 class="fw-bold" style="color:#183963">Datos de ingreso</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label mb-0">Nombre completo</label>
+                            <input class="form-control form-control-sm" @bind="_edit.Nombre" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-0">Cargo</label>
+                            <input class="form-control form-control-sm" @bind="_edit.Cargo" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-0">Correo (usuario de ingreso)</label>
+                            <input type="email" class="form-control form-control-sm" @bind="_edit.Email" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-0">@(_edit.Id is null ? "Contraseña" : "Nueva contraseña (vacío = no cambiar)")</label>
+                            <input type="text" class="form-control form-control-sm" autocomplete="new-password" @bind="_edit.Contrasena" />
+                            <div class="form-text" style="font-size:.7rem">Mínimo 8 caracteres, una mayúscula y un número. Queda fija hasta que la cambies.</div>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-center gap-4 flex-wrap">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chkActivo" @bind="_edit.Activo" />
+                                <label class="form-check-label" for="chkActivo">Activo (puede ingresar)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chkAdmin" @bind="_edit.EsAdministrador" />
+                                <label class="form-check-label" for="chkAdmin">Administrador (ve todo y entra a Configuración)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_edit.EsAdministrador)
+                    {
+                        <div class="alert alert-info py-2">Un administrador tiene acceso total a todos los proyectos y módulos; la matriz no aplica.</div>
+                    }
+                    else
+                    {
+                        <h6 class="fw-bold mt-2" style="color:#183963">Perfil</h6>
+                        <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+                            <select class="form-select form-select-sm" style="max-width:280px" @bind="_edit.PerfilAccesoId">
+                                <option value="">— Personalizado —</option>
+                                @foreach (var p in _perfiles)
+                                {
+                                    <option value="@p.Id">@p.Nombre</option>
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-outline-primary" disabled="@(_edit.PerfilAccesoId is null)" @onclick="AplicarPerfil">
+                                Aplicar perfil a todos sus proyectos
+                            </button>
+                            <span class="text-muted" style="font-size:.75rem">Reemplaza la matriz; después puedes ajustar celda por celda.</span>
+                        </div>
+
+                        <h6 class="fw-bold" style="color:#183963">Proyectos en los que participa</h6>
+                        <div class="d-flex flex-wrap gap-3 mb-3">
+                            @foreach (var (id, nombre) in _proyectos)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="p@id" checked="@_edit.Proyectos.Contains(id)"
+                                           @onchange="ev => AlternarProyecto(id, (bool)ev.Value!)" />
+                                    <label class="form-check-label" for="p@id">@nombre</label>
+                                </div>
+                            }
+                        </div>
+
+                        @if (_edit.Proyectos.Count > 0)
+                        {
+                            <h6 class="fw-bold" style="color:#183963">Módulos por proyecto</h6>
+                            <p class="text-muted mb-1" style="font-size:.75rem">Ver = consulta · Editar = crear y modificar · Aprobar = además aprueba informes y valida documentos. El selector de la primera fila aplica a toda la columna.</p>
+                            <div class="table-responsive mb-3">
+                                <table class="table table-sm table-bordered matriz mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-proy">Proyecto</th>
+                                            @foreach (var m in ModulosAcceso.DeProyecto)
+                                            {
+                                                <th class="text-center"><i class="@m.Icono me-1"></i>@m.Nombre</th>
+                                            }
+                                        </tr>
+                                        <tr class="table-light">
+                                            <td class="col-proy fst-italic text-muted">Todos</td>
+                                            @foreach (var m in ModulosAcceso.DeProyecto)
+                                            {
+                                                <td class="text-center">
+                                                    <select class="form-select nivel-sel" @onchange="ev => AplicarColumna(m.Clave, ev)">
+                                                        <option value="">…</option>
+                                                        @foreach (var n in Niveles)
+                                                        {
+                                                            <option value="@((int)n)">@ModulosAcceso.NombreNivel(n)</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var (id, nombre) in _proyectos.Where(p => _edit.Proyectos.Contains(p.Id)))
+                                        {
+                                            <tr>
+                                                <td class="col-proy fw-semibold">@nombre</td>
+                                                @foreach (var m in ModulosAcceso.DeProyecto)
+                                                {
+                                                    var nivel = _edit.NivelProyecto(id, m.Clave);
+                                                    <td class="text-center">
+                                                        <select class="form-select nivel-sel nivel-@((int)nivel)" value="@((int)nivel)"
+                                                                @onchange="ev => _edit.PorProyecto[(id, m.Clave)] = Nivel(ev)">
+                                                            @foreach (var n in Niveles)
+                                                            {
+                                                                <option value="@((int)n)">@ModulosAcceso.NombreNivel(n)</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        <h6 class="fw-bold" style="color:#183963">Módulos corporativos</h6>
+                        <div class="row g-2">
+                            @foreach (var m in ModulosAcceso.Corporativos)
+                            {
+                                var nivel = _edit.NivelCorporativo(m.Clave);
+                                <div class="col-md-4">
+                                    <label class="form-label mb-0"><i class="@m.Icono me-1"></i>@m.Nombre</label>
+                                    <select class="form-select form-select-sm nivel-@((int)nivel)" value="@((int)nivel)"
+                                            @onchange="ev => _edit.Corporativos[m.Clave] = Nivel(ev)">
+                                        @foreach (var n in Niveles)
+                                        {
+                                            <option value="@((int)n)">@ModulosAcceso.NombreNivel(n)</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (_errores.Count > 0)
+                    {
+                        <div class="alert alert-danger py-2 mt-3 mb-0">
+                            @foreach (var e in _errores) { <div>@e</div> }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _edit = null">Cancelar</button>
+                    <button class="btn btn-sm text-white" style="background:#183963" disabled="@_guardando" @onclick="GuardarUsuarioAsync">
+                        @(_guardando ? "Guardando…" : "Guardar")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: perfil ───────────────────────────────────────────────────────── *@
+@if (_perfilEdit is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(17,25,33,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header text-white py-2" style="background:#183963">
+                    <h6 class="modal-title">@(_perfilEdit.Id == 0 ? "Nuevo perfil" : $"Editar perfil: {_perfilEdit.Nombre}")</h6>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => _perfilEdit = null"></button>
+                </div>
+                <div class="modal-body small">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-5">
+                            <label class="form-label mb-0">Nombre</label>
+                            <input class="form-control form-control-sm" @bind="_perfilEdit.Nombre" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label mb-0">Descripción</label>
+                            <input class="form-control form-control-sm" @bind="_perfilEdit.Descripcion" />
+                        </div>
+                    </div>
+                    <p class="text-muted mb-2" style="font-size:.75rem">Los módulos de proyecto se aplican a todos los proyectos que tenga la persona.</p>
+                    <div class="row g-2">
+                        @foreach (var m in ModulosAcceso.DeProyecto.Concat(ModulosAcceso.Corporativos))
+                        {
+                            var nivel = _perfilEdit.Nivel(m.Clave);
+                            <div class="col-md-4">
+                                <label class="form-label mb-0"><i class="@m.Icono me-1"></i>@m.Nombre
+                                    @if (ModulosAcceso.Corporativos.Contains(m)) { <span class="text-muted">(corporativo)</span> }
+                                </label>
+                                <select class="form-select form-select-sm nivel-@((int)nivel)" value="@((int)nivel)"
+                                        @onchange="ev => _perfilEdit.Niveles[m.Clave] = Nivel(ev)">
+                                    @foreach (var n in Niveles)
+                                    {
+                                        <option value="@((int)n)">@ModulosAcceso.NombreNivel(n)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                    @if (_errorPerfil is not null)
+                    {
+                        <div class="alert alert-danger py-2 mt-3 mb-0">@_errorPerfil</div>
+                    }
+                </div>
+                <div class="modal-footer py-2">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => _perfilEdit = null">Cancelar</button>
+                    <button class="btn btn-sm text-white" style="background:#183963" @onclick="GuardarPerfilAsync">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly (string, string, string)[] _pestanas =
+    [
+        ("usuarios", "Usuarios", "bi-people"),
+        ("perfiles", "Perfiles", "bi-person-badge"),
+        ("bitacora", "Bitácora", "bi-clock-history"),
+    ];
+    private static readonly NivelAcceso[] Niveles = Enum.GetValues<NivelAcceso>();
+
+    private string _pestana = "usuarios";
+    private bool _cargando = true, _guardando;
+    private string _buscar = "";
+    private List<UsuarioFila> _usuarios = [];
+    private List<EdicionPerfil> _perfiles = [];
+    private List<BitacoraAcceso> _bitacora = [];
+    private List<(int Id, string Nombre)> _proyectos = [];
+    private EdicionUsuario? _edit;
+    private EdicionPerfil? _perfilEdit;
+    private List<string> _errores = [];
+    private string? _errorPerfil;
+    private int? _confirmarBorrarPerfil;
+    private AccesoUsuario _yo = AccesoUsuario.Anonimo;
+
+    private IEnumerable<UsuarioFila> UsuariosFiltrados => string.IsNullOrWhiteSpace(_buscar)
+        ? _usuarios
+        : _usuarios.Where(u => $"{u.Nombre} {u.Cargo} {u.Email}".Contains(_buscar.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    // Todo se guarda en UTC; Colombia es UTC−5 sin horario de verano.
+    private static DateTime Colombia(DateTime utc) => utc.AddHours(-5);
+
+    private static NivelAcceso Nivel(ChangeEventArgs ev) =>
+        int.TryParse(ev.Value?.ToString(), out var n) ? (NivelAcceso)n : NivelAcceso.Ninguno;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _yo = await Permisos.ActualAsync();
+        _proyectos = await Svc.ProyectosAsync();
+        _perfiles = await Svc.PerfilesAsync();
+        _usuarios = await Svc.ListarAsync();
+        _cargando = false;
+    }
+
+    private async Task CambiarPestanaAsync(string clave)
+    {
+        _pestana = clave;
+        if (clave == "bitacora") _bitacora = await Svc.BitacoraAsync();
+        if (clave == "perfiles") _perfiles = await Svc.PerfilesAsync();
+    }
+
+    // ── Usuarios ─────────────────────────────────────────────────────────────
+
+    private void NuevoUsuario()
+    {
+        _errores = [];
+        _edit = new EdicionUsuario();
+    }
+
+    private async Task EditarUsuarioAsync(string id)
+    {
+        _errores = [];
+        _edit = await Svc.ObtenerAsync(id);
+    }
+
+    private void AlternarProyecto(int id, bool marcado)
+    {
+        if (_edit is null) return;
+        if (!marcado)
+        {
+            _edit.Proyectos.Remove(id);
+            return;
+        }
+        _edit.Proyectos.Add(id);
+        // Proyecto recién agregado con perfil elegido: arranca con los niveles del perfil.
+        if (_perfiles.FirstOrDefault(p => p.Id == _edit.PerfilAccesoId) is { } perfil
+            && !_edit.PorProyecto.Keys.Any(k => k.ProyectoId == id))
+            foreach (var m in ModulosAcceso.DeProyecto)
+                _edit.PorProyecto[(id, m.Clave)] = perfil.Nivel(m.Clave);
+    }
+
+    private void AplicarPerfil()
+    {
+        if (_edit is null || _perfiles.FirstOrDefault(p => p.Id == _edit.PerfilAccesoId) is not { } perfil) return;
+        foreach (var id in _edit.Proyectos)
+            foreach (var m in ModulosAcceso.DeProyecto)
+                _edit.PorProyecto[(id, m.Clave)] = perfil.Nivel(m.Clave);
+        foreach (var m in ModulosAcceso.Corporativos)
+            _edit.Corporativos[m.Clave] = perfil.Nivel(m.Clave);
+    }
+
+    private void AplicarColumna(string modulo, ChangeEventArgs ev)
+    {
+        if (_edit is null || string.IsNullOrEmpty(ev.Value?.ToString())) return;
+        var nivel = Nivel(ev);
+        foreach (var id in _edit.Proyectos) _edit.PorProyecto[(id, modulo)] = nivel;
+    }
+
+    private async Task GuardarUsuarioAsync()
+    {
+        if (_edit is null) return;
+        _guardando = true;
+        try
+        {
+            _errores = await Svc.GuardarAsync(_edit, _yo.UsuarioId ?? "", _yo.Nombre);
+            if (_errores.Count == 0)
+            {
+                _edit = null;
+                _usuarios = await Svc.ListarAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errores = [$"No se pudo guardar: {ex.Message}"];
+        }
+        _guardando = false;
+    }
+
+    // ── Perfiles ─────────────────────────────────────────────────────────────
+
+    private void NuevoPerfil()
+    {
+        _errorPerfil = null;
+        _perfilEdit = new EdicionPerfil();
+    }
+
+    private void EditarPerfil(EdicionPerfil p)
+    {
+        _errorPerfil = null;
+        _perfilEdit = new EdicionPerfil { Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Niveles = new(p.Niveles) };
+    }
+
+    private async Task GuardarPerfilAsync()
+    {
+        if (_perfilEdit is null) return;
+        _errorPerfil = await Svc.GuardarPerfilAsync(_perfilEdit, _yo.Nombre);
+        if (_errorPerfil is null)
+        {
+            _perfilEdit = null;
+            _perfiles = await Svc.PerfilesAsync();
+        }
+    }
+
+    private async Task EliminarPerfilAsync(int id)
+    {
+        _confirmarBorrarPerfil = null;
+        await Svc.EliminarPerfilAsync(id, _yo.Nombre);
+        _perfiles = await Svc.PerfilesAsync();
+        _usuarios = await Svc.ListarAsync();
+    }
+
+    private async Task CrearSugeridosAsync()
+    {
+        await Svc.CrearPerfilesSugeridosAsync(_yo.Nombre);
+        _perfiles = await Svc.PerfilesAsync();
+    }
+}

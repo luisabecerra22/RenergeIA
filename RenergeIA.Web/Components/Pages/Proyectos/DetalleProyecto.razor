@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 
 <PageTitle>@(_proyecto?.Nombre ?? "Proyecto") — RenergeIA</PageTitle>
 
@@ -155,6 +156,8 @@ else
         }
     </div>
 
+    @if (_gestiona)
+    {
     <div class="d-flex gap-2">
         <a href="/proyectos/@_proyecto.Id/editar" class="btn btn-outline-primary">Editar</a>
         @if (_confirmarEliminar)
@@ -170,6 +173,7 @@ else
             <button class="btn btn-outline-danger" @onclick="() => _confirmarEliminar = true">Eliminar</button>
         }
     </div>
+    }
 }
 
 @code {
@@ -177,6 +181,7 @@ else
 
     private Proyecto? _proyecto;
     private bool _confirmarEliminar;
+    private bool _gestiona; // editar y eliminar el proyecto: solo administradores
     private List<(string Nombre, string Color, bool Disponible, string? Url)> _modulos = [];
 
     protected override async Task OnInitializedAsync()
@@ -197,6 +202,10 @@ else
                 ("Clima",             "#17a2b8", true,  $"/proyectos/{Id}/clima"),
                 ("Alertas",           "#183963", true,  $"/proyectos/{Id}/alertas"),
             ];
+            // Solo las tarjetas de los módulos que la persona tiene asignados.
+            var acceso = await Permisos.ActualAsync();
+            _gestiona = acceso.AccesoTotal;
+            _modulos = _modulos.Where(m => m.Url is null || acceso.Cumple(ModulosAcceso.RequisitoDeRuta(m.Url))).ToList();
         }
     }
 

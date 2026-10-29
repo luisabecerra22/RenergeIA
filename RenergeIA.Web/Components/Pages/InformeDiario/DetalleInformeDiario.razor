@@ -6,6 +6,7 @@
 @inject InformeDiarioService InformeSvc
 @inject AuthenticationStateProvider AuthState
 @inject IJSRuntime JS
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 
 <PageTitle>Informe Diario — RenergeIA</PageTitle>
 
@@ -122,7 +123,7 @@ else
             <button type="button" class="btn btn-outline-danger btn-sm" @onclick="ExportarPDF">
                 <i class="bi-file-earmark-pdf me-1"></i>Exportar PDF
             </button>
-            @if (_informe.Estado == EstadoInforme.Borrador)
+            @if (_informe.Estado == EstadoInforme.Borrador && _puedeEditar)
             {
                 <a href="/proyectos/@ProyectoId/informes/@InformeId/editar"
                    class="btn btn-outline-primary btn-sm">Editar</a>
@@ -130,7 +131,7 @@ else
                     Enviar a Revisión
                 </button>
             }
-            @if (_informe.Estado == EstadoInforme.EnRevision)
+            @if (_informe.Estado == EstadoInforme.EnRevision && _puedeAprobar)
             {
                 <button class="btn btn-success btn-sm" @onclick="AprobarAsync">Aprobar</button>
                 <button class="btn btn-danger btn-sm"
@@ -416,8 +417,14 @@ else
     private int _conteoAtrasado   => _filasHoja.Count(f => f.Desviacion < 0 && f.Desviacion >= -15);
     private int _conteoCritico    => _filasHoja.Count(f => f.Desviacion < -15);
 
+    // Niveles del panel de permisos: Editar para modificar/enviar, Aprobar para aprobar o rechazar.
+    private bool _puedeEditar, _puedeAprobar;
+
     protected override async Task OnInitializedAsync()
     {
+        var acceso = await Permisos.ActualAsync();
+        _puedeEditar = acceso.Puede(ProyectoId, ModulosAcceso.Informes, NivelAcceso.Editar);
+        _puedeAprobar = acceso.Puede(ProyectoId, ModulosAcceso.Informes, NivelAcceso.Aprobar);
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         _informe = await Db.InformesDiarios
             .Include(i => i.RegistrosAvance)
@@ -586,7 +593,7 @@ else
 
     private async Task AprobarAsync()
     {
-        if (_informe is null) return;
+        if (_informe is null || !_puedeAprobar) return;
         var authState = await AuthState.GetAuthenticationStateAsync();
         _informe.Estado = EstadoInforme.Aprobado;
         _informe.RevisadoPor = authState.User.Identity?.Name;

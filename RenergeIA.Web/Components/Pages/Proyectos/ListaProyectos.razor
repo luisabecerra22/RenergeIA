@@ -3,11 +3,14 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 
 <PageTitle>Proyectos — RenergeIA</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Proyectos</h1>
+    @if (_gestiona)
+    {
     <div class="d-flex gap-2">
         <a href="/proyectos/papelera" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-trash3 me-1"></i>Papelera
@@ -18,6 +21,7 @@
         </a>
         <a href="/proyectos/nuevo" class="btn btn-primary">+ Nuevo proyecto</a>
     </div>
+    }
 </div>
 
 @if (_proyectos is null)
@@ -26,7 +30,7 @@
 }
 else if (!_proyectos.Any())
 {
-    <div class="alert alert-info">No hay proyectos registrados. Crea el primero.</div>
+    <div class="alert alert-info">@(_gestiona ? "No hay proyectos registrados. Crea el primero." : "Aún no tienes proyectos asignados. Pídelos a un administrador de la plataforma.")</div>
 }
 else
 {
@@ -49,6 +53,8 @@ else
                     </div>
                     <div class="card-footer bg-transparent d-flex gap-2">
                         <a href="/proyectos/@p.Id" class="btn btn-sm btn-outline-primary flex-fill">Ver detalle</a>
+                        @if (_gestiona)
+                        {
                         <a href="/proyectos/@p.Id/editar" class="btn btn-sm btn-outline-secondary" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </a>
@@ -68,6 +74,7 @@ else
                                 <i class="bi bi-trash3"></i>
                             </button>
                         }
+                        }
                     </div>
                 </div>
             </div>
@@ -79,10 +86,14 @@ else
     private List<Proyecto>? _proyectos;
     private int? _confirmarId;
     private int _cantidadEliminados;
+    private bool _gestiona; // crear, editar y enviar a papelera: solo administradores
 
     protected override async Task OnInitializedAsync()
     {
-        _proyectos = await Db.Proyectos.OrderByDescending(p => p.FechaCreacion).ToListAsync();
+        var acceso = await Permisos.ActualAsync();
+        _gestiona = acceso.AccesoTotal;
+        _proyectos = (await Db.Proyectos.OrderByDescending(p => p.FechaCreacion).ToListAsync())
+            .Where(p => acceso.VeProyecto(p.Id)).ToList();
         _cantidadEliminados = await Db.Proyectos.IgnoreQueryFilters()
             .CountAsync(p => p.Eliminado);
     }

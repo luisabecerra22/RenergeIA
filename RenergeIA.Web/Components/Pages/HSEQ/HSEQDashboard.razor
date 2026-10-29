@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject RenergeIADbContext Db
 @inject NavigationManager Navigation
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 @using RenergeIA.Core.Entities.HSEQ
 @using RenergeIA.Core.Enums
 
@@ -34,7 +35,7 @@ else
 
     <!-- 4 tarjetas de división -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-3 @(VeArea("calidad") ? "" : "d-none")">
             <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/calidad")'>
                 <div class="card-body text-center p-4">
@@ -49,7 +50,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-3 @(VeArea("seguridad") ? "" : "d-none")">
             <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/seguridad")'>
                 <div class="card-body text-center p-4">
@@ -64,7 +65,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-3 @(VeArea("ambiental") ? "" : "d-none")">
             <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/ambiental")'>
                 <div class="card-body text-center p-4">
@@ -79,7 +80,7 @@ else
                 </div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
+        <div class="col-6 col-lg-3 @(VeArea("social") ? "" : "d-none")">
             <div class="card shadow-sm h-100 border-0" style="cursor:pointer"
                  @onclick='() => Navigation.NavigateTo($"/proyectos/{ProyectoId}/hseq/social")'>
                 <div class="card-body text-center p-4">
@@ -345,7 +346,12 @@ else
     {
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) Navigation.NavigateTo("/proyectos");
+        _acceso = await Permisos.ActualAsync();
     }
+
+    // Solo las áreas HSEQ asignadas a la persona en este proyecto.
+    private RenergeIA.Web.Services.Acceso.AccesoUsuario _acceso = RenergeIA.Web.Services.Acceso.AccesoUsuario.Anonimo;
+    private bool VeArea(string area) => _acceso.Puede(ProyectoId, "hseq-" + area);
 
     private static string BadgeEstadoHSEQ(EstadoHSEQ estado) => estado switch
     {

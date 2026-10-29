@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RenergeIA.Core.Entities;
+using RenergeIA.Core.Entities.Acceso;
 using RenergeIA.Core.Entities.Helvis;
 using RenergeIA.Core.Entities.HSEQ;
 using RenergeIA.Infrastructure.Identity;
@@ -14,6 +15,13 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public RenergeIADbContext(DbContextOptions<RenergeIADbContext> options) : base(options) { }
 
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
+    // Permisos por usuario (panel /configuracion)
+    public DbSet<ProyectoUsuario> ProyectosUsuario => Set<ProyectoUsuario>();
+    public DbSet<PermisoUsuario> PermisosUsuario => Set<PermisoUsuario>();
+    public DbSet<PerfilAcceso> PerfilesAcceso => Set<PerfilAcceso>();
+    public DbSet<PermisoPerfil> PermisosPerfil => Set<PermisoPerfil>();
+    public DbSet<BitacoraAcceso> BitacoraAccesos => Set<BitacoraAcceso>();
 
     // Helvis — asistente de WhatsApp
     public DbSet<ContactoHelvis> ContactosHelvis => Set<ContactoHelvis>();
@@ -399,6 +407,54 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(x => x.PagosUSD).HasColumnType("decimal(18,2)");
             e.HasIndex(x => new { x.ProyectoId, x.FechaCorte, x.Semana }).IsUnique();
             e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ===== Permisos por usuario =====
+        modelBuilder.Entity<ProyectoUsuario>(e =>
+        {
+            e.ToTable("ProyectosUsuario");
+            e.Property(x => x.UsuarioId).HasMaxLength(450);
+            e.HasIndex(x => new { x.UsuarioId, x.ProyectoId }).IsUnique();
+            e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PermisoUsuario>(e =>
+        {
+            e.ToTable("PermisosUsuario");
+            e.Property(x => x.UsuarioId).HasMaxLength(450);
+            e.Property(x => x.Modulo).HasMaxLength(50);
+            e.Property(x => x.Nivel).HasConversion<int>();
+            e.HasIndex(x => new { x.UsuarioId, x.ProyectoId, x.Modulo }).IsUnique().AreNullsDistinct(false);
+            e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PerfilAcceso>(e =>
+        {
+            e.ToTable("PerfilesAcceso");
+            e.Property(x => x.Nombre).HasMaxLength(100);
+            e.Property(x => x.Descripcion).HasMaxLength(300);
+            e.HasIndex(x => x.Nombre).IsUnique();
+        });
+
+        modelBuilder.Entity<PermisoPerfil>(e =>
+        {
+            e.ToTable("PermisosPerfil");
+            e.Property(x => x.Modulo).HasMaxLength(50);
+            e.Property(x => x.Nivel).HasConversion<int>();
+            e.HasIndex(x => new { x.PerfilAccesoId, x.Modulo }).IsUnique();
+            e.HasOne(x => x.Perfil).WithMany(p => p.Permisos).HasForeignKey(x => x.PerfilAccesoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BitacoraAcceso>(e =>
+        {
+            e.ToTable("BitacoraAccesos");
+            e.Property(x => x.Autor).HasMaxLength(150);
+            e.Property(x => x.UsuarioAfectado).HasMaxLength(150);
+            e.Property(x => x.Accion).HasMaxLength(100);
+            e.Property(x => x.Detalle).HasMaxLength(4000);
+            e.HasIndex(x => x.FechaCreacion);
         });
 
         // ===== Helvis (asistente de WhatsApp) =====

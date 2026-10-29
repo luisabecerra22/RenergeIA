@@ -59,4 +59,4 @@ La plataforma de **Evaluaciones HSE** es una aplicación aparte (capítulo 15).
 - **Los cambios de otros usuarios** se ven al recargar la página (F5).
 - **Hora de referencia:** Colombia (UTC−5) para cálculos de días y semanas.
 
-> ⚠ Por confirmar: hoy la plataforma no restringe acciones por rol; cualquier usuario con sesión puede crear, editar o eliminar información. Definir los permisos por rol antes de ampliar el número de usuarios.
+> Cada persona ve solo los proyectos y módulos que un administrador le asigna, con nivel Ver, Editar o Aprobar. Ver [20. Usuarios y permisos](20-usuarios-y-permisos.md).

@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject PortafolioService PortafolioSvc
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 @inject IJSRuntime JS
 @using System.Globalization
 
@@ -386,6 +387,7 @@ else
         try
         {
             _vm = await PortafolioSvc.ObtenerAsync();
+            await FiltrarPorPermisosAsync(_vm);
             Totales();
             _dibujar = true;
         }
@@ -394,6 +396,22 @@ else
             _error = ex.Message;
         }
         _cargando = false;
+    }
+
+    // Solo los proyectos asignados; sin permiso de Costos en un proyecto no se muestran
+    // sus cifras de dinero (queda como "sin costos cargados").
+    private async Task FiltrarPorPermisosAsync(PortafolioVM vm)
+    {
+        var acceso = await Permisos.ActualAsync();
+        if (acceso.AccesoTotal) return;
+        vm.Proyectos = vm.Proyectos.Where(p => acceso.VeProyecto(p.ProyectoId)).ToList();
+        foreach (var p in vm.Proyectos.Where(p => !acceso.Puede(p.ProyectoId, ModulosAcceso.Costos)))
+        {
+            p.TieneCostos = false;
+            p.Presupuesto = p.Ejecutado = p.Comprometido = p.Sobrecosto = 0;
+            p.FechaCorteCostos = null;
+            p.CostosPorCategoria = [];
+        }
     }
 
     private void Totales()

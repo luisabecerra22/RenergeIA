@@ -39,6 +39,7 @@
 | 17 | [Compromisos](17-compromisos.md) | Actas de reunión, carga de actas en Word, tablero y seguimiento por persona |
 | 18 | [Centro de control](18-centro-de-control.md) | Inicio: estado del portafolio, avance, costos al cierre y bloqueos |
 | 19 | [Helvis — asistente de WhatsApp](19-helvis-whatsapp.md) | Consultas por WhatsApp y panel de administración |
+| 20 | [Usuarios y permisos](20-usuarios-y-permisos.md) | Usuarios, proyectos y módulos por persona (Ver / Editar / Aprobar), perfiles y bitácora |
 
 ---
 
@@ -54,6 +55,7 @@
 
 | Fecha | Cambio |
 |---|---|
+| 2026-10-29 | Nuevo capítulo **20 Usuarios y permisos**: panel de Configuración con usuarios, proyectos y módulos por persona, niveles Ver / Editar / Aprobar, HSEQ por área, perfiles y bitácora. |
 | 2026-10-28 | Nuevos capítulos **17 Compromisos**, **18 Centro de control** y **19 Helvis**; Dashboard (avance por actividades y presupuesto) y Costos (variación temporal desde cortes de pagos, etiquetas Presupuesto base y Seguimiento de pagos) actualizados. Se crean el Manual general para gerencia y el Instructivo de Helvis, con PDF en colores de marca. |
 | 2026-09-26 | Documentos: columna **Acciones** fija al inicio de la tabla, ventana **Editar documento** con todos los campos (incluidos Redline/As-Built y responsables), estado **No aplica** con motivo obligatorio, Informe PDF corregido (abría en blanco) y la página ya no se ensancha con la tabla. Se retiró el módulo **No Conformidades** del menú del proyecto (duplicado con HSEQ → Calidad). |
 | 2026-09-26 | Cronograma de Actividades: disciplinas **Puesta en marcha** (antes Hot Commissioning) y **Cierre de proyecto** (antes Dossier), nuevas **Ingeniería** y **Construcción**; disciplina automática al cargar cronogramas y botón **Completar disciplinas**; las actividades con subactividades ya no llevan disciplina (promedian a sus hijas). |

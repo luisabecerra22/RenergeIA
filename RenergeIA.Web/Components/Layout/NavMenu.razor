@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @inject IServiceScopeFactory ScopeFactory
 @inject NavigationManager Nav
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 @implements IDisposable
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -72,7 +73,7 @@
                             @if (_expandidos.Contains(p.Id))
                             {
                                 <div class="nav-modules-list">
-                                    @foreach (var mod in _modulos)
+                                    @foreach (var mod in _modulos.Where(m => VeModulo(p.Id, m)))
                                     {
                                         @if (mod.Proximamente)
                                         {
@@ -101,22 +102,30 @@
         }
 
         <!-- ── Compromisos (actas de reunión, corporativo) ─────── -->
+        @if (_acceso.Puede(null, ModulosAcceso.Compromisos))
+        {
         <div class="nav-section-item">
             <a href="actas" class="nav-top-link @(EsRutaActas ? "active" : "")">
                 <i class="bi-journal-check nav-top-icon"></i>
                 <span>Compromisos</span>
             </a>
         </div>
+        }
 
         <!-- ── Helvis (asistente de WhatsApp) ──────────────────── -->
+        @if (_acceso.Puede(null, ModulosAcceso.Helvis))
+        {
         <div class="nav-section-item">
             <a href="helvis" class="nav-top-link @(EsRutaHelvis ? "active" : "")">
                 <i class="bi-whatsapp nav-top-icon"></i>
                 <span>Helvis</span>
             </a>
         </div>
+        }
 
         <!-- ── HSEQ (Corporativo) ──────────────────────────────── -->
+        @if (_acceso.Puede(null, ModulosAcceso.HseqGlobal))
+        {
         <div class="nav-section-item">
             <div class="nav-top-link-row">
                 <a href="hseq/dashboard"
@@ -216,6 +225,18 @@
                 }
             </div>
         }
+        }
+
+        <!-- ── Configuración (solo administradores) ─────────────── -->
+        @if (_acceso.AccesoTotal && _acceso.EsAdministrador)
+        {
+            <div class="nav-section-item">
+                <a href="configuracion/usuarios" class="nav-top-link @(EsRutaConfiguracion ? "active" : "")">
+                    <i class="bi-gear-fill nav-top-icon"></i>
+                    <span>Configuración</span>
+                </a>
+            </div>
+        }
 
     </nav>
 </div>
@@ -247,6 +268,15 @@
     private bool _error = false;
 
     // ── Detección de ruta activa ─────────────────────────────────────────────
+
+    private RenergeIA.Web.Services.Acceso.AccesoUsuario _acceso = RenergeIA.Web.Services.Acceso.AccesoUsuario.Anonimo;
+
+    // La ruta del menú coincide con la clave del módulo, salvo HSEQ (se ve si tiene alguna área).
+    private bool VeModulo(int proyectoId, Modulo m) =>
+        m.Ruta == "hseq" ? _acceso.VeAlgunaAreaHseq(proyectoId) : _acceso.Puede(proyectoId, m.Ruta);
+
+    private bool EsRutaConfiguracion =>
+        new Uri(Nav.Uri).AbsolutePath.StartsWith("/configuracion", StringComparison.OrdinalIgnoreCase);
 
     private bool EsRutaActas =>
         new Uri(Nav.Uri).AbsolutePath.StartsWith("/actas", StringComparison.OrdinalIgnoreCase);
@@ -288,6 +318,7 @@
     protected override async Task OnInitializedAsync()
     {
         Nav.LocationChanged += OnUriChanged;
+        try { _acceso = await Permisos.ActualAsync(); } catch { _error = true; }
         await CargarProyectosAsync();
         var id = ProyectoActualId;
         if (id.HasValue) _expandidos.Add(id.Value);
@@ -318,6 +349,7 @@
                 .OrderBy(p => p.Nombre)
                 .Select(p => new ProyectoNavItem(p.Id, p.Nombre))
                 .ToListAsync();
+            _proyectos = _proyectos.Where(p => _acceso.VeProyecto(p.Id)).ToList();
         }
         catch
         {

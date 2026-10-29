@@ -1,0 +1,67 @@
+@using RenergeIA.Web.Services.Acceso
+@inject PermisosService Permisos
+@inject NavigationManager Nav
+
+@* Revisa en el servidor, antes de dibujar la página, si la persona tiene permiso para la
+   ruta (ModulosAcceso.RequisitoDeRuta). Ocultar el menú no basta: alguien podría pegar
+   la dirección a mano. *@
+
+@if (_permitido)
+{
+    @ChildContent
+}
+else if (_revisado)
+{
+    <div class="d-flex justify-content-center mt-5">
+        <div class="card shadow-sm" style="max-width:520px">
+            <div class="card-body text-center p-4">
+                <i class="bi bi-lock-fill" style="font-size:2.5rem;color:#183963"></i>
+                @if (_inactivo)
+                {
+                    <h5 class="mt-3">Tu usuario está desactivado</h5>
+                    <p class="text-muted mb-3">Pide a un administrador de la plataforma que lo active de nuevo.</p>
+                    <a href="/logout" class="btn btn-outline-secondary btn-sm">Salir</a>
+                }
+                else
+                {
+                    <h5 class="mt-3">Sin acceso a esta sección</h5>
+                    <p class="text-muted mb-3">@_mensaje Si la necesitas, pide el acceso a un administrador de la plataforma.</p>
+                    <a href="/" class="btn btn-primary btn-sm" style="background:#183963;border-color:#183963">Ir al inicio</a>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAuth { get; set; }
+
+    private bool _permitido, _revisado, _inactivo;
+    private string _mensaje = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var user = EstadoAuth is null ? null : (await EstadoAuth).User;
+        // Sin sesión: AuthorizeRouteView ya redirige al login.
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            _permitido = true;
+            return;
+        }
+
+        var acceso = await Permisos.ParaAsync(user);
+        var ruta = new Uri(Nav.Uri).AbsolutePath;
+        var req = ModulosAcceso.RequisitoDeRuta(ruta);
+        _inactivo = !acceso.Activo;
+        // Salir siempre se permite (también a un usuario desactivado).
+        _permitido = ruta.TrimEnd('/').Equals("/logout", StringComparison.OrdinalIgnoreCase)
+            || (acceso.Activo && acceso.Cumple(req));
+        _mensaje = req.Tipo == ModulosAcceso.TipoRequisito.Administrador
+            ? "Esta sección es solo para administradores."
+            : req.Nivel >= RenergeIA.Core.Enums.NivelAcceso.Editar
+                ? "Tu acceso a este módulo es de solo consulta."
+                : "No tienes asignado este proyecto o módulo.";
+        _revisado = true;
+    }
+}

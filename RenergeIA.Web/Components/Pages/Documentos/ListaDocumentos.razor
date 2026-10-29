@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthState
+@inject RenergeIA.Web.Services.Acceso.PermisosService Permisos
 
 @using System.Globalization
 @using ClosedXML.Excel
@@ -247,7 +248,7 @@ else
                                                 <i class="bi-x-lg"></i>
                                             </button>
                                         }
-                                        else if (doc.Estado is not (EstadoDocumento.Validado or EstadoDocumento.Informativos or EstadoDocumento.NoAplica))
+                                        else if (_puedeAprobar && doc.Estado is not (EstadoDocumento.Validado or EstadoDocumento.Informativos or EstadoDocumento.NoAplica))
                                         {
                                             <button class="btn btn-outline-success btn-sm py-0 px-1" @onclick="() => _confirmandoValidar = doc.Id" title="Validar documento">
                                                 <i class="bi-patch-check"></i>
@@ -589,8 +590,12 @@ else
     private string? _mensaje;
     private bool _mensajeError;
 
+    // Validar un documento exige nivel Aprobar en el módulo Documentos.
+    private bool _puedeAprobar;
+
     protected override async Task OnInitializedAsync()
     {
+        _puedeAprobar = (await Permisos.ActualAsync()).Puede(ProyectoId, ModulosAcceso.Documentos, NivelAcceso.Aprobar);
         _proyecto = await Db.Proyectos.FindAsync(ProyectoId);
         if (_proyecto is null) { Navigation.NavigateTo("/proyectos"); return; }
         await CargarAsync();
@@ -650,6 +655,7 @@ else
     private async Task ValidarAsync(int id)
     {
         _confirmandoValidar = null;
+        if (!_puedeAprobar) return;
         var doc = await Db.Documentos.FindAsync(id);
         if (doc is null) return;
         doc.Estado = EstadoDocumento.Validado;
