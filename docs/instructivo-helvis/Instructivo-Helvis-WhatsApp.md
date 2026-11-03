@@ -40,9 +40,7 @@ RenergeIA se conecta **directamente** con la plataforma oficial de WhatsApp de M
 | Selector de proyecto y menú (avance, alertas, actividades asignadas) | ✅ En producción desde el 27/10/2026. |
 | Registro de avance por WhatsApp (informe diario conversacional) | ⏳ Etapa 2 — en preparación. Hoy Helvis **muestra** las actividades asignadas, pero todavía **no recibe** reportes de avance. |
 | Mensajes automáticos (recordatorios, avisos por horario) | ⛔ Apagados por diseño. Helvis **solo responde**; la única excepción es el aviso a los administradores cuando escribe un número no registrado. |
-| Número de WhatsApp | ⚠ **Número de prueba** de Meta (+1 555-305-7165). Solo pueden escribirle hasta 5 celulares autorizados. Falta conectar el **número real** de Renergeia (ver sección 8). |
-
-Mientras se use el número de prueba, los mensajes de Helvis dicen *"el asistente de Renergeia (prueba)"*.
+| Número de WhatsApp | ✅ **Número real de Renergeia: +57 312 8751116**, conectado el 03/11/2026. Cualquier celular puede escribirle; solo recibe información quien esté registrado en Contactos. El nombre visible "Renergeia Group" está en revisión de Meta. |
 
 ---
 
@@ -175,7 +173,7 @@ Avisos que puede mostrar:
 
 | Situación | Causa probable | Qué hacer |
 |---|---|---|
-| Escribo a Helvis y **no responde nada** | Con el número de prueba, tu celular no está entre los 5 autorizados (Meta descarta el mensaje). | Confirma con la persona administradora si tu celular está autorizado. Con el número real esto desaparece. |
+| Escribo a Helvis y **no responde nada** | Le escribiste a otro número (el de Helvis es el +57 312 8751116) o hay una falla del servicio. | Confirma el número. Si es el correcto, avisa a la persona administradora para que revise el servicio. |
 | Helvis responde *"Este número aún no está registrado conmigo"* | Tu celular no está en **Contactos**, está mal escrito o el contacto está **inactivo**. | La persona administradora revisa el celular (con indicativo 57) y que esté **Activo**. |
 | *"Aún no tienes proyectos asignados"* | El contacto no tiene proyectos marcados. | Asignar proyectos en **Contactos → Editar**. |
 | No aparece un proyecto que sí manejo | No está marcado en **Proyectos que puede ver**, o el proyecto está en la papelera de RenergeIA. | Marcarlo en el contacto; si está en la papelera, restaurarlo en Proyectos. |
@@ -209,7 +207,7 @@ Avisos que puede mostrar:
 
 | # | Pendiente | Quién | Por qué importa |
 |---|---|---|---|
-| 1 | **Conectar el número real** de Renergeia en *Business Settings → Cuentas de WhatsApp → Agregar número* (requiere una SIM que pueda recibir el código por SMS o llamada). | Administración del Portfolio | Desaparece el límite de 5 celulares y cualquier persona del equipo puede escribirle a Helvis. |
+| 1 | ✅ **Número real conectado** (+57 312 8751116, 03/11/2026). Falta que Meta apruebe el nombre visible y **agregar un método de pago** en el Administrador de WhatsApp → Configuraciones de pagos. | Administración del Portfolio | Sin método de pago Helvis solo puede responder; no puede iniciar conversaciones ni usar plantillas. |
 | 2 | **Dejar la app de Meta administrada solo por cuentas de Renergeia** (el App Secret y el acceso al portal de desarrolladores). | Administración del Portfolio | Hoy la app fue creada con una cuenta externa; para que la gestión sea 100 % interna, Renergeia debe tener el control total. ⚠ Por confirmar el procedimiento con Meta. |
 | 3 | **Registrar a todo el equipo** en Contactos con sus celulares y proyectos. | Administración de Helvis | Sin registro no hay información. |
 | 4 | **Cantidades y unidades del cronograma** (cantidad total y unidad por actividad). | Planeación | Necesarias para que en la Etapa 2 se pueda reportar "50 de 200 hincas" y no solo porcentajes. |

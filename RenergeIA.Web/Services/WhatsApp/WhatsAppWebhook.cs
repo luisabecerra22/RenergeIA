@@ -126,6 +126,7 @@ public static class WhatsAppWebhook
                     if (id is null || de is null) continue;
 
                     var (texto, opcionId) = LeerContenido(m, tipo);
+                    var mediaId = LeerMedia(m, tipo);
 
                     mensajes.Add(new MensajeWhatsApp(
                         Id: id,
@@ -133,7 +134,8 @@ public static class WhatsAppWebhook
                         Nombre: nombres.TryGetValue(de, out var nom) ? nom : "",
                         Tipo: tipo,
                         Texto: texto,
-                        OpcionId: opcionId));
+                        OpcionId: opcionId,
+                        MediaId: mediaId));
                 }
             }
         }
@@ -160,6 +162,11 @@ public static class WhatsAppWebhook
                             lst.TryGetProperty("id", out var il) ? il.GetString() : null);
                 return ("", null);
 
+            case "image" or "video" or "document" or "sticker":
+                // El pie de foto (caption) se trata como texto del mensaje
+                return (m.TryGetProperty(tipo, out var med) && med.TryGetProperty("caption", out var cap)
+                    ? cap.GetString() ?? "" : "", null);
+
             case "button": // respuesta a una plantilla con botones
                 return (m.TryGetProperty("button", out var bo) && bo.TryGetProperty("text", out var tx)
                     ? tx.GetString() ?? "" : "", null);
@@ -168,6 +175,12 @@ public static class WhatsAppWebhook
                 return ("", null);
         }
     }
+
+    /// <summary>Id del archivo en Meta (foto, documento, audio…), para descargarlo después.</summary>
+    private static string? LeerMedia(JsonElement m, string tipo) =>
+        tipo is "image" or "video" or "document" or "sticker" or "audio" or "voice" &&
+        m.TryGetProperty(tipo, out var med) && med.TryGetProperty("id", out var id)
+            ? id.GetString() : null;
 
     private static bool FirmaValida(string cuerpo, string cabecera, string appSecret)
     {
@@ -193,4 +206,5 @@ public static class WhatsAppWebhook
 }
 
 /// <summary>Un mensaje entrante ya interpretado.</summary>
-public record MensajeWhatsApp(string Id, string De, string Nombre, string Tipo, string Texto, string? OpcionId);
+public record MensajeWhatsApp(string Id, string De, string Nombre, string Tipo, string Texto, string? OpcionId,
+    string? MediaId = null);

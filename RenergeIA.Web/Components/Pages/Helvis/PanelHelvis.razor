@@ -31,6 +31,10 @@
             style="@EstiloTab(_tab == "asignaciones")" @onclick='() => _tab = "asignaciones"'>
         <i class="bi-diagram-3-fill"></i><span>Asignaciones</span>
     </button>
+    <button class="btn d-flex align-items-center gap-2 fw-semibold"
+            style="@EstiloTab(_tab == "reportes")" @onclick="AbrirReportesAsync">
+        <i class="bi-clipboard-check-fill"></i><span>Reportes</span>
+    </button>
 </div>
 
 @if (!string.IsNullOrEmpty(_mensaje))
@@ -103,6 +107,8 @@
                                     @if (c.PuedeCorregir) { <span class="badge me-1" style="background:#fd7e14">Corrige</span> }
                                     @if (c.PuedeAprobar)  { <span class="badge me-1" style="background:#6f42c1">Aprueba</span> }
                                     @if (c.EsAdministrador) { <span class="badge me-1" style="background:#111921">Admin</span> }
+                                    @if (c.RecibeInformes) { <span class="badge me-1 bg-light text-dark border">Recibe informes</span> }
+                                    @if (c.RecibeBloqueos) { <span class="badge me-1 bg-light text-dark border">Recibe bloqueos</span> }
                                 </td>
                                 <td>
                                     @if (!c.Activo)
@@ -326,6 +332,83 @@ else
     }
 }
 
+@* ==================== Reportes recibidos por WhatsApp ==================== *@
+@if (_tab == "reportes")
+{
+    <p class="text-muted small mb-3">
+        Avances y novedades que llegaron por WhatsApp. Un reporte en <b>borrador</b> todavía no toca el avance oficial;
+        al <b>confirmarlo</b> la persona, queda en el Informe diario del día.
+    </p>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold small">Reportes de avance (últimos 100)</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+                <thead class="table-light">
+                    <tr><th>Recibido</th><th>Persona</th><th>Proyecto</th><th>Actividad</th><th>Fecha trabajo</th>
+                        <th>Reportado</th><th>Avance</th><th>Recursos</th><th>Fotos</th><th>Estado</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _reportes)
+                    {
+                        var fotos = _fotos.Where(f => f.ReporteId == r.Id).ToList();
+                        <tr>
+                            <td class="text-nowrap">@HoraCol(r.FechaCreacion).ToString("dd/MM HH:mm")</td>
+                            <td>@r.Persona</td>
+                            <td>@r.Proyecto</td>
+                            <td>@r.Actividad</td>
+                            <td>@r.FechaTrabajo.ToString("dd/MM/yyyy")</td>
+                            <td>@r.Reportado</td>
+                            <td class="text-nowrap">@r.Avance</td>
+                            <td class="text-nowrap">@r.Recursos</td>
+                            <td>
+                                @foreach (var f in fotos)
+                                {
+                                    <a href="/helvis/fotos/@f.Id" target="_blank"><img src="/helvis/fotos/@f.Id" style="height:34px;border-radius:4px" class="me-1" alt="foto" /></a>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @ColorEstadoReporte(r.Estado)">@r.Estado</span>
+                                @if (r.InformeId is int inf)
+                                {
+                                    <a class="ms-1" href="/proyectos/@r.ProyectoId/informes/@inf">informe</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!_reportes.Any())
+                    {
+                        <tr><td colspan="10" class="text-center text-muted py-4">Aún no han llegado reportes por WhatsApp.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold small">Novedades y bloqueos reportados por WhatsApp</div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.78rem">
+                <thead class="table-light"><tr><th>N°</th><th>Proyecto</th><th>Tipo</th><th>Qué pasó</th><th>Impacto</th><th>Estado</th><th>Trazabilidad</th></tr></thead>
+                <tbody>
+                    @foreach (var b in _bloqueos)
+                    {
+                        <tr>
+                            <td>@b.Numero</td><td>@b.Proyecto</td><td>@b.Tipo</td><td>@b.Descripcion</td><td>@b.Impacto</td>
+                            <td><span class="badge @(b.Abierto ? "bg-danger" : "bg-success")">@b.Estado</span></td>
+                            <td style="white-space:pre-line">@b.Plan</td>
+                        </tr>
+                    }
+                    @if (!_bloqueos.Any())
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">Sin novedades reportadas por WhatsApp.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
 @* ==================== Modal contacto ==================== *@
 @if (_mostrarForm)
 {
@@ -378,6 +461,9 @@ else
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-cor" @bind="_fCorregir" /><label class="form-check-label" for="perm-cor">Corregir avances</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-apr" @bind="_fAprobar" /><label class="form-check-label" for="perm-apr">Aprobar informes</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="perm-adm" @bind="_fAdmin" /><label class="form-check-label" for="perm-adm">Administrador de Helvis</label></div>
+                            <label class="form-label mt-2 mb-1 fw-semibold">Avisos que recibe por WhatsApp</label>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="av-inf" @bind="_fRecibeInformes" /><label class="form-check-label" for="av-inf">Informe diario aprobado</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="av-blq" @bind="_fRecibeBloqueos" /><label class="form-check-label" for="av-blq">Bloqueos que detienen o limitan el avance</label></div>
                         </div>
                         <div class="col-md-4">
                             <div class="form-check mt-2">
@@ -437,6 +523,8 @@ else
     private bool _fCorregir;
     private bool _fAprobar;
     private bool _fAdmin;
+    private bool _fRecibeInformes;
+    private bool _fRecibeBloqueos;
     private bool _fActivo = true;
     private DateTime? _fPausaHasta;
     private string? _fMotivoPausa;
@@ -656,6 +744,7 @@ else
         _editandoId = null;
         _fNombre = ""; _fTelefono = ""; _fCargo = null; _fEmail = null;
         _fConsultar = true; _fReportar = false; _fCorregir = false; _fAprobar = false; _fAdmin = false;
+        _fRecibeInformes = false; _fRecibeBloqueos = false;
         _fActivo = true; _fPausaHasta = null; _fMotivoPausa = null; _fNotas = null;
         _fProyectos = [];
         _formError = null;
@@ -668,6 +757,7 @@ else
         _fNombre = c.Nombre; _fTelefono = c.Telefono; _fCargo = c.Cargo; _fEmail = c.Email;
         _fConsultar = c.PuedeConsultar; _fReportar = c.PuedeReportar; _fCorregir = c.PuedeCorregir;
         _fAprobar = c.PuedeAprobar; _fAdmin = c.EsAdministrador;
+        _fRecibeInformes = c.RecibeInformes; _fRecibeBloqueos = c.RecibeBloqueos;
         _fActivo = c.Activo; _fPausaHasta = c.PausadoHasta; _fMotivoPausa = c.MotivoPausa; _fNotas = c.Notas;
         _fProyectos = c.Proyectos.Select(p => p.ProyectoId).ToHashSet();
         _formError = null;
@@ -716,6 +806,8 @@ else
         contacto.PuedeCorregir = _fCorregir;
         contacto.PuedeAprobar = _fAprobar;
         contacto.EsAdministrador = _fAdmin;
+        contacto.RecibeInformes = _fRecibeInformes;
+        contacto.RecibeBloqueos = _fRecibeBloqueos;
         contacto.Activo = _fActivo;
         contacto.PausadoHasta = _fPausaHasta;
         contacto.MotivoPausa = string.IsNullOrWhiteSpace(_fMotivoPausa) ? null : _fMotivoPausa.Trim();
@@ -751,6 +843,67 @@ else
     }
 
     // ==================== Utilidades ====================
+
+    // ==================== Reportes recibidos ====================
+
+    private record FilaReporte(int Id, DateTime FechaCreacion, string Persona, int ProyectoId, string Proyecto, string Actividad,
+        DateTime FechaTrabajo, string Reportado, string Avance, string Recursos, string Estado, int? InformeId);
+    private record FilaFoto(int Id, int? ReporteId);
+    private record FilaBloqueo(string Numero, string Proyecto, string? Tipo, string Descripcion, string? Impacto,
+        string Estado, bool Abierto, string? Plan);
+    private List<FilaReporte> _reportes = [];
+    private List<FilaFoto> _fotos = [];
+    private List<FilaBloqueo> _bloqueos = [];
+
+    private async Task AbrirReportesAsync()
+    {
+        _tab = "reportes";
+        var proyectos = _proyectos.ToDictionary(p => p.Id, p => p.Codigo);
+        var datos = await Db.ReportesAvanceHelvis.AsNoTracking()
+            .OrderByDescending(r => r.Id).Take(100)
+            .Select(r => new
+            {
+                r.Id, r.FechaCreacion, Persona = r.Contacto.Nombre, r.ProyectoId,
+                Actividad = r.Actividad == null ? null : r.Actividad.CodigoWBS + " " + r.Actividad.Nombre,
+                Unidad = r.Actividad == null ? null : r.Actividad.Unidad,
+                r.FechaTrabajo, r.Cantidad, r.CantidadEsAcumulada, r.Porcentaje, r.PorcentajeAnterior, r.PorcentajeNuevo,
+                r.Personas, r.Horas, r.Estado, r.InformeDiarioId, r.Paso, r.Motivo
+            })
+            .ToListAsync();
+
+        _reportes = datos.Select(r => new FilaReporte(
+            r.Id, r.FechaCreacion, r.Persona, r.ProyectoId,
+            proyectos.TryGetValue(r.ProyectoId, out var cod) ? cod : $"#{r.ProyectoId}",
+            r.Actividad ?? "(por elegir)",
+            r.FechaTrabajo,
+            r.Porcentaje is decimal p ? $"{p:0.#}%"
+                : r.Cantidad is decimal c ? $"{c:0.##} {r.Unidad ?? "und"} {(r.CantidadEsAcumulada == true ? "acum." : r.CantidadEsAcumulada == false ? "del día" : "")}"
+                : "—",
+            r.PorcentajeNuevo is decimal n ? $"{r.PorcentajeAnterior:0.#}% → {n:0.#}%" + (string.IsNullOrEmpty(r.Motivo) ? "" : " (corrección)")
+                : r.Estado == EstadosReporteHelvis.Confirmado ? "% pendiente" : "—",
+            r.Personas is null && r.Horas is null ? "—" : $"{r.Personas?.ToString() ?? "—"} pers · {r.Horas?.ToString("0.#") ?? "—"} h",
+            r.Estado == EstadosReporteHelvis.Borrador && r.Paso is not null ? $"{r.Estado} ({r.Paso})" : r.Estado,
+            r.InformeDiarioId)).ToList();
+
+        var ids = _reportes.Select(r => r.Id).ToList();
+        _fotos = await Db.FotosHelvis.AsNoTracking()
+            .Where(f => f.ReporteAvanceHelvisId != null && ids.Contains(f.ReporteAvanceHelvisId.Value))
+            .Select(f => new FilaFoto(f.Id, f.ReporteAvanceHelvisId)).ToListAsync();
+
+        var bloqueos = await Db.Restricciones.AsNoTracking()
+            .Where(r => r.Plan != null && r.Plan.Contains("WhatsApp"))
+            .OrderByDescending(r => r.Id).Take(50)
+            .Select(r => new { r.Numero, r.ProyectoId, r.Tipo, r.Descripcion, r.Impacto, r.Estado, r.Plan })
+            .ToListAsync();
+        _bloqueos = bloqueos.Select(b => new FilaBloqueo(b.Numero,
+            proyectos.TryGetValue(b.ProyectoId, out var cb) ? cb : $"#{b.ProyectoId}",
+            b.Tipo, b.Descripcion, b.Impacto, b.Estado.ToString(),
+            b.Estado is EstadoRestriccion.Abierta or EstadoRestriccion.EnGestion, b.Plan)).ToList();
+    }
+
+    private static string ColorEstadoReporte(string estado) =>
+        estado.StartsWith(EstadosReporteHelvis.Confirmado) ? "bg-success"
+        : estado.StartsWith(EstadosReporteHelvis.Borrador) ? "bg-warning text-dark" : "bg-secondary";
 
     private static string EstiloTab(bool activa) => activa
         ? "background:#183963;color:#fff;border:none;border-radius:10px;padding:8px 18px"

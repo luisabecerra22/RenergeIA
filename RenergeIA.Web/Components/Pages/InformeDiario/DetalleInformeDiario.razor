@@ -334,6 +334,27 @@ else
         </div>
     </div>
 
+    @if (_fotosWhatsApp.Any())
+    {
+        <!-- Fotos que llegaron por WhatsApp (Helvis); se imprimen en el PDF -->
+        <div class="card shadow-sm mb-4" style="page-break-inside: avoid">
+            <div class="card-header"><strong>Registro fotográfico (WhatsApp)</strong></div>
+            <div class="card-body">
+                <div class="row g-2">
+                    @foreach (var f in _fotosWhatsApp)
+                    {
+                        <div class="col-6 col-md-3">
+                            <a href="/helvis/fotos/@f.Id" target="_blank">
+                                <img src="/helvis/fotos/@f.Id" class="img-fluid rounded border" style="max-height:220px;object-fit:cover;width:100%" alt="foto" />
+                            </a>
+                            <div class="small text-muted mt-1">@f.Pie</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- Comentarios por disciplina (al final del informe; se imprimen en el PDF) -->
     <div class="card shadow-sm mb-4 comentarios-informe">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -386,6 +407,8 @@ else
     private bool _printed;
     private Proyecto? _proyecto;
     private InformeDiario? _informe;
+    private record FotoInforme(int Id, string Pie);
+    private List<FotoInforme> _fotosWhatsApp = [];
     private List<FilaDetalle> _filas = [];
     private bool _mostrarRechazo;
     private string _motivoRechazo = "";
@@ -436,6 +459,19 @@ else
             Navigation.NavigateTo($"/proyectos/{ProyectoId}/informes");
             return;
         }
+
+        var fotos = await Db.FotosHelvis.AsNoTracking()
+            .Where(f => f.InformeDiarioId == InformeId)
+            .OrderBy(f => f.Id)
+            .Select(f => new { f.Id, f.Descripcion, Actividad = f.ActividadWBSId, Autor = f.Contacto == null ? null : f.Contacto.Nombre })
+            .ToListAsync();
+        var nombresAct = _informe.RegistrosAvance.Where(r => r.ActividadWBS != null)
+            .GroupBy(r => r.ActividadWBSId).ToDictionary(g => g.Key, g => g.First().ActividadWBS.CodigoWBS + " " + g.First().ActividadWBS.Nombre);
+        _fotosWhatsApp = fotos.Select(f => new FotoInforme(f.Id, string.Join(" · ", new[]
+        {
+            f.Actividad is int a && nombresAct.TryGetValue(a, out var n) ? n : null,
+            f.Descripcion, f.Autor
+        }.Where(x => !string.IsNullOrWhiteSpace(x))))).ToList();
 
         var versionVigente = await Db.CronogramasVersion
             .FirstOrDefaultAsync(v => v.ProyectoId == ProyectoId && v.EsVigente);

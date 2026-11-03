@@ -17,7 +17,7 @@ namespace RenergeIA.Web.Services.WhatsApp;
 /// Las decisiones A–I del panel de revisión (docs/helvis/panel-conversacion.html) están
 /// aplicadas aquí: si cambia este flujo, el panel se actualiza en el mismo cambio.
 /// </summary>
-public class WhatsAppConversacion
+public partial class WhatsAppConversacion
 {
     /// <summary>Cuánto tiempo recuerda Helvis el proyecto elegido antes de volver a preguntar.</summary>
     private static readonly TimeSpan VigenciaProyectoActivo = TimeSpan.FromHours(12);
@@ -26,10 +26,13 @@ public class WhatsAppConversacion
     private readonly RenergeIADbContext _db;
     private readonly InformeDiarioService _informes;
     private readonly ILogger<WhatsAppConversacion> _log;
+    private readonly WhatsAppOptions _opciones;
 
     public WhatsAppConversacion(WhatsAppClient wa, RenergeIADbContext db,
-        InformeDiarioService informes, ILogger<WhatsAppConversacion> log)
+        InformeDiarioService informes, ILogger<WhatsAppConversacion> log,
+        Microsoft.Extensions.Options.IOptions<WhatsAppOptions> opciones)
     {
+        _opciones = opciones.Value;
         _wa = wa;
         _db = db;
         _informes = informes;
@@ -69,13 +72,21 @@ public class WhatsAppConversacion
             return;
         }
 
-        // Decisión C: fotos, videos, documentos y notas de voz se reconocen y se avisa
-        // que todavía no se guardan (el registro de fotos llega en la Etapa 2).
+        // Fotos: quien puede reportar las deja guardadas (se ligan a su reporte de avance).
+        // Videos, documentos y stickers aún no se guardan; quien no reporta recibe el aviso.
+        if (mensaje.Tipo is "image" && contacto.PuedeReportar)
+        {
+            await RecibirFotoAsync(contacto, mensaje, saludo, ct);
+            return;
+        }
         if (mensaje.Tipo is "image" or "video" or "document" or "sticker")
         {
+            var motivo = mensaje.Tipo == "image"
+                ? "este número no tiene habilitado el permiso para reportar"
+                : "por ahora solo se guardan fotos";
             await EnviarTextoAsync(contacto, mensaje.De,
-                saludo + "📷 Recibí el archivo, pero por ahora *no queda guardado*: el registro de fotos " +
-                "por WhatsApp llega en la siguiente etapa. Mientras tanto, va en el Informe diario de la app.\n\n" +
+                saludo + $"📷 Recibí el archivo, pero *no queda guardado*: {motivo}. " +
+                "Mientras tanto, va en el Informe diario de la app.\n\n" +
                 "Escribe *menú* para ver las opciones.", ct);
             return;
         }
@@ -94,7 +105,29 @@ public class WhatsAppConversacion
             .OrderBy(p => p.Nombre)
             .ToList();
 
-        var opcion = mensaje.OpcionId ?? Interpretar(mensaje.Texto);
+        // Botones que llegan desde un aviso (aprobar/devolver un informe) valen en
+        // cualquier momento, sin importar el proyecto activo: se validan permisos adentro.
+        if (mensaje.OpcionId is { } idAviso && (idAviso.StartsWith("apr_") || idAviso.StartsWith("dev_")))
+        {
+            await ResolverRevisionAsync(contacto, proyectos, idAviso, mensaje.De, ct);
+            return;
+        }
+
+        // "menú" / "cancelar" interrumpen cualquier conversación de varios pasos.
+        var palabra = ReporteTexto.Normalizar(mensaje.Texto);
+        var esEscape = mensaje.OpcionId is "menu" ||
+                       palabra is "menu" or "cancelar" or "salir" or "inicio" or "volver";
+        if (esEscape && await CancelarConversacionesAsync(contacto, ct))
+            await EnviarTextoAsync(contacto, mensaje.De, "Listo, cancelé lo que estaba en curso; no se guardó nada.", ct);
+
+        // Conversaciones de varios pasos en curso: reporte de avance, bloqueo, devolución.
+        if (!esEscape)
+        {
+            if (await ContinuarFlujoAsync(contacto, proyectos, mensaje, ct)) return;
+            if (await ContinuarReporteAsync(contacto, mensaje, ct)) return;
+        }
+
+        var opcion = esEscape ? null : mensaje.OpcionId ?? Interpretar(mensaje.Texto);
 
         // Decisión I: "costos" ya no abre el avance físico; se avisa que llega después.
         if (opcion == "costos")
@@ -160,21 +193,28 @@ public class WhatsAppConversacion
             else
             {
                 // Decisión H: recordar qué pidió para responderlo tras elegir proyecto.
-                contacto.OpcionPendiente = opcion is "avance" or "alertas" or "informe" ? opcion : null;
+                contacto.OpcionPendiente = opcion is "avance" or "alertas" or "informe" or "reportar" or "bloqueo" or "revisar"
+                    ? opcion
+                    : mensaje.OpcionId is null && contacto.PuedeReportar && EsPosibleReporte(mensaje.Texto) ? "reportar" : null;
                 await _db.SaveChangesAsync(ct);
                 await EnviarSelectorProyectoAsync(contacto, proyectos, mensaje, saludo, ct);
                 return;
             }
         }
 
-        // Decisión D: un texto que parece un reporte de obra no debe quedar "como si"
-        // se hubiera registrado. Se avisa claro que aún no se guarda.
-        if (opcion is null && mensaje.OpcionId is null && EsPosibleReporte(mensaje.Texto))
+        // Un texto que parece reporte de obra ("hoy hincamos 80 pilotes"): quien puede
+        // reportar arranca el reporte con ese mismo texto (no se le vuelve a preguntar lo
+        // que ya dijo); quien no, recibe el aviso de que no quedó guardado (decisión D).
+        if (opcion is null && mensaje.OpcionId is null && !esEscape && EsPosibleReporte(mensaje.Texto))
         {
+            if (contacto.PuedeReportar)
+            {
+                await IniciarReporteAsync(contacto, activo, mensaje.Texto, saludo, ct);
+                return;
+            }
             await EnviarTextoAsync(contacto, mensaje.De,
-                "📝 El reporte de avance por WhatsApp aún no está activo, así que este mensaje " +
-                "*no quedó guardado* como avance. Por ahora el avance se registra en el Informe " +
-                "diario de la app; pronto se podrá reportar por aquí.", ct);
+                saludo + "📝 Este número no tiene habilitado el permiso para reportar avance, así que el " +
+                "mensaje *no quedó guardado* como avance. El administrador puede activarlo en el panel de Helvis.", ct);
             return;
         }
 
@@ -197,6 +237,24 @@ public class WhatsAppConversacion
 
             case "informe":
                 await EnviarActividadesAsignadasAsync(contacto, proyecto, numero, ct);
+                break;
+
+            case "reportar" when contacto.PuedeReportar:
+                await IniciarReporteAsync(contacto, proyecto, null, saludo, ct);
+                break;
+
+            case "bloqueo" when contacto.PuedeReportar:
+                await IniciarBloqueoAsync(contacto, proyecto, saludo, ct);
+                break;
+
+            case "revisar" when contacto.PuedeAprobar:
+                await EnviarInformeParaRevisarAsync(contacto, proyecto, numero, saludo, ct);
+                break;
+
+            case "reportar" or "bloqueo" or "revisar":
+                await EnviarTextoAsync(contacto, numero,
+                    $"{saludo}Este número no tiene habilitado ese permiso. El administrador puede activarlo en el panel de Helvis.", ct);
+                await EnviarMenuProyectoAsync(contacto, proyecto, variosProyectos, numero, "", ct);
                 break;
 
             default:
@@ -257,18 +315,36 @@ public class WhatsAppConversacion
     private async Task EnviarMenuProyectoAsync(ContactoHelvis contacto, Proyecto proyecto,
         bool variosProyectos, string numero, string saludo, CancellationToken ct)
     {
-        var cuerpo = $"{saludo}📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué miramos?";
+        var cuerpo = $"{saludo}📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué hacemos?";
         if (variosProyectos) cuerpo += "\n\n_Escribe *proyecto* para cambiar de proyecto._";
 
-        var ok = await _wa.EnviarBotonesAsync(numero, cuerpo,
-            new[]
-            {
-                ("avance", "📊 Ver avance"),
-                ("alertas", "📋 Alertas"),
-                ("informe", "📝 Informe diario")
-            }, ct);
+        var opciones = OpcionesMenu(contacto);
+
+        // Decisión J: con más de 3 opciones (botones máximo 3) el menú pasa a lista.
+        bool ok;
+        if (opciones.Count <= 3)
+            ok = await _wa.EnviarBotonesAsync(numero, cuerpo, opciones.Select(o => (o.Id, o.Titulo)), ct);
+        else
+            ok = await _wa.EnviarListaAsync(numero, cuerpo, "Ver opciones", opciones, ct);
 
         await GuardarSalienteAsync(contacto, numero, cuerpo, "interactive", ok, ct);
+    }
+
+    /// <summary>Opciones del menú según los permisos de la persona (documento §3).</summary>
+    internal static List<(string Id, string Titulo, string? Descripcion)> OpcionesMenu(ContactoHelvis contacto)
+    {
+        var opciones = new List<(string Id, string Titulo, string? Descripcion)>();
+        if (contacto.PuedeReportar)
+        {
+            opciones.Add(("reportar", "✍️ Reportar avance", "Registrar el avance de una actividad"));
+            opciones.Add(("bloqueo", "🚧 Novedad o bloqueo", "Maquinaria, clima, suministros, pagos"));
+        }
+        if (contacto.PuedeAprobar)
+            opciones.Add(("revisar", "✅ Revisar informe", "Aprobar o devolver el informe diario"));
+        opciones.Add(("avance", "📊 Ver avance", "Curva S y actividades atrasadas"));
+        opciones.Add(("alertas", "📋 Alertas", "Documentos pendientes de atención"));
+        opciones.Add(("informe", "📝 Informe diario", "Actividades asignadas y lo reportado hoy"));
+        return opciones;
     }
 
     // ==================== Ver avance (Curva S) ====================
@@ -387,7 +463,7 @@ public class WhatsAppConversacion
 
     /// <summary>
     /// Responde al botón "Informe diario" con las actividades asignadas al contacto
-    /// EN EL PROYECTO ACTIVO. El registro conversacional de avance llega en la Etapa 2.
+    /// EN EL PROYECTO ACTIVO. El registro del avance se hace con la opción Reportar avance.
     /// </summary>
     private async Task EnviarActividadesAsignadasAsync(ContactoHelvis contacto, Proyecto proyecto,
         string numero, CancellationToken ct)
@@ -421,7 +497,9 @@ public class WhatsAppConversacion
             }
             if (asignadas.Count > 20) sb.AppendLine($"… y {asignadas.Count - 20} más.");
             sb.AppendLine();
-            sb.AppendLine("El registro de avance por aquí llega en la siguiente etapa. Escribe *menú* para volver.");
+            sb.AppendLine(contacto.PuedeReportar
+                ? "Para registrar el avance escribe *reportar* (o cuéntalo directo, ej. _hoy hincamos 80 pilotes_)."
+                : "Escribe *menú* para volver.");
             texto = sb.ToString().TrimEnd();
         }
 
@@ -540,7 +618,7 @@ public class WhatsAppConversacion
     {
         var nombre = PrimerNombre(string.IsNullOrWhiteSpace(contacto.Nombre) ? mensaje.Nombre : contacto.Nombre);
         var saludo = string.IsNullOrWhiteSpace(nombre) ? "Hola 👋" : $"Hola, {nombre} 👋";
-        return $"{saludo} Soy *Helvis*, el asistente de Renergeia _(prueba)_.";
+        return $"{saludo} Soy *Helvis*, el asistente de Renergeia.";
     }
 
     /// <summary>¿Es el primer contacto del día (hora Colombia)? Entonces se saluda por el nombre.</summary>
@@ -557,10 +635,13 @@ public class WhatsAppConversacion
         var t = Normalizar(texto);
         if (t.Length == 0) return null;
 
+        if (t.StartsWith("report") || t.StartsWith("registr")) return "reportar";
+        if (t.Contains("bloque") || t.Contains("novedad") || t.Contains("varad")) return "bloqueo";
+        if (t.Contains("aprob") || t.Contains("revisar")) return "revisar";
         if (t is "1" || t.Contains("avance") || t.Contains("consulta")) return "avance";
         if (t is "2" || t.Contains("alerta") || t.Contains("vencim") || t.Contains("pendiente")) return "alertas";
         if (t is "3" || t.Contains("informe") || t.Contains("reporte") || t.Contains("diario")) return "informe";
-        if (t.Contains("costo") || t.Contains("presupuesto") || t.Contains("pago")) return "costos";
+        if (t.Contains("costo") || t.Contains("presupuesto")) return "costos";
         if (t.Contains("proyecto") || t is "cambiar") return "cambiar";
 
         return null; // cualquier otra cosa devuelve el menú

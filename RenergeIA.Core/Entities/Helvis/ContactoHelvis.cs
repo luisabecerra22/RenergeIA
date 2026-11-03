@@ -34,6 +34,18 @@ public class ContactoHelvis : EntidadBase
     // se responde apenas la persona elige el proyecto y se limpia.
     public string? OpcionPendiente { get; set; }
 
+    // Conversación de varios pasos en curso (bloqueo, devolución de informe…):
+    // Flujo = cuál, FlujoPaso = qué se espera, FlujoDatos = lo recogido (JSON).
+    // El reporte de avance tiene su propio borrador (ReporteAvanceHelvis).
+    public string? Flujo { get; set; }
+    public string? FlujoPaso { get; set; }
+    public string? FlujoDatos { get; set; }
+    public DateTime? FlujoFecha { get; set; }
+
+    // Destinatarios de avisos (configurables en el panel, documento §11.3 y §12.5)
+    public bool RecibeInformes { get; set; }   // informe aprobado (Michelle, Luisa)
+    public bool RecibeBloqueos { get; set; }   // bloqueos que detienen el avance (Yesid, Javier)
+
     public string? Notas { get; set; }
 
     public List<ContactoHelvisProyecto> Proyectos { get; set; } = [];

@@ -2448,7 +2448,8 @@ Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nu
 |---|---|
 | App de Meta | "Bot Renergeia" — **App ID `1867947977538846`** |
 | Cuenta de WhatsApp (WABA) | **`1571718120841130`** |
-| Número (de PRUEBA) | +1 555-305-7165 — **Phone Number ID `1384862258040037`** |
+| Número REAL (en uso desde 2026-11-03) | +57 312 8751116 — **Phone Number ID `1445794348613461`** |
+| Número de PRUEBA (ya no lo usa la app) | +1 555-305-7165 — Phone Number ID `1384862258040037` |
 | Usuario del sistema | "Bot Proyectos Renergeia" — `61595076063172` |
 | Portfolio comercial | Renergeia Group — `2239149336895790` |
 
@@ -2484,9 +2485,29 @@ Cómo activarla (lo hace cada usuario, es seguridad personal — el agente IA nu
 - **Prueba final superada**: "hola" al +1 555 → POSTs 200 de Meta en el servidor → **el bot respondió su menú en el WhatsApp de la usuaria**. (Un envío del bot genera además POSTs de estado enviado/entregado.)
 - **Gotcha de operación**: un token revocado se manifiesta como `error 401 "Authentication Error" (code 190)` en los logs del `WhatsAppClient` **al enviar** — el webhook sigue recibiendo bien porque recibir no usa el token. Si el bot deja de responder pero los POST llegan, sospechar primero del token.
 
+### Número real conectado (2026-11-03)
+
+El +57 312 8751116 (SIM de Renergeia) quedó **Conectado** en la misma cuenta de WhatsApp (WABA `1571718120841130`) y la app lo usa desde la revisión `renergeia-web-00214`. Como el webhook está suscrito a nivel de WABA, el número nuevo recibió mensajes sin volver a suscribir nada. Cómo se hizo y lo que costó:
+
+1. **El botón azul "Agregar" de *Configuración → Cuentas de WhatsApp* NO sirve**: solo ofrece *crear una cuenta de WhatsApp nueva* o *vincular la app WhatsApp Business*; un número en otra WABA no estaría conectado al bot.
+2. **El Administrador de WhatsApp** (donde está "Añadir número de teléfono") no abre con la cuenta de solo-negocio de la usuaria ("No tienes acceso / Esta función aún no está disponible para ti"), igual que developers.facebook.com. Se usó la cuenta de **Facebook personal "Liz Becerra"**, a la que hubo que: (a) darle **acceso total** al portfolio y a la WABA, y (b) activarle **autenticación en dos pasos + llave de acceso** (sin eso Meta mantiene "No tienes acceso para realizar esta acción" aunque tenga acceso total).
+3. Los enlaces directos (`/wa/manage/phone-numbers/?waba_id=…` y `/latest/whatsapp_manager/phone_numbers/?asset_id=<WABA>`) siguieron dando `reason=waba_access`; **lo que funcionó fue entrar por `https://business.facebook.com/latest/whatsapp_manager/overview?business_id=2239149336895790`** y desde ahí *Herramientas de la cuenta → Números de teléfono*. Ojo: esa interfaz usa otro `asset_id` (`1643922893980183`) para la misma cuenta; se confirma que es la correcta porque lista el +1 555.
+4. **Añadir número de teléfono** (perfil: nombre visible, categoría, descripción; luego el número). Queda **"Sin verificar"** y el SMS NO se envía solo: pasar el mouse por el estado → **"Enviar código de verificación"** → Mensaje de texto → escribir los 6 dígitos. Queda **"Pendiente"**.
+5. **"Pendiente" = falta registrarlo en la Cloud API** (no se puede desde la pantalla). Con el token del usuario del sistema y un PIN de 6 dígitos elegido por la usuaria (guardado por ella):
+   ```bash
+   curl.exe -X POST "https://graph.facebook.com/v21.0/1445794348613461/register" -d "messaging_product=whatsapp" -d "pin=<PIN>" -d "access_token=<ACCESS_TOKEN>"
+   ```
+   → `{"success":true}` y el estado pasa a **Conectado**. En PowerShell usar `curl.exe` (`curl` es alias de Invoke-WebRequest).
+6. `gcloud run services update renergeia-web --region us-central1 --project renergeia-app --update-env-vars WhatsApp__PhoneNumberId=1445794348613461` (sin secretos; el token, el verify token y el App Secret no cambian).
+7. Prueba: "hola" al número nuevo → POSTs 200 en los logs y respuesta del bot, sin errores.
+
+Alternativa si la pantalla vuelve a bloquear: todo se puede hacer por Graph API con el token del usuario del sistema (`POST /<WABA>/phone_numbers` con `cc`, `phone_number`, `verified_name` → `request_code` → `verify_code` → `register`).
+
 **Pendiente para producción:**
 
-- Agregar un **número REAL** en *Business Settings → Cuentas de WhatsApp → Agregar* (lo puede hacer la usuaria, sin portal); con número real desaparece la lista de prueba y cualquier persona puede escribirle al bot.
+- Aprobación de Meta del **nombre visible** "Renergeia Group" (mientras tanto los avisos que inicia Helvis pueden fallar).
+- **Método de pago** en *Administrador de WhatsApp → Configuraciones de pagos* (alerta "Falta un método de pago válido": sin él solo se responde, no se inicia conversación).
+- **Verificar la empresa** para subir el límite de 250 conversaciones iniciadas por la empresa cada 24 h.
 - Crear **plantillas aprobadas** para poder escribirle a la gente fuera de la ventana de 24 h.
 
 ### Cómo probar el webhook sin base de datos

@@ -54,6 +54,81 @@ public class WhatsAppClient
             }
         }, ct);
 
+    /// <summary>
+    /// Mensaje con una lista desplegable (hasta 10 opciones). Se usa cuando hay más de
+    /// 3 opciones, porque los botones de respuesta rápida solo admiten 3 (decisión J).
+    /// </summary>
+    public Task<bool> EnviarListaAsync(string numero, string cuerpo, string textoBoton,
+        IEnumerable<(string Id, string Titulo, string? Descripcion)> opciones, CancellationToken ct = default) =>
+        EnviarAsync(new
+        {
+            messaging_product = "whatsapp",
+            to = numero,
+            type = "interactive",
+            interactive = new
+            {
+                type = "list",
+                body = new { text = cuerpo },
+                action = new
+                {
+                    // Meta: máximo 10 filas, título 24 caracteres, descripción 72, botón 20
+                    button = Recortar(textoBoton, 20),
+                    sections = new[]
+                    {
+                        new
+                        {
+                            title = "Opciones",
+                            rows = opciones.Take(10).Select(o => new
+                            {
+                                id = o.Id,
+                                title = Recortar(o.Titulo, 24),
+                                description = Recortar(o.Descripcion ?? "", 72)
+                            }).ToArray()
+                        }
+                    }
+                }
+            }
+        }, ct);
+
+    /// <summary>
+    /// Descarga un archivo recibido (foto, documento). Meta entrega primero una URL
+    /// temporal por el id del archivo y luego el contenido, ambos con el token.
+    /// </summary>
+    public async Task<(byte[] Contenido, string MimeType)?> DescargarMediaAsync(string mediaId, CancellationToken ct = default)
+    {
+        if (!_opciones.PuedeEnviar) return null;
+        try
+        {
+            using var pedido = new HttpRequestMessage(HttpMethod.Get, $"{_opciones.ApiVersion}/{mediaId}");
+            pedido.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.AccessToken);
+            using var resp = await _http.SendAsync(pedido, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _log.LogError("WhatsApp: no se pudo consultar el archivo {Id}: {Codigo}", mediaId, (int)resp.StatusCode);
+                return null;
+            }
+            var info = await resp.Content.ReadFromJsonAsync<InfoMedia>(cancellationToken: ct);
+            if (info?.url is null) return null;
+
+            using var descarga = new HttpRequestMessage(HttpMethod.Get, info.url);
+            descarga.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _opciones.AccessToken);
+            using var archivo = await _http.SendAsync(descarga, ct);
+            if (!archivo.IsSuccessStatusCode)
+            {
+                _log.LogError("WhatsApp: no se pudo descargar el archivo {Id}: {Codigo}", mediaId, (int)archivo.StatusCode);
+                return null;
+            }
+            return (await archivo.Content.ReadAsByteArrayAsync(ct), info.mime_type ?? "image/jpeg");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "WhatsApp: falló la descarga del archivo {Id}.", mediaId);
+            return null;
+        }
+    }
+
+    private sealed record InfoMedia(string? url, string? mime_type);
+
     /// <summary>Plantilla aprobada; es la única forma de escribir fuera de la ventana de 24 horas.</summary>
     public Task<bool> EnviarPlantillaAsync(string numero, string plantilla, string idioma = "es",
         IEnumerable<string>? parametros = null, CancellationToken ct = default)

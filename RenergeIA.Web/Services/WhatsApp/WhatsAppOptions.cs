@@ -26,6 +26,9 @@ public class WhatsAppOptions
     /// <summary>Si es true, se rechazan los mensajes sin firma válida. Solo apagarlo para pruebas locales.</summary>
     public bool ValidarFirma { get; set; } = true;
 
+    /// <summary>Dirección pública de RenergeIA, para los enlaces que Helvis manda (informes, panel).</summary>
+    public string UrlApp { get; set; } = "https://renergeia-web-577313322290.us-central1.run.app";
+
     public bool PuedeEnviar => !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(PhoneNumberId);
     public bool PuedeVerificar => !string.IsNullOrWhiteSpace(VerifyToken);
 }

@@ -28,6 +28,8 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<ContactoHelvisProyecto> ContactoHelvisProyectos => Set<ContactoHelvisProyecto>();
     public DbSet<MensajeHelvis> MensajesHelvis => Set<MensajeHelvis>();
     public DbSet<AsignacionHelvis> AsignacionesHelvis => Set<AsignacionHelvis>();
+    public DbSet<ReporteAvanceHelvis> ReportesAvanceHelvis => Set<ReporteAvanceHelvis>();
+    public DbSet<FotoHelvis> FotosHelvis => Set<FotoHelvis>();
 
     public DbSet<Proyecto> Proyectos => Set<Proyecto>();
     public DbSet<CronogramaVersion> CronogramasVersion => Set<CronogramaVersion>();
@@ -466,6 +468,9 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(x => x.Cargo).HasMaxLength(100);
             e.Property(x => x.Email).HasMaxLength(150);
             e.Property(x => x.MotivoPausa).HasMaxLength(300);
+            e.Property(x => x.Flujo).HasMaxLength(30);
+            e.Property(x => x.FlujoPaso).HasMaxLength(30);
+            e.Property(x => x.OpcionPendiente).HasMaxLength(30);
             e.Property(x => x.Notas).HasMaxLength(1000);
             e.HasIndex(x => x.Telefono).IsUnique();
         });
@@ -500,6 +505,31 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.HasIndex(x => new { x.ContactoHelvisId, x.ActividadWBSId }).IsUnique();
             e.HasOne(x => x.Contacto).WithMany().HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Actividad).WithMany().HasForeignKey(x => x.ActividadWBSId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReporteAvanceHelvis>(e =>
+        {
+            e.ToTable("ReportesAvanceHelvis");
+            e.Property(x => x.Estado).HasMaxLength(20);
+            e.Property(x => x.Paso).HasMaxLength(30);
+            e.Property(x => x.TextoOriginal).HasMaxLength(2000);
+            e.Property(x => x.Motivo).HasMaxLength(1000);
+            e.Property(x => x.Observaciones).HasMaxLength(2000);
+            e.HasIndex(x => new { x.ContactoHelvisId, x.Estado });
+            e.HasIndex(x => new { x.ProyectoId, x.FechaTrabajo });
+            e.HasOne(x => x.Contacto).WithMany().HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Actividad).WithMany().HasForeignKey(x => x.ActividadWBSId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<FotoHelvis>(e =>
+        {
+            e.ToTable("FotosHelvis");
+            e.Property(x => x.WaMediaId).HasMaxLength(128);
+            e.Property(x => x.MimeType).HasMaxLength(60);
+            e.Property(x => x.Descripcion).HasMaxLength(1000);
+            e.HasIndex(x => x.InformeDiarioId);
+            e.HasIndex(x => x.ReporteAvanceHelvisId);
+            e.HasOne(x => x.Contacto).WithMany().HasForeignKey(x => x.ContactoHelvisId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // PersonalHistogramaMes

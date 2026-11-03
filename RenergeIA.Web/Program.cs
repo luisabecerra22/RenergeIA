@@ -95,6 +95,13 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapWhatsAppWebhook();
+// Fotos que llegan por WhatsApp (se guardan en la base de datos): solo con sesión iniciada.
+app.MapGet("/helvis/fotos/{id:int}", async (int id, RenergeIADbContext db) =>
+{
+    var foto = await db.FotosHelvis.AsNoTracking().Where(f => f.Id == id)
+        .Select(f => new { f.Contenido, f.MimeType }).FirstOrDefaultAsync();
+    return foto is null ? Results.NotFound() : Results.File(foto.Contenido, foto.MimeType);
+}).RequireAuthorization();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

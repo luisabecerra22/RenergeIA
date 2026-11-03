@@ -4028,6 +4028,20 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("Flujo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("FlujoDatos")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("FlujoFecha")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("FlujoPaso")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<string>("MotivoPausa")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
@@ -4042,7 +4056,8 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<string>("OpcionPendiente")
-                        .HasColumnType("text");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<DateTime?>("PausadoHasta")
                         .HasColumnType("timestamp without time zone");
@@ -4063,6 +4078,12 @@ namespace RenergeIA.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("PuedeReportar")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RecibeBloqueos")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RecibeInformes")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Telefono")
@@ -4106,6 +4127,63 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ContactoHelvisProyectos", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.FotoHelvis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ActividadWBSId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ContactoHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("Contenido")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("InformeDiarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<int?>("ProyectoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ReporteAvanceHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WaMediaId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactoHelvisId");
+
+                    b.HasIndex("InformeDiarioId");
+
+                    b.HasIndex("ReporteAvanceHelvisId");
+
+                    b.ToTable("FotosHelvis", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.MensajeHelvis", b =>
@@ -4168,6 +4246,109 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("Telefono", "FechaCreacion");
 
                     b.ToTable("MensajesHelvis", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ReporteAvanceHelvis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ActividadWBSId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Cantidad")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("CantidadDia")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool?>("CantidadEsAcumulada")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ContactoHelvisId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("FechaConfirmacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaTrabajo")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("FotosRespondidas")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("Horas")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("InformeDiarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("OpcionesActividad")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Paso")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("Personas")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Porcentaje")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PorcentajeAnterior")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("PorcentajeNuevo")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("ProyectoId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RecursosRespondidos")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("RegistroAvanceDiarioId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("SumarAlDeHoy")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TextoOriginal")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActividadWBSId");
+
+                    b.HasIndex("ContactoHelvisId", "Estado");
+
+                    b.HasIndex("ProyectoId", "FechaTrabajo");
+
+                    b.ToTable("ReportesAvanceHelvis", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.HistogramaReal", b =>
@@ -6710,12 +6891,40 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.FotoHelvis", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
+                        .WithMany()
+                        .HasForeignKey("ContactoHelvisId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Contacto");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.MensajeHelvis", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
                         .WithMany()
                         .HasForeignKey("ContactoHelvisId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Contacto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.Helvis.ReporteAvanceHelvis", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ActividadWBS", "Actividad")
+                        .WithMany()
+                        .HasForeignKey("ActividadWBSId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("RenergeIA.Core.Entities.Helvis.ContactoHelvis", "Contacto")
+                        .WithMany()
+                        .HasForeignKey("ContactoHelvisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Actividad");
 
                     b.Navigation("Contacto");
                 });
