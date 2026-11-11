@@ -531,10 +531,21 @@ else
     private string? _fNotas;
     private HashSet<int> _fProyectos = [];
 
+    /// <summary>Enlace directo a una conversación (lo usa el aviso de número no registrado).</summary>
+    [SupplyParameterFromQuery(Name = "conversacion")]
+    public string? ConversacionInicial { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _proyectos = await Db.Proyectos.AsNoTracking().OrderBy(p => p.Nombre).ToListAsync();
         await CargarContactosAsync();
+
+        var tel = new string((ConversacionInicial ?? "").Where(char.IsDigit).ToArray());
+        if (tel.Length >= 11)
+        {
+            _telefonoSel = tel;
+            await AbrirConversacionesAsync();
+        }
     }
 
     private async Task CargarContactosAsync()

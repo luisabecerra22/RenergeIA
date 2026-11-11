@@ -68,7 +68,7 @@ public partial class WhatsAppConversacion
         {
             await EnviarTextoAsync(contacto, mensaje.De,
                 saludo + "Este número está registrado, pero aún no tiene habilitada la consulta de información. " +
-                "El administrador puede activarla en el panel de Helvis. 🙌", ct);
+                "El administrador puede activarla en el panel de Helvis. 🙌 Comunícate con el área encargada para que te pueda habilitar la consulta.", ct);
             return;
         }
 
@@ -178,7 +178,7 @@ public partial class WhatsAppConversacion
             // Decisión B: redacción neutra, sin "tienes"/"pídele".
             await EnviarTextoAsync(contacto, mensaje.De,
                 $"{saludo}Este número aún no tiene proyectos asignados. " +
-                "El administrador puede asignarlos en el panel de Helvis y seguimos hablando. 🙌", ct);
+                "Comunícate con el área encargada para que te pueda habilitar la consulta desde el panel de Helvis y seguimos hablando. 🙌", ct);
             return;
         }
 
@@ -253,7 +253,7 @@ public partial class WhatsAppConversacion
 
             case "reportar" or "bloqueo" or "revisar":
                 await EnviarTextoAsync(contacto, numero,
-                    $"{saludo}Este número no tiene habilitado ese permiso. El administrador puede activarlo en el panel de Helvis.", ct);
+                    $"{saludo}Este número no tiene habilitado ese permiso. Comunícate con el área encargada para que te pueda habilitar la consulta. El administrador puede activarlo en el panel de Helvis.", ct);
                 await EnviarMenuProyectoAsync(contacto, proyecto, variosProyectos, numero, "", ct);
                 break;
 
@@ -287,7 +287,7 @@ public partial class WhatsAppConversacion
         if (proyectos.Count == 0)
         {
             await EnviarTextoAsync(contacto, mensaje.De,
-                saludo + "Este número aún no tiene proyectos asignados. El administrador puede asignarlos en el panel de Helvis.", ct);
+                saludo + "Este número aún no tiene proyectos asignados. Comunícate con el área encargada para que te pueda habilitar la consulta desde el panel de Helvis y seguimos hablando. 🙌", ct);
             return;
         }
 
@@ -315,7 +315,7 @@ public partial class WhatsAppConversacion
     private async Task EnviarMenuProyectoAsync(ContactoHelvis contacto, Proyecto proyecto,
         bool variosProyectos, string numero, string saludo, CancellationToken ct)
     {
-        var cuerpo = $"{saludo}📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué hacemos?";
+        var cuerpo = $"{saludo}📍 *{proyecto.Codigo} — {proyecto.Nombre}*\n\n¿Qué haremos?";
         if (variosProyectos) cuerpo += "\n\n_Escribe *proyecto* para cambiar de proyecto._";
 
         var opciones = OpcionesMenu(contacto);
@@ -577,10 +577,10 @@ public partial class WhatsAppConversacion
             x.Telefono == mensaje.De && !x.Entrante && x.FechaCreacion >= limite, ct);
 
         var texto = yaSaludado
-            ? "Gracias, el mensaje quedó registrado y el equipo de Renergeia lo revisará. 🙏"
+            ? "Gracias, el mensaje quedó nuevamente registrado y el equipo de Renergeia lo revisará. 🙏"
             : "Hola 👋 Soy *Helvis*, el asistente de *Renergeia*.\n\n" +
-              "Este número aún no está registrado conmigo. ¿Me cuentas el motivo del mensaje y con quién " +
-              "quieres hablar? Dejo el aviso al equipo de Renergeia para que te contacten.";
+              "¿Me cuentas tu nombre, tu empresa, el motivo del mensaje y con quién quieres hablar? " +
+              "Dejo el aviso al equipo de Renergeia para que te contacten.";
 
         await EnviarTextoAsync(null, mensaje.De, texto, ct);
 
@@ -605,8 +605,11 @@ public partial class WhatsAppConversacion
         var detalle = string.IsNullOrWhiteSpace(mensaje.Texto)
             ? "(envió un archivo o una nota de voz)"
             : $"«{Recortar(mensaje.Texto, 300)}»";
-        var aviso = $"📨 *Aviso de Helvis:* el número +{mensaje.De} escribió sin estar registrado:\n\n" +
-                    $"{detalle}\n\nLa conversación completa está en el panel de Helvis.";
+        // El nombre es el del perfil de WhatsApp de la persona (lo escribe ella misma; no está verificado).
+        var nombre = string.IsNullOrWhiteSpace(mensaje.Nombre) ? "" : $" (se identificó como *{Recortar(mensaje.Nombre.Trim(), 60)}*)";
+        var enlace = $"{_opciones.UrlApp.TrimEnd('/')}/helvis?conversacion={mensaje.De}";
+        var aviso = $"📨 *Aviso de Helvis:* el número +{mensaje.De}{nombre} escribió sin estar registrado:\n\n" +
+                    $"{detalle}\n\nLa conversación completa está en el panel de Helvis, si quieres ampliar la información:\n{enlace}";
 
         foreach (var admin in admins)
             await EnviarTextoAsync(admin, admin.Telefono, aviso, ct);
