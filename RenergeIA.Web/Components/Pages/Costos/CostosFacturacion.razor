@@ -1,0 +1,680 @@
+@using RenergeIA.Core.Entities
+@using RenergeIA.Core.Helpers
+@using RenergeIA.Web.Services
+@inject FacturacionService Fact
+@inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
+
+@* C3 · Avance de facturación: contrato, hitos ligados al cronograma, cierre mensual, acta y factura. *@
+
+<style>
+    .c3-card { background:#fff; border:1px solid #dfe3e8; border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+    .c3-sub { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+    .c3-sub button { border:1px solid #D9D9D6; background:#fff; color:#183963; border-radius:999px; padding:6px 14px; font-weight:600; font-size:.85rem; }
+    .c3-sub button.activo { background:#6ABF4B; border-color:#6ABF4B; color:#111921; }
+    .c3-kpi { background:#fff; border:1px solid #dfe3e8; border-radius:10px; padding:10px 14px; height:100%; }
+    .c3-kpi .t { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#5b6673; }
+    .c3-kpi .v { font-size:1.15rem; font-weight:700; }
+    .c3-tabla th { background:#183963; color:#fff; font-size:.75rem; white-space:nowrap; vertical-align:middle; }
+    .c3-tabla td { font-size:.8rem; vertical-align:middle; }
+    .c3-chip { display:inline-flex; align-items:center; gap:2px; background:#e8f5e4; color:#24601a; border-radius:999px; padding:2px 4px 2px 10px; font-size:.75rem; margin:2px; }
+    .c3-chip button { border:0; background:transparent; color:#24601a; font-size:1rem; line-height:1; padding:0 6px; }
+    .c3-estado { font-size:.7rem; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
+    .c3-fila-sel { background:#eef6ea !important; }
+</style>
+
+@if (_cargando)
+{
+    <p class="text-muted p-3">Cargando C3…</p>
+}
+else if (_contratos.Count == 0)
+{
+    <div class="c3-card text-center py-5">
+        <h2 class="h5 fw-bold" style="color:#183963">C3 · Avance de facturación</h2>
+        <p class="text-muted mb-4">Este proyecto aún no tiene contratos de facturación. Cree el primero (por ejemplo «Planta» o «Suministro»).</p>
+        <div class="d-flex justify-content-center gap-2 flex-wrap">
+            <input class="form-control" style="max-width:260px" placeholder="Nombre del contrato" @bind="_nuevoNombre" />
+            <select class="form-select" style="max-width:120px" @bind="_nuevaMoneda"><option>COP</option><option>USD</option></select>
+            <button class="btn text-white fw-semibold" style="background:#183963" @onclick="CrearContratoAsync">Crear contrato</button>
+        </div>
+    </div>
+}
+else if (_c is not null)
+{
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <label class="small fw-semibold text-muted" for="c3Contrato">Contrato</label>
+        <select id="c3Contrato" class="form-select form-select-sm" style="max-width:280px" value="@_c.Id" @onchange="CambiarContratoAsync">
+            @foreach (var k in _contratos)
+            {
+                <option value="@k.Id">@k.Nombre (@k.Moneda)</option>
+            }
+        </select>
+        @if (!_creando)
+        {
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _creando = true">+ Otro contrato</button>
+        }
+        else
+        {
+            <input class="form-control form-control-sm" style="max-width:200px" placeholder="Nombre" @bind="_nuevoNombre" />
+            <select class="form-select form-select-sm" style="max-width:90px" @bind="_nuevaMoneda"><option>COP</option><option>USD</option></select>
+            <button class="btn btn-sm text-white" style="background:#183963" @onclick="CrearContratoAsync">Crear</button>
+            <button class="btn btn-sm btn-link" @onclick="() => _creando = false">Cancelar</button>
+        }
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="c3-kpi"><div class="t">Valor de venta</div><div class="v">@M(_c.ValorVenta)</div></div></div>
+        <div class="col-6 col-lg-3"><div class="c3-kpi"><div class="t">Facturado (actas con factura)</div><div class="v">@M(Facturado)</div><div class="small text-muted">@P(_c.ValorVenta == 0 ? 0 : Facturado / _c.ValorVenta * 100) del contrato</div></div></div>
+        <div class="col-6 col-lg-3"><div class="c3-kpi"><div class="t">Facturable al corte @(FilaMesActual?.Corte.ToString("MMM yyyy") ?? "")</div><div class="v" style="color:#2f7d1e">@M(FilaMesActual?.Facturable ?? 0)</div><div class="small text-muted">antes de impuestos y anticipo</div></div></div>
+        <div class="col-6 col-lg-3"><div class="c3-kpi"><div class="t">Pendiente por facturar</div><div class="v">@M(Math.Max(0, _c.ValorVenta - Facturado))</div></div></div>
+    </div>
+
+    <div class="c3-sub">
+        @foreach (var (key, label) in _secciones)
+        {
+            <button class="@(_sec == key ? "activo" : "")" @onclick="() => _sec = key">@label</button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(_msg))
+    {
+        <div class="alert @(_msgError ? "alert-danger" : "alert-success") py-2 small">@_msg</div>
+    }
+
+    @* ==================== CONTRATO ==================== *@
+    @if (_sec == "contrato")
+    {
+        <div class="c3-card">
+            <h3 class="h6 fw-bold mb-1">Datos del contrato</h3>
+            <p class="small text-muted mb-3">El valor de venta y los porcentajes recalculan el C3. Las actas ya generadas no cambian.</p>
+            <div class="row g-3">
+                <div class="col-md-3"><label class="form-label small fw-semibold">Nombre</label><input class="form-control form-control-sm" @bind="_c.Nombre" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Contrato No.</label><input class="form-control form-control-sm" @bind="_c.NumeroContrato" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Fecha del contrato</label><input type="date" class="form-control form-control-sm" @bind="_c.FechaContrato" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Cliente</label><input class="form-control form-control-sm" @bind="_c.Cliente" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Valor de venta (@_c.Moneda, sin IVA)</label><input type="number" step="0.01" class="form-control form-control-sm fw-bold" style="border:2px solid #6ABF4B" @bind="_c.ValorVenta" /></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold">Moneda</label><select class="form-select form-select-sm" @bind="_c.Moneda"><option>COP</option><option>USD</option></select></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold">Anticipo (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctAnticipo" /></div>
+                <div class="col-md-2"><label class="form-label small fw-semibold">Por avance de obra (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctAvanceObra" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Plazo de pago (días)</label><input type="number" class="form-control form-control-sm" @bind="_c.PlazoPagoDias" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Culminación mecánica (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctCulminacionMecanica" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Culminación sustancial (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctCulminacionSustancial" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">Aceptación provisional (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctAceptacionProvisional" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">IVA (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctIva" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">AIU: Administración (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctAdministracion" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">AIU: Imprevistos (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctImprevistos" /></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold">AIU: Utilidad (%)</label><input type="number" step="0.01" class="form-control form-control-sm" @bind="_c.PctUtilidad" /></div>
+            </div>
+            @{ var sumaPct = _c.PctAvanceObra + _c.PctCulminacionMecanica + _c.PctCulminacionSustancial + _c.PctAceptacionProvisional; var sumaItems = _c.Items.Sum(i => i.Valor); }
+            <div class="mt-3 p-2 rounded small fw-semibold" style="@(Math.Abs(sumaPct - 100) < 0.01m ? "background:#e8f5e4;color:#24601a" : "background:#fbe9e7;color:#9b2c1f")">
+                @if (Math.Abs(sumaPct - 100) < 0.01m)
+                {
+                    <span>Los porcentajes suman 100 %: @P(_c.PctAvanceObra) por avance + @P(sumaPct - _c.PctAvanceObra) por hitos finales. Ítems cargados: @M(sumaItems) de @M(_c.ValorVenta).</span>
+                }
+                else
+                {
+                    <span>Atención: avance + hitos finales suman @P(sumaPct), no 100 %.</span>
+                }
+            </div>
+            <div class="d-flex gap-2 mt-3 flex-wrap">
+                <button class="btn btn-sm text-white fw-semibold" style="background:#183963" @onclick="GuardarContratoAsync">Guardar contrato</button>
+                <button class="btn btn-sm btn-outline-danger ms-auto" @onclick="EliminarContratoAsync">Eliminar contrato</button>
+            </div>
+        </div>
+    }
+
+    @* ==================== HITOS ==================== *@
+    @if (_sec == "hitos")
+    {
+        <div class="c3-card">
+            <h3 class="h6 fw-bold mb-1">Hitos e ítems de facturación</h3>
+            <p class="small text-muted mb-3">Cada ítem se asocia con una o varias actividades del cronograma (un código con actividades hijas incluye todas). De ellas sale el % sugerido de cada cierre. Sin actividad asociada, el % se digita a mano.</p>
+            <div class="table-responsive">
+                <table class="table table-sm c3-tabla mb-2" style="min-width:1050px">
+                    <thead><tr><th style="width:90px">Código</th><th>Ítem</th><th style="width:170px" class="text-end">Valor (@_c.Moneda)</th><th style="width:120px">Impuesto</th><th>Actividades del cronograma</th><th style="width:40px"></th></tr></thead>
+                    <tbody>
+                        @foreach (var it in _c.Items.OrderBy(i => i.Orden))
+                        {
+                            var codigos = CalculoFacturacion.CodigosWbs(it.ActividadesWbs);
+                            <tr>
+                                <td><input class="form-control form-control-sm" @bind="it.Codigo" /></td>
+                                <td><input class="form-control form-control-sm" @bind="it.Nombre" /></td>
+                                <td><input type="number" step="0.01" class="form-control form-control-sm text-end" @bind="it.Valor" /></td>
+                                <td>
+                                    <select class="form-select form-select-sm" @bind="it.Regimen">
+                                        <option value="@RegimenImpuestoFacturacion.IvaPleno">IVA pleno</option>
+                                        <option value="@RegimenImpuestoFacturacion.Aiu">AIU</option>
+                                        <option value="@RegimenImpuestoFacturacion.Exento">Exento</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    @foreach (var cod in codigos)
+                                    {
+                                        <span class="c3-chip">@cod @NombreActividad(cod)<button aria-label="Quitar actividad" @onclick="() => QuitarActividad(it, cod)">×</button></span>
+                                    }
+                                    @if (codigos.Count == 0) { <span class="small fw-semibold" style="color:#b7791f">Sin actividad: % a mano</span> }
+                                    <select class="form-select form-select-sm mt-1" style="max-width:360px" value="" @onchange="e => AgregarActividad(it, e.Value?.ToString())" aria-label="Agregar actividad del cronograma">
+                                        <option value="">+ Asociar actividad…</option>
+                                        @foreach (var a in _actividades)
+                                        {
+                                            <option value="@a.Codigo">@a.Codigo @a.Nombre</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><button class="btn btn-sm btn-link text-danger p-0" title="Eliminar ítem" aria-label="Eliminar ítem" @onclick="() => EliminarItemAsync(it)"><i class="bi-trash"></i></button></td>
+                            </tr>
+                        }
+                        <tr style="background:#f7f9fb">
+                            <td></td>
+                            <td class="fw-semibold">Hitos finales (culminación mecánica, sustancial y aceptación provisional)</td>
+                            <td class="text-end fw-semibold">@M(_c.ValorVenta * (_c.PctCulminacionMecanica + _c.PctCulminacionSustancial + _c.PctAceptacionProvisional) / 100)</td>
+                            <td>IVA pleno</td>
+                            <td colspan="2" class="text-muted">Se marcan en el cierre del mes en que se logran.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            @if (_actividades.Count == 0)
+            {
+                <div class="alert alert-warning py-2 small">El proyecto no tiene cronograma vigente: cargue el cronograma para asociar actividades.</div>
+            }
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-primary fw-semibold" @onclick="AgregarItemAsync">+ Agregar ítem</button>
+                <button class="btn btn-sm text-white fw-semibold" style="background:#183963" @onclick="GuardarItemsAsync">Guardar ítems</button>
+            </div>
+        </div>
+    }
+
+    @* ==================== CIERRE MENSUAL ==================== *@
+    @if (_sec == "cierre")
+    {
+        <div class="c3-card">
+            <h3 class="h6 fw-bold mb-1">Avance mes a mes</h3>
+            <p class="small text-muted mb-2">Planeado y real salen del cronograma; los meses futuros se proyectan con lo programado. Haga clic en un mes para abrir su cierre.</p>
+            <div class="table-responsive">
+                <table class="table table-sm c3-tabla mb-0" style="min-width:900px">
+                    <thead><tr><th>Corte</th><th class="text-end">% planeado</th><th class="text-end">% real</th><th class="text-end">Facturable del mes</th><th class="text-end">Total a facturar</th><th>Estado</th><th>Factura</th></tr></thead>
+                    <tbody>
+                        @foreach (var f in _resumen)
+                        {
+                            var est = EstadoFila(f);
+                            <tr class="@(_corte is not null && _corte.FechaCorte == f.Corte ? "c3-fila-sel" : "")">
+                                <td>
+                                    @if (f.Proyectado && f.CorteGuardado is null)
+                                    {
+                                        <span class="text-muted">@f.Corte.ToString("MMM yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-link btn-sm p-0 fw-bold" style="color:#183963" @onclick="() => AbrirMesAsync(f.Corte)">@f.Corte.ToString("MMM yyyy")</button>
+                                    }
+                                </td>
+                                <td class="text-end">@P(f.PctPlan)</td>
+                                <td class="text-end fw-semibold">@(f.Proyectado ? "Proy. " : "")@P(f.PctReal)</td>
+                                <td class="text-end">@M(f.Facturable)</td>
+                                <td class="text-end fw-semibold">@M(f.Total)</td>
+                                <td><span class="c3-estado" style="@est.Estilo">@est.Texto</span></td>
+                                <td>@(f.CorteGuardado?.NumeroFactura ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (_corte is not null)
+        {
+            var calc = FacturacionService.Calcular(_c, _corte);
+            var editable = _corte.Estado == EstadoCorteFacturacion.Borrador;
+            var yaHitos = FacturacionService.HitosYaFacturados(_c, _corte);
+            var estC = EstadoCorte(_corte);
+            <div class="c3-card">
+                <div class="d-flex justify-content-between flex-wrap gap-2 align-items-start">
+                    <div>
+                        <h3 class="h6 fw-bold mb-1">Cierre de @_corte.FechaCorte.ToString("MMMM yyyy") @(_corte.NumeroActa is int n && n > 0 ? $"· Acta {n}" : "")</h3>
+                        <p class="small text-muted mb-0">@(editable ? "Corte abierto: el % real viene del cronograma y se puede ajustar a mano antes de generar el acta." : "Corte cerrado: el acta ya se generó y sus valores quedan fijos.")</p>
+                    </div>
+                    <span class="c3-estado" style="@estC.Estilo">@estC.Texto</span>
+                </div>
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm c3-tabla mb-2" style="min-width:1000px">
+                        <thead><tr><th>Ítem</th><th class="text-end">Valor</th><th class="text-end">% planeado</th><th class="text-end">% cronograma</th><th class="text-end" style="width:150px">% real a facturar</th><th class="text-end">% facturado antes</th><th class="text-end">Avance del mes</th><th class="text-end">Valor a facturar</th></tr></thead>
+                        <tbody>
+                            @foreach (var it in _c.Items.OrderBy(i => i.Orden))
+                            {
+                                var d = _corte.Detalles.FirstOrDefault(x => x.ItemFacturacionId == it.Id);
+                                var l = calc.Lineas.FirstOrDefault(x => x.ItemId == it.Id);
+                                if (d is null) continue;
+                                <tr>
+                                    <td><div class="fw-semibold">@it.Codigo @it.Nombre</div><div class="small text-muted">@(string.Join(" · ", CalculoFacturacion.CodigosWbs(it.ActividadesWbs)) is { Length: > 0 } t ? t : "Sin actividad asociada")</div></td>
+                                    <td class="text-end">@M(it.Valor)</td>
+                                    <td class="text-end">@P(d.PctPlaneado)</td>
+                                    <td class="text-end text-muted">@(d.PctCronograma is decimal pc ? P(pc) : "—")</td>
+                                    <td class="text-end">
+                                        @if (editable)
+                                        {
+                                            <input type="number" step="0.1" class="form-control form-control-sm text-end d-inline-block" style="width:80px;@(d.AjustadoManual ? "border-color:#b7791f" : "")"
+                                                   value="@d.PctReal.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)" @onchange="e => AjustarAsync(d, e.Value?.ToString())" aria-label="% real a facturar" />
+                                            @if (d.AjustadoManual)
+                                            {
+                                                <div class="small fw-bold" style="color:#b7791f">Ajustado a mano <button class="btn btn-link btn-sm p-0" style="font-size:.7rem" @onclick="() => AjustarAsync(d, null)">volver al cronograma</button></div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="fw-semibold">@P(d.PctReal)</span>
+                                        }
+                                    </td>
+                                    <td class="text-end text-muted">@P(d.PctAnterior)</td>
+                                    <td class="text-end">@P(l?.Delta ?? 0)</td>
+                                    <td class="text-end fw-semibold">@M(l?.Monto ?? 0)</td>
+                                </tr>
+                            }
+                            @foreach (var (clave, nombre, pct, marcado, otro) in new[] {
+                                ("mec", "Culminación mecánica de la obra", _c.PctCulminacionMecanica, _corte.CulminacionMecanica, yaHitos.Mec),
+                                ("sus", "Culminación sustancial de la obra", _c.PctCulminacionSustancial, _corte.CulminacionSustancial, yaHitos.Sus),
+                                ("acep", "Aceptación provisional del proyecto", _c.PctAceptacionProvisional, _corte.AceptacionProvisional, yaHitos.Acep) })
+                            {
+                                <tr style="background:#fbfcf8">
+                                    <td colspan="4">
+                                        <label class="d-inline-flex gap-2 align-items-center">
+                                            <input type="checkbox" class="form-check-input mt-0" checked="@(marcado || otro)" disabled="@(!editable || otro)" @onchange="e => MarcarHitoAsync(clave, e.Value is true)" />
+                                            <span class="fw-semibold">@nombre</span> <span class="text-muted small">(@P(pct) del contrato)</span>
+                                        </label>
+                                    </td>
+                                    <td colspan="3" class="text-end text-muted small">@(otro ? "Ya facturado en otro corte" : marcado ? "Se factura en este corte" : "Pendiente")</td>
+                                    <td class="text-end fw-semibold">@(marcado ? M(_c.ValorVenta * pct / 100) : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start">
+                    <div class="small text-muted" style="flex:1 1 320px">
+                        <b class="text-dark">Cómo se calcula:</b> valor del ítem × @P(_c.PctAvanceObra) × (avance real acumulado − lo ya facturado). Los hitos finales se suman cuando se marcan. Luego AIU (obra civil), IVA y amortización del anticipo (@P(_c.PctAnticipo)).
+                    </div>
+                    <table class="table table-sm mb-0" style="flex:0 1 420px;min-width:300px">
+                        <tbody>
+                            <tr><td>Facturable por avance</td><td class="text-end">@M(calc.BaseAvance)</td></tr>
+                            <tr><td>Hitos finales</td><td class="text-end">@M(calc.BaseHitos)</td></tr>
+                            <tr><td>AIU obra civil (A @P(_c.PctAdministracion) · I @P(_c.PctImprevistos) · U @P(_c.PctUtilidad))</td><td class="text-end">@M(calc.Aiu)</td></tr>
+                            <tr><td>IVA (@P(_c.PctIva) pleno y sobre la utilidad)</td><td class="text-end">@M(calc.Iva)</td></tr>
+                            <tr style="color:#b23b2e"><td>Amortización del anticipo</td><td class="text-end">− @M(calc.Amortizacion)</td></tr>
+                            <tr class="fw-bold" style="border-top:2px solid #183963"><td>Total a facturar</td><td class="text-end">@M(calc.Total)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 justify-content-end flex-wrap mt-3">
+                    @if (editable)
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="RefrescarCorteAsync">Actualizar desde el cronograma</button>
+                        <button class="btn text-white fw-bold" style="background:#183963" @onclick="GenerarActaAsync">Generar acta de @_corte.FechaCorte.ToString("MMMM yyyy")</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-primary fw-semibold" @onclick="VerActaDelCorte">Ver acta y factura</button>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @* ==================== ACTAS Y FACTURAS ==================== *@
+    @if (_sec == "actas")
+    {
+        <div class="row g-3">
+            <div class="col-lg-4">
+                <div class="c3-card">
+                    <h3 class="h6 fw-bold mb-2">Actas</h3>
+                    @if (!_c.Cortes.Any(k => k.Tipo == TipoCorteFacturacion.Anticipo) && _c.PctAnticipo > 0)
+                    {
+                        <button class="btn btn-sm btn-outline-primary w-100 mb-2" @onclick="CrearAnticipoAsync">Generar acta del anticipo (@M(CalculoFacturacion.ValorAnticipo(_c)))</button>
+                    }
+                    @foreach (var k in Actas)
+                    {
+                        var e = EstadoCorte(k);
+                        <button class="w-100 text-start mb-2 p-2 rounded-3" style="background:#fff;border:@(_actaSel == k ? "2px solid #6ABF4B" : "1px solid #dfe3e8")" @onclick="() => _actaSel = k">
+                            <div class="d-flex justify-content-between gap-2"><b>@TituloActa(k)</b><span class="c3-estado" style="@e.Estilo">@e.Texto</span></div>
+                            <div class="d-flex justify-content-between small text-muted"><span>@M(k.Total)</span><span>@(k.NumeroFactura ?? "Sin factura")</span></div>
+                        </button>
+                    }
+                    @if (!Actas.Any())
+                    {
+                        <p class="small text-muted mb-0">Aún no hay actas. Se generan desde «Cierre mensual».</p>
+                    }
+                </div>
+            </div>
+            <div class="col-lg-8">
+                @if (_actaSel is null)
+                {
+                    <div class="c3-card text-center text-muted py-5">Seleccione un acta.</div>
+                }
+                else
+                {
+                    <div class="c3-card">
+                        <div class="d-flex justify-content-between flex-wrap gap-2">
+                            <div>
+                                <h3 class="h6 fw-bold mb-0">@TituloActa(_actaSel)</h3>
+                                <div class="small text-muted">Generada @(_actaSel.FechaActa?.AddHours(-5).ToString("dd/MM/yyyy")) por @(_actaSel.ActaGeneradaPor ?? "—")</div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-sm text-white fw-semibold" style="background:#183963" href="/proyectos/@ProyectoId/costos/acta/@_actaSel.Id" target="_blank">Ver e imprimir acta</a>
+                                @if (_actaSel.Estado == EstadoCorteFacturacion.ActaGenerada)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ReabrirActaAsync">Reabrir para corregir</button>
+                                }
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-2 small">
+                            <div class="col-6 col-md-3"><div class="text-muted">Subtotal</div><div class="fw-semibold">@M(_actaSel.BaseAvance + _actaSel.BaseHitos + _actaSel.ValorAiu)</div></div>
+                            <div class="col-6 col-md-3"><div class="text-muted">IVA</div><div class="fw-semibold">@M(_actaSel.ValorIva)</div></div>
+                            <div class="col-6 col-md-3"><div class="text-muted">Amortización anticipo</div><div class="fw-semibold">@M(_actaSel.Amortizacion)</div></div>
+                            <div class="col-6 col-md-3"><div class="text-muted">Total del acta</div><div class="fw-bold">@M(_actaSel.Total)</div></div>
+                        </div>
+                    </div>
+                    <div class="c3-card">
+                        <h3 class="h6 fw-bold mb-1">Factura asociada</h3>
+                        @if (_actaSel.Estado == EstadoCorteFacturacion.Facturada)
+                        {
+                            <div class="row g-2 small">
+                                <div class="col-6 col-md-3"><div class="text-muted">Número</div><div class="fw-bold">@_actaSel.NumeroFactura</div></div>
+                                <div class="col-6 col-md-3"><div class="text-muted">Fecha de factura</div><div class="fw-bold">@_actaSel.FechaFactura?.ToString("dd/MM/yyyy")</div></div>
+                                <div class="col-6 col-md-3"><div class="text-muted">Plazo de pago</div><div class="fw-bold">@_actaSel.PlazoPagoDias días</div></div>
+                                <div class="col-6 col-md-3"><div class="text-muted">Ingreso en el flujo de caja</div><div class="fw-bold" style="color:#2f7d1e">@_actaSel.FechaPagoEstimada?.ToString("dd/MM/yyyy")</div></div>
+                            </div>
+                            <button class="btn btn-sm btn-link text-danger p-0 mt-2" @onclick="QuitarFacturaAsync">Quitar factura</button>
+                        }
+                        else
+                        {
+                            <p class="small text-muted">Digite el número de la factura emitida. Desde ese momento el valor queda como ingreso estimado en el flujo de caja del Consolidado, en la fecha de factura + el plazo de pago.</p>
+                            <div class="d-flex flex-wrap gap-2 align-items-end">
+                                <div><label class="form-label small fw-semibold mb-1" for="c3Fac">Número de factura</label><input id="c3Fac" class="form-control form-control-sm" placeholder="Ej.: FE-0533" @bind="_facNumero" /></div>
+                                <div><label class="form-label small fw-semibold mb-1" for="c3FacF">Fecha</label><input id="c3FacF" type="date" class="form-control form-control-sm" @bind="_facFecha" /></div>
+                                <div><label class="form-label small fw-semibold mb-1" for="c3Plazo">Plazo (días)</label><input id="c3Plazo" type="number" class="form-control form-control-sm" style="width:90px" @bind="_facPlazo" /></div>
+                                <button class="btn btn-sm fw-bold" style="background:#6ABF4B;color:#111921" disabled="@string.IsNullOrWhiteSpace(_facNumero)" @onclick="RegistrarFacturaAsync">Asociar factura</button>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="c3-card">
+                    <h3 class="h6 fw-bold mb-1">Ingresos que pasan al flujo de caja</h3>
+                    <p class="small text-muted mb-2">Facturas registradas en todos los contratos del proyecto. Así aparecen en la columna Ingresos del Consolidado.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm c3-tabla mb-0">
+                            <thead><tr><th>Ingreso estimado</th><th>Contrato</th><th>Concepto</th><th>Factura</th><th class="text-end">Valor</th></tr></thead>
+                            <tbody>
+                                @foreach (var i in _ingresos)
+                                {
+                                    <tr><td>@i.FechaPago.ToString("dd/MM/yyyy")</td><td>@i.Contrato</td><td>@i.Concepto</td><td>@i.NumeroFactura</td><td class="text-end fw-semibold">@MonedaFmt(i.Moneda, i.Total)</td></tr>
+                                }
+                                @if (_ingresos.Count == 0)
+                                {
+                                    <tr><td colspan="5" class="text-muted text-center">Aún no hay facturas registradas.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+
+    private bool _cargando = true;
+    private List<ContratoFacturacion> _contratos = [];
+    private ContratoFacturacion? _c;
+    private List<(string Codigo, string Nombre)> _actividades = [];
+    private List<FacturacionService.FilaMes> _resumen = [];
+    private List<FacturacionService.IngresoFacturado> _ingresos = [];
+    private CorteFacturacion? _corte;
+    private CorteFacturacion? _actaSel;
+    private string _sec = "cierre";
+    private string? _msg;
+    private bool _msgError;
+    private string _usuario = "";
+    private bool _creando;
+    private string _nuevoNombre = "Planta";
+    private string _nuevaMoneda = "COP";
+    private string? _facNumero;
+    private DateTime _facFecha = SeguimientoDocumento.HoyColombia();
+    private int _facPlazo = 30;
+
+    private static readonly (string, string)[] _secciones =
+        [("contrato", "Contrato"), ("hitos", "Hitos de facturación"), ("cierre", "Cierre mensual"), ("actas", "Actas y facturas")];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuario = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.Name ?? "";
+        _actividades = await Fact.ActividadesCronogramaAsync(ProyectoId);
+        await CargarAsync(null);
+    }
+
+    private async Task CargarAsync(int? contratoId)
+    {
+        _cargando = true;
+        _contratos = await Fact.ContratosAsync(ProyectoId);
+        _c = _contratos.FirstOrDefault(k => k.Id == contratoId) ?? _contratos.FirstOrDefault();
+        if (_c is null) { _sec = "contrato"; _cargando = false; return; }
+        if (_c.Items.Count == 0 && _sec == "cierre") _sec = "hitos";
+        _facPlazo = _c.PlazoPagoDias;
+        await RecalcularVistasAsync();
+        _cargando = false;
+    }
+
+    private async Task RecalcularVistasAsync()
+    {
+        if (_c is null) return;
+        var (desde, hasta) = await Fact.RangoMesesAsync(_c);
+        _resumen = await Fact.ResumenMesAMesAsync(_c, desde, hasta);
+        _ingresos = await Fact.IngresosFacturadosAsync(ProyectoId);
+        if (_corte is not null && !_c.Cortes.Contains(_corte)) _corte = null;
+        if (_actaSel is not null && !_c.Cortes.Contains(_actaSel)) _actaSel = null;
+        _actaSel ??= Actas.LastOrDefault();
+    }
+
+    private FacturacionService.FilaMes? FilaMesActual =>
+        _resumen.LastOrDefault(f => !f.Proyectado) ?? _resumen.FirstOrDefault();
+
+    private decimal Facturado => _c?.Cortes.Where(k => k.Estado == EstadoCorteFacturacion.Facturada)
+        .Sum(k => k.Tipo == TipoCorteFacturacion.Anticipo ? 0 : k.BaseAvance + k.BaseHitos) ?? 0;
+
+    private IEnumerable<CorteFacturacion> Actas => _c?.Cortes
+        .Where(k => k.Estado != EstadoCorteFacturacion.Borrador)
+        .OrderBy(k => k.Tipo == TipoCorteFacturacion.Anticipo ? 0 : 1).ThenBy(k => k.FechaCorte) ?? Enumerable.Empty<CorteFacturacion>();
+
+    private static string TituloActa(CorteFacturacion k) =>
+        k.Tipo == TipoCorteFacturacion.Anticipo ? "Acta de anticipo" : $"Acta {k.NumeroActa} · {k.FechaCorte:MMMM yyyy}";
+
+    private string NombreActividad(string codigo) =>
+        _actividades.FirstOrDefault(a => a.Codigo == codigo).Nombre ?? "(no está en el cronograma vigente)";
+
+    // ---------- formato ----------
+    private string M(decimal v) => MonedaFmt(_c?.Moneda ?? "COP", v);
+    private static string MonedaFmt(string moneda, decimal v) => moneda == "USD"
+        ? "US$ " + v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-US"))
+        : "$ " + v.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-CO"));
+    private static string P(decimal v) => v.ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("es-CO")) + " %";
+
+    private record EstadoVis(string Texto, string Estilo);
+    private static EstadoVis EstadoCorte(CorteFacturacion k) => k.Estado switch
+    {
+        EstadoCorteFacturacion.Facturada => new("Facturada", "background:#e8f5e4;color:#24601a"),
+        EstadoCorteFacturacion.ActaGenerada => new("Acta generada", "background:#e7edf6;color:#183963"),
+        _ => new("Corte abierto", "background:#fdf3e1;color:#8a5a12")
+    };
+    private static EstadoVis EstadoFila(FacturacionService.FilaMes f) =>
+        f.CorteGuardado is { } k && k.Estado != EstadoCorteFacturacion.Borrador ? EstadoCorte(k)
+        : f.Proyectado ? new("Proyectado", "background:#f0f2f5;color:#5b6673")
+        : f.CorteGuardado is not null ? new("Corte abierto", "background:#fdf3e1;color:#8a5a12")
+        : new("Sin cierre", "background:#f0f2f5;color:#5b6673");
+
+    private void Avisar(string texto, bool error = false) { _msg = texto; _msgError = error; }
+
+    // ---------- contrato ----------
+    private async Task CrearContratoAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_nuevoNombre)) return;
+        var c = await Fact.CrearContratoAsync(ProyectoId, _nuevoNombre.Trim(), _nuevaMoneda);
+        _creando = false;
+        _sec = "contrato";
+        await CargarAsync(c.Id);
+        Avisar("Contrato creado. Complete sus datos y luego cargue los hitos de facturación.");
+    }
+
+    private async Task CambiarContratoAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id)) { _corte = null; _actaSel = null; _msg = null; await CargarAsync(id); }
+    }
+
+    private async Task GuardarContratoAsync()
+    {
+        await Fact.GuardarAsync();
+        await RecalcularVistasAsync();
+        Avisar("Contrato guardado.");
+    }
+
+    private async Task EliminarContratoAsync()
+    {
+        if (_c is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"¿Eliminar el contrato «{_c.Nombre}» del C3? Se podrá recuperar desde la base de datos.")) return;
+        await Fact.EliminarContratoAsync(_c);
+        _corte = null; _actaSel = null;
+        await CargarAsync(null);
+        Avisar("Contrato eliminado.");
+    }
+
+    // ---------- ítems ----------
+    private async Task AgregarItemAsync()
+    {
+        if (_c is null) return;
+        await Fact.AgregarItemAsync(_c);
+        _msg = null;
+    }
+
+    private async Task GuardarItemsAsync()
+    {
+        await Fact.GuardarAsync();
+        if (_corte is { Estado: EstadoCorteFacturacion.Borrador } && _c is not null) _corte = await Fact.AbrirCorteAsync(_c, _corte.FechaCorte);
+        await RecalcularVistasAsync();
+        Avisar("Ítems guardados.");
+    }
+
+    private async Task EliminarItemAsync(ItemFacturacion it)
+    {
+        if (_c is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"¿Eliminar el ítem «{it.Codigo} {it.Nombre}»?")) return;
+        var error = await Fact.EliminarItemAsync(_c, it);
+        if (error is not null) { Avisar(error, true); return; }
+        await RecalcularVistasAsync();
+        Avisar("Ítem eliminado.");
+    }
+
+    private void AgregarActividad(ItemFacturacion it, string? codigo)
+    {
+        if (string.IsNullOrWhiteSpace(codigo)) return;
+        it.ActividadesWbs = CalculoFacturacion.UnirCodigos(CalculoFacturacion.CodigosWbs(it.ActividadesWbs).Append(codigo));
+        Avisar("Actividad asociada. Recuerde «Guardar ítems».");
+    }
+
+    private void QuitarActividad(ItemFacturacion it, string codigo)
+    {
+        it.ActividadesWbs = CalculoFacturacion.UnirCodigos(CalculoFacturacion.CodigosWbs(it.ActividadesWbs).Where(c => c != codigo));
+        Avisar("Actividad quitada. Recuerde «Guardar ítems».");
+    }
+
+    // ---------- cierre ----------
+    private async Task AbrirMesAsync(DateTime corte)
+    {
+        if (_c is null) return;
+        if (_c.Items.Count == 0) { Avisar("Primero cargue los hitos de facturación.", true); return; }
+        _corte = await Fact.AbrirCorteAsync(_c, corte);
+        _msg = null;
+        await RecalcularVistasAsync();
+    }
+
+    private async Task RefrescarCorteAsync()
+    {
+        if (_c is null || _corte is null) return;
+        _corte = await Fact.AbrirCorteAsync(_c, _corte.FechaCorte);
+        await RecalcularVistasAsync();
+        Avisar("Cierre actualizado con el avance actual del cronograma.");
+    }
+
+    private async Task AjustarAsync(DetalleCorteFacturacion d, string? texto)
+    {
+        if (_c is null || _corte is null) return;
+        decimal? pct = null;
+        if (texto is not null)
+        {
+            if (!decimal.TryParse(texto.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var v)) return;
+            pct = v;
+        }
+        await Fact.AjustarPctAsync(_c, _corte, d, pct, _usuario);
+        await RecalcularVistasAsync();
+    }
+
+    private async Task MarcarHitoAsync(string clave, bool valor)
+    {
+        if (_c is null || _corte is null) return;
+        await Fact.MarcarHitoAsync(_c, _corte, clave, valor);
+        await RecalcularVistasAsync();
+    }
+
+    private async Task GenerarActaAsync()
+    {
+        if (_c is null || _corte is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"¿Generar el acta de {_corte.FechaCorte:MMMM yyyy}? Sus valores quedarán fijos.")) return;
+        await Fact.GenerarActaAsync(_c, _corte, _usuario);
+        _actaSel = _corte;
+        _sec = "actas";
+        await RecalcularVistasAsync();
+        Avisar($"Acta {_corte.NumeroActa} generada. Ya puede verla, imprimirla y asociarle la factura.");
+    }
+
+    // ---------- actas y facturas ----------
+    private void VerActaDelCorte()
+    {
+        _actaSel = _corte;
+        _sec = "actas";
+    }
+
+    private async Task CrearAnticipoAsync()
+    {
+        if (_c is null) return;
+        _actaSel = await Fact.AnticipoAsync(_c, _usuario);
+        await RecalcularVistasAsync();
+        Avisar("Acta del anticipo generada.");
+    }
+
+    private async Task ReabrirActaAsync()
+    {
+        if (_c is null || _actaSel is null) return;
+        var error = await Fact.ReabrirActaAsync(_c, _actaSel);
+        if (error is not null) { Avisar(error, true); return; }
+        if (_actaSel.Tipo == TipoCorteFacturacion.Mensual) { _corte = _actaSel; _sec = "cierre"; }
+        _actaSel = null;
+        await RecalcularVistasAsync();
+        Avisar("El acta volvió a borrador para corregirla.");
+    }
+
+    private async Task RegistrarFacturaAsync()
+    {
+        if (_c is null || _actaSel is null || string.IsNullOrWhiteSpace(_facNumero)) return;
+        await Fact.RegistrarFacturaAsync(_c, _actaSel, _facNumero, _facFecha, _facPlazo, _usuario);
+        _facNumero = null;
+        await RecalcularVistasAsync();
+        Avisar("Factura asociada. Ya aparece como ingreso en el flujo de caja del Consolidado.");
+    }
+
+    private async Task QuitarFacturaAsync()
+    {
+        if (_actaSel is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "¿Quitar la factura de esta acta? Dejará de contar como ingreso en el flujo de caja.")) return;
+        await Fact.QuitarFacturaAsync(_actaSel);
+        await RecalcularVistasAsync();
+        Avisar("Factura quitada.");
+    }
+}

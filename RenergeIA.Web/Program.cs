@@ -45,6 +45,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<RenergeIA.Web.Services.Acceso.PermisosService>();
 builder.Services.AddScoped<RenergeIA.Web.Services.Acceso.UsuariosAccesoService>();
 builder.Services.AddScoped<InformeDiarioService>();
+builder.Services.AddScoped<FacturacionService>();
 builder.Services.AddScoped<DocumentoService>();
 builder.Services.AddScoped<PlanificacionDocumentalService>();
 builder.Services.AddScoped<CostoService>();

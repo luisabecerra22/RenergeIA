@@ -3,6 +3,7 @@
 @inject IHttpClientFactory HttpFactory
 @inject IJSRuntime JS
 @inject AnalisisIAService AnalisisIA
+@inject RenergeIA.Web.Services.FacturacionService Facturacion
 @using RenergeIA.Infrastructure.Services
 @using Microsoft.EntityFrameworkCore
 @using RenergeIA.Core.Enums
@@ -585,11 +586,11 @@ else if (_vista == "detalle" && _informe is not null)
                                 </tr>
                                 <tr style="background:#e8f0fe">
                                     <th class="text-center flujo-th">Semana</th>
-                                    <th class="text-center flujo-th">Ingresos</th>
+                                    <th class="text-center flujo-th" title="@(IngresosDesdeC3 ? "Facturas registradas en el C3 · Avance de facturación, en la semana de su fecha estimada de pago" : "Ingresos digitados")">Ingresos@(IngresosDesdeC3 ? " (C3)" : "")</th>
                                     <th class="text-center flujo-th">Pagos</th>
                                     <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
                                     <th class="text-center flujo-th">Semana</th>
-                                    <th class="text-center flujo-th">Ingresos</th>
+                                    <th class="text-center flujo-th" title="@(IngresosDesdeC3 ? "Facturas registradas en el C3 · Avance de facturación, en la semana de su fecha estimada de pago" : "Ingresos digitados")">Ingresos@(IngresosDesdeC3 ? " (C3)" : "")</th>
                                     <th class="text-center flujo-th">Pagos</th>
                                     <th class="text-center flujo-th" style="background:#dce8f5">Caja</th>
                                     <th class="text-center flujo-th" style="background:#fff3cd">Variación</th>
@@ -603,13 +604,14 @@ else if (_vista == "detalle" && _informe is not null)
                                     var ingresos = IngresosDe(tipo, semana);
                                     var pagos = PagosDe(_pagosActual, semana, tipo);
                                     var pagosAnt = PagosDe(_pagosAnterior, semana, tipo);
+                                    var ingresosAnt = IngresosDesdeC3 && _corteAnterior is DateTime ca ? IngresosDe(tipo, semana, ca) : 0m;
                                     cajaAcumT += ingresos - pagos;
-                                    cajaAcumAntT += 0 - pagosAnt; // ingresos del corte anterior: pendiente la hoja de ingresos
+                                    cajaAcumAntT += ingresosAnt - pagosAnt; // ingresos al corte anterior: facturas del C3 emitidas hasta esa fecha
                                     var varT = cajaAcumT - cajaAcumAntT;
                                     <tr>
                                         <td class="text-center">@semana.ToString("d/MM/yyyy")</td>
                                         <td class="text-end">
-                                            @if (_editando)
+                                            @if (_editando && !IngresosDesdeC3)
                                             {
                                                 <input type="number" class="form-control form-control-sm text-end p-0 border-0" style="width:75px;display:inline"
                                                        value="@ingresos" @onchange="e => GuardarIngreso(tipo, semana, e.Value?.ToString())" step="0.01" />
@@ -625,7 +627,7 @@ else if (_vista == "detalle" && _informe is not null)
                                         </td>
                                         <td class="flujo-sep"></td>
                                         <td class="text-center">@semana.ToString("d/MM/yyyy")</td>
-                                        <td class="text-end">-</td>
+                                        <td class="text-end">@(ingresosAnt != 0 ? ingresosAnt.ToString("N0") : "-")</td>
                                         <td class="text-end">@(pagosAnt != 0 ? pagosAnt.ToString("N0") : "-")</td>
                                         <td class="text-end fw-semibold @(cajaAcumAntT < 0 ? "text-danger" : "")" style="background:#f0f4ff">
                                             @(cajaAcumAntT != 0 ? cajaAcumAntT.ToString("N0") : "-")
@@ -942,8 +944,28 @@ else if (_vista == "detalle" && _informe is not null)
         };
     }
 
-    private decimal IngresosDe(string tipo, DateTime semana) =>
-        _informe?.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana)?.Ingresos ?? 0;
+    // Ingresos: si el proyecto tiene facturas en el C3 (Avance de facturación), salen de ahí —cada factura
+    // cae en la semana de su fecha estimada de pago— y ya no se digitan. Sin C3 se conserva el ingreso digitado.
+    private List<RenergeIA.Web.Services.FacturacionService.IngresoFacturado> _ingresosC3 = [];
+    private bool IngresosDesdeC3 => _ingresosC3.Count > 0;
+
+    private decimal IngresosDe(string tipo, DateTime semana) => IngresosDe(tipo, semana, null);
+
+    private decimal IngresosDe(string tipo, DateTime semana, DateTime? facturadasHasta)
+    {
+        if (!IngresosDesdeC3)
+            return facturadasHasta is null
+                ? _informe?.FlujosCaja.FirstOrDefault(x => x.TipoFlujo == tipo && x.Semana == semana)?.Ingresos ?? 0
+                : 0;
+        var trm = _informe is { TRM: > 0 } ? _informe.TRM : 4000m;
+        decimal cop = 0, usd = 0;
+        foreach (var i in _ingresosC3.Where(i => i.FechaPago.Date >= semana.Date && i.FechaPago.Date < semana.Date.AddDays(7)
+                     && (facturadasHasta is null || (i.FechaFactura ?? i.FechaPago) <= facturadasHasta.Value)))
+        {
+            if (i.Moneda == "USD") usd += i.Total; else cop += i.Total;
+        }
+        return tipo switch { "USD" => usd, "COP" => cop, _ => usd + cop / trm };
+    }
 
     private void GuardarIngreso(string tipo, DateTime semana, string? texto)
     {
@@ -1161,6 +1183,7 @@ else if (_vista == "detalle" && _informe is not null)
             : null;
         _comparacionId = _anterior?.Id ?? 0;
         _proyecto = await Db.Proyectos.FindAsync(_informe.ProyectoId);
+        _ingresosC3 = await Facturacion.IngresosFacturadosAsync(_informe.ProyectoId);
         await DeterminarBloqueoFechasFlujo();
         await CargarCortesAsync();
         if (editar) await RecalcularDesdePartidasAsync();

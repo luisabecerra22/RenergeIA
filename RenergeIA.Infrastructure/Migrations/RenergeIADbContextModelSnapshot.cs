@@ -1165,6 +1165,182 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("CompromisosReunion", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ContratoFacturacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<bool>("Eliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FechaContrato")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Moneda")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("NumeroContrato")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PctAceptacionProvisional")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctAdministracion")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctAnticipo")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctAvanceObra")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctCulminacionMecanica")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctCulminacionSustancial")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctImprevistos")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctIva")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctUtilidad")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<int>("PlazoPagoDias")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProyectoId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ValorVenta")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProyectoId");
+
+                    b.ToTable("ContratosFacturacion", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CorteFacturacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AceptacionProvisional")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ActaGeneradaPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Amortizacion")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<decimal>("BaseAvance")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<decimal>("BaseHitos")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<int>("ContratoFacturacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("CulminacionMecanica")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CulminacionSustancial")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FacturaRegistradaPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("FechaActa")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCorte")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaFactura")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaPagoEstimada")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("NumeroActa")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NumeroFactura")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("PlazoPagoDias")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<decimal>("ValorAiu")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<decimal>("ValorIva")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContratoFacturacionId", "Tipo", "FechaCorte")
+                        .IsUnique();
+
+                    b.ToTable("CortesFacturacion", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.CorteFlujoTesoreria", b =>
                 {
                     b.Property<int>("Id")
@@ -1303,6 +1479,58 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.HasIndex("ProyectoId");
 
                     b.ToTable("CronogramasVersion", (string)null);
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.DetalleCorteFacturacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AjustadoManual")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AjustadoPor")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("CorteFacturacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ItemFacturacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Monto")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.Property<decimal>("PctAnterior")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal?>("PctCronograma")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctPlaneado")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<decimal>("PctReal")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemFacturacionId");
+
+                    b.HasIndex("CorteFacturacionId", "ItemFacturacionId")
+                        .IsUnique();
+
+                    b.ToTable("DetallesCorteFacturacion", (string)null);
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.Documento", b =>
@@ -4650,6 +4878,53 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.ToTable("InformesDiarios", (string)null);
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ItemFacturacion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActividadesWbs")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ContratoFacturacionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Regimen")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Valor")
+                        .HasColumnType("decimal(20,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContratoFacturacionId");
+
+                    b.ToTable("ItemsFacturacion", (string)null);
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.ItemHistograma", b =>
                 {
                     b.Property<int>("Id")
@@ -6353,6 +6628,28 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("ContinuidadDe");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ContratoFacturacion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
+                        .WithMany()
+                        .HasForeignKey("ProyectoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Proyecto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CorteFacturacion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ContratoFacturacion", "Contrato")
+                        .WithMany("Cortes")
+                        .HasForeignKey("ContratoFacturacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contrato");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.CorteFlujoTesoreria", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.Proyecto", "Proyecto")
@@ -6384,6 +6681,25 @@ namespace RenergeIA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Proyecto");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.DetalleCorteFacturacion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.CorteFacturacion", "Corte")
+                        .WithMany("Detalles")
+                        .HasForeignKey("CorteFacturacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RenergeIA.Core.Entities.ItemFacturacion", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemFacturacionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Corte");
+
+                    b.Navigation("Item");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.Documento", b =>
@@ -6987,6 +7303,17 @@ namespace RenergeIA.Infrastructure.Migrations
                     b.Navigation("Proyecto");
                 });
 
+            modelBuilder.Entity("RenergeIA.Core.Entities.ItemFacturacion", b =>
+                {
+                    b.HasOne("RenergeIA.Core.Entities.ContratoFacturacion", "Contrato")
+                        .WithMany("Items")
+                        .HasForeignKey("ContratoFacturacionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contrato");
+                });
+
             modelBuilder.Entity("RenergeIA.Core.Entities.ItemHistograma", b =>
                 {
                     b.HasOne("RenergeIA.Core.Entities.PlantillaHistograma", "PlantillaHistograma")
@@ -7308,6 +7635,18 @@ namespace RenergeIA.Infrastructure.Migrations
             modelBuilder.Entity("RenergeIA.Core.Entities.CompromisoReunion", b =>
                 {
                     b.Navigation("Actualizaciones");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.ContratoFacturacion", b =>
+                {
+                    b.Navigation("Cortes");
+
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("RenergeIA.Core.Entities.CorteFacturacion", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("RenergeIA.Core.Entities.CronogramaVersion", b =>

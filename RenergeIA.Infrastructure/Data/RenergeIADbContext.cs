@@ -50,6 +50,10 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
     public DbSet<AsignacionTesoreria> AsignacionesTesoreria => Set<AsignacionTesoreria>();
     public DbSet<PersonalHistogramaMes> PersonalHistogramaMeses => Set<PersonalHistogramaMes>();
     public DbSet<CorteFlujoTesoreria> CortesFlujoTesoreria => Set<CorteFlujoTesoreria>();
+    public DbSet<ContratoFacturacion> ContratosFacturacion => Set<ContratoFacturacion>();
+    public DbSet<ItemFacturacion> ItemsFacturacion => Set<ItemFacturacion>();
+    public DbSet<CorteFacturacion> CortesFacturacion => Set<CorteFacturacion>();
+    public DbSet<DetalleCorteFacturacion> DetallesCorteFacturacion => Set<DetalleCorteFacturacion>();
     public DbSet<ActaReunion> ActasReunion => Set<ActaReunion>();
     public DbSet<CompromisoReunion> CompromisosReunion => Set<CompromisoReunion>();
     public DbSet<ActualizacionCompromisoReunion> ActualizacionesCompromisoReunion => Set<ActualizacionCompromisoReunion>();
@@ -409,6 +413,64 @@ public class RenergeIADbContext : IdentityDbContext<ApplicationUser>, IDataProte
             e.Property(x => x.PagosUSD).HasColumnType("decimal(18,2)");
             e.HasIndex(x => new { x.ProyectoId, x.FechaCorte, x.Semana }).IsUnique();
             e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ===== C3 · Avance de facturación =====
+        modelBuilder.Entity<ContratoFacturacion>(e =>
+        {
+            e.ToTable("ContratosFacturacion");
+            e.Property(x => x.Nombre).HasMaxLength(150);
+            e.Property(x => x.NumeroContrato).HasMaxLength(100);
+            e.Property(x => x.Moneda).HasMaxLength(3);
+            e.Property(x => x.Cliente).HasMaxLength(150);
+            e.Property(x => x.ValorVenta).HasColumnType("decimal(20,2)");
+            foreach (var p in new[] { nameof(ContratoFacturacion.PctAnticipo), nameof(ContratoFacturacion.PctAvanceObra),
+                         nameof(ContratoFacturacion.PctCulminacionMecanica), nameof(ContratoFacturacion.PctCulminacionSustancial),
+                         nameof(ContratoFacturacion.PctAceptacionProvisional), nameof(ContratoFacturacion.PctIva),
+                         nameof(ContratoFacturacion.PctAdministracion), nameof(ContratoFacturacion.PctImprevistos),
+                         nameof(ContratoFacturacion.PctUtilidad) })
+                e.Property(p).HasColumnType("decimal(9,4)");
+            e.HasQueryFilter(x => !x.Eliminado);
+            e.HasIndex(x => x.ProyectoId);
+            e.HasOne(x => x.Proyecto).WithMany().HasForeignKey(x => x.ProyectoId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ItemFacturacion>(e =>
+        {
+            e.ToTable("ItemsFacturacion");
+            e.Property(x => x.Codigo).HasMaxLength(50);
+            e.Property(x => x.Nombre).HasMaxLength(300);
+            e.Property(x => x.Valor).HasColumnType("decimal(20,2)");
+            e.Property(x => x.Regimen).HasConversion<int>();
+            e.Property(x => x.ActividadesWbs).HasMaxLength(2000);
+            e.HasOne(x => x.Contrato).WithMany(c => c.Items).HasForeignKey(x => x.ContratoFacturacionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CorteFacturacion>(e =>
+        {
+            e.ToTable("CortesFacturacion");
+            e.Property(x => x.Tipo).HasConversion<int>();
+            e.Property(x => x.Estado).HasConversion<int>();
+            e.Property(x => x.ActaGeneradaPor).HasMaxLength(200);
+            e.Property(x => x.NumeroFactura).HasMaxLength(60);
+            e.Property(x => x.FacturaRegistradaPor).HasMaxLength(200);
+            e.Property(x => x.Observaciones).HasMaxLength(2000);
+            foreach (var p in new[] { nameof(CorteFacturacion.BaseAvance), nameof(CorteFacturacion.BaseHitos), nameof(CorteFacturacion.ValorAiu),
+                         nameof(CorteFacturacion.ValorIva), nameof(CorteFacturacion.Amortizacion), nameof(CorteFacturacion.Total) })
+                e.Property(p).HasColumnType("decimal(20,2)");
+            e.HasIndex(x => new { x.ContratoFacturacionId, x.Tipo, x.FechaCorte }).IsUnique();
+            e.HasOne(x => x.Contrato).WithMany(c => c.Cortes).HasForeignKey(x => x.ContratoFacturacionId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<DetalleCorteFacturacion>(e =>
+        {
+            e.ToTable("DetallesCorteFacturacion");
+            e.Property(x => x.PctPlaneado).HasColumnType("decimal(9,4)");
+            e.Property(x => x.PctCronograma).HasColumnType("decimal(9,4)");
+            e.Property(x => x.PctReal).HasColumnType("decimal(9,4)");
+            e.Property(x => x.PctAnterior).HasColumnType("decimal(9,4)");
+            e.Property(x => x.Monto).HasColumnType("decimal(20,2)");
+            e.Property(x => x.AjustadoPor).HasMaxLength(200);
+            e.HasIndex(x => new { x.CorteFacturacionId, x.ItemFacturacionId }).IsUnique();
+            e.HasOne(x => x.Corte).WithMany(c => c.Detalles).HasForeignKey(x => x.CorteFacturacionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Item).WithMany().HasForeignKey(x => x.ItemFacturacionId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // ===== Permisos por usuario =====

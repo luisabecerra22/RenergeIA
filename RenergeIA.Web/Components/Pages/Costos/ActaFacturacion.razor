@@ -1,0 +1,156 @@
+@page "/proyectos/{ProyectoId:int}/costos/acta/{CorteId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using RenergeIA.Core.Entities
+@using RenergeIA.Core.Helpers
+@using RenergeIA.Web.Services
+@inject RenergeIADbContext Db
+@inject IJSRuntime JS
+
+@* Acta de avance del C3 (formato provisional hasta recibir el formato oficial de Renergeia). *@
+
+<PageTitle>@Titulo</PageTitle>
+
+<style>
+    .acta { background:#fff; max-width:1000px; margin:0 auto; padding:28px 34px; border:1px solid #dfe3e8; border-radius:10px; font-size:.85rem; color:#111921; }
+    .acta table { width:100%; border-collapse:collapse; }
+    .acta th { background:#183963; color:#fff; padding:6px 8px; font-size:.75rem; text-align:left; }
+    .acta td { padding:5px 8px; border-bottom:1px solid #e6e9ee; }
+    .acta .num { text-align:right; white-space:nowrap; }
+    .firmas { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:24px; margin-top:56px; text-align:center; font-size:.75rem; }
+    .firmas div { border-top:1px solid #111921; padding-top:6px; }
+    @@media print {
+        @@page { size: letter portrait; margin: 14mm; }
+        .acta { border:0; padding:0; max-width:none; }
+        body { background:#fff !important; }
+    }
+</style>
+
+@if (_corte is null || _c is null)
+{
+    <p class="p-4 text-muted">@(_cargado ? "No se encontró el acta." : "Cargando…")</p>
+}
+else
+{
+    <div class="d-flex gap-2 mb-3 no-print justify-content-center flex-wrap">
+        <a class="btn btn-sm btn-outline-secondary" href="/proyectos/@ProyectoId/costos">&larr; Volver a Costos</a>
+        <button class="btn btn-sm text-white fw-semibold" style="background:#183963" @onclick="ImprimirAsync">Imprimir / guardar PDF</button>
+    </div>
+
+    <div class="acta">
+        <div class="d-flex justify-content-between flex-wrap gap-2 pb-2" style="border-bottom:3px solid #6ABF4B">
+            <div>
+                <img src="/images/logo-renergeia.png.png" alt="Renergeia" style="height:44px" onerror="this.style.display='none'" />
+                <div class="fw-bold" style="color:#183963;font-size:1.1rem">RENERGEIA COLOMBIA SAS</div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold" style="font-size:1rem">@(_corte.Tipo == TipoCorteFacturacion.Anticipo ? "ACTA DE ANTICIPO" : $"ACTA DE AVANCE No. {_corte.NumeroActa:000}")</div>
+                <div class="text-muted">@Periodo</div>
+                <div class="text-muted">Fecha del acta: @(_corte.FechaActa?.AddHours(-5).ToString("dd/MM/yyyy"))</div>
+            </div>
+        </div>
+
+        <div class="row g-2 my-3">
+            <div class="col-6 col-md-4"><b>Proyecto:</b> @_proyecto?.Codigo @_proyecto?.Nombre</div>
+            <div class="col-6 col-md-4"><b>Contrato:</b> @_c.Nombre @(_c.NumeroContrato is { Length: > 0 } nc ? $"· {nc}" : "")</div>
+            <div class="col-6 col-md-4"><b>Cliente:</b> @(_c.Cliente ?? "—")</div>
+            <div class="col-6 col-md-4"><b>Valor del contrato:</b> @M(_c.ValorVenta) (sin IVA)</div>
+            <div class="col-6 col-md-4"><b>Fecha del contrato:</b> @(_c.FechaContrato?.ToString("dd/MM/yyyy") ?? "—")</div>
+            <div class="col-6 col-md-4"><b>Moneda:</b> @_c.Moneda</div>
+        </div>
+
+        @if (_corte.Tipo == TipoCorteFacturacion.Anticipo)
+        {
+            <table>
+                <thead><tr><th>Concepto</th><th class="num">%</th><th class="num">Valor</th></tr></thead>
+                <tbody>
+                    <tr><td>Anticipo sobre el valor del contrato</td><td class="num">@P(_c.PctAnticipo)</td><td class="num fw-bold">@M(_corte.Total)</td></tr>
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Ítem</th><th class="num">Valor ítem</th><th class="num">% anterior</th><th class="num">% del periodo</th><th class="num">% acumulado</th><th class="num">Valor del periodo</th></tr></thead>
+                <tbody>
+                    @foreach (var it in _c.Items.OrderBy(i => i.Orden))
+                    {
+                        var d = _corte.Detalles.FirstOrDefault(x => x.ItemFacturacionId == it.Id);
+                        if (d is null) continue;
+                        <tr>
+                            <td>@it.Codigo @it.Nombre</td>
+                            <td class="num">@M(it.Valor)</td>
+                            <td class="num">@P(d.PctAnterior)</td>
+                            <td class="num">@P(Math.Max(0, d.PctReal - d.PctAnterior))</td>
+                            <td class="num">@P(d.PctReal)</td>
+                            <td class="num">@M(d.Monto)</td>
+                        </tr>
+                    }
+                    @if (_corte.CulminacionMecanica) { <tr><td colspan="5">Culminación mecánica de la obra (@P(_c.PctCulminacionMecanica) del contrato)</td><td class="num">@M(_c.ValorVenta * _c.PctCulminacionMecanica / 100)</td></tr> }
+                    @if (_corte.CulminacionSustancial) { <tr><td colspan="5">Culminación sustancial de la obra (@P(_c.PctCulminacionSustancial) del contrato)</td><td class="num">@M(_c.ValorVenta * _c.PctCulminacionSustancial / 100)</td></tr> }
+                    @if (_corte.AceptacionProvisional) { <tr><td colspan="5">Aceptación provisional del proyecto (@P(_c.PctAceptacionProvisional) del contrato)</td><td class="num">@M(_c.ValorVenta * _c.PctAceptacionProvisional / 100)</td></tr> }
+                    <tr><td colspan="5" class="fw-semibold" style="border-top:1px solid #111921">Facturable por avance de obra (@P(_c.PctAvanceObra)) e hitos</td><td class="num fw-semibold" style="border-top:1px solid #111921">@M(_corte.BaseAvance + _corte.BaseHitos)</td></tr>
+                    @if (_corte.ValorAiu != 0) { <tr><td colspan="5">AIU obra civil (A @P(_c.PctAdministracion) · I @P(_c.PctImprevistos) · U @P(_c.PctUtilidad))</td><td class="num">@M(_corte.ValorAiu)</td></tr> }
+                    <tr><td colspan="5">IVA</td><td class="num">@M(_corte.ValorIva)</td></tr>
+                    <tr><td colspan="5">Amortización del anticipo (@P(_c.PctAnticipo))</td><td class="num">− @M(_corte.Amortizacion)</td></tr>
+                    <tr style="background:#eef6ea"><td colspan="5" class="fw-bold">TOTAL DEL ACTA</td><td class="num fw-bold">@M(_corte.Total)</td></tr>
+                </tbody>
+            </table>
+            <div class="mt-2 text-muted small">Acumulado facturado con esta acta: @M(Acumulado) de @M(_c.ValorVenta) (@P(_c.ValorVenta == 0 ? 0 : Acumulado / _c.ValorVenta * 100)).</div>
+        }
+
+        @if (!string.IsNullOrEmpty(_corte.NumeroFactura))
+        {
+            <div class="mt-2 small"><b>Factura asociada:</b> @_corte.NumeroFactura del @_corte.FechaFactura?.ToString("dd/MM/yyyy")</div>
+        }
+
+        <div class="firmas">
+            <div>Contratista<br />Renergeia Colombia SAS</div>
+            <div>Ingeniero del Dueño</div>
+            <div>Cliente<br />@(_c.Cliente ?? "")</div>
+        </div>
+        <p class="no-print mt-4 mb-0 small p-2 rounded" style="background:#fdf3e1;color:#8a5a12">Formato provisional: se reemplazará por el formato oficial de acta de avance de Renergeia.</p>
+    </div>
+}
+
+@code {
+    [Parameter] public int ProyectoId { get; set; }
+    [Parameter] public int CorteId { get; set; }
+
+    private CorteFacturacion? _corte;
+    private ContratoFacturacion? _c;
+    private Proyecto? _proyecto;
+    private bool _cargado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _corte = await Db.CortesFacturacion.AsNoTracking()
+            .Include(k => k.Detalles)
+            .Include(k => k.Contrato).ThenInclude(c => c.Items)
+            .Include(k => k.Contrato).ThenInclude(c => c.Cortes)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(k => k.Id == CorteId && k.Contrato.ProyectoId == ProyectoId);
+        _c = _corte?.Contrato;
+        _proyecto = await Db.Proyectos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == ProyectoId);
+        _cargado = true;
+    }
+
+    private string Titulo => _corte is null ? "Acta" :
+        _corte.Tipo == TipoCorteFacturacion.Anticipo ? "Acta de anticipo" : $"Acta de avance {_corte.NumeroActa} — {_corte.FechaCorte:MMMM yyyy}";
+
+    private string Periodo => _corte is null ? "" : _corte.Tipo == TipoCorteFacturacion.Anticipo
+        ? $"Fecha: {_corte.FechaCorte:dd/MM/yyyy}"
+        : $"Periodo: 01/{_corte.FechaCorte:MM/yyyy} al {_corte.FechaCorte:dd/MM/yyyy}";
+
+    private decimal Acumulado => _c?.Cortes
+        .Where(k => k.Tipo == TipoCorteFacturacion.Mensual && k.Estado != EstadoCorteFacturacion.Borrador && k.FechaCorte <= _corte!.FechaCorte)
+        .Sum(k => k.BaseAvance + k.BaseHitos) ?? 0;
+
+    private string M(decimal v) => _c?.Moneda == "USD"
+        ? "US$ " + v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-US"))
+        : "$ " + v.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("es-CO"));
+    private static string P(decimal v) => v.ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("es-CO")) + " %";
+
+    private async Task ImprimirAsync() => await JS.InvokeVoidAsync("print");
+}

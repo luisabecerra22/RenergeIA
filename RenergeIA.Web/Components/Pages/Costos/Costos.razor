@@ -58,6 +58,10 @@ else
     {
         <CostosConsolidado ProyectoId="ProyectoId" />
     }
+    else if (_tabActivo == "c3")
+    {
+        <CostosFacturacion ProyectoId="ProyectoId" />
+    }
 }
 
 @code {
@@ -75,6 +79,7 @@ else
         new("dashboard",    "Dashboard",         "bi-bar-chart-line"),
         new("bom",          "Presupuesto base vs Real", "bi-clipboard-data"),
         new("consolidado",  "Consolidado",       "bi-journal-text"),
+        new("c3",           "C3 · Avance de facturación", "bi-receipt"),
     ];
 
     protected override async Task OnInitializedAsync()
